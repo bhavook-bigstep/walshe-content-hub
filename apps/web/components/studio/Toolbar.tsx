@@ -26,7 +26,10 @@ interface Props {
   catalogImages?: readonly CatalogImageOption[];
 }
 
-const btn = "rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100";
+// Teal toolbar (brief §4): buttons sit on the teal bar as dark-teal chips with mint labels
+// (mint on teal-700 ≈ 7.4:1, passes WCAG AA), inverting to a mint highlight on hover/focus.
+const btn =
+  "rounded-sm border border-walshe-mint/25 bg-walshe-teal-700 px-3 py-2 text-small font-medium text-walshe-mint transition-colors hover:bg-walshe-mint hover:text-walshe-teal disabled:opacity-50";
 
 export default function Toolbar({ design, pageIndex, onChange, onPageChange, catalogImages = [] }: Props) {
   const [text, setText] = useState("New text");
@@ -37,7 +40,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
     <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Design tools">
       <input
         aria-label="Text content"
-        className="rounded border border-gray-300 px-2 py-1 text-sm"
+        className="rounded-sm border border-walshe-stone bg-walshe-white px-2 py-1.5 text-small text-walshe-ink"
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
@@ -78,7 +81,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
           >
             Add page
           </button>
-          <span className="text-sm">
+          <span className="text-small font-medium text-walshe-mint">
             Page {pageIndex + 1}/{design.pages.length}
           </span>
           <button type="button" className={btn} disabled={pageIndex === 0} onClick={() => onPageChange(pageIndex - 1)}>

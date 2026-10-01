@@ -9,6 +9,7 @@ import FormatPicker from "../../../components/studio/FormatPicker";
 import PersonalizePanel from "../../../components/studio/PersonalizePanel";
 import VideoPanel from "../../../components/studio/VideoPanel";
 import Toolbar, { type CatalogImageOption } from "../../../components/studio/Toolbar";
+import PageHeader from "../../../components/ui/PageHeader";
 import { fetchAssetObjectUrl, listAgentCatalog, type Entry } from "../../../lib/api";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import { addShape, addText, newDesign, setBackground, type DesignDoc } from "../../../lib/studio/ops";
@@ -80,27 +81,64 @@ export default function StudioPage() {
   }
 
   return (
-    <main className="space-y-4 p-6">
-      <h1 className="text-xl font-semibold">Design Studio</h1>
-      <FormatPicker value={design.format} onChange={pickFormat} />
-      <Toolbar
-        design={design}
-        pageIndex={pageIndex}
-        onChange={setDesign}
-        onPageChange={setPageIndex}
-        catalogImages={CATALOG_IMAGES}
+    <div>
+      <PageHeader
+        breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Design Studio" }]}
+        title="Design Studio"
+        description="Compose pamphlets, posts and stories on the canvas — manually or with the AI Builder."
       />
-      <StudioCanvas design={design} pageIndex={pageIndex} onReady={onReady} />
-      {panelItems === null ? (
-        <p role="status">Loading catalog…</p>
-      ) : panelItems.length === 0 ? (
-        <p role="status">No approved catalog items available for the Builder and Video panels.</p>
-      ) : (
-        <BuilderPanel design={design} pageIndex={pageIndex} items={panelItems} onChange={setDesign} />
-      )}
-      <PersonalizePanel design={design} pageIndex={pageIndex} onChange={setDesign} />
-      {panelItems !== null && panelItems.length > 0 && <VideoPanel items={panelItems} />}
-      <ExportMenu design={design} pageIndex={pageIndex} getCanvas={() => canvasRef.current} />
-    </main>
+
+      {/* Teal toolbar: format + canvas tools (brief §4). */}
+      <div className="mb-4 flex flex-col gap-3 rounded-md bg-walshe-teal p-3">
+        <FormatPicker value={design.format} onChange={pickFormat} />
+        <Toolbar
+          design={design}
+          pageIndex={pageIndex}
+          onChange={setDesign}
+          onPageChange={setPageIndex}
+          catalogImages={CATALOG_IMAGES}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        {/* Dark-neutral canvas surround; the Fabric canvas itself stays white. */}
+        <div className="flex items-start justify-center overflow-auto rounded-md bg-neutral-800 p-6">
+          <StudioCanvas design={design} pageIndex={pageIndex} onReady={onReady} />
+        </div>
+
+        {/* Right-hand panels. */}
+        <div className="space-y-4">
+          <section className="card p-5">
+            <h2 className="mb-3 text-h3 font-bold text-walshe-ink">AI Builder</h2>
+            {panelItems === null ? (
+              <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
+            ) : panelItems.length === 0 ? (
+              <p role="status" className="text-small text-walshe-grey">
+                No approved catalog items available for the Builder and Video panels.
+              </p>
+            ) : (
+              <BuilderPanel design={design} pageIndex={pageIndex} items={panelItems} onChange={setDesign} />
+            )}
+          </section>
+
+          <section className="card p-5">
+            <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Personalize</h2>
+            <PersonalizePanel design={design} pageIndex={pageIndex} onChange={setDesign} />
+          </section>
+
+          {panelItems !== null && panelItems.length > 0 && (
+            <section className="card p-5">
+              <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Video</h2>
+              <VideoPanel items={panelItems} />
+            </section>
+          )}
+
+          <section className="card p-5">
+            <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Export</h2>
+            <ExportMenu design={design} pageIndex={pageIndex} getCanvas={() => canvasRef.current} />
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }

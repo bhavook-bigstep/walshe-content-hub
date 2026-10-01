@@ -31,3 +31,4 @@ content_hub.db
 next-env.d.ts
 *.tsbuildinfo
 e2e-results.json
+docs/design/screenshots/

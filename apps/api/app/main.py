@@ -6,6 +6,7 @@ Tests call it with an isolated in-memory SQLite settings for hermetic, determini
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import INSECURE_JWT_SECRET, Settings, get_settings
 from app.db import create_all, make_engine, make_sessionmaker
@@ -38,6 +39,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.sessionmaker = make_sessionmaker(engine)
     app.state.storage = get_storage(settings)
+
+    # Browser CORS for local dev / e2e only (origins from CORS_ORIGINS). Empty in prod → no
+    # middleware, so the default posture stays closed and same-origin.
+    cors_origins = settings.cors_origin_list()
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     app.include_router(auth.router)
     app.include_router(admin.router)

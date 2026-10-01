@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import WalsheLogo from "../../components/brand/WalsheLogo";
 import { ApiError, login, me } from "../../lib/api";
 import { ROLE_HOME } from "../../lib/rbac";
 import { clear, setSession, setToken } from "../../lib/session";
@@ -35,48 +37,65 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded-lg bg-white p-6 shadow"
-        aria-busy={busy}
-      >
-        <h1 className="text-xl font-semibold">Walsh Content Hub</h1>
-        <label className="block text-sm">
-          Email
-          <input
-            type="email"
-            required
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-          />
-        </label>
-        <label className="block text-sm">
-          Password
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-700">
-            {error}
+    <main className="grid min-h-screen lg:grid-cols-2">
+      {/* Brand panel */}
+      <aside className="hidden flex-col justify-between bg-walshe-teal p-10 text-walshe-mint lg:flex">
+        <Link href="/">
+          <WalsheLogo tone="teal" />
+        </Link>
+        <div>
+          <p className="mb-3 text-small font-medium uppercase tracking-[0.14em] text-walshe-mint/80">
+            Premium brands, trusted outcomes
           </p>
-        )}
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded bg-slate-900 px-3 py-2 text-white disabled:opacity-60"
-        >
-          {busy ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
+          <h2 className="text-h1 font-light text-walshe-white">
+            Verified destination content, assembled into trade marketing in minutes.
+          </h2>
+        </div>
+        <p className="text-small text-walshe-mint/70">Celebrating 50 years in business in 2026</p>
+      </aside>
+
+      {/* Form */}
+      <div className="flex items-center justify-center bg-walshe-stone p-6">
+        <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-5 p-8" aria-busy={busy}>
+          <div className="lg:hidden">
+            <WalsheLogo tone="light" />
+          </div>
+          <div>
+            <h1 className="text-h2 font-light text-walshe-ink">Sign in</h1>
+            <p className="mt-1 text-small text-walshe-grey">Access the Walshe Content Hub.</p>
+          </div>
+          <label className="block">
+            <span className="label">Email</span>
+            <input
+              type="email"
+              required
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="field"
+            />
+          </label>
+          <label className="block">
+            <span className="label">Password</span>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="field"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-small text-walshe-danger">
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={busy} className="btn-primary w-full">
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

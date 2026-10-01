@@ -84,7 +84,7 @@ export default function StudioCanvas({ design, pageIndex, onReady, displayWidth 
   }, [design, pageIndex, displayWidth]);
 
   return (
-    <div data-testid="studio-canvas" className="inline-block border border-gray-300 shadow-sm">
+    <div data-testid="studio-canvas" className="inline-block rounded-sm bg-white shadow-soft ring-1 ring-black/10">
       <canvas ref={elRef} />
     </div>
   );

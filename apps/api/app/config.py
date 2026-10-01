@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
 
+    # Browser CORS: comma-separated allowed origins. Empty (prod default) = no CORS middleware
+    # (the web app is served same-origin / behind one origin in prod). Dev and e2e set the local
+    # web origin(s) so the browser may call the API cross-port.
+    cors_origins: str = ""
+
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
 
 def get_settings() -> Settings:
     """Return a fresh Settings instance (overridable in tests via dependency_overrides)."""

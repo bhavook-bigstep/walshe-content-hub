@@ -55,7 +55,8 @@ export default function ExportMenu({
     }
   }
 
-  const btn = "rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 disabled:opacity-50";
+  const btn =
+    "rounded-sm border border-walshe-teal px-3 py-1.5 text-small font-medium text-walshe-teal transition-colors hover:bg-walshe-teal-100 disabled:opacity-50";
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Export">
       <button type="button" className={btn} disabled={busy !== null} onClick={() => void run("png")}>
@@ -68,7 +69,7 @@ export default function ExportMenu({
         Export email HTML
       </button>
       {error && (
-        <span role="alert" className="text-sm text-red-600">
+        <span role="alert" className="text-small text-walshe-danger">
           {error}
         </span>
       )}

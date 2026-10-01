@@ -150,8 +150,9 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
   }
 
   const busy = generating || rendering;
-  const btn = "rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 disabled:opacity-50";
-  const field = "w-full rounded border border-gray-300 px-2 py-1 text-sm";
+  const btn =
+    "rounded-sm border border-walshe-teal px-3 py-1.5 text-small font-medium text-walshe-teal transition-colors hover:bg-walshe-teal-100 disabled:opacity-50";
+  const field = "w-full rounded-sm border border-walshe-stone px-2 py-1.5 text-small text-walshe-ink";
 
   return (
     <section aria-label="Video" className="flex flex-col gap-3">
@@ -162,7 +163,7 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
         <button type="button" className={btn} disabled={busy || scenes.length >= MAX_SCENES} onClick={add}>
           Add scene
         </button>
-        <label className="flex items-center gap-1 text-sm">
+        <label className="flex items-center gap-1.5 text-small text-walshe-ink">
           <input type="checkbox" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} />
           Voiceover
         </label>
@@ -177,13 +178,13 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-small text-walshe-danger">
           {error}
         </p>
       )}
 
       {scenes.length === 0 ? (
-        <p className="text-sm text-gray-500">
+        <p className="text-small text-walshe-grey">
           {items.length === 0
             ? "Select catalog items to build a video, or add a scene manually."
             : "No scenes yet. Auto-generate a script from your selection or add a scene."}
@@ -191,8 +192,8 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
       ) : (
         <ol className="flex flex-col gap-2">
           {scenes.map((s, i) => (
-            <li key={s.id} className="flex flex-col gap-1 rounded border border-gray-200 p-2">
-              <div className="flex items-center justify-between text-xs text-gray-500">
+            <li key={s.id} className="flex flex-col gap-1 rounded-sm border border-walshe-stone p-3">
+              <div className="flex items-center justify-between text-small text-walshe-grey">
                 <span>Scene {i + 1}</span>
                 <span className="flex gap-1">
                   <button type="button" className={btn} aria-label={`Move scene ${i + 1} up`} disabled={busy || i === 0} onClick={() => move(s.id, -1)}>
@@ -228,9 +229,9 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
         </ol>
       )}
 
-      {rendering && !videoUrl && <p className="text-sm text-gray-500">Rendering video, this can take a moment…</p>}
+      {rendering && !videoUrl && <p className="text-small text-walshe-grey">Rendering video, this can take a moment…</p>}
       {videoUrl && (
-        <video controls src={videoUrl} className="w-full rounded border border-gray-200" aria-label="Video preview" />
+        <video controls src={videoUrl} className="w-full rounded-sm border border-walshe-stone" aria-label="Video preview" />
       )}
     </section>
   );

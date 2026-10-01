@@ -10,11 +10,11 @@ export default function FormatPicker({
   onChange: (format: FormatName) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm">
+    <label className="flex items-center gap-2 text-small text-walshe-mint">
       <span className="font-medium">Format</span>
       <select
         aria-label="Format"
-        className="rounded border border-gray-300 px-2 py-1"
+        className="rounded-sm border border-walshe-stone bg-walshe-white px-2 py-1.5 text-walshe-ink"
         value={value}
         onChange={(e) => onChange(e.target.value as FormatName)}
       >

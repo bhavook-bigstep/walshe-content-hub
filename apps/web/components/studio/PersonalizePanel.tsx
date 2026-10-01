@@ -50,12 +50,17 @@ export default function PersonalizePanel({
     onChange(applyBranding(design, branding, pageIndex));
   }
 
-  const input = "w-full rounded border border-gray-300 px-2 py-1 text-sm";
+  const input = "field text-small";
   return (
     <section className="flex flex-col gap-2" aria-label="Personalize">
-      <label className="text-sm">
-        Logo
-        <input type="file" accept="image/*" onChange={(e) => void onLogo(e.target.files?.[0])} />
+      <label className="text-small text-walshe-ink">
+        <span className="label">Logo</span>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => void onLogo(e.target.files?.[0])}
+          className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-3 file:py-1.5 file:text-small file:font-medium file:text-walshe-mint"
+        />
       </label>
       {(["name", "email", "phone", "website"] as const).map((k) => (
         <input
@@ -74,10 +79,10 @@ export default function PersonalizePanel({
         value={offer}
         onChange={(e) => setOffer(e.target.value)}
       />
-      <button type="button" className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100" onClick={apply}>
+      <button type="button" className="btn-secondary self-start" onClick={apply}>
         Apply to page
       </button>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-small text-walshe-danger">{error}</p>}
     </section>
   );
 }

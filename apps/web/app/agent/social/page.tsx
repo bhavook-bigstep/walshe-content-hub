@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import PageHeader from "../../../components/ui/PageHeader";
 import { ApiError, publishSocialPost, scheduleSocialPost, type Post } from "../../../lib/api";
 
 // Simulated connected channels (no real network integration in this PoC).
@@ -48,32 +48,27 @@ export default function AgentSocialPage() {
   }
 
   return (
-    <main className="space-y-4 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Social</h1>
-        <Link href="/agent" className="text-sm underline">
-          Agent home
-        </Link>
-      </div>
-      <p className="text-sm text-slate-600">Schedule or publish a composition to a simulated connected channel.</p>
+    <div>
+      <PageHeader
+        breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Social" }]}
+        title="Social"
+        description="Schedule or publish a composition to a simulated connected channel."
+      />
 
-      <form onSubmit={onSchedule} className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          Composition id
+      <form onSubmit={onSchedule} className="card mb-6 flex flex-wrap items-end gap-4 p-4">
+        <label className="text-small">
+          <span className="label">Composition id</span>
           <input
             value={compositionId}
             onChange={(e) => setCompositionId(e.target.value)}
             inputMode="numeric"
-            className="mt-1 block rounded border px-2 py-1"
+            className="field"
+            placeholder="e.g. 1"
           />
         </label>
-        <label className="text-sm">
-          Channel
-          <select
-            value={channel}
-            onChange={(e) => setChannel(e.target.value)}
-            className="mt-1 block rounded border px-2 py-1"
-          >
+        <label className="text-small">
+          <span className="label">Channel</span>
+          <select value={channel} onChange={(e) => setChannel(e.target.value)} className="field capitalize">
             {CHANNELS.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -81,48 +76,50 @@ export default function AgentSocialPage() {
             ))}
           </select>
         </label>
-        <label className="text-sm">
-          Schedule at
+        <label className="text-small">
+          <span className="label">Schedule at</span>
           <input
             type="datetime-local"
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
-            className="mt-1 block rounded border px-2 py-1"
+            className="field"
           />
         </label>
-        <button type="submit" disabled={busy} className="rounded bg-slate-800 px-3 py-1 text-white disabled:opacity-50">
-          Schedule
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void submit("publish")}
-          className="rounded border px-3 py-1 disabled:opacity-50"
-        >
-          Publish now
-        </button>
+        <div className="flex gap-3">
+          <button type="submit" disabled={busy} className="btn-primary h-12">
+            Schedule
+          </button>
+          <button type="button" disabled={busy} onClick={() => void submit("publish")} className="btn-secondary h-12">
+            Publish now
+          </button>
+        </div>
       </form>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="card mb-6 border-walshe-danger/30 p-4 text-small text-walshe-danger">
           {error}
         </p>
       )}
 
       <section aria-label="Posts">
-        <h2 className="mb-2 font-medium">Posts</h2>
+        <h2 className="mb-4 text-h3 font-bold text-walshe-ink">Posts</h2>
         {posts.length === 0 ? (
-          <p className="text-sm text-slate-500">No posts yet.</p>
+          <div className="card p-8 text-center text-body text-walshe-grey">
+            No posts yet. Schedule or publish a composition to see it here.
+          </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {posts.map((p) => (
-              <li key={p.id} className="flex items-center justify-between rounded border p-3 text-sm">
-                <span>
-                  Composition #{p.composition_id} on {p.channel}
-                  {p.status === "scheduled" && p.scheduled_at ? ` at ${p.scheduled_at}` : ""}
-                  {p.status === "published" && p.published_at ? ` at ${p.published_at}` : ""}
+              <li key={p.id} className="card flex items-center justify-between gap-3 p-4 text-small">
+                <span className="text-walshe-ink">
+                  Composition #{p.composition_id} on <span className="capitalize">{p.channel}</span>
+                  {p.status === "scheduled" && p.scheduled_at ? ` · scheduled ${new Date(p.scheduled_at).toLocaleString()}` : ""}
+                  {p.status === "published" && p.published_at ? ` · published ${new Date(p.published_at).toLocaleString()}` : ""}
                 </span>
-                <span data-testid="post-status" className="rounded bg-slate-100 px-2 py-0.5 font-medium">
+                <span
+                  data-testid="post-status"
+                  className={p.status === "published" ? "chip-verified" : "chip-draft"}
+                >
                   {p.status}
                 </span>
               </li>
@@ -130,6 +127,6 @@ export default function AgentSocialPage() {
           </ul>
         )}
       </section>
-    </main>
+    </div>
   );
 }

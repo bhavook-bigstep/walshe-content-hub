@@ -129,30 +129,26 @@ export default function BuilderPanel({
   return (
     <section className="flex flex-col gap-2" aria-label="Builder" aria-busy={loading}>
       <textarea
-        className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+        className="field-area text-small"
         placeholder="Describe the design you want"
         aria-label="Builder prompt"
         value={prompt}
         maxLength={2000}
+        rows={3}
         onChange={(e) => setPrompt(e.target.value)}
       />
       {items.length === 0 ? (
-        <p className="text-sm text-gray-600">Select at least one catalog item for the Builder to use.</p>
+        <p className="text-small text-walshe-grey">Select at least one catalog item for the Builder to use.</p>
       ) : (
-        <p className="text-sm text-gray-600">
+        <p className="text-small text-walshe-grey">
           {items.length} catalog item{items.length === 1 ? "" : "s"} selected
         </p>
       )}
-      <button
-        type="button"
-        className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100 disabled:opacity-50"
-        disabled={!canRun}
-        onClick={() => void run()}
-      >
-        {loading ? "Generating..." : "Generate design"}
+      <button type="button" className="btn-primary self-start" disabled={!canRun} onClick={() => void run()}>
+        {loading ? "Generating…" : "Generate design"}
       </button>
-      {notice && <p role="status" className="text-sm text-gray-700">{notice}</p>}
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {notice && <p role="status" className="text-small text-walshe-teal">{notice}</p>}
+      {error && <p role="alert" className="text-small text-walshe-danger">{error}</p>}
     </section>
   );
 }

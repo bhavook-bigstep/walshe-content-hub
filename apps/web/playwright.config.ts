@@ -16,6 +16,8 @@ const apiEnv = {
   ANTHROPIC_API_KEY: "",
   OPENAI_API_KEY: "",
   GEMINI_API_KEY: "",
+  // Allow the e2e web origin to call the API directly (real CORS; no brittle route proxy).
+  CORS_ORIGINS: `http://localhost:${WEB_PORT}`,
 };
 
 const seedScript = [

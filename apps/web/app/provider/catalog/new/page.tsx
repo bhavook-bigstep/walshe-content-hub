@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import PageHeader from "../../../../components/ui/PageHeader";
 import { ApiError, createEntry, uploadImage, type CatalogType, type Entry } from "../../../../lib/api";
 import { upsertEntry } from "../../../../lib/provider-store";
 
@@ -52,30 +53,39 @@ export default function NewEntryPage() {
     }
   }
 
-  const input = "mt-1 block w-full rounded border border-slate-300 px-3 py-2";
-
   return (
-    <main className="max-w-xl space-y-4 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">New entry</h1>
-        <Link href="/provider/catalog" className="text-sm underline">
-          My catalog
-        </Link>
-      </div>
+    <div className="max-w-2xl">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Home", href: "/provider" },
+          { label: "My catalog", href: "/provider/catalog" },
+          { label: "New entry" },
+        ]}
+        title="New entry"
+        description="Publish an event, place, opportunity, offer or itinerary."
+      />
 
       {created ? (
-        <section className="space-y-2 rounded-lg bg-white p-4 shadow" role="status">
-          <p className="text-sm">Created &quot;{created.title}&quot;.</p>
-          {imageNote && <p className="text-sm text-slate-600">{imageNote}</p>}
-          <Link href={`/provider/catalog/${created.id}`} className="text-sm underline">
-            Set brand-safe flag and access
-          </Link>
+        <section className="card space-y-3 p-6" role="status">
+          <span className="chip-verified">Created</span>
+          <p className="text-body text-walshe-ink">
+            &ldquo;{created.title}&rdquo; has been created.
+          </p>
+          {imageNote && <p className="text-small text-walshe-grey">{imageNote}</p>}
+          <div className="flex gap-3">
+            <Link href={`/provider/catalog/${created.id}`} className="btn-primary">
+              Set brand-safe flag and access
+            </Link>
+            <Link href="/provider/catalog" className="btn-secondary">
+              Back to catalog
+            </Link>
+          </div>
         </section>
       ) : (
-        <form onSubmit={onSubmit} className="space-y-3">
-          <label className="block text-sm">
-            Type
-            <select value={type} onChange={(e) => setType(e.target.value as CatalogType)} className={input}>
+        <form onSubmit={onSubmit} className="card space-y-4 p-6">
+          <label className="block">
+            <span className="label">Type</span>
+            <select value={type} onChange={(e) => setType(e.target.value as CatalogType)} className="field capitalize">
               {TYPES.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -83,41 +93,46 @@ export default function NewEntryPage() {
               ))}
             </select>
           </label>
-          <label className="block text-sm">
-            Title
-            <input required value={title} onChange={(e) => setTitle(e.target.value)} className={input} />
+          <label className="block">
+            <span className="label">Title</span>
+            <input required value={title} onChange={(e) => setTitle(e.target.value)} className="field" />
           </label>
-          <label className="block text-sm">
-            Description
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className={input} />
+          <label className="block">
+            <span className="label">Description</span>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="field-area" />
           </label>
-          <label className="block text-sm">
-            Destination
-            <input required value={destination} onChange={(e) => setDestination(e.target.value)} className={input} />
+          <label className="block">
+            <span className="label">Destination</span>
+            <input required value={destination} onChange={(e) => setDestination(e.target.value)} className="field" />
           </label>
-          <label className="block text-sm">
-            Market tags (comma separated)
-            <input value={tags} onChange={(e) => setTags(e.target.value)} className={input} />
+          <label className="block">
+            <span className="label">Market tags (comma separated)</span>
+            <input value={tags} onChange={(e) => setTags(e.target.value)} className="field" placeholder="families, luxury" />
           </label>
-          <label className="block text-sm">
-            Image (optional)
+          <label className="block">
+            <span className="label">Image (optional)</span>
             <input
               type="file"
               accept="image/*"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="mt-1 block w-full text-sm"
+              className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-walshe-mint hover:file:bg-walshe-teal-700"
             />
           </label>
           {error && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-small text-walshe-danger">
               {error}
             </p>
           )}
-          <button type="submit" disabled={busy} className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-60">
-            {busy ? "Saving..." : "Create entry"}
-          </button>
+          <div className="flex gap-3">
+            <button type="submit" disabled={busy} className="btn-primary">
+              {busy ? "Saving…" : "Create entry"}
+            </button>
+            <Link href="/provider/catalog" className="btn-secondary">
+              Cancel
+            </Link>
+          </div>
         </form>
       )}
-    </main>
+    </div>
   );
 }

@@ -1,3 +1,96 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Walshe design system (AC19). CSS vars mirror the Tailwind tokens (tailwind.config.ts / brief §3)
+   so non-Tailwind consumers (inline styles, charts) read the same palette. */
+:root {
+  --walshe-teal: #005653;
+  --walshe-teal-700: #003e3c;
+  --walshe-teal-100: #cfe6e3;
+  --walshe-mint: #e5f6df;
+  --walshe-stone: #ecebe8;
+  --walshe-ink: #000000;
+  --walshe-grey: #737373;
+  --walshe-white: #ffffff;
+  --walshe-green: #00ae41;
+  --walshe-danger: #b3261e;
+  --walshe-warn: #8a5a00;
+
+  /* Spacing scale (4px base). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--walshe-stone);
+    color: var(--walshe-ink);
+    font-family: var(--font-sans), "Founders Grotesk", "Helvetica Neue", Inter, system-ui, sans-serif;
+  }
+  h1,
+  h2,
+  h3 {
+    color: var(--walshe-ink);
+    text-wrap: balance;
+  }
+  /* Visible 2px teal focus ring across the app (brief §5/§6). */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--walshe-teal);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+@layer components {
+  /* Primary CTA — teal pill, mint label. 48px min target for touch (brief §5/AC23). */
+  .btn-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-walshe-teal px-6 py-3 text-small font-medium text-walshe-mint transition-colors hover:bg-walshe-teal-700 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  /* Secondary CTA — 2px outline teal, transparent fill (brief §5 component spec). */
+  .btn-secondary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill border-2 border-walshe-teal bg-transparent px-6 py-3 text-small font-medium text-walshe-teal transition-colors hover:bg-walshe-teal-100 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  /* Ghost / tertiary. */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm px-3 py-2 text-small font-medium text-walshe-teal transition-colors hover:bg-walshe-teal-100;
+  }
+  /* Card — white, stone border, md radius; soft shadow only on hover/overlay. */
+  .card {
+    @apply rounded-md border border-walshe-stone bg-walshe-white;
+  }
+  .card-hover {
+    @apply transition-shadow hover:shadow-soft;
+  }
+  /* Verified chip — mint bg, teal text. */
+  .chip-verified {
+    @apply inline-flex items-center gap-1 rounded-pill bg-walshe-mint px-2.5 py-0.5 text-small font-medium text-walshe-teal;
+  }
+  .chip-draft {
+    @apply inline-flex items-center gap-1 rounded-pill bg-walshe-stone px-2.5 py-0.5 text-small font-medium text-walshe-grey;
+  }
+  /* Form field — 48px, visible focus ring handled by base rule. */
+  .field {
+    @apply block h-12 w-full rounded-sm border border-walshe-stone bg-walshe-white px-3 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal;
+  }
+  .field-area {
+    @apply block w-full rounded-sm border border-walshe-stone bg-walshe-white px-3 py-2 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal;
+  }
+  .label {
+    @apply mb-1 block text-small font-medium text-walshe-ink;
+  }
+}

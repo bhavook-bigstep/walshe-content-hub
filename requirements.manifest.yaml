@@ -99,7 +99,7 @@ acceptance:
   AC19:
     tier: design
     web:
-      - "apps/web/tests/theme.test.ts::walshe brand tokens present"
+      - "apps/web/tests/theme.test.ts::test_theme_exposes_walshe_tokens"
   AC20:
     tier: design
     e2e:
