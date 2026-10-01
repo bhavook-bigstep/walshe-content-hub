@@ -5,16 +5,13 @@ Guides say HOW.** They never swap roles.
 
 ## Project
 
-> ⚠️ This repo was scaffolded empty — the values below are best-guesses from the project name.
-> Correct anything marked `⚠️ CONFIRM` before the first real build.
-
 | Property | Value |
 | --- | --- |
-| Project | Walsh Content Hub — a central hub for creating, organising, and publishing content `⚠️ CONFIRM` |
+| Project | Walsh Content Hub — a B2B Destination Content Hub: tourism boards publish verified content; travel agents turn it into marketing assets (incl. an AI-driven Canva-style studio) and run a social engagement layer |
 | Stage | Proof of concept |
-| Language / stack | `⚠️ CONFIRM` — not yet chosen (suggest: TypeScript · Next.js · Postgres, or Python · FastAPI) |
-| Test runner | `⚠️ CONFIRM` — (suggest: Vitest/Jest for JS, pytest for Python) |
-| Source of truth | `⚠️ CONFIRM` — where the authoritative content/config lives (e.g. the database / a CMS) |
+| Language / stack | Monorepo — **Next.js 15 · TypeScript · Tailwind** (web) · **Python 3.12 · FastAPI · SQLAlchemy · Alembic** (api) · **Postgres 16** · **MinIO** (assets); pnpm + turborepo + uv; Docker Compose |
+| Test runner | **pytest** (api) · **Vitest** + **Playwright** (web) |
+| Source of truth | Postgres (catalog, users, compositions, posts) + MinIO (binary assets). Charter: `docs/plans/2026-10-01-requirements-charter.md` |
 
 ## Compound Engineering
 
@@ -25,33 +22,46 @@ Each unit of work should make the next one easier. Before implementing, search
 
 ## Architecture
 
-`⚠️ CONFIRM` — no code exists yet. Once the stack is chosen, keep a short map here: the main
-components (e.g. content editor UI, API layer, storage, publishing/export pipeline) and how
-data flows between them. This is the top of the loading order — everything inherits from it.
+Monorepo (pnpm + turborepo + uv):
+
+```
+apps/web    Next.js — three role UIs: Super Admin · Content Provider · Tourism Agent
+apps/api    FastAPI — auth/RBAC, catalog CRUD, AI provider layer, Builder agent, media render
+packages/shared   shared TS types + API client
+infra       docker-compose: Postgres + MinIO
+```
+
+Data flow: **Provider** creates catalog entries (events/places/opportunities/offers/itineraries)
++ uploads images (MinIO) → marks brand-safe + sets access → **Agent** browses the approved
+catalog → composes in the **Design Studio** (Fabric.js canvas; manual + AI **Builder**) →
+exports PNG/PDF/MP4 → schedules/publishes to the (simulated) **social layer** → engagement
+dashboard. **Super Admin** governs users/tenants/verification.
+
+Key seams:
+- **AI provider abstraction** (`apps/api`): one interface, three providers (Claude/OpenAI/Gemini),
+  selected by config; keys from env; **deterministic stub fallback when no key is present**;
+  mocked in tests.
+- **Builder agent**: LLM tool-use that places canvas elements + writes copy, grounded in the
+  selected catalog items.
+- **Media render service** (`apps/api`): PDF (pamphlets) + **MP4** via the `demo-video`
+  mechanism — ffmpeg zoompan + `drawtext` overlays + optional TTS (`say`/espeak) + captions.
 
 ## System Contracts
 
-The invariants that must never be violated — where a breach is a bug of record, not a style
-nit. These are starting defaults for a content hub; adjust to the real design.
+### Contract 1: Only approved, brand-safe content is distributable to agents
+**WHY:** The product's whole value is *verified* content. An agent seeing a draft/unapproved
+entry is a trust + brand-safety breach, not a cosmetic bug. (Acceptance item AC6.)
 
-### Contract 1: Published content is the source of truth; drafts never publish silently
-**WHY:** Readers must only ever see content an author explicitly published. An accidental
-publish of a draft is a trust/accuracy incident, not a cosmetic bug.
+### Contract 2: No secrets or PII leave the approved boundary
+**WHY:** Provider API keys and user data must never be committed, logged, or shown in the demo.
+Keys come from env only.
 
-### Contract 2: No secrets or user PII leave the approved boundary
-**WHY:** Content systems hold author accounts, API keys for publishing targets, and sometimes
-reader data. A leak is a security incident with legal and reputational cost.
+### Contract 3: Destructive actions (delete/unpublish/overwrite) are traceable
+**WHY:** Content work is iterative; authors must see who changed/removed what and recover.
 
-### Contract 3: Every destructive action (delete/overwrite/publish) is traceable
-**WHY:** Content work is iterative; authors must be able to see who changed or removed what,
-and recover from mistakes. Untraceable mutation makes data loss unrecoverable.
-
-### Contract 4: Runs/builds are reproducible — pinned inputs + versioned config
-**WHY:** A PoC that behaves differently each run can't be reviewed or trusted. Same inputs +
-config → same output.
-
-> ⚠️ CONFIRM these contracts reflect what Walsh Content Hub actually is — replace any that
-> don't fit once the domain is nailed down.
+### Contract 4: Runs are reproducible; AI is deterministic in tests
+**WHY:** A PoC that behaves differently each run can't be reviewed. AI providers are mocked/
+stubbed in tests; same inputs + config → same output.
 
 ## Enforcement Rules
 
@@ -69,5 +79,6 @@ Full enforcement lives in `.claude/rules/` (loaded conditionally by area):
 
 - Do what was asked; nothing more, nothing less (YAGNI).
 - Prefer editing existing files to creating new ones.
-- Never commit, push, or open a PR until the user explicitly approves.
+- Never commit, push, or open a PR until the user explicitly approves (a `/oneshot-poc:run`
+  may commit to the local `feat/content-hub-poc` branch, but never pushes).
 - Search `docs/solutions/` before implementing; capture learnings after.
