@@ -1,0 +1,111 @@
+name: CI
+
+# Quality gates + governance enforcement for the Walsh Content Hub.
+#
+# The governance job makes /REQUIREMENTS.md *govern*: it checks the spec<->manifest are in sync
+# and (once the app test suites exist) reds the build on any acceptance item with no passing proof.
+# The api/web jobs produce the machine test reports the acceptance matrix consumes; they are
+# guarded on the app directories so they activate as the monorepo scaffold lands (plan §2/§5).
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+
+jobs:
+  # Always-on: the governance mechanism itself (§1). Green today, no app needed.
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install governance deps
+        run: python -m pip install --quiet pyyaml pytest
+      - name: Unit-test the governance scripts
+        run: python -m pytest scripts/tests -q
+      - name: Spec <-> manifest sync guard
+        run: python scripts/check_requirements_sync.py --spec REQUIREMENTS.md --manifest requirements.manifest.yaml
+
+  # Target suite — api (pytest + json report). Activates once apps/api exists.
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: echo "present=$([ -d apps/api ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - if: steps.guard.outputs.present == 'yes'
+        uses: astral-sh/setup-uv@v5
+      - if: steps.guard.outputs.present == 'yes'
+        name: api lint + type + tests (json report)
+        working-directory: apps/api
+        run: |
+          uv sync
+          uv run ruff check .
+          uv run pytest -q --json-report --json-report-file=.report.json
+      - if: steps.guard.outputs.present == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-report
+          path: apps/api/.report.json
+
+  # Target suite — web (vitest + Playwright + json reports). Activates once apps/web exists.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: echo "present=$([ -d apps/web ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - if: steps.guard.outputs.present == 'yes'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - if: steps.guard.outputs.present == 'yes'
+        name: web lint + type + vitest + e2e (json reports)
+        working-directory: apps/web
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm vitest run --reporter=json --outputFile=.vitest.json
+          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright test --reporter=json > .e2e.json
+      - if: steps.guard.outputs.present == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-reports
+          path: |
+            apps/web/.vitest.json
+            apps/web/.e2e.json
+
+  # The spec governs: map every proof onto the AC set and refuse unproven acceptance items.
+  acceptance:
+    needs: [governance, api, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --quiet pyyaml
+      - uses: actions/download-artifact@v4
+        with:
+          path: _reports
+        continue-on-error: true
+      - name: Build acceptance matrix (and enforce once all suites exist)
+        run: |
+          API=_reports/api-report/.report.json
+          WEB=_reports/web-reports/.vitest.json
+          E2E=_reports/web-reports/.e2e.json
+          ARGS="--manifest requirements.manifest.yaml"
+          [ -f "$API" ] && ARGS="$ARGS --api-report $API"
+          [ -f "$WEB" ] && ARGS="$ARGS --web-report $WEB"
+          [ -f "$E2E" ] && ARGS="$ARGS --e2e-report $E2E"
+          # Enforce (--check) only once the app suites are producing reports; until then the
+          # matrix is reported for visibility while the scaffold is still being built (plan §5).
+          if [ -f "$API" ] && [ -f "$WEB" ] && [ -f "$E2E" ]; then
+            ARGS="$ARGS --check"
+          fi
+          python scripts/acceptance_matrix.py $ARGS

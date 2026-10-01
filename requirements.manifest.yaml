@@ -1,0 +1,95 @@
+# requirements.manifest.yaml
+#
+# Machine-readable sidecar to /REQUIREMENTS.md (the governed human source of truth).
+# It maps each acceptance item (AC#) -> the test node-ids that PROVE it, grouped by suite
+# (api = pytest, web = vitest, e2e = Playwright), plus its priority tier.
+#
+# This is the ONLY hand-edited AC<->test link in the repo. Two scripts consume it:
+#   * scripts/acceptance_matrix.py      reads this + the three machine test reports and emits
+#                                       met / partial / missing per AC (and reds the build on
+#                                       any unproven AC with --check). This is how the spec
+#                                       *governs*.
+#   * scripts/check_requirements_sync.py asserts this manifest covers EXACTLY the AC set defined
+#                                       in /REQUIREMENTS.md (no orphan, no missing) so the spec
+#                                       and its proof map can never silently diverge.
+#
+# Governance decision behind this file: docs/brainstorms/2026-10-01-governing-requirements-file.md
+# (Approach D) -> implementation plan §1. Editing scope means editing /REQUIREMENTS.md first.
+version: 1
+spec: REQUIREMENTS.md
+acceptance:
+  AC1:
+    tier: P1
+    api:
+      - "apps/api/tests/test_auth_rbac.py::test_role_guard_blocks_wrong_role"
+  AC2:
+    tier: P3
+    api:
+      - "apps/api/tests/test_admin.py::test_approve_provider_flips_flag"
+  AC3:
+    tier: P1
+    api:
+      - "apps/api/tests/test_catalog_crud.py::test_create_entry_each_type"
+  AC4:
+    tier: P1
+    api:
+      - "apps/api/tests/test_assets.py::test_upload_then_fetch"
+  AC5:
+    tier: P3
+    api:
+      - "apps/api/tests/test_catalog_access.py::test_set_brand_safe_and_access_scope"
+  AC6:
+    tier: P1
+    api:
+      - "apps/api/tests/test_visibility_contract.py::test_agent_never_sees_unapproved"
+  AC7:
+    tier: P1
+    api:
+      - "apps/api/tests/test_catalog_search.py::test_filter_by_destination_and_type"
+  AC8:
+    tier: P1
+    web:
+      - "apps/web/tests/formats.test.ts::test_format_presets"
+  AC9:
+    tier: P1
+    web:
+      - "apps/web/tests/studio-ops.test.ts::test_manual_ops_mutate_design"
+  AC10:
+    tier: P2
+    api:
+      - "apps/api/tests/test_builder.py::test_builder_stub_is_deterministic"
+  AC11:
+    tier: P2
+    web:
+      - "apps/web/tests/personalize.test.ts::test_apply_branding_adds_nodes"
+  AC12:
+    tier: P1
+    api:
+      - "apps/api/tests/test_export.py::test_pdf_and_html_from_design"
+  AC13:
+    tier: P2
+    api:
+      - "apps/api/tests/test_video.py::test_scene_script_deterministic_and_cmd_shape"
+  AC14:
+    tier: P3
+    api:
+      - "apps/api/tests/test_social.py::test_schedule_then_publish_transitions"
+  AC15:
+    tier: P3
+    api:
+      - "apps/api/tests/test_engagement.py::test_dashboard_returns_seeded_metrics"
+  AC16:
+    tier: P1
+    api:
+      - "apps/api/tests/test_ai_provider.py::test_factory_selects_and_falls_back"
+  AC17:
+    tier: P1
+    api:
+      - "apps/api/tests/test_seed.py::test_seed_is_idempotent_and_complete"
+  AC18:
+    tier: P1
+    api:
+      - "scripts/tests/test_acceptance_matrix.py::test_evaluate_classifies_met_partial_missing"
+      - "scripts/tests/test_requirements_sync.py::test_sync_detects_missing_and_extra"
+    e2e:
+      - "apps/web/e2e/studio-smoke.spec.ts::studio smoke"
