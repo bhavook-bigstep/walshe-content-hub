@@ -5,7 +5,11 @@
 - **Charter (scoping record):** `docs/plans/2026-10-01-requirements-charter.md` v2 · **Ledger:** `docs/plans/2026-10-01-run-ledger.md`
 - **Brainstorm decision carried in:** `docs/brainstorms/2026-10-01-governing-requirements-file.md` → **Approach D** (governed Markdown + thin generated status matrix enforced in CI + acceptance).
 
-> **Plan status (revised 2026-10-01, PLAN re-pass).** §1 (the user's governed + governing requirements file) has since **landed and is green** — `/requirements.manifest.yaml` + `scripts/acceptance_matrix.py` + `scripts/check_requirements_sync.py` + `.github/workflows/ci.yml` (`pytest scripts/tests` → 20 passed; sync guard → PASS, 18 in sync). This revision verifies every AC row below still holds, maps the four system contracts to their enforcing proofs (§6), and records the governance observation that Contract 3 has no dedicated AC. Live status is tracked in the run ledger's generated matrix, never here — this file remains the forward HOW, the ledger the status.
+> **Plan status (revised 2026-10-01, PLAN re-pass #2 — mid-IMPLEMENT).** Two slices have now landed and are green:
+> - **§1 — the governed + governing requirements file** (the user's standing ask): `/REQUIREMENTS.md` v1.0.0 + `/requirements.manifest.yaml` + `scripts/acceptance_matrix.py` + `scripts/check_requirements_sync.py` + `.github/workflows/ci.yml`. Gates re-run this pass: `pytest scripts/tests` → **20 passed**; sync guard → **PASS (18 in sync)**.
+> - **P1 API core** (`apps/api`): AC1,AC2,AC3,AC4,AC5,AC6,AC7,AC12(server PDF+HTML),AC16,AC17 landed with their proof tests. Gate re-run this pass: api `pytest` → **17 passed**. The generated acceptance matrix stands at **10 met · 0 partial · 8 missing**.
+>
+> This re-pass verified every per-AC row below against the code now on disk; all rows that have landed match the plan. **One divergence recorded (see §2 / AC17): the stack uses `Base.metadata.create_all` for the PoC, not Alembic migrations.** No AC scope change → `/REQUIREMENTS.md` stays v1.0.0. Live status is tracked only in the run-ledger generated matrix — this file remains the forward HOW, the ledger the status. **Remaining (the forward plan): the `apps/web` slice (AC8, AC9, AC11, AC12 client PNG), P2 API (AC10 Builder, AC13 video), P3 API (AC14 social, AC15 engagement), root scaffold (pnpm/turbo/`packages/shared`), and the Playwright e2e that closes AC18.**
 
 ## 0. Intake (restated)
 
@@ -47,7 +51,8 @@ pnpm-workspace.yaml · turbo.json · package.json (root) · .env.example
 ```
 
 - **Root config:** `pnpm-workspace.yaml` (apps/*, packages/*), `turbo.json` (pipeline: lint, typecheck, test, build), root `package.json` scripts (`dev`, `test`, `e2e`), `.env.example` (all keys documented, **no values**: `DATABASE_URL`, `MINIO_*`, `AI_PROVIDER`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `JWT_SECRET`).
-- **api base:** `apps/api/pyproject.toml` (fastapi, uvicorn, sqlalchemy, alembic, psycopg, pydantic-settings, python-jose/passlib, boto3/minio, reportlab, pytest, pytest-json-report, httpx); `app/main.py` (app factory + router registration), `app/config.py` (`Settings` from env), `app/db.py` (engine/`SessionLocal`), `app/deps.py` (`get_db`, `get_current_user`, `require_role`), `app/security.py` (hash/verify + token).
+- **api base:** `apps/api/pyproject.toml` (fastapi, uvicorn, sqlalchemy, psycopg, pydantic-settings, python-jose/passlib, boto3/minio, reportlab, pytest, pytest-json-report, httpx); `app/main.py` (app factory + router registration), `app/config.py` (`Settings` from env), `app/db.py` (`make_engine`/`make_sessionmaker`/`create_all`), `app/deps.py` (`get_db`, `get_current_user`, `require_role`), `app/security.py` (hash/verify + token).
+  - **DIVERGENCE FROM PLAN (as built, recorded 2026-10-01 re-pass #2):** schema is materialised with **`app/db.py:create_all` (`Base.metadata.create_all`)** at app startup / in tests / in seed — **Alembic is intentionally deferred** for the PoC (no migration history needed for a reproducible single-shot stack). `alembic` is **not** a dependency. If production-style migrations are later required that is a scope decision, not a silent gap. (`apps/api/app/db.py:28-33`, `apps/api/app/main.py:21`.)
 - **web base:** `apps/web/package.json` (next, react, tailwind, fabric, jspdf/pdf-lib client-side export helpers, vitest, @testing-library, playwright), `app/layout.tsx`, `lib/api.ts` (re-exports `packages/shared` client), `lib/rbac.ts`.
 - **shared:** `packages/shared/src/types.ts` (Role, CatalogEntry, Composition, Post, Engagement DTOs), `src/client.ts` (fetch wrapper).
 - **infra:** `infra/docker-compose.yml` services `db` (postgres:16), `minio`, `createbuckets` (one-shot mc), `api`, `web`.
@@ -132,7 +137,7 @@ Each row: the primary code it lands, the key functions/config, and the one proof
 - **Test:** `apps/api/tests/test_ai_provider.py::test_factory_selects_and_falls_back` — `AI_PROVIDER=openai` + no key → stub; with a **fake** key → openai client (HTTP mocked); stub output deterministic. No real network, no real key.
 
 ### AC17 — `docker compose up` + seed script `[explicit, P1]`
-- **infra:** `infra/docker-compose.yml` (db, minio, createbuckets, api, web) + healthchecks; `app/seed.py:seed()` loads 3 users (one per role) + synthetic catalog (each type) + a composition + a published post with engagement; idempotent (upsert by stable ids).
+- **infra:** `infra/docker-compose.yml` (db, minio, createbuckets, api, web) + healthchecks; `app/seed.py:seed()` loads 3 users (one per role) + synthetic catalog (each type) + a composition; idempotent (upsert by stable ids). Schema is created via `db.create_all` before seeding (no Alembic step — see §2 divergence). **As built:** compose + Dockerfile + `.env.example` landed; the published-post/engagement rows wait on AC14/AC15 (P3, not yet built). Compose is not runtime-verified in this env.
 - **config:** root `README`/`AGENTS` dev commands; `make`/pnpm scripts `dev`, `seed`.
 - **Test:** `apps/api/tests/test_seed.py::test_seed_is_idempotent_and_complete` — run `seed()` twice on a test DB (sqlite/synthetic) → same counts, one user per role, ≥1 approved brand-safe entry.
 

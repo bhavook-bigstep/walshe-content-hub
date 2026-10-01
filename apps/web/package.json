@@ -1,0 +1,16 @@
+{
+  "name": "@walsh/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Walsh Content Hub web (Next.js) — Design Studio slice",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "vitest": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
+  }
+}
