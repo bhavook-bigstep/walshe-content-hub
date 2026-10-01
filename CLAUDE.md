@@ -11,7 +11,14 @@ Guides say HOW.** They never swap roles.
 | Stage | Proof of concept |
 | Language / stack | Monorepo — **Next.js 15 · TypeScript · Tailwind** (web) · **Python 3.12 · FastAPI · SQLAlchemy · Alembic** (api) · **Postgres 16** · **MinIO** (assets); pnpm + turborepo + uv; Docker Compose |
 | Test runner | **pytest** (api) · **Vitest** + **Playwright** (web) |
-| Source of truth | Postgres (catalog, users, compositions, posts) + MinIO (binary assets). Charter: `docs/plans/2026-10-01-requirements-charter.md` |
+| Source of truth | Data: Postgres (catalog, users, compositions, posts) + MinIO (binary assets). **Requirements: `/REQUIREMENTS.md` (governing spec)** — all work conforms to it; `docs/plans/2026-10-01-requirements-charter.md` is the scoping record behind it |
+
+## Governing requirements
+
+**`/REQUIREMENTS.md` is the governed, canonical spec.** It holds the acceptance contract
+(`AC1`–`AC18`), the roles, the system contracts, and a change log. Any scope change edits that
+file first (version bump + change-log row + user approval); the build loop and reviewers verify
+each `AC#` against it. Treat a conflict between code and `/REQUIREMENTS.md` as a bug in the code.
 
 ## Compound Engineering
 

@@ -3,7 +3,7 @@
 Durable state for a `/oneshot-poc:run`. **Every phase reads this first and appends to it when
 done.** Content-free: status and decisions only, never secrets/PII.
 
-- **Charter:** `docs/plans/2026-10-01-requirements-charter.md` (v2, confirmed) · **Branch:** `feat/content-hub-poc`
+- **Governing spec:** `/REQUIREMENTS.md` (v1.0.0, ACTIVE) — the acceptance contract the loop verifies against · **Charter (scoping record):** `docs/plans/2026-10-01-requirements-charter.md` (v2) · **Branch:** `feat/content-hub-poc`
 - **Current phase:** `B` (entering autonomous build loop)
 - **Outer loop:** `0/3` · **Inner loop:** `0/2`
 
