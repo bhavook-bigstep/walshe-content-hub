@@ -95,3 +95,24 @@ acceptance:
       - "scripts/tests/test_requirements_sync.py::test_sync_detects_missing_and_extra"
     e2e:
       - "apps/web/e2e/studio-smoke.spec.ts::studio smoke"
+  # --- v2.0.0 Design & Experience (the Walshe design overhaul) ---
+  AC19:
+    tier: design
+    web:
+      - "apps/web/tests/theme.test.ts::walshe brand tokens present"
+  AC20:
+    tier: design
+    e2e:
+      - "apps/web/e2e/landing-smoke.spec.ts::landing hero and cta"
+  AC21:
+    tier: design
+    e2e:
+      - "apps/web/e2e/shell-smoke.spec.ts::branded nav after login"
+  AC22:
+    tier: design
+    e2e:
+      - "apps/web/e2e/dashboard-smoke.spec.ts::agent dashboard widgets"
+  AC23:
+    tier: design
+    e2e:
+      - "apps/web/e2e/responsive-smoke.spec.ts::no horizontal overflow on mobile"

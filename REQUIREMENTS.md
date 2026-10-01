@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 1.0.0 |
+| **Version** | 2.0.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -26,11 +26,21 @@
 
 ## 1. Vision
 
-A **B2B Destination Content Hub**. Tourism boards (Content Providers) publish a verified,
-brand-safe catalog of destination content; travel trade Agents turn that content into marketing
-assets — including an **AI-driven, Canva-style studio** — and run a **social media engagement
-layer**. A Super Admin governs the platform. Not consumer-facing. The differentiator is
-**verified, destination-authorised** content (not crowd-sourced or AI-scraped).
+A **B2B Destination Content & Growth Hub**, built to showcase that we can deliver an
+ElevateTourism-class product **in The Walshe Group's design language**. Tourism boards (Content
+Providers) publish a verified, brand-safe catalog of destination content; travel trade Agents turn
+that content into marketing assets — including an **AI-driven, Canva-style studio** — and run a
+**social media engagement layer**. A Super Admin governs the platform. Not consumer-facing. The
+differentiator is **verified, destination-authorised** content (not crowd-sourced or AI-scraped).
+
+**The feature set is grounded in the Walshe Group discovery meetings** (`docs/requirements/*.docx`):
+the curated verified content hub, à-la-carte comms assembly ("promote Africa to New Zealanders" →
+pull itineraries/images/offers/airline deals), AI that drafts a first version the agent edits,
+the two content tiers (board/head-office vs. trade agents), agent personalization (logo/contact/
+offers), seasonal/moment marketing, and the social engagement layer. **ElevateTourism** is the
+reference for product polish and UX patterns; **The Walshe Group** (walshegroup.com) is the
+authoritative source for the visual design language — colour, typography, logo, premium B2B
+travel/aviation tone ("Premium brands, trusted outcomes"; 50 years in 2026).
 
 ## 2. Roles
 
@@ -70,8 +80,35 @@ layer**. A Super Admin governs the platform. Not consumer-facing. The differenti
 - **AC17** `[explicit]` — `docker compose up` + documented dev commands bring the whole stack up; a **seed script** loads placeholder catalog + users.
 - **AC18** `[inferred]` — Tests pass: **pytest** (api) + **vitest** (web) on changed logic, plus a **Playwright** smoke of the Agent Design-Studio flow.
 
-**Priority tiers** (build order; acceptance reports honestly against all 18):
-P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15.
+### Design & Experience (v2.0.0 — the Walshe design overhaul) `[explicit – feedback]`
+
+The product must *look like a premium product*, in The Walshe Group's design language — not a
+generic/plain default. Anchored to walshegroup.com (exact tokens), ElevateTourism for UX patterns.
+
+- **AC19** — **Walshe design system**: brand tokens (colour palette, typography, spacing, radius)
+  extracted from walshegroup.com, defined once in a central theme (Tailwind config / CSS vars) and
+  applied app-wide. Proof: a test asserts the theme exposes the Walshe brand tokens.
+- **AC20** — **Branded public landing page** at `/`: a premium hero in the Walshe language, value
+  props drawn from the discovery features (verified content hub · AI-assembled comms · trade
+  personalization · social engagement), and a clear CTA into sign-in. Proof: Playwright asserts the
+  hero headline + primary CTA render on `/`.
+- **AC21** — **Branded app shell**: a persistent, role-aware header/nav carrying the Walshe logo and
+  a consistent layout across every authenticated screen. Proof: Playwright asserts the branded nav +
+  logo are present after login for each role.
+- **AC22** — **Polished role dashboards**: each role lands on a designed home with real data-viz
+  (stat/scorecard tiles, at least one chart) and designed cards — not bare tables. Proof: Playwright
+  asserts the dashboard stat tiles + chart render for the agent.
+- **AC23** — **Responsive + states**: usable at mobile width (no horizontal overflow; nav adapts)
+  and real empty/loading states on data screens. Proof: Playwright at a mobile viewport asserts no
+  horizontal scroll on the landing + agent dashboard.
+
+> **Visual-quality bar (critic-gated, not matrixed):** the `ui-reviewer` scores the key screens
+> against the Walshe design brief (`docs/design/ui-brief.md`) each design round and must PASS, and
+> the user confirms the look at ⏸ G. This is the subjective bar AC19–AC23 can't fully encode.
+
+**Priority tiers** (build order; acceptance reports honestly against all 23):
+P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15 ·
+**P0 for this run — design = AC19,20,21,22,23** (the overhaul; functional AC1–18 must stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -97,3 +134,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
+| 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
