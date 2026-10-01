@@ -420,3 +420,259 @@ New tests added by the REWORK are **both unmatrixed** (Contract-level, not AC): 
 - **Citations** (`.claude/rules/citations.md` — these are contestable design choices):
   - *Generate the TS contract from the FastAPI OpenAPI schema (single source of truth + regenerate-on-change):* **openapi-typescript — openapi-ts.dev / openapi-ts GitHub — https://openapi-ts.dev/ , https://github.com/openapi-ts/openapi-typescript (accessed 2026-10-01).** Supports FastAPI's `/openapi.json`, emits runtime-free types; "when the backend changes, you regenerate, and the compiler shows you every place that needs updating" — exactly the compile-time link F1 is missing.
   - *turborepo is proportionate for this repo size, not overhead:* **Monorepo JS tooling fundamentals — mironsoft.de — https://www.mironsoft.de/en/blog/monorepo-js-tooling-fundamentals (accessed 2026-10-01)** ("with few completely independent packages … overhead often outweighs the benefit" — hence the Fallback stays available) and **Turborepo Monorepo Guide — ecosire.com — https://ecosire.com/blog/turborepo-monorepo-guide (accessed 2026-10-01)** (turbo's value lands at ~2–10 packages — where this repo sits). Together they justify Primary (conform) *and* keep Fallback (amend) honestly on the table.
+
+## 11. REWORK plan — two new design-change findings (MANAGER re-pass, RE-ENTRY, outer 0/4 · inner 1/2, 2026-10-01)
+
+**Why this section exists.** Two review findings prove the acceptance matrix was reporting *met* for a
+capability that is **not actually delivered** (AC13) and for a **broken architectural invariant**
+(Contract 1 / AC6 via the Builder). Both are contract-vs-code conflicts (CLAUDE.md: "treat a conflict
+between code and `/REQUIREMENTS.md` as a bug in the code"), so they are fixed by **reworking the two
+offending API contracts**, not by local patches. They are **distinct from §10's F1/F2** (module boundary
+/ `set_access` audit, already landed). This §11 is the concrete REWORK: exact files/functions/config, the
+dependency graph, and a proof test per change — and it **re-covers** the P1-UI items (AC1,2,3,4,5,6,7,8,9,
+12,16,17,18) in §11.6, each of which must stay green.
+
+### 11.0 Root cause (shared by both findings)
+
+Two agent-facing surfaces accept catalog **content straight from the client** instead of resolving catalog
+**IDs server-side through the Contract-1 choke-point** (`app/services/visibility.py`), which every *read*
+path already uses:
+
+- **F3 / AC13 (video):** `POST /render/video` (`apps/api/app/routers/render.py:40-51`) hardcodes
+  `encode_video(build_scene_script(body.items), None, …)` — the `images` arg is literally `None` and
+  `VideoRequest` (`render.py:35-37`) exposes **no image field**. So the entire image branch in
+  `media/video.py` (`render_video`'s `images` param, `build_scene_cmd`'s `-loop/-i` path, `render.py` line
+  77-78/136-137) is **unreachable from the API** — every rendered video is a solid-colour background. The
+  code is exercised only by `test_video.py` unit tests; the AC13 "from selected catalog images" capability
+  is **not delivered**, yet the matrix shows AC13 met.
+- **F4 / AC6+AC10 (Builder):** `POST /builder/design` (`apps/api/app/routers/builder.py:32-39`) builds
+  `BuilderItem` objects from **client-supplied** `body.items[].id/title/destination/description`
+  (`builder.py:20-29,38`) and never loads the entries from the DB or runs them through
+  `is_visible_to_agent`/`agent_visible_entries`. `ai/builder.py`'s docstring (lines 1-9, 84-113) claims
+  output is "grounded in the selected catalog items" and "every op is validated against the selected items
+  so ungrounded output is dropped" — but "selected items" = whatever the agent posted, so the grounding is
+  **purely client-trusted**. An agent can compose a design around unapproved / not-brand-safe / out-of-scope
+  / fabricated content, defeating Contract 1. Every other agent read funnels through `visibility.py`; the
+  Builder is the one seam that does not.
+
+**The single fix for both:** accept **IDs only**, resolve them **server-side** through the visibility
+choke-point, and build from the **verified rows** (and, for video, from those rows' **approved stored
+assets**). This closes F3 *and* F4 and makes the matrix require the real capability.
+
+### 11.1 Shared prerequisite — R0 (land first; both R1 and R2 depend on it)
+
+- **`apps/api/app/services/visibility.py` — add one choke-point helper (reuses `is_visible_to_agent`):**
+  ```python
+  def agent_visible_entries_by_ids(
+      db: Session, agent: User, ids: Sequence[int]
+  ) -> list[CatalogEntry]:
+      """Resolve entry ids the agent may see, in request order; dupes/unknown/hidden dropped."""
+      seen: set[int] = set()
+      out: list[CatalogEntry] = []
+      for eid in ids:
+          if eid in seen:
+              continue
+          seen.add(eid)
+          entry = db.get(CatalogEntry, eid)
+          if entry is not None and is_visible_to_agent(entry, agent):
+              out.append(entry)
+      return out
+  ```
+  This is the *only* new access rule, and it delegates to the existing single predicate — the two write
+  surfaces now share the same Contract-1 gate as the read surfaces (no rule can drift).
+- **`apps/api/app/models/catalog.py` — expose approved asset keys for the agent UI:** add a read-only
+  property on `CatalogEntry` so `EntryOut` can carry them (needed so the Builder can place *real* approved
+  images client-side and the studio can show which items have imagery):
+  ```python
+  @property
+  def asset_keys(self) -> list[str]:
+      return [a.object_key for a in self.assets]
+  ```
+- **`apps/api/app/schemas/catalog.py` — `EntryOut`:** add `asset_keys: list[str] = []` (populated via
+  `from_attributes` from the property above). Only visible entries are ever serialised to agents (read
+  choke-point), and agents may already `GET /assets/{key}` for those entries — so no new exposure.
+
+### 11.2 R1 — F4 Builder rework (IDs only, server-resolved, grounded in verified rows)
+
+- **`apps/api/app/routers/builder.py` (rewrite the request contract + route):**
+  - **Delete** `BuilderItemIn` (client no longer supplies item content).
+  - `DesignRequest` becomes: `prompt: str = Field(min_length=1, max_length=2000)` +
+    `item_ids: list[int] = Field(min_length=1, max_length=50)`.
+  - Add `db: Session = Depends(get_db)` and bind the agent (`agent: User = Depends(_agent_only)`), import
+    `agent_visible_entries_by_ids`.
+  - Body of `design`:
+    ```python
+    entries = agent_visible_entries_by_ids(db, agent, body.item_ids)
+    if not entries:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No visible catalog items for the given ids")
+    items = [BuilderItem(e.id, e.title, e.destination, e.description) for e in entries]
+    return build_design(body.prompt, items, get_provider(settings)).to_dict()
+    ```
+  - `ai/builder.py` is **unchanged** (it already validates ops against the items it is handed; now those
+    items are the *verified* rows, so the docstring's grounding guarantee becomes true). AC10's unit proof
+    (`test_builder_stub_is_deterministic`, which calls `build_design` directly) stays green.
+- **`apps/web/components/studio/BuilderPanel.tsx`:** `run()` sends `{ prompt, item_ids: items.map(i => i.id) }`
+  (was `items: [...]`). `applyBuilderOps` still maps `op.item_id` → the local `items` entry for client-side
+  image placement (unchanged) — it just no longer *sends* title/description. Keep the `generate` injection
+  seam for the vitest.
+
+### 11.3 R2 — F3 Video rework (scenes reference catalog IDs; images server-resolved from approved assets)
+
+- **`apps/api/app/routers/render.py` (rewrite `VideoRequest` + `/video`):**
+  - New request shape (keeps the AC13 "Agent can edit scenes/text" capability — free-text title/caption is
+    intended; only the *images* must be catalog-grounded):
+    ```python
+    class VideoScene(BaseModel):
+        item_id: int | None = None          # which catalog item's image backs this scene (None -> colour bg)
+        title: str = Field(default="", max_length=200)
+        caption: str = Field(default="", max_length=200)
+
+    class VideoRequest(BaseModel):
+        scenes: list[VideoScene] = Field(min_length=1, max_length=20)
+        narrate: bool = False
+    ```
+  - Add deps: `db: Session = Depends(get_db)`, `storage: Storage = Depends(get_storage)`,
+    `agent: User = Depends(_agent_only)`. Import `agent_visible_entries_by_ids`, `get_storage`, `Storage`.
+  - Route logic (server-resolved images; **no client file paths**, preserving the existing docstring
+    guarantee; falls back to colour bg per scene when the item is not visible / has no asset):
+    ```python
+    requested = [s.item_id for s in body.scenes if s.item_id is not None]
+    visible = {e.id: e for e in agent_visible_entries_by_ids(db, agent, requested)}
+    scenes = build_scene_script([{"title": s.title, "description": s.caption} for s in body.scenes])
+    with tempfile.TemporaryDirectory(prefix="vid-src-") as srcdir:
+        images: list[str | None] = []
+        for s in body.scenes:
+            entry = visible.get(s.item_id) if s.item_id is not None else None
+            path = None
+            if entry is not None and entry.asset_keys:
+                try:
+                    data, _ct = storage.get_object(entry.asset_keys[0])
+                    path = str(Path(srcdir) / f"img{len(images)}")
+                    Path(path).write_bytes(data)
+                except KeyError:
+                    path = None
+            images.append(path)
+        out = encode_video(scenes, images, tts=body.narrate)
+        with open(out, "rb") as fh:
+            data = fh.read()
+    ```
+    (keep the existing `try/except -> 503/500` wrapper around the encode). The `images` list is **aligned by
+    scene index**, exactly what `render_video` consumes (`media/video.py:136`); a non-visible or image-less
+    scene passes `None` → `build_scene_cmd` colour branch. The image branch is now **live from the API**.
+  - `media/video.py` needs **no change** (the branch already exists and is already unit-tested); R2 makes it
+    reachable. `build_scene_script` keeps its signature → AC13 unit proof stays green.
+- **`apps/web/components/studio/VideoPanel.tsx`:** replace `scenesToRequestItems` with
+  `scenesToRequest(scenes): { item_id: number|null; title: string; caption: string }[]` (drop blank-title
+  scenes, keep `itemId` as `item_id`), and `render()` sends `{ scenes: scenesToRequest(scenes), narrate }`
+  (was `{ items, narrate }`). `scenesFromItems`/`applyBuilderCopy` already carry `itemId` — unchanged.
+
+### 11.4 Regen + studio wiring — R3 (serial, after R1 ∥ R2)
+
+- **Regenerate the contract (drift guard will otherwise red the build):**
+  `make api-types-sync`'s inputs change because `DesignRequest`, `VideoRequest`, and `EntryOut` changed →
+  run `node scripts/gen-api-types.mjs` to rewrite `packages/shared/openapi.json` +
+  `packages/shared/src/api-types.ts`, commit both. `@walsh/shared`'s `builderDesign`/`renderVideo` types
+  follow automatically (generated). No hand-edit of `client.ts` needed.
+- **`apps/web/app/agent/studio/page.tsx` — feed the panels REAL approved catalog ids** (so `item_ids`
+  resolve server-side): on mount `listAgentCatalog()` → map each `Entry` to a `BuilderCatalogItem`
+  `{ id, title, destination, description, imageSrc? }`, where `imageSrc` is `await fetchAssetObjectUrl(e.asset_keys[0])`
+  when present. Replace the synthetic `PANEL_ITEMS` (hardcoded `id:1`) with this loaded list; keep a
+  proportionate loading/empty state. (Multi-select UX stays out of scope — the loaded visible catalog is the
+  selection set for the PoC; this is the minimal wiring that makes AC10/AC13 genuinely end-to-end.)
+
+### 11.5 Dependency graph + parallelisation (disjoint files)
+
+```
+ R0  shared prereq  ── app/services/visibility.py (+1 fn)  +  app/models/catalog.py (+property)
+     (land FIRST)       +  app/schemas/catalog.py (EntryOut.asset_keys)
+         │
+         ├───────────────┬───────────────────────────────┐
+         ▼               ▼                                 (disjoint: no shared source file)
+ R1 Builder (F4)    R2 Video (F3)
+   app/routers/builder.py          app/routers/render.py
+   tests/test_builder.py           tests/test_video.py
+   web BuilderPanel.tsx            web VideoPanel.tsx
+         │               │
+         └───────┬───────┘
+                 ▼
+ R3  regen + wiring (SERIAL)  ── packages/shared/{openapi.json,src/api-types.ts} (regenerated)
+                                 +  apps/web/app/agent/studio/page.tsx
+                 │
+                 ▼
+          make verify  ──►  ⏸ G human verify
+```
+
+- **R0 is a hard prerequisite** for both (both import the new resolver; both depend on `EntryOut.asset_keys`
+  only on the web side, so R0's api part unblocks R1/R2 api work immediately).
+- **R1 ∥ R2 run in parallel** — fully disjoint files (builder router/test/panel vs render router/test/panel).
+- **R3 is serial** — it regenerates the two shared `packages/shared` artefacts (which depend on *both* R1
+  and R2's schema changes) and edits the one shared `studio/page.tsx`. Do R3 once, after R1+R2 land.
+- Manifest edits (§11.7) touch only `requirements.manifest.yaml` — land with R3.
+
+### 11.6 One test per acceptance item (P1-UI re-coverage — all 13 stay green)
+
+| AC | Proof node-id (manifest) | REWORK interaction |
+| --- | --- | --- |
+| AC1 | `apps/api/tests/test_auth_rbac.py::test_role_guard_blocks_wrong_role` | none — keep green |
+| AC2 | `apps/api/tests/test_admin.py::test_approve_provider_flips_flag` | none — keep green |
+| AC3 | `apps/api/tests/test_catalog_crud.py::test_create_entry_each_type` | none — keep green |
+| AC4 | `apps/api/tests/test_assets.py::test_upload_then_fetch` | **R0**: `EntryOut.asset_keys` added (additive, optional default) → stays green; verify explicitly |
+| AC5 | `apps/api/tests/test_catalog_access.py::test_set_brand_safe_and_access_scope` | none — keep green |
+| **AC6** | `apps/api/tests/test_visibility_contract.py::test_agent_never_sees_unapproved` **+ NEW** `apps/api/tests/test_builder.py::test_builder_route_resolves_ids_through_visibility` | **R1**: Builder now funnels through the Contract-1 choke-point → AC6's invariant is matrixed on the Builder seam too |
+| AC7 | `apps/api/tests/test_catalog_search.py::test_filter_by_destination_and_type` | none — keep green |
+| AC8 | `apps/web/tests/formats.test.ts::test_format_presets` | **R3**: types regen; vitest must still pass |
+| AC9 | `apps/web/tests/studio-ops.test.ts::test_manual_ops_mutate_design` | **R3**: same — keep green |
+| AC12 | `apps/api/tests/test_export.py::test_pdf_and_html_from_design` | none — keep green |
+| AC16 | `apps/api/tests/test_ai_provider.py::test_factory_selects_and_falls_back` | none — stub fallback unchanged |
+| AC17 | `apps/api/tests/test_seed.py::test_seed_is_idempotent_and_complete` | none — keep green |
+| AC18 | `scripts/tests/test_acceptance_matrix.py::…` · `scripts/tests/test_requirements_sync.py::…` · `apps/web/e2e/studio-smoke.spec.ts::studio smoke` | **R3**: e2e runs through regenerated types + live-catalog studio page; studio-smoke (login→browse→studio→export) is the primary web regression guard |
+
+**Finding-specific proofs (one per finding; both strengthen an existing matrixed AC rather than adding an
+unmatrixed test, so the matrix can never again report the capability green while it is undelivered):**
+
+- **F4 / AC6** — NEW `apps/api/tests/test_builder.py::test_builder_route_resolves_ids_through_visibility`:
+  seed (a) an approved+brand-safe entry the agent can see, (b) a draft/unapproved entry, (c) an
+  out-of-scope entry (restricted `allowed_tenant_ids`); POST `{prompt, item_ids:[a,b,c, 999999]}` as the
+  agent → assert the returned design's ops reference **only `a`**, that `b`/`c`/the bogus id are absent, and
+  that `item_ids:[b]` (all hidden) → **404**. Proves the Builder is now bound to the choke-point (Contract 1).
+  Also update `test_builder_route_agent_only_and_stub` to the `item_ids` shape.
+- **F3 / AC13** — NEW `apps/api/tests/test_video.py::test_video_route_renders_catalog_image`:
+  seed an approved entry + an `Asset` row + its bytes in the in-memory storage; monkeypatch
+  `render_mod.encode_video` to capture `(scenes, images)`; POST scenes `[{item_id: approved}, {item_id: <hidden>}]`
+  → assert `images[0]` is a real temp file whose bytes equal the seeded PNG (**image branch reachable from
+  the API**) and `images[1] is None` (hidden item → colour bg, Contract 1 on images). Add this as a **second
+  AC13 proof** in the manifest so AC13 is only `met` when the catalog-image path actually works. Also update
+  `test_video_route_agent_only` to the `scenes` shape.
+- AC10/AC13 **unit** proofs (`test_builder_stub_is_deterministic`, `test_scene_script_deterministic_and_cmd_shape`)
+  are untouched by the rework (they call `build_design`/`build_scene_script`/`render_video` directly) and stay
+  green.
+
+### 11.7 Manifest / governance (no scope change → `/REQUIREMENTS.md` stays v1.0.0)
+
+- **`requirements.manifest.yaml`:** add the F4 test as a **second `AC6.api`** proof and the F3 test as a
+  **second `AC13.api`** proof. This changes **no AC set** (still exactly AC1–AC18) → `check_requirements_sync`
+  stays green; it only *raises the bar* (AC6/AC13 now require the Contract-1/image-capability proofs to pass,
+  like AC18's 3/3). No wording/scope edit to `/REQUIREMENTS.md` → **no version bump**.
+- The acceptance text is already satisfied by the rework: AC13 "from selected catalog images" and AC6
+  "agents only ever see approved, brand-safe entries" are now *actually* enforced on these two surfaces, so
+  no softening/strengthening of the spec is needed. (If the reviewer prefers the Builder-grounding proof to
+  matrix under AC10 instead of AC6, that is an equivalent manifest-only move — AC10 is P2 and out of this
+  phase's charter, so §11 attaches it to AC6, the P1 Contract-1 item.)
+
+### 11.8 Determinism / secrets / citations (REWORK-specific)
+
+- **Determinism:** resolver preserves request order and de-dupes; video image temp files are created in a
+  `TemporaryDirectory` and cleaned on exit; tests assert on **bytes/None**, never on temp path strings; AI
+  stays the deterministic stub (no keys). (Contract 4 / `testing.md`.)
+- **Secrets / Contract 2:** no client file paths are ever accepted (video reads only server-held approved
+  assets via the `Storage` interface); `EntryOut.asset_keys` lists only keys of entries the agent may already
+  read; synthetic 1×1 PNG fixtures; nothing logs tokens or provider keys. (Contract 2 / `security.md`.)
+- **Citations** (`.claude/rules/citations.md`):
+  - *Resolve IDs server-side through the single visibility choke-point instead of trusting client content:*
+    **no external source — this applies the repo's own established Contract-1 pattern**
+    (`apps/api/app/services/visibility.py`, already used by every read path) to the two write surfaces that
+    skipped it; it is a conformance fix, not a novel design.
+  - *Loop a still image into an ffmpeg clip (`-loop 1 -t <dur> -i <img>`):* **FFmpeg Filters/Formats docs —
+    https://ffmpeg.org/ffmpeg-formats.html , https://trac.ffmpeg.org/wiki/Slideshow (accessed 2026-10-01).**
+    Confirms the already-present `build_scene_cmd` image branch is the idiomatic still-to-video input — the
+    code was correct; only the API wiring to reach it was missing.

@@ -109,12 +109,7 @@ export default function BuilderPanel({
     try {
       const res = await generate({
         prompt: prompt.trim(),
-        items: items.map((i) => ({
-          id: i.id,
-          title: i.title,
-          destination: i.destination ?? "",
-          description: i.description ?? "",
-        })),
+        item_ids: items.map((i) => i.id),
       });
       const ops = parseBuilderOps(res);
       const next = applyBuilderOps(design, pageIndex, ops, items);

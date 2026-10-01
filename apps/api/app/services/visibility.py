@@ -57,6 +57,25 @@ def agent_visible_entries(
     return result
 
 
+def agent_visible_entries_by_ids(
+    db: Session, agent: User, ids: list[int]
+) -> list[CatalogEntry]:
+    """Resolve ``ids`` in request order (de-duped), dropping unknown or hidden entries.
+
+    Visibility is decided solely by ``is_visible_to_agent`` — no additional access rule.
+    """
+    result: list[CatalogEntry] = []
+    seen: set[int] = set()
+    for entry_id in ids:
+        if entry_id in seen:
+            continue
+        seen.add(entry_id)
+        entry = db.get(CatalogEntry, entry_id)
+        if entry is not None and is_visible_to_agent(entry, agent):
+            result.append(entry)
+    return result
+
+
 def visible_asset_or_none(db: Session, user: User, object_key: str) -> Asset | None:
     """Return the Asset for ``object_key`` iff ``user`` may read it, else None (Contract 1/2).
 

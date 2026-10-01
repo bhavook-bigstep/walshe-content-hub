@@ -70,38 +70,6 @@
         "title": "Body_upload_image_catalog__entry_id__image_post",
         "type": "object"
       },
-      "BuilderItemIn": {
-        "properties": {
-          "description": {
-            "default": "",
-            "maxLength": 2000,
-            "title": "Description",
-            "type": "string"
-          },
-          "destination": {
-            "default": "",
-            "maxLength": 200,
-            "title": "Destination",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "title": {
-            "maxLength": 300,
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "title"
-        ],
-        "title": "BuilderItemIn",
-        "type": "object"
-      },
       "CatalogType": {
         "enum": [
           "event",
@@ -115,13 +83,13 @@
       },
       "DesignRequest": {
         "properties": {
-          "items": {
+          "item_ids": {
             "items": {
-              "$ref": "#/components/schemas/BuilderItemIn"
+              "type": "integer"
             },
             "maxItems": 50,
             "minItems": 1,
-            "title": "Items",
+            "title": "Item Ids",
             "type": "array"
           },
           "prompt": {
@@ -133,7 +101,7 @@
         },
         "required": [
           "prompt",
-          "items"
+          "item_ids"
         ],
         "title": "DesignRequest",
         "type": "object"
@@ -206,6 +174,14 @@
       },
       "EntryOut": {
         "properties": {
+          "asset_keys": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Asset Keys",
+            "type": "array"
+          },
           "brand_safe": {
             "title": "Brand Safe",
             "type": "boolean"
@@ -528,26 +504,56 @@
       },
       "VideoRequest": {
         "properties": {
-          "items": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "maxItems": 20,
-            "minItems": 1,
-            "title": "Items",
-            "type": "array"
-          },
           "narrate": {
             "default": false,
             "title": "Narrate",
             "type": "boolean"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/VideoScene"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Scenes",
+            "type": "array"
           }
         },
         "required": [
-          "items"
+          "scenes"
         ],
         "title": "VideoRequest",
+        "type": "object"
+      },
+      "VideoScene": {
+        "properties": {
+          "caption": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Caption",
+            "type": "string"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
+          "title": {
+            "maxLength": 200,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "VideoScene",
         "type": "object"
       }
     },
@@ -1287,7 +1293,7 @@
     },
     "/render/video": {
       "post": {
-        "description": "Render items to a rudimentary MP4 (no client-supplied file paths are ever used).",
+        "description": "Render scenes to a rudimentary MP4. Images come only from visible catalog entries\nresolved server-side (no client-supplied file paths are ever used).",
         "operationId": "render_video_render_video_post",
         "requestBody": {
           "content": {

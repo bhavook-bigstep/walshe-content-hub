@@ -239,7 +239,8 @@ export interface paths {
         put?: never;
         /**
          * Render Video
-         * @description Render items to a rudimentary MP4 (no client-supplied file paths are ever used).
+         * @description Render scenes to a rudimentary MP4. Images come only from visible catalog entries
+         *     resolved server-side (no client-supplied file paths are ever used).
          */
         post: operations["render_video_render_video_post"];
         delete?: never;
@@ -321,23 +322,6 @@ export interface components {
             /** File */
             file: string;
         };
-        /** BuilderItemIn */
-        BuilderItemIn: {
-            /**
-             * Description
-             * @default
-             */
-            description: string;
-            /**
-             * Destination
-             * @default
-             */
-            destination: string;
-            /** Id */
-            id: number;
-            /** Title */
-            title: string;
-        };
         /**
          * CatalogType
          * @enum {string}
@@ -345,8 +329,8 @@ export interface components {
         CatalogType: "event" | "place" | "opportunity" | "offer" | "itinerary";
         /** DesignRequest */
         DesignRequest: {
-            /** Items */
-            items: components["schemas"]["BuilderItemIn"][];
+            /** Item Ids */
+            item_ids: number[];
             /** Prompt */
             prompt: string;
         };
@@ -378,6 +362,11 @@ export interface components {
         };
         /** EntryOut */
         EntryOut: {
+            /**
+             * Asset Keys
+             * @default []
+             */
+            asset_keys: string[];
             /** Brand Safe */
             brand_safe: boolean;
             /** Description */
@@ -496,15 +485,25 @@ export interface components {
         };
         /** VideoRequest */
         VideoRequest: {
-            /** Items */
-            items: {
-                [key: string]: unknown;
-            }[];
             /**
              * Narrate
              * @default false
              */
             narrate: boolean;
+            /** Scenes */
+            scenes: components["schemas"]["VideoScene"][];
+        };
+        /** VideoScene */
+        VideoScene: {
+            /**
+             * Caption
+             * @default
+             */
+            caption: string;
+            /** Item Id */
+            item_id?: number | null;
+            /** Title */
+            title: string;
         };
     };
     responses: never;

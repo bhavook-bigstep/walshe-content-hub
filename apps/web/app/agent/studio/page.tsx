@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Canvas } from "fabric";
 import BuilderPanel, { type BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
 import ExportMenu from "../../../components/studio/ExportMenu";
@@ -9,6 +9,7 @@ import FormatPicker from "../../../components/studio/FormatPicker";
 import PersonalizePanel from "../../../components/studio/PersonalizePanel";
 import VideoPanel from "../../../components/studio/VideoPanel";
 import Toolbar, { type CatalogImageOption } from "../../../components/studio/Toolbar";
+import { fetchAssetObjectUrl, listAgentCatalog, type Entry } from "../../../lib/api";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import { addShape, addText, newDesign, setBackground, type DesignDoc } from "../../../lib/studio/ops";
 
@@ -25,10 +26,19 @@ const CATALOG_IMAGES: readonly CatalogImageOption[] = [
   { catalogItemId: "seed-1", label: "Sample", src: SEED_IMAGE },
 ];
 
-// Synthetic items standing in for the agent's approved catalog selection.
-const PANEL_ITEMS: readonly BuilderCatalogItem[] = [
-  { id: 1, title: "Cliffs of Moher", destination: "Clare", description: "Dramatic sea cliffs on the Wild Atlantic Way.", imageSrc: SEED_IMAGE },
-];
+// Map an approved catalog entry to the panel item shape; the first asset (if any) becomes the image.
+async function toPanelItem(e: Entry): Promise<BuilderCatalogItem> {
+  const item: BuilderCatalogItem = { id: e.id, title: e.title, destination: e.destination, description: e.description };
+  const key = e.asset_keys[0];
+  if (key) {
+    try {
+      item.imageSrc = await fetchAssetObjectUrl(key);
+    } catch {
+      // Image is optional; the item still submits its real id.
+    }
+  }
+  return item;
+}
 
 function seeded(format: FormatName): DesignDoc {
   let d = newDesign(format);
@@ -41,7 +51,24 @@ function seeded(format: FormatName): DesignDoc {
 export default function StudioPage() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
   const [pageIndex, setPageIndex] = useState(0);
+  const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
   const canvasRef = useRef<Canvas | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const urls: string[] = [];
+    listAgentCatalog()
+      .then((entries) => Promise.all(entries.map(toPanelItem)))
+      .then((items) => {
+        items.forEach((i) => i.imageSrc && urls.push(i.imageSrc));
+        if (cancelled) urls.forEach((u) => URL.revokeObjectURL(u));
+        else setPanelItems(items);
+      })
+      .catch(() => !cancelled && setPanelItems([]));
+    return () => {
+      cancelled = true;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, []);
   const onReady = useCallback((c: Canvas | null) => {
     canvasRef.current = c;
   }, []);
@@ -64,9 +91,15 @@ export default function StudioPage() {
         catalogImages={CATALOG_IMAGES}
       />
       <StudioCanvas design={design} pageIndex={pageIndex} onReady={onReady} />
-      <BuilderPanel design={design} pageIndex={pageIndex} items={[...PANEL_ITEMS]} onChange={setDesign} />
+      {panelItems === null ? (
+        <p role="status">Loading catalog…</p>
+      ) : panelItems.length === 0 ? (
+        <p role="status">No approved catalog items available for the Builder and Video panels.</p>
+      ) : (
+        <BuilderPanel design={design} pageIndex={pageIndex} items={panelItems} onChange={setDesign} />
+      )}
       <PersonalizePanel design={design} pageIndex={pageIndex} onChange={setDesign} />
-      <VideoPanel items={[...PANEL_ITEMS]} />
+      {panelItems !== null && panelItems.length > 0 && <VideoPanel items={panelItems} />}
       <ExportMenu design={design} pageIndex={pageIndex} getCanvas={() => canvasRef.current} />
     </main>
   );

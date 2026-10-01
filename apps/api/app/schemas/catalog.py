@@ -30,5 +30,6 @@ class EntryOut(BaseModel):
     status: EntryStatus
     brand_safe: bool
     provider_id: int
+    asset_keys: list[str] = []
 
     model_config = {"from_attributes": True}

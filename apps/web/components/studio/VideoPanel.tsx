@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { builderDesign, renderVideo } from "../../lib/api";
 import type { BuilderCatalogItem } from "./BuilderPanel";
 
-/** One editable scene. `id` is a stable client key; the API receives only title/description. */
+/** One editable scene. `id` is a stable client key; the API receives item_id/title/caption. */
 export interface VideoScene {
   id: number;
   itemId: number | null;
@@ -45,10 +45,21 @@ export function applyBuilderCopy(scenes: VideoScene[], response: Record<string, 
   return scenes.map((s) => (s.itemId !== null && copy.has(s.itemId) ? { ...s, caption: copy.get(s.itemId)! } : s));
 }
 
-/** Pure: scenes -> VideoRequest items. Blank-title scenes are dropped; returns [] if nothing to render. */
-export function scenesToRequestItems(scenes: VideoScene[]): { title: string; description: string }[] {
+/** Request scene shape accepted by POST /render/video. */
+export interface VideoRequestScene {
+  item_id: number | null;
+  title: string;
+  caption: string;
+}
+
+/** Pure: scenes -> request scenes. Blank-title scenes are dropped; returns [] if nothing to render. */
+export function scenesToRequest(scenes: VideoScene[]): VideoRequestScene[] {
   return scenes
-    .map((s) => ({ title: s.title.trim().slice(0, MAX_TEXT), description: s.caption.trim().slice(0, MAX_TEXT) }))
+    .map((s) => ({
+      item_id: s.itemId,
+      title: s.title.trim().slice(0, MAX_TEXT),
+      caption: s.caption.trim().slice(0, MAX_TEXT),
+    }))
     .filter((s) => s.title !== "")
     .slice(0, MAX_SCENES);
 }
@@ -109,12 +120,7 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
     try {
       const response = await builderDesign({
         prompt: "Write a short caption for each scene of a promotional video.",
-        items: items.map((it) => ({
-          id: it.id,
-          title: it.title,
-          destination: it.destination ?? "",
-          description: it.description ?? "",
-        })),
+        item_ids: items.map((it) => it.id),
       });
       nextId.current = base.length + 1;
       setScenes(applyBuilderCopy(base, response));
@@ -126,7 +132,7 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
   }
 
   async function render() {
-    const payload = scenesToRequestItems(scenes);
+    const payload = scenesToRequest(scenes);
     if (payload.length === 0) {
       setError("Add at least one scene with a title.");
       return;
@@ -134,7 +140,7 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
     setRendering(true);
     setError(null);
     try {
-      const blob = await renderVideo({ items: payload, narrate });
+      const blob = await renderVideo({ scenes: payload, narrate });
       setUrl(URL.createObjectURL(blob));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Video render failed.");

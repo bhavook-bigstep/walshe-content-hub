@@ -9,6 +9,7 @@ import pytest
 
 import app.routers.render as render_mod
 from app.media.video import build_scene_script, escape_drawtext, render_video
+from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
 
 ITEMS = [
     {"title": "Galway: Arts", "description": "It's 100% fun, really"},
@@ -62,12 +63,64 @@ def test_escape_drawtext():
 
 def test_video_route_agent_only(client, agent_headers, provider_headers, monkeypatch):
     monkeypatch.setattr(render_mod, "encode_video", lambda scenes, imgs, tts=False: _fake(scenes))
-    body = {"items": ITEMS}
+    body = {
+        "scenes": [
+            {"item_id": None, "title": t["title"], "caption": t["description"]} for t in ITEMS
+        ]
+    }
     assert client.post("/render/video", json=body).status_code in (401, 403)
     assert client.post("/render/video", headers=provider_headers, json=body).status_code == 403
     resp = client.post("/render/video", headers=agent_headers, json=body)
     assert resp.status_code == 200 and resp.headers["content-type"] == "video/mp4"
     assert resp.content == b"MP4:2"
+    empty = client.post("/render/video", headers=agent_headers, json={"scenes": []})
+    assert empty.status_code == 422
+
+
+def test_video_route_renders_catalog_image(app, client, agent_headers, monkeypatch):
+    png = b"\x89PNG\r\n\x1a\nsynthetic-bytes"
+    with app.state.sessionmaker() as db:
+        def mk(title, status):
+            e = CatalogEntry(
+                type=CatalogType.event, title=title, description="", destination="Galway",
+                status=status, brand_safe=True, allowed_tenant_ids=[], allowed_agent_ids=[],
+                provider_id=1,
+            )
+            db.add(e)
+            db.commit()
+            return e.id
+
+        ok_id = mk("Visible", EntryStatus.approved)
+        hidden_id = mk("Hidden", EntryStatus.draft)
+        db.add(Asset(entry_id=ok_id, object_key="entries/1/a.png", content_type="image/png"))
+        db.add(Asset(entry_id=hidden_id, object_key="entries/2/b.png", content_type="image/png"))
+        db.commit()
+    app.state.storage.put_object("entries/1/a.png", png, "image/png")
+    app.state.storage.put_object("entries/2/b.png", b"secret", "image/png")
+
+    captured: dict = {}
+
+    def fake_encode(scenes, images, tts=False):
+        captured["scenes"] = scenes
+        captured["images"] = [Path(i).read_bytes() if i else None for i in images]
+        captured["tts"] = tts
+        return _fake(scenes)
+
+    monkeypatch.setattr(render_mod, "encode_video", fake_encode)
+    body = {
+        "scenes": [
+            {"item_id": ok_id, "title": "Visible", "caption": "c"},
+            {"item_id": hidden_id, "title": "Hidden", "caption": ""},
+            {"item_id": None, "title": "Manual", "caption": ""},
+        ],
+        "narrate": True,
+    }
+    resp = client.post("/render/video", headers=agent_headers, json=body)
+    assert resp.status_code == 200 and resp.content == b"MP4:3"
+    assert captured["images"][0] == png
+    assert captured["images"][1] is None and captured["images"][2] is None
+    assert [s.title for s in captured["scenes"]] == ["Visible", "Hidden", "Manual"]
+    assert captured["tts"] is True
 
 
 def _fake(scenes):

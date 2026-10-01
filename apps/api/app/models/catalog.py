@@ -49,6 +49,11 @@ class CatalogEntry(Base):
         back_populates="entry", cascade="all, delete-orphan"
     )
 
+    @property
+    def asset_keys(self) -> list[str]:
+        """Read-only list of this entry's asset object keys."""
+        return [a.object_key for a in self.assets]
+
 
 class Asset(Base):
     __tablename__ = "assets"

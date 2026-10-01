@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.ai.base import AIProvider, AIResponse
 from app.ai.builder import BuilderItem, build_design
 from app.ai.stub import StubProvider
+from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
 from app.models.user import Role
 from app.routers import builder as builder_router
 from tests.conftest import auth_header
@@ -78,9 +79,28 @@ def test_unusable_llm_output_falls_back_to_fixed_layout(bad):
     assert build_design(PROMPT, ITEMS, _FakeLLM(bad)).ops == fallback
 
 
+def _seed(app, title, *, approved=True, safe=True, tenants=None, agents=None) -> int:
+    with app.state.sessionmaker() as db:
+        e = CatalogEntry(
+            type=CatalogType.event,
+            title=title,
+            description="",
+            destination="Testshire",
+            status=EntryStatus.approved if approved else EntryStatus.draft,
+            brand_safe=safe,
+            allowed_tenant_ids=tenants or [],
+            allowed_agent_ids=agents or [],
+            provider_id=1,
+        )
+        db.add(e)
+        db.commit()
+        return e.id
+
+
 def test_builder_route_agent_only_and_stub(app):
     app.include_router(builder_router.router)
-    payload = {"prompt": PROMPT, "items": [{"id": 1, "title": "Test Cliffs Tour"}]}
+    eid = _seed(app, "Test Cliffs Tour")
+    payload = {"prompt": PROMPT, "item_ids": [eid]}
     with TestClient(app) as c:
         assert c.post("/builder/design", json=payload).status_code == 401
         provider = auth_header(c, Role.content_provider)
@@ -90,5 +110,33 @@ def test_builder_route_agent_only_and_stub(app):
         r2 = c.post("/builder/design", json=payload, headers=agent)
         assert r1.status_code == 200 and r1.json() == r2.json()
         assert r1.json()["provider"] == "stub"
-        empty = c.post("/builder/design", json={"prompt": PROMPT, "items": []}, headers=agent)
+        empty = c.post("/builder/design", json={"prompt": PROMPT, "item_ids": []}, headers=agent)
         assert empty.status_code == 422
+
+
+def test_builder_route_resolves_ids_through_visibility(app):
+    app.include_router(builder_router.router)
+    ok = _seed(app, "Visible Cliffs Tour")
+    draft = _seed(app, "Draft Secret", approved=False)
+    unsafe = _seed(app, "Unsafe Secret", safe=False)
+    scoped = _seed(app, "Scoped Secret", tenants=[999], agents=[999])
+    bogus = 987654
+    with TestClient(app) as c:
+        agent = auth_header(c, Role.tourism_agent)
+        r = c.post(
+            "/builder/design",
+            json={"prompt": PROMPT, "item_ids": [ok, draft, unsafe, scoped, bogus]},
+            headers=agent,
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert {o["item_id"] for o in body["ops"] if o["item_id"] is not None} == {ok}
+        text = json.dumps(body)
+        for hidden in ("Draft Secret", "Unsafe Secret", "Scoped Secret"):
+            assert hidden not in text
+        hidden_only = c.post(
+            "/builder/design",
+            json={"prompt": PROMPT, "item_ids": [draft, unsafe, scoped, bogus]},
+            headers=agent,
+        )
+        assert hidden_only.status_code == 404

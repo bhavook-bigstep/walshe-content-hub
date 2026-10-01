@@ -42,6 +42,7 @@ acceptance:
     tier: P1
     api:
       - "apps/api/tests/test_visibility_contract.py::test_agent_never_sees_unapproved"
+      - "apps/api/tests/test_builder.py::test_builder_route_resolves_ids_through_visibility"
   AC7:
     tier: P1
     api:
@@ -70,6 +71,7 @@ acceptance:
     tier: P2
     api:
       - "apps/api/tests/test_video.py::test_scene_script_deterministic_and_cmd_shape"
+      - "apps/api/tests/test_video.py::test_video_route_renders_catalog_image"
   AC14:
     tier: P3
     api:
