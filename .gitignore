@@ -25,3 +25,5 @@ content_hub.db
 *.mp4
 !docs/**/*.mp4
 .oneshot/
+.coverage
+**/.coverage
