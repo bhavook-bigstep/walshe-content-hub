@@ -43,7 +43,9 @@
   h1,
   h2,
   h3 {
-    color: var(--walshe-ink);
+    /* Inherit color so headings go dark on light surfaces and light on dark ones
+       (set text-white on the dark container); do not force a color here. */
+    color: inherit;
     text-wrap: balance;
     letter-spacing: -0.02em;
   }

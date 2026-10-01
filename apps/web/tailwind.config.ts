@@ -37,11 +37,11 @@ const config: Config = {
         ui: ["var(--font-ui)", "var(--font-sans)", "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
-        // Bold, tight editorial scale (Inter).
-        display: ["4.25rem", { lineHeight: "1.03", fontWeight: "800", letterSpacing: "-0.02em" }],
-        h1: ["3rem", { lineHeight: "1.05", fontWeight: "800", letterSpacing: "-0.02em" }],
-        h2: ["2.25rem", { lineHeight: "1.08", fontWeight: "700", letterSpacing: "-0.02em" }],
-        h3: ["1.3125rem", { lineHeight: "1.3", fontWeight: "700", letterSpacing: "-0.01em" }],
+        // Light, editorial grotesque scale (Inter) — big and airy, not heavy.
+        display: ["5rem", { lineHeight: "0.98", fontWeight: "300", letterSpacing: "-0.035em" }],
+        h1: ["2.75rem", { lineHeight: "1.05", fontWeight: "500", letterSpacing: "-0.025em" }],
+        h2: ["2.1rem", { lineHeight: "1.1", fontWeight: "500", letterSpacing: "-0.02em" }],
+        h3: ["1.3125rem", { lineHeight: "1.3", fontWeight: "600", letterSpacing: "-0.01em" }],
         body: ["1rem", { lineHeight: "1.6" }],
         small: ["0.875rem", { lineHeight: "1.35" }],
         eyebrow: ["0.78rem", { lineHeight: "1.2", fontWeight: "700", letterSpacing: "0.16em" }],

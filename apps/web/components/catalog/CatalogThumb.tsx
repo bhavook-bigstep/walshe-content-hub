@@ -3,15 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAssetObjectUrl } from "../../lib/api";
 
-// Derive a stable picsum seed from the entry title so the editorial fallback image is consistent
-// across renders (same title → same photo), never a flat grey box.
-function slugify(s: string): string {
-  return (
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "walshe-catalog"
-  );
+// Curated Picsum photo IDs that are genuine scenic landscapes (mountains, coast, forest, desert),
+// so a catalog entry without a real asset still shows destination-quality imagery — never a random
+// stock photo. A stable hash of the title picks one (same title → same photo).
+const LANDSCAPES = [1018, 1015, 1016, 1036, 1039, 1041, 1043, 1044, 1047, 1057, 1061, 29, 28, 110];
+function pickLandscape(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return LANDSCAPES[h % LANDSCAPES.length];
 }
 
 // Image-first catalog thumbnail (brief §4 catalog, "vita" direction — photo-led, 4/3, rounded).
@@ -27,7 +26,7 @@ export default function CatalogThumb({
   className?: string;
 }) {
   const [src, setSrc] = useState<string | null>(null);
-  const fallback = useMemo(() => `https://picsum.photos/seed/${slugify(alt)}/700/560`, [alt]);
+  const fallback = useMemo(() => `https://picsum.photos/id/${pickLandscape(alt)}/700/560`, [alt]);
 
   useEffect(() => {
     if (!imageKey) return;
