@@ -9,12 +9,12 @@ export interface EngagementPoint {
   engagement: number;
 }
 
-// Chart series order per brief §3: teal, green, grey. Each series keeps one colour AND a distinct
+// Chart series — "vita" palette: teal, green, amber. Each series keeps one colour AND a distinct
 // marker shape, so it never relies on colour alone (WCAG non-colour encoding).
 const SERIES = [
   { key: "impressions", label: "Impressions", color: "var(--walshe-teal)", marker: "circle" },
   { key: "engagement", label: "Engagement", color: "var(--walshe-green)", marker: "square" },
-  { key: "clicks", label: "Clicks", color: "var(--walshe-grey)", marker: "triangle" },
+  { key: "clicks", label: "Clicks", color: "var(--walshe-amber)", marker: "triangle" },
 ] as const;
 
 type Key = (typeof SERIES)[number]["key"];
@@ -125,7 +125,7 @@ export default function EngagementChart({
             const gy = PAD.top + plotH - g * plotH;
             return (
               <g key={g}>
-                <line x1={PAD.left} y1={gy} x2={W - PAD.right} y2={gy} stroke="var(--walshe-stone)" strokeWidth={1} />
+                <line x1={PAD.left} y1={gy} x2={W - PAD.right} y2={gy} stroke="var(--walshe-line)" strokeWidth={1} />
                 <text x={PAD.left - 8} y={gy + 4} textAnchor="end" fontSize="11" fill="var(--walshe-grey)">
                   {Math.round(g * max).toLocaleString("en-US")}
                 </text>

@@ -127,20 +127,26 @@ export default function BuilderPanel({
   }
 
   return (
-    <section className="flex flex-col gap-2" aria-label="Builder" aria-busy={loading}>
-      <textarea
-        className="field-area text-small"
-        placeholder="Describe the design you want"
-        aria-label="Builder prompt"
-        value={prompt}
-        maxLength={2000}
-        rows={3}
-        onChange={(e) => setPrompt(e.target.value)}
-      />
+    <section className="flex flex-col gap-3" aria-label="Builder" aria-busy={loading}>
+      <p className="text-small text-walshe-grey">
+        Describe what you want and the AI Builder drafts it from your selected catalog items.
+      </p>
+      <label className="block">
+        <span className="label">Design brief</span>
+        <textarea
+          className="field-area text-small"
+          placeholder="Describe the design you want"
+          aria-label="Builder prompt"
+          value={prompt}
+          maxLength={2000}
+          rows={3}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+      </label>
       {items.length === 0 ? (
         <p className="text-small text-walshe-grey">Select at least one catalog item for the Builder to use.</p>
       ) : (
-        <p className="text-small text-walshe-grey">
+        <p className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-walshe-mint px-3 py-1 text-small font-semibold text-walshe-teal">
           {items.length} catalog item{items.length === 1 ? "" : "s"} selected
         </p>
       )}

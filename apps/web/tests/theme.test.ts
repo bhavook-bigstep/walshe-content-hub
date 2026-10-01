@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import config from "../tailwind.config";
 
 // AC19 — the Walshe design system is defined once in the central theme and exposes the brand
-// tokens extracted from walshegroup.com (docs/design/ui-brief.md §3). This test is the proof.
+// tokens for the approved v2 ("vita") direction: amber accent, deep-teal ink, Inter, pill radius.
+// This test is the proof.
 describe("walshe design tokens", () => {
   it("test_theme_exposes_walshe_tokens", () => {
     const colors = config.theme?.extend?.colors as Record<string, Record<string, string>> | undefined;
@@ -10,22 +11,22 @@ describe("walshe design tokens", () => {
     const walshe = colors!.walshe;
     expect(walshe).toBeDefined();
 
-    // §3 palette — exact hex values read from the live site.
+    // Core palette — the approved direction's brand tokens.
     expect(walshe).toMatchObject({
-      teal: "#005653",
-      mint: "#E5F6DF",
-      stone: "#ECEBE8",
-      ink: "#000000",
-      grey: "#737373",
-      white: "#FFFFFF",
-      green: "#00AE41",
+      amber: "#FBA13A",
+      ink: "#071418",
+      teal: "#0D2E37",
+      paper: "#FFFFFF",
+      grey: "#5D6C7B",
+      green: "#0FA37F",
     });
 
-    // Typography scale, spacing base and radius are part of the system.
+    // Inter carries the type system.
     const fontFamily = config.theme?.extend?.fontFamily as Record<string, string[]> | undefined;
-    expect(fontFamily?.sans).toContain("Founders Grotesk");
+    expect(fontFamily?.sans).toContain("Inter");
 
+    // Rounded, editorial radii incl. a pill for buttons.
     const radius = config.theme?.extend?.borderRadius as Record<string, string> | undefined;
-    expect(radius).toMatchObject({ sm: "6px", md: "12px", pill: "999px" });
+    expect(radius).toMatchObject({ md: "16px", lg: "22px", pill: "999px" });
   });
 });

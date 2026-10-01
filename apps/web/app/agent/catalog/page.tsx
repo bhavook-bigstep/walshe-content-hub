@@ -131,22 +131,22 @@ export default function AgentCatalogPage() {
           {entries.map((e) => {
             const added = selected.some((x) => x.id === e.id);
             return (
-              <li key={e.id} className="card card-hover flex flex-col overflow-hidden">
-                <CatalogThumb imageKey={e.image_key ?? e.asset_keys?.[0]} alt={e.title} />
-                <div className="flex flex-1 flex-col gap-2 p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-medium text-walshe-ink">{e.title}</h3>
-                    <span className="chip-verified shrink-0">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden>
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
-                      Verified
-                    </span>
-                  </div>
-                  <p className="text-small capitalize text-walshe-grey">
+              <li key={e.id} className="card card-hover group flex flex-col overflow-hidden">
+                <div className="relative">
+                  <CatalogThumb imageKey={e.image_key ?? e.asset_keys?.[0]} alt={e.title} />
+                  <span className="chip-verified absolute left-3.5 top-3.5">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--walshe-green)" strokeWidth="3" aria-hidden>
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                    Verified
+                  </span>
+                </div>
+                <div className="flex flex-1 flex-col gap-2 p-5">
+                  <div className="eyebrow text-[11px] capitalize">
                     {e.type} · {e.destination}
-                  </p>
-                  <p className="line-clamp-3 text-small text-walshe-ink/80">{e.description}</p>
+                  </div>
+                  <h3 className="text-h3 text-walshe-ink">{e.title}</h3>
+                  <p className="line-clamp-3 text-small text-walshe-grey">{e.description}</p>
                   <button
                     type="button"
                     disabled={added}

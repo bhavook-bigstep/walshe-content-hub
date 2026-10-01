@@ -85,16 +85,27 @@ export default function AdminPage() {
 
       {/* Verification queue */}
       {!loading && queue.length > 0 && (
-        <section aria-labelledby="queue-title" className="mb-8">
-          <h2 id="queue-title" className="mb-4 text-h3 font-bold text-walshe-ink">
-            Verification queue
-          </h2>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-labelledby="queue-title" className="mb-10">
+          <div className="mb-4">
+            <p className="eyebrow">Needs your review</p>
+            <h2 id="queue-title" className="mt-2 text-h3 text-walshe-ink">
+              Verification queue
+            </h2>
+          </div>
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {queue.map((u) => (
-              <li key={u.id} className="card card-hover flex flex-col gap-3 p-5">
-                <div>
-                  <p className="font-medium text-walshe-ink">{u.email}</p>
-                  <p className="text-small text-walshe-grey">Content provider · pending</p>
+              <li key={u.id} className="card card-hover flex flex-col gap-4 p-6">
+                <div className="flex items-start gap-3">
+                  <span
+                    aria-hidden
+                    className="grid h-10 w-10 flex-none place-items-center rounded-md bg-walshe-mint text-base font-bold uppercase text-walshe-teal"
+                  >
+                    {u.email.charAt(0)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-walshe-ink">{u.email}</p>
+                    <p className="mt-0.5 text-small text-walshe-grey">Content provider · pending</p>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -112,35 +123,38 @@ export default function AdminPage() {
 
       {/* Full directory */}
       <section aria-labelledby="directory-title">
-        <h2 id="directory-title" className="mb-4 text-h3 font-bold text-walshe-ink">
-          All users
-        </h2>
+        <div className="mb-4">
+          <p className="eyebrow">Directory</p>
+          <h2 id="directory-title" className="mt-2 text-h3 text-walshe-ink">
+            All users
+          </h2>
+        </div>
         {loading && !error ? (
           <div className="card h-48 animate-pulse bg-walshe-stone/60" aria-hidden />
         ) : total === 0 && !error ? (
           <div className="card p-8 text-center text-body text-walshe-grey">No users yet.</div>
         ) : (
-          <div className="card overflow-x-auto">
+          <div className="card overflow-x-auto p-0">
             <table className="w-full text-left text-small">
               <thead>
-                <tr className="border-b border-walshe-stone text-walshe-grey">
-                  <th className="px-4 py-3 font-medium">Email</th>
-                  <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3" />
+                <tr className="border-b border-walshe-line bg-walshe-mist/60 text-walshe-grey">
+                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-[0.1em]">Email</th>
+                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-[0.1em]">Role</th>
+                  <th className="px-5 py-3.5 text-[11px] font-bold uppercase tracking-[0.1em]">Status</th>
+                  <th className="px-5 py-3.5" />
                 </tr>
               </thead>
               <tbody>
-                {users!.map((u, i) => (
-                  <tr key={u.id} className={i % 2 === 1 ? "bg-walshe-stone/40" : undefined}>
-                    <td className="px-4 py-3 text-walshe-ink">{u.email}</td>
-                    <td className="px-4 py-3 text-walshe-grey">{ROLE_LABEL[u.role] ?? u.role}</td>
-                    <td className="px-4 py-3">
+                {users!.map((u) => (
+                  <tr key={u.id} className="border-b border-walshe-line/70 last:border-0 transition-colors hover:bg-walshe-mist/50">
+                    <td className="px-5 py-3.5 font-medium text-walshe-ink">{u.email}</td>
+                    <td className="px-5 py-3.5 text-walshe-grey">{ROLE_LABEL[u.role] ?? u.role}</td>
+                    <td className="px-5 py-3.5">
                       <span className={u.approved ? "chip-verified" : "chip-draft"}>
                         {u.approved ? "Approved" : "Pending"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-5 py-3.5 text-right">
                       {u.role === "content_provider" && !u.approved && (
                         <button
                           type="button"

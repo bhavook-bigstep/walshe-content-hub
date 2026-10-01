@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 test("landing hero and cta", async ({ page }) => {
   await page.goto("/");
   // Branded hero headline (Walshe design overhaul).
-  await expect(page.getByRole("heading", { name: /verified destination content/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /verified destinations/i })).toBeVisible();
   // A clear CTA into sign-in exists.
   await expect(page.getByRole("link", { name: /^sign in$/i }).first()).toBeVisible();
   // The Walshe wordmark is present.

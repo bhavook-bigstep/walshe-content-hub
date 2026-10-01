@@ -21,7 +21,7 @@ async function loginAsAgent(page: Page): Promise<void> {
 // AC20 — branded public landing page: hero headline + primary CTA into sign-in.
 test("landing page shows hero headline and a sign-in CTA", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Verified destination content");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Verified destinations");
   const signIn = page.getByRole("link", { name: "Sign in" }).first();
   await expect(signIn).toBeVisible();
   await signIn.click();
@@ -42,7 +42,7 @@ test("agent app shell shows branded nav and logo", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav.getByRole("link", { name: "Catalog" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Design Studio" })).toBeVisible();
-  await expect(page.getByText("Content Hub").first()).toBeVisible();
+  await expect(page.getByText("Walshe").first()).toBeVisible();
 });
 
 // AC22 — polished dashboard: stat tiles + a chart render for the agent.

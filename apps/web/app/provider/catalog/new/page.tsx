@@ -66,13 +66,16 @@ export default function NewEntryPage() {
       />
 
       {created ? (
-        <section className="card space-y-3 p-6" role="status">
-          <span className="chip-verified">Created</span>
-          <p className="text-body text-walshe-ink">
+        <section className="card space-y-4 p-7" role="status">
+          <span className="chip-verified w-fit">Created</span>
+          <p className="text-h3 text-walshe-ink">
             &ldquo;{created.title}&rdquo; has been created.
           </p>
+          <p className="text-body text-walshe-grey">
+            Next, mark it brand-safe and choose who in the trade may use it.
+          </p>
           {imageNote && <p className="text-small text-walshe-grey">{imageNote}</p>}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3 pt-1">
             <Link href={`/provider/catalog/${created.id}`} className="btn-primary">
               Set brand-safe flag and access
             </Link>
@@ -82,7 +85,7 @@ export default function NewEntryPage() {
           </div>
         </section>
       ) : (
-        <form onSubmit={onSubmit} className="card space-y-4 p-6">
+        <form onSubmit={onSubmit} className="card space-y-5 p-7">
           <label className="block">
             <span className="label">Type</span>
             <select value={type} onChange={(e) => setType(e.target.value as CatalogType)} className="field capitalize">
@@ -119,11 +122,11 @@ export default function NewEntryPage() {
             />
           </label>
           {error && (
-            <p role="alert" className="text-small text-walshe-danger">
+            <p role="alert" className="text-small font-medium text-walshe-danger">
               {error}
             </p>
           )}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3 border-t border-walshe-line pt-5">
             <button type="submit" disabled={busy} className="btn-primary">
               {busy ? "Saving…" : "Create entry"}
             </button>

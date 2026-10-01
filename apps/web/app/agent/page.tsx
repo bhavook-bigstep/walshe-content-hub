@@ -131,13 +131,15 @@ export default function AgentHomePage() {
             <ol className="space-y-3">
               {topPosts.map((p, i) => (
                 <li key={p.post_id} className="flex items-center gap-3">
-                  <span className="w-5 text-small font-semibold text-walshe-teal tabular-nums">{i + 1}</span>
+                  <span className="grid h-6 w-6 flex-none place-items-center rounded-md bg-walshe-amber text-[12px] font-extrabold text-walshe-ink tabular-nums">
+                    {i + 1}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between text-small">
-                      <span className="font-medium text-walshe-ink">Post #{p.post_id}</span>
+                      <span className="font-semibold text-walshe-ink">Post #{p.post_id}</span>
                       <span className="tabular-nums text-walshe-grey">{p.engagement.toLocaleString("en-US")}</span>
                     </div>
-                    <div className="mt-1 h-2 rounded-pill bg-walshe-stone" aria-hidden>
+                    <div className="mt-1.5 h-2 rounded-pill bg-walshe-stone" aria-hidden>
                       <div
                         className="h-2 rounded-pill bg-walshe-teal"
                         style={{ width: `${Math.max(4, Math.round((p.engagement / maxEng) * 100))}%` }}
@@ -172,23 +174,23 @@ export default function AgentHomePage() {
             <p className="text-body text-walshe-grey">No approved content matches your access yet.</p>
           </div>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {(catalog ?? []).slice(0, 3).map((e) => (
-              <li key={e.id} className="card card-hover overflow-hidden">
-                <CatalogThumb imageKey={e.image_key ?? e.asset_keys?.[0]} alt={e.title} />
-                <div className="space-y-2 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="truncate font-medium text-walshe-ink">{e.title}</h3>
-                    <span className="chip-verified shrink-0">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden>
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
-                      Verified
-                    </span>
-                  </div>
-                  <p className="text-small capitalize text-walshe-grey">
+              <li key={e.id} className="card card-hover group overflow-hidden">
+                <div className="relative">
+                  <CatalogThumb imageKey={e.image_key ?? e.asset_keys?.[0]} alt={e.title} />
+                  <span className="chip-verified absolute left-3.5 top-3.5">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--walshe-green)" strokeWidth="3" aria-hidden>
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                    Verified
+                  </span>
+                </div>
+                <div className="p-5">
+                  <div className="eyebrow text-[11px] capitalize">
                     {e.type} · {e.destination}
-                  </p>
+                  </div>
+                  <h3 className="mt-2 truncate text-h3 text-walshe-ink">{e.title}</h3>
                 </div>
               </li>
             ))}
@@ -200,8 +202,11 @@ export default function AgentHomePage() {
       <section className="mt-10" aria-label="Quick actions">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {QUICK_LINKS.map((q) => (
-            <Link key={q.href} href={q.href} className="card card-hover block p-5">
-              <span className="block font-medium text-walshe-teal">{q.title}</span>
+            <Link key={q.href} href={q.href} className="card card-hover group block p-5">
+              <span className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-walshe-ink">{q.title}</span>
+                <span aria-hidden className="text-walshe-amber transition-transform group-hover:translate-x-0.5">→</span>
+              </span>
               <span className="mt-1 block text-small text-walshe-grey">{q.body}</span>
             </Link>
           ))}

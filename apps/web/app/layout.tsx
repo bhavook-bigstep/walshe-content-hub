@@ -25,7 +25,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${lato.variable}`}>
-      <body className="min-h-screen bg-walshe-stone text-walshe-ink antialiased">{children}</body>
+      <body className="min-h-screen bg-walshe-paper text-walshe-ink antialiased">{children}</body>
     </html>
   );
 }

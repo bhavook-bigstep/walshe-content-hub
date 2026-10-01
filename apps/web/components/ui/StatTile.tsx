@@ -21,7 +21,7 @@ export default function StatTile({
         <span className="text-small font-medium text-walshe-grey">{label}</span>
         {icon && <span className="text-walshe-teal" aria-hidden>{icon}</span>}
       </div>
-      <span className="text-h1 font-light leading-none text-walshe-ink tabular-nums">{value}</span>
+      <span className="text-[34px] font-extrabold leading-none tracking-[-0.03em] text-walshe-ink tabular-nums">{value}</span>
       <div className="flex items-center gap-2">
         {delta && (
           <span

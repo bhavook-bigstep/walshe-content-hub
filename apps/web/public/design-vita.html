@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Walshe Content Hub — vita-style direction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#071418; --teal900:#0D2E37; --teal800:#143f4b; --amber:#FBA13A; --amber600:#ea8a26;
+    --paper:#ffffff; --mist:#F4F5F4; --muted:#5d6c7b; --line:#e9eb ea; --line2:#e7e9e8;
+    color-scheme:light;
+  }
+  body{font-family:"Inter",system-ui,sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;line-height:1.55}
+  img{display:block;max-width:100%}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 28px}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:0;cursor:pointer;font-family:inherit;font-weight:600;font-size:15px;border-radius:999px;padding:14px 26px;transition:transform .15s ease, background .15s ease}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-amber{background:var(--amber);color:var(--ink)}
+  .btn-amber:hover{background:var(--amber600)}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55)}
+  .btn-ghost.dark{color:var(--ink);box-shadow:inset 0 0 0 1.5px rgba(7,20,24,.22)}
+  .eyebrow{font-size:12.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--amber)}
+  h1,h2,h3{letter-spacing:-0.02em;font-weight:700;line-height:1.05}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative;min-height:640px;border-radius:0 0 34px 34px;overflow:hidden;color:#fff;
+    background:linear-gradient(180deg,rgba(7,20,24,.62) 0%,rgba(7,20,24,.28) 38%,rgba(7,20,24,.72) 100%),
+      url("https://picsum.photos/seed/amalfi-coast/1800/1100") center/cover no-repeat;}
+  .nav{display:flex;align-items:center;gap:30px;padding:26px 0}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:19px;letter-spacing:-0.01em}
+  .brand .mk{width:38px;height:38px;border-radius:11px;background:var(--amber);color:var(--ink);display:grid;place-items:center;font-weight:800}
+  .nav .links{display:flex;gap:28px;margin-left:14px}
+  .nav .links a{color:rgba(255,255,255,.9);text-decoration:none;font-weight:500;font-size:15px}
+  .nav .links a:hover{color:#fff}
+  .nav .right{margin-left:auto;display:flex;gap:12px;align-items:center}
+  .nav .right a{color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:12px 8px}
+  .hero-body{max-width:720px;padding:56px 0 150px}
+  .hero h1{font-size:clamp(40px,6vw,74px);font-weight:800}
+  .hero p{margin-top:22px;font-size:19px;font-weight:400;color:rgba(255,255,255,.9);max-width:54ch}
+  .hero .cta{margin-top:34px;display:flex;gap:14px;flex-wrap:wrap}
+  .trust{margin-top:40px;display:flex;align-items:center;gap:22px;color:rgba(255,255,255,.75);font-size:14px;font-weight:500}
+  .trust .dot{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.5)}
+
+  /* stat card overlapping hero */
+  .statcard{position:relative;margin:-96px auto 0;max-width:1040px;background:#fff;border-radius:24px;
+    box-shadow:0 30px 60px -32px rgba(7,20,24,.3);display:grid;grid-template-columns:repeat(4,1fr);overflow:hidden}
+  .statcard .s{padding:30px 28px;border-right:1px solid var(--line2)}
+  .statcard .s:last-child{border-right:0}
+  .statcard .s .k{font-size:38px;font-weight:800;letter-spacing:-0.03em}
+  .statcard .s .k em{font-style:normal;color:var(--amber)}
+  .statcard .s .l{margin-top:4px;color:var(--muted);font-weight:500;font-size:14.5px}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:92px 0}
+  .shead{max-width:640px}
+  .shead h2{font-size:clamp(30px,3.6vw,46px);margin-top:14px}
+  .shead p{margin-top:16px;color:var(--muted);font-size:18px}
+  .center{margin-left:auto;margin-right:auto;text-align:center}
+
+  /* featured cards */
+  .cards{margin-top:44px;display:grid;grid-template-columns:repeat(3,1fr);gap:26px}
+  .card{background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 1px 0 var(--line2);transition:transform .2s ease, box-shadow .2s ease}
+  .card:hover{transform:translateY(-4px);box-shadow:0 26px 50px -30px rgba(7,20,24,.4)}
+  .card .ph{position:relative;aspect-ratio:4/3;overflow:hidden}
+  .card .ph img{width:100%;height:100%;object-fit:cover;transition:transform .5s ease}
+  .card:hover .ph img{transform:scale(1.05)}
+  .card .vchip{position:absolute;top:14px;left:14px;background:rgba(255,255,255,.95);color:var(--teal900);font-weight:700;font-size:12.5px;padding:7px 12px;border-radius:999px;display:flex;gap:6px;align-items:center}
+  .card .body{padding:20px 22px 24px}
+  .card .cat{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--amber)}
+  .card .body h3{font-size:21px;margin-top:9px}
+  .card .body p{color:var(--muted);font-size:15px;margin-top:8px}
+  .card .foot{margin-top:16px;display:flex;align-items:center;justify-content:space-between;font-weight:600;font-size:14px}
+  .card .foot .go{color:var(--teal900);display:flex;gap:6px;align-items:center}
+
+  /* steps */
+  .steps-wrap{background:var(--mist);border-radius:34px;margin:0 28px}
+  .steps-wrap section{padding:84px 0}
+  .steps{margin-top:46px;display:grid;grid-template-columns:repeat(4,1fr);gap:28px}
+  .step .no{width:46px;height:46px;border-radius:14px;background:#fff;color:var(--teal900);display:grid;place-items:center;font-weight:800;font-size:18px;box-shadow:0 10px 24px -14px rgba(7,20,24,.4)}
+  .step h3{font-size:19px;margin-top:20px}
+  .step p{color:var(--muted);font-size:15px;margin-top:9px}
+
+  /* product peek (dark) */
+  .peek{background:var(--teal900);color:#fff;border-radius:34px;margin:0 28px;overflow:hidden}
+  .peek .inner{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center;padding:80px 56px}
+  .peek .eyebrow{color:var(--amber)}
+  .peek h2{font-size:clamp(28px,3.2vw,40px);margin-top:14px}
+  .peek p{color:rgba(255,255,255,.78);font-size:17px;margin-top:16px;max-width:46ch}
+  .peek ul{margin-top:22px;list-style:none;display:flex;flex-direction:column;gap:12px}
+  .peek li{display:flex;gap:11px;align-items:flex-start;color:rgba(255,255,255,.9);font-weight:500}
+  .peek li svg{flex:none;margin-top:3px}
+  /* mock app */
+  .mock{background:#0a2129;border-radius:20px;padding:16px;box-shadow:0 40px 80px -40px rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.08)}
+  .mock .bar{display:flex;align-items:center;gap:10px;padding:4px 6px 14px}
+  .mock .bar i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.25)}
+  .mock .appgrid{display:grid;grid-template-columns:120px 1fr;gap:12px}
+  .mock .side{background:rgba(255,255,255,.04);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .mock .side .li{height:30px;border-radius:9px;background:rgba(255,255,255,.06)}
+  .mock .side .li.on{background:var(--amber);opacity:.95}
+  .mock .main{display:flex;flex-direction:column;gap:12px}
+  .mock .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .mock .kpi{background:rgba(255,255,255,.05);border-radius:12px;padding:14px}
+  .mock .kpi b{font-size:22px;font-weight:800}
+  .mock .kpi span{display:block;color:rgba(255,255,255,.55);font-size:11px;margin-top:4px}
+  .mock .thumbs{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .mock .thumbs .t{aspect-ratio:16/9;border-radius:12px;overflow:hidden}
+  .mock .thumbs .t img{width:100%;height:100%;object-fit:cover}
+
+  /* CTA + footer */
+  .cta-band{text-align:center;padding:96px 0}
+  .cta-band h2{font-size:clamp(30px,4vw,50px)}
+  .cta-band p{color:var(--muted);font-size:18px;margin-top:16px}
+  .cta-band .row{margin-top:30px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  footer{background:var(--ink);color:rgba(255,255,255,.7);padding:46px 0}
+  footer .wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  footer .brand{color:#fff}
+  footer .sp{margin-left:auto;font-size:14px}
+
+  @media (max-width:900px){
+    .statcard{grid-template-columns:1fr 1fr}
+    .statcard .s:nth-child(2){border-right:0}
+    .cards,.steps{grid-template-columns:1fr 1fr}
+    .peek .inner{grid-template-columns:1fr;padding:56px 32px}
+    .nav .links{display:none}
+  }
+  @media (max-width:560px){ .cards,.steps,.statcard{grid-template-columns:1fr} .statcard .s{border-right:0;border-bottom:1px solid var(--line2)} }
+
+  /* ---------- MOTION (vita-style smoothness) ---------- */
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion: no-preference){
+    .reveal{opacity:0;transform:translateY(26px);transition:opacity .8s cubic-bezier(.22,.61,.36,1), transform .8s cubic-bezier(.22,.61,.36,1)}
+    .reveal.in{opacity:1;transform:none}
+    /* hero load-in sequence */
+    .hero-body>*{opacity:0;transform:translateY(22px);animation:rise .9s cubic-bezier(.22,.61,.36,1) forwards}
+    .hero-body>*:nth-child(1){animation-delay:.15s}
+    .hero-body>*:nth-child(2){animation-delay:.28s}
+    .hero-body>*:nth-child(3){animation-delay:.41s}
+    .hero-body>*:nth-child(4){animation-delay:.54s}
+    .hero-body>*:nth-child(5){animation-delay:.67s}
+    @keyframes rise{to{opacity:1;transform:none}}
+    .btn,.nav .right a{transition:transform .18s ease, background .18s ease, color .18s ease}
+    .go{transition:gap .2s ease}
+    .card .foot .go svg{display:none}
+  }
+  @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="wrap">
+      <nav class="nav">
+        <div class="brand"><span class="mk">W</span> Walshe</div>
+        <div class="links"><a>For the trade</a><a>Destinations</a><a>How it works</a><a>About</a></div>
+        <div class="right"><a>Sign in</a><button class="btn btn-amber">Get started</button></div>
+      </nav>
+      <div class="hero-body">
+        <span class="eyebrow">The destination content hub</span>
+        <h1 style="margin-top:16px">Verified destinations, trade-ready in minutes.</h1>
+        <p>Tourism boards publish verified content once. 10,000 travel agents turn it into on-brand campaigns — imagery, posts, pamphlets and video — without leaving the hub.</p>
+        <div class="cta"><button class="btn btn-amber">Explore the catalog</button><button class="btn btn-ghost">See how it works</button></div>
+        <div class="trust">Trusted by destination boards across ANZ <span class="dot"></span> 50 years in travel</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- STAT CARD -->
+  <div class="wrap">
+    <div class="statcard">
+      <div class="s"><div class="k">50 <em>yrs</em></div><div class="l">in travel, in 2026</div></div>
+      <div class="s"><div class="k">10,000</div><div class="l">trade agents reached</div></div>
+      <div class="s"><div class="k">6</div><div class="l">destination markets</div></div>
+      <div class="s"><div class="k">100%</div><div class="l">brand-verified content</div></div>
+    </div>
+  </div>
+
+  <!-- FEATURED -->
+  <section>
+    <div class="wrap">
+      <div class="shead">
+        <span class="eyebrow">Verified catalog</span>
+        <h2>Content the trade can trust.</h2>
+        <p>Every asset is brand-approved by the destination — no crowd-sourced guesswork, no off-brand surprises.</p>
+      </div>
+      <div class="cards">
+        <article class="card">
+          <div class="ph"><img src="https://picsum.photos/seed/galway-harbour/700/560" alt="Harbour festival" /><span class="vchip"><svg width="13" height="13" viewBox="0 0 24 24" fill="#0FA37F"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg> Verified</span></div>
+          <div class="body"><div class="cat">Event · Galway</div><h3>Harbour Festival</h3><p>A week of food, music and sea air on Ireland’s west coast.</p>
+            <div class="foot"><span style="color:var(--muted)">12 assets</span><span class="go">Use content →</span></div></div>
+        </article>
+        <article class="card">
+          <div class="ph"><img src="https://picsum.photos/seed/cliffs-moher/700/560" alt="Cliffs" /><span class="vchip"><svg width="13" height="13" viewBox="0 0 24 24" fill="#0FA37F"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg> Verified</span></div>
+          <div class="body"><div class="cat">Place · Clare</div><h3>Cliffs of Moher</h3><p>The signature view of the Wild Atlantic Way, sunrise to storm.</p>
+            <div class="foot"><span style="color:var(--muted)">20 assets</span><span class="go">Use content →</span></div></div>
+        </article>
+        <article class="card">
+          <div class="ph"><img src="https://picsum.photos/seed/dublin-trade/700/560" alt="Trade showcase" /><span class="vchip"><svg width="13" height="13" viewBox="0 0 24 24" fill="#0FA37F"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg> Verified</span></div>
+          <div class="body"><div class="cat">Opportunity · Dublin</div><h3>Trade Showcase</h3><p>Agent-only offers and airline deals, refreshed each season.</p>
+            <div class="foot"><span style="color:var(--muted)">8 assets</span><span class="go">Use content →</span></div></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEPS -->
+  <div class="steps-wrap">
+    <section>
+      <div class="wrap">
+        <div class="shead"><span class="eyebrow">How it works</span><h2>From verified content to published campaign.</h2></div>
+        <div class="steps">
+          <div class="step"><div class="no">1</div><h3>Browse</h3><p>Search the approved catalog by destination, season or type.</p></div>
+          <div class="step"><div class="no">2</div><h3>Build</h3><p>Compose in the studio, or let the AI Builder draft it from the content.</p></div>
+          <div class="step"><div class="no">3</div><h3>Personalise</h3><p>Add your logo, contact and offers — on-brand, automatically.</p></div>
+          <div class="step"><div class="no">4</div><h3>Publish</h3><p>Export or schedule to social, then track impressions and clicks.</p></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- PRODUCT PEEK -->
+  <section>
+    <div class="wrap"><div class="peek"><div class="inner">
+      <div>
+        <span class="eyebrow">Inside the hub</span>
+        <h2>A studio built for the trade.</h2>
+        <p>Everything an agent needs in one place — the verified catalog, a Canva-style studio, an AI Builder, and a social engagement dashboard.</p>
+        <ul>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="#FBA13A"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg> AI Builder drafts posts, pamphlets and video from the catalog</li>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="#FBA13A"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg> Personalise with your own branding in one click</li>
+          <li><svg width="20" height="20" viewBox="0 0 24 24" fill="#FBA13A"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg> Schedule, publish and measure — all in the hub</li>
+        </ul>
+        <div style="margin-top:28px"><button class="btn btn-amber">Open the studio</button></div>
+      </div>
+      <div class="mock">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="appgrid">
+          <div class="side"><div class="li on"></div><div class="li"></div><div class="li"></div><div class="li"></div></div>
+          <div class="main">
+            <div class="kpis"><div class="kpi"><b>5</b><span>Approved</span></div><div class="kpi"><b>1,200</b><span>Impressions</span></div><div class="kpi"><b>7.0%</b><span>CTR</span></div></div>
+            <div class="thumbs"><div class="t"><img src="https://picsum.photos/seed/m1/400/240" alt=""></div><div class="t"><img src="https://picsum.photos/seed/m2/400/240" alt=""></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div></div>
+  </section>
+
+  <!-- CTA -->
+  <div class="wrap"><div class="cta-band">
+    <span class="eyebrow">Ready when you are</span>
+    <h2 style="margin-top:14px">Put verified destination content to work.</h2>
+    <p>Join the trade network already building on-brand campaigns in minutes.</p>
+    <div class="row"><button class="btn btn-amber">Get started</button><button class="btn btn-ghost dark">Talk to us</button></div>
+  </div></div>
+
+  <footer><div class="wrap">
+    <div class="brand" style="display:flex;align-items:center;gap:10px;font-weight:800"><span class="mk" style="width:32px;height:32px;border-radius:9px;background:var(--amber);color:var(--ink);display:grid;place-items:center">W</span> Walshe Content Hub</div>
+    <span class="sp">Destination marketing & regenerative tourism · 50 years in 2026</span>
+  </div></footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) return;
+
+  // Scroll reveal with per-group stagger.
+  var groups = [
+    ['.statcard'], ['.shead'], ['.card'], ['.step'], ['.peek'], ['.cta-band'], ['footer .wrap']
+  ];
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.14, rootMargin: '0px 0px -8% 0px' });
+
+  groups.forEach(function(sel){
+    var els = document.querySelectorAll(sel[0]);
+    els.forEach(function(el, i){
+      el.classList.add('reveal');
+      el.style.transitionDelay = (Math.min(i,5) * 90) + 'ms';
+      io.observe(el);
+    });
+  });
+
+  // Subtle hero parallax — background drifts slower than scroll.
+  var hero = document.querySelector('.hero');
+  if (hero){
+    var ticking = false;
+    window.addEventListener('scroll', function(){
+      if(ticking) return; ticking = true;
+      requestAnimationFrame(function(){
+        var y = window.scrollY;
+        if (y < 900) hero.style.backgroundPosition = 'center calc(50% + ' + (y*0.18) + 'px)';
+        ticking = false;
+      });
+    }, { passive:true });
+  }
+
+  // Link hover arrow nudge.
+  document.querySelectorAll('.card .foot .go').forEach(function(go){
+    go.addEventListener('mouseenter', function(){ go.style.gap='10px'; });
+    go.addEventListener('mouseleave', function(){ go.style.gap='6px'; });
+  });
+})();
+</script>
+</body>
+</html>

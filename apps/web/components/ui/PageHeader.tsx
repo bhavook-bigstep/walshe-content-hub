@@ -54,12 +54,10 @@ export default function PageHeader({
             </ol>
           </nav>
         ) : (
-          eyebrow && (
-            <p className="mb-1 text-small font-medium uppercase tracking-[0.12em] text-walshe-grey">{eyebrow}</p>
-          )
+          eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>
         )}
-        <h1 className="text-h2 font-light text-walshe-ink">{title}</h1>
-        {description && <p className="mt-1 max-w-2xl text-body text-walshe-grey">{description}</p>}
+        <h1 className="text-h1 text-walshe-ink">{title}</h1>
+        {description && <p className="mt-2 max-w-2xl text-body text-walshe-grey">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </header>

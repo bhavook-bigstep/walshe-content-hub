@@ -110,15 +110,22 @@ export default function AgentSocialPage() {
         ) : (
           <ul className="space-y-3">
             {posts.map((p) => (
-              <li key={p.id} className="card flex items-center justify-between gap-3 p-4 text-small">
-                <span className="text-walshe-ink">
-                  Composition #{p.composition_id} on <span className="capitalize">{p.channel}</span>
-                  {p.status === "scheduled" && p.scheduled_at ? ` · scheduled ${new Date(p.scheduled_at).toLocaleString()}` : ""}
-                  {p.status === "published" && p.published_at ? ` · published ${new Date(p.published_at).toLocaleString()}` : ""}
+              <li key={p.id} className="card card-hover flex items-center justify-between gap-3 p-5 text-small">
+                <span className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden
+                    className={`h-2.5 w-2.5 flex-none rounded-pill ${p.status === "published" ? "bg-walshe-green" : "bg-walshe-amber"}`}
+                  />
+                  <span className="min-w-0 text-walshe-ink">
+                    <span className="font-semibold">Composition #{p.composition_id}</span> on{" "}
+                    <span className="capitalize">{p.channel}</span>
+                    {p.status === "scheduled" && p.scheduled_at ? ` · scheduled ${new Date(p.scheduled_at).toLocaleString()}` : ""}
+                    {p.status === "published" && p.published_at ? ` · published ${new Date(p.published_at).toLocaleString()}` : ""}
+                  </span>
                 </span>
                 <span
                   data-testid="post-status"
-                  className={p.status === "published" ? "chip-verified" : "chip-draft"}
+                  className={`shrink-0 capitalize ${p.status === "published" ? "chip-verified" : "chip-draft"}`}
                 >
                   {p.status}
                 </span>

@@ -1,70 +1,66 @@
 import type { Config } from "tailwindcss";
 
-// Walshe design system (AC19). Single source of brand tokens, extracted from walshegroup.com
-// computed styles (see docs/design/ui-brief.md §3). CSS vars in app/globals.css mirror these for
-// use outside Tailwind; the token values live here as the canonical theme. A Vitest test
-// (tests/theme.test.ts) asserts this config exposes the §3 palette.
+// Walshe Content Hub design system (AC19). Single source of brand tokens.
+// Direction v2 ("vita" language, user-approved): editorial, photo-led, Inter display, an amber
+// accent over deep-teal ink on white/off-white, pill buttons, large rounded cards, smooth motion.
+// CSS vars in app/globals.css mirror these for non-Tailwind consumers (inline styles, charts).
+// A Vitest test (tests/theme.test.ts) asserts this config exposes the palette.
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
         walshe: {
-          // §3 palette — read from the live site.
-          teal: "#005653", // primary: nav, buttons, headings on light
-          mint: "#E5F6DF", // text on teal, selected/hover tints
-          stone: "#ECEBE8", // page + card-alt surface
-          ink: "#000000", // headings, strong text
-          grey: "#737373", // captions, helper text (min contrast — do not lighten)
-          white: "#FFFFFF", // card surface
-          green: "#00AE41", // icon/chart accent + status "approved" (never body text on white)
-          // Derived (AI-generated, labelled in the brief).
-          "teal-700": "#003E3C", // hover / pressed
-          "teal-100": "#CFE6E3", // tint
+          // Core
+          amber: "#FBA13A", // primary accent — CTAs, highlights, active state
+          "amber-600": "#EA8A26", // hover / pressed
+          ink: "#071418", // headings + body text, near-black deep teal
+          teal: "#0D2E37", // dark surfaces — sidebar, dark sections
+          "teal-800": "#143F4B", // raised on dark
+          "teal-700": "#0A2129", // deepest
+          "teal-100": "#E6EEF0", // light teal tint (hover on light)
+          paper: "#FFFFFF", // primary surface
+          white: "#FFFFFF",
+          mist: "#F4F5F4", // off-white section background
+          stone: "#EEF0EF", // borders + alt surface
+          line: "#E7E9E8", // hairline dividers
+          mint: "#E8F3EF", // light tint (chips, pills on light)
+          grey: "#5D6C7B", // muted / caption text
+          green: "#0FA37F", // verified / success accent
           danger: "#B3261E",
           warn: "#8A5A00",
         },
       },
       fontFamily: {
-        // Founders Grotesk is a paid Klim face (not bundled). Inter ships as the licensed fallback
-        // via next/font; swap in licensed WOFF2 without code changes. Lato for small UI text.
-        sans: [
-          "var(--font-sans)",
-          "Founders Grotesk",
-          "Helvetica Neue",
-          "Inter",
-          "system-ui",
-          "sans-serif",
-        ],
-        ui: ["var(--font-ui)", "Lato", "var(--font-sans)", "system-ui", "sans-serif"],
+        // Inter carries the whole system (display + body), matching the approved direction.
+        sans: ["var(--font-sans)", "Inter", "Helvetica Neue", "system-ui", "sans-serif"],
+        ui: ["var(--font-ui)", "var(--font-sans)", "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
-        // Scale from §3 (size / line-height).
-        display: ["3.5rem", { lineHeight: "3.75rem", fontWeight: "300" }],
-        h1: ["2.5rem", { lineHeight: "2.75rem", fontWeight: "300" }],
-        h2: ["1.75rem", { lineHeight: "2.125rem", fontWeight: "400" }],
-        h3: ["1.25rem", { lineHeight: "1.75rem", fontWeight: "700" }],
-        body: ["1rem", { lineHeight: "1.625rem" }],
-        small: ["0.875rem", { lineHeight: "1.25rem" }],
+        // Bold, tight editorial scale (Inter).
+        display: ["4.25rem", { lineHeight: "1.03", fontWeight: "800", letterSpacing: "-0.02em" }],
+        h1: ["3rem", { lineHeight: "1.05", fontWeight: "800", letterSpacing: "-0.02em" }],
+        h2: ["2.25rem", { lineHeight: "1.08", fontWeight: "700", letterSpacing: "-0.02em" }],
+        h3: ["1.3125rem", { lineHeight: "1.3", fontWeight: "700", letterSpacing: "-0.01em" }],
+        body: ["1rem", { lineHeight: "1.6" }],
+        small: ["0.875rem", { lineHeight: "1.35" }],
+        eyebrow: ["0.78rem", { lineHeight: "1.2", fontWeight: "700", letterSpacing: "0.16em" }],
       },
       borderRadius: {
-        sm: "6px",
-        md: "12px",
+        sm: "10px",
+        md: "16px",
+        lg: "22px",
+        xl: "28px",
+        "2xl": "34px",
         pill: "999px",
       },
       boxShadow: {
-        // 1px stone border first; soft shadow only on hover/overlays.
-        soft: "0 8px 24px rgb(0 86 83 / 0.08)",
+        soft: "0 10px 30px -18px rgb(7 20 24 / 0.28)",
+        lift: "0 26px 50px -30px rgb(7 20 24 / 0.40)",
+        card: "0 1px 0 rgb(7 20 24 / 0.04)",
       },
-      spacing: {
-        // 4px base scale extensions used by the layout grid.
-        13: "3.25rem",
-        18: "4.5rem",
-        30: "7.5rem",
-      },
-      maxWidth: {
-        content: "1200px",
-      },
+      spacing: { 13: "3.25rem", 18: "4.5rem", 30: "7.5rem" },
+      maxWidth: { content: "1200px" },
     },
   },
   plugins: [],

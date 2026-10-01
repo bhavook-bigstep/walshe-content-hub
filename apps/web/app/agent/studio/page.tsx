@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Canvas } from "fabric";
 import BuilderPanel, { type BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
 import ExportMenu from "../../../components/studio/ExportMenu";
@@ -88,28 +88,38 @@ export default function StudioPage() {
         description="Compose pamphlets, posts and stories on the canvas — manually or with the AI Builder."
       />
 
-      {/* Teal toolbar: format + canvas tools (brief §4). */}
-      <div className="mb-4 flex flex-col gap-3 rounded-md bg-walshe-teal p-3">
-        <FormatPicker value={design.format} onChange={pickFormat} />
-        <Toolbar
-          design={design}
-          pageIndex={pageIndex}
-          onChange={setDesign}
-          onPageChange={setPageIndex}
-          catalogImages={CATALOG_IMAGES}
-        />
+      {/* Slim top tool bar: format + canvas tools, grouped (Canva-style). */}
+      <div className="mb-5 rounded-lg border border-walshe-line bg-walshe-white p-3 shadow-card sm:px-4">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+          <div className="flex items-end pb-2">
+            <FormatPicker value={design.format} onChange={pickFormat} />
+          </div>
+          <span aria-hidden className="hidden h-9 w-px self-end bg-walshe-line sm:block" />
+          <Toolbar
+            design={design}
+            pageIndex={pageIndex}
+            onChange={setDesign}
+            onPageChange={setPageIndex}
+            catalogImages={CATALOG_IMAGES}
+          />
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        {/* Dark-neutral canvas surround; the Fabric canvas itself stays white. */}
-        <div className="flex items-start justify-center overflow-auto rounded-md bg-neutral-800 p-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+        {/* Soft neutral workspace with a dotted surface; the artboard stays white. */}
+        <div
+          className="flex min-h-[460px] items-center justify-center overflow-auto rounded-lg border border-walshe-line bg-walshe-mist p-6 sm:p-10"
+          style={{
+            backgroundImage: "radial-gradient(var(--walshe-stone) 1.1px, transparent 1.1px)",
+            backgroundSize: "18px 18px",
+          }}
+        >
           <StudioCanvas design={design} pageIndex={pageIndex} onReady={onReady} />
         </div>
 
-        {/* Right-hand panels. */}
-        <div className="space-y-4">
-          <section className="card p-5">
-            <h2 className="mb-3 text-h3 font-bold text-walshe-ink">AI Builder</h2>
+        {/* Right-hand panel rail. */}
+        <div className="flex flex-col gap-5">
+          <RailCard eyebrow="AI" title="AI Builder" icon={ICON.sparkle}>
             {panelItems === null ? (
               <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
             ) : panelItems.length === 0 ? (
@@ -119,26 +129,60 @@ export default function StudioPage() {
             ) : (
               <BuilderPanel design={design} pageIndex={pageIndex} items={panelItems} onChange={setDesign} />
             )}
-          </section>
+          </RailCard>
 
-          <section className="card p-5">
-            <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Personalize</h2>
+          <RailCard eyebrow="Branding" title="Personalise" icon={ICON.user}>
             <PersonalizePanel design={design} pageIndex={pageIndex} onChange={setDesign} />
-          </section>
+          </RailCard>
 
           {panelItems !== null && panelItems.length > 0 && (
-            <section className="card p-5">
-              <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Video</h2>
+            <RailCard eyebrow="Motion" title="Video" icon={ICON.video}>
               <VideoPanel items={panelItems} />
-            </section>
+            </RailCard>
           )}
 
-          <section className="card p-5">
-            <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Export</h2>
+          <RailCard eyebrow="Download" title="Export" icon={ICON.download}>
             <ExportMenu design={design} pageIndex={pageIndex} getCanvas={() => canvasRef.current} />
-          </section>
+          </RailCard>
         </div>
       </div>
     </div>
+  );
+}
+
+const ICON = {
+  sparkle: <path d="M12 3l1.6 4.8L18.5 9l-4.9 1.2L12 15l-1.6-4.8L5.5 9l4.9-1.2zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />,
+  user: <path d="M20 21a8 8 0 10-16 0M12 11a4 4 0 100-8 4 4 0 000 8" />,
+  video: <path d="M4 5h16v14H4zM10 9l5 3-5 3z" />,
+  download: <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16" />,
+} as const;
+
+// Right-rail panel card: icon badge + eyebrow + heading, then the panel body.
+function RailCard({
+  eyebrow,
+  title,
+  icon,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="card p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="grid h-10 w-10 flex-none place-items-center rounded-md bg-walshe-mint text-walshe-teal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            {icon}
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <p className="eyebrow text-[11px]">{eyebrow}</p>
+          <h2 className="text-h3 text-walshe-ink">{title}</h2>
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }

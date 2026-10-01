@@ -50,11 +50,14 @@ export default function ProviderHomePage() {
       </section>
 
       <section aria-labelledby="recent-entries">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 id="recent-entries" className="text-h3 font-bold text-walshe-ink">
-            Recent entries
-          </h2>
-          <Link href="/provider/catalog" className="btn-ghost">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow">Your catalog</p>
+            <h2 id="recent-entries" className="mt-2 text-h3 text-walshe-ink">
+              Recent entries
+            </h2>
+          </div>
+          <Link href="/provider/catalog" className="btn-ghost shrink-0">
             My catalog
           </Link>
         </div>
@@ -66,32 +69,32 @@ export default function ProviderHomePage() {
             ))}
           </div>
         ) : total === 0 ? (
-          <div className="card flex flex-col items-start gap-3 p-8">
-            <h3 className="text-h3 font-bold text-walshe-ink">No entries yet</h3>
+          <div className="card flex flex-col items-start gap-3 p-10 text-center sm:items-center">
+            <h3 className="text-h3 text-walshe-ink">No entries yet</h3>
             <p className="max-w-md text-body text-walshe-grey">
               Create your first event, place, offer or itinerary to start building your verified catalog.
             </p>
-            <Link href="/provider/catalog/new" className="btn-primary">
+            <Link href="/provider/catalog/new" className="btn-primary mt-1">
               Create an entry
             </Link>
           </div>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {entries!.slice(0, 6).map((e) => (
-              <li key={e.id} className="card card-hover overflow-hidden">
-                <CatalogThumb imageKey={e.asset_keys?.[0]} alt={e.title} className="h-36 w-full" />
-                <div className="space-y-2 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="truncate font-medium text-walshe-ink">{e.title}</h3>
-                    <span className={e.brand_safe ? "chip-verified shrink-0" : "chip-draft shrink-0"}>
-                      {e.brand_safe ? "Brand-safe" : "Draft"}
-                    </span>
-                  </div>
+              <li key={e.id} className="card card-hover group overflow-hidden">
+                <div className="relative overflow-hidden">
+                  <CatalogThumb imageKey={e.asset_keys?.[0]} alt={e.title} className="h-40 w-full transition-transform duration-500 group-hover:scale-105" />
+                  <span className={e.brand_safe ? "chip-verified absolute left-3.5 top-3.5" : "chip-draft absolute left-3.5 top-3.5"}>
+                    {e.brand_safe ? "Brand-safe" : "Draft"}
+                  </span>
+                </div>
+                <div className="space-y-2 p-5">
+                  <h3 className="truncate text-h3 text-[1.0625rem] text-walshe-ink">{e.title}</h3>
                   <p className="text-small capitalize text-walshe-grey">
                     {e.type} · {e.destination}
                   </p>
-                  <Link href={`/provider/catalog/${e.id}`} className="inline-block text-small font-medium text-walshe-teal hover:underline">
-                    Manage access
+                  <Link href={`/provider/catalog/${e.id}`} className="inline-flex items-center gap-1 pt-1 text-small font-semibold text-walshe-ink hover:text-walshe-amber-600">
+                    Manage access →
                   </Link>
                 </div>
               </li>

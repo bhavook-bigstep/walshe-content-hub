@@ -2,10 +2,29 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import WalsheLogo from "../../components/brand/WalsheLogo";
 import { ApiError, login, me } from "../../lib/api";
 import { ROLE_HOME } from "../../lib/rbac";
 import { clear, setSession, setToken } from "../../lib/session";
+
+// Walshe wordmark for the auth screen — amber "W" tile + product wordmark (vita language).
+function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
+  const word = tone === "light" ? "text-white" : "text-walshe-ink";
+  const sub = tone === "light" ? "text-white/70" : "text-walshe-grey";
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <span
+        aria-hidden
+        className="grid h-10 w-10 place-items-center rounded-md bg-walshe-amber text-[19px] font-extrabold leading-none text-walshe-ink"
+      >
+        W
+      </span>
+      <span className="flex flex-col leading-none">
+        <span className={`text-[17px] font-extrabold tracking-tight ${word}`}>Walshe</span>
+        <span className={`mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${sub}`}>Content Hub</span>
+      </span>
+    </span>
+  );
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -37,64 +56,93 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen lg:grid-cols-2">
-      {/* Brand panel */}
-      <aside className="hidden flex-col justify-between bg-walshe-teal p-10 text-walshe-mint lg:flex">
-        <Link href="/">
-          <WalsheLogo tone="teal" />
-        </Link>
-        <div>
-          <p className="mb-3 text-small font-medium uppercase tracking-[0.14em] text-walshe-mint/80">
-            Premium brands, trusted outcomes
-          </p>
-          <h2 className="text-h1 font-light text-walshe-white">
-            Verified destination content, assembled into trade marketing in minutes.
-          </h2>
+    <main className="grid min-h-screen bg-walshe-mist lg:grid-cols-[1.05fr_1fr]">
+      {/* Photographic brand panel (wide screens only) */}
+      <aside
+        className="relative hidden overflow-hidden lg:block"
+        aria-hidden
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://picsum.photos/seed/walshe-login-coast/1200/1400"
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(165deg, rgba(7,20,24,.55) 0%, rgba(13,46,55,.52) 42%, rgba(7,20,24,.88) 100%)",
+          }}
+        />
+        <div className="relative flex h-full flex-col justify-between p-12 text-white">
+          <Link href="/" className="w-fit">
+            <AuthMark tone="light" />
+          </Link>
+          <div className="max-w-[30ch]">
+            <p className="eyebrow">Premium brands, trusted outcomes</p>
+            <h2 className="mt-4 text-h1 text-white">
+              Verified destination content, trade-ready in minutes.
+            </h2>
+            <p className="mt-5 text-[17px] leading-relaxed text-white/80">
+              Tourism boards publish once. 10,000 travel agents turn it into on-brand campaigns — without
+              leaving the hub.
+            </p>
+          </div>
+          <p className="text-small font-medium text-white/65">Celebrating 50 years in business in 2026</p>
         </div>
-        <p className="text-small text-walshe-mint/70">Celebrating 50 years in business in 2026</p>
       </aside>
 
       {/* Form */}
-      <div className="flex items-center justify-center bg-walshe-stone p-6">
-        <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-5 p-8" aria-busy={busy}>
-          <div className="lg:hidden">
-            <WalsheLogo tone="light" />
+      <div className="flex items-center justify-center px-5 py-12 sm:px-8">
+        <div className="w-full max-w-sm">
+          <Link href="/" className="mb-8 inline-block lg:hidden">
+            <AuthMark />
+          </Link>
+
+          <div className="mb-7">
+            <p className="eyebrow">Welcome back</p>
+            <h1 className="mt-3 text-h2 text-walshe-ink">Sign in</h1>
+            <p className="mt-2 text-body text-walshe-grey">Access the Walshe Content Hub.</p>
           </div>
-          <div>
-            <h1 className="text-h2 font-light text-walshe-ink">Sign in</h1>
-            <p className="mt-1 text-small text-walshe-grey">Access the Walshe Content Hub.</p>
-          </div>
-          <label className="block">
-            <span className="label">Email</span>
-            <input
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="field"
-            />
-          </label>
-          <label className="block">
-            <span className="label">Password</span>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="field"
-            />
-          </label>
-          {error && (
-            <p role="alert" className="text-small text-walshe-danger">
-              {error}
-            </p>
-          )}
-          <button type="submit" disabled={busy} className="btn-primary w-full">
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+
+          <form onSubmit={onSubmit} className="card space-y-5 p-7" aria-busy={busy}>
+            <label className="block">
+              <span className="label">Email</span>
+              <input
+                type="email"
+                required
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="field"
+              />
+            </label>
+            <label className="block">
+              <span className="label">Password</span>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="field"
+              />
+            </label>
+            {error && (
+              <p role="alert" className="text-small font-medium text-walshe-danger">
+                {error}
+              </p>
+            )}
+            <button type="submit" disabled={busy} className="btn-primary w-full">
+              {busy ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-small text-walshe-grey">
+            Trusted by destination boards across ANZ · 50 years in travel
+          </p>
+        </div>
       </div>
     </main>
   );

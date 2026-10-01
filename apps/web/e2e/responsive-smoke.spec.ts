@@ -8,7 +8,7 @@ test("no horizontal overflow on mobile", async ({ page }) => {
 
   // Public landing.
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /verified destination content/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /verified destinations/i })).toBeVisible();
   expect(await hasHorizontalOverflow(page)).toBe(false);
 
   // Authenticated agent dashboard.

@@ -150,32 +150,34 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
   }
 
   const busy = generating || rendering;
+  // Compact outlined chip for secondary / per-scene controls.
   const btn =
-    "rounded-sm border border-walshe-teal px-3 py-1.5 text-small font-medium text-walshe-teal transition-colors hover:bg-walshe-teal-100 disabled:opacity-50";
-  const field = "w-full rounded-sm border border-walshe-stone px-2 py-1.5 text-small text-walshe-ink";
+    "inline-flex items-center justify-center gap-1.5 rounded-sm border border-walshe-stone bg-walshe-white px-3 py-2 text-small font-medium text-walshe-ink transition-colors hover:border-walshe-ink/25 hover:bg-walshe-mist disabled:cursor-not-allowed disabled:opacity-50";
+  // Tiny controls inside a scene row.
+  const mini =
+    "inline-flex items-center justify-center rounded-sm border border-walshe-stone bg-walshe-white px-2.5 py-1 text-[13px] font-medium text-walshe-ink transition-colors hover:bg-walshe-mist disabled:cursor-not-allowed disabled:opacity-50";
+  const field = "field text-small";
 
   return (
-    <section aria-label="Video" className="flex flex-col gap-3">
+    <section aria-label="Video" className="flex flex-col gap-4">
+      <p className="text-small text-walshe-grey">Turn your selection into a short narrated highlight reel.</p>
+
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={btn} disabled={busy || items.length === 0} onClick={() => void generate()}>
           {generating ? "Generating…" : "Auto-generate scenes"}
         </button>
         <button type="button" className={btn} disabled={busy || scenes.length >= MAX_SCENES} onClick={add}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M12 5v14M5 12h14" />
+          </svg>
           Add scene
         </button>
-        <label className="flex items-center gap-1.5 text-small text-walshe-ink">
-          <input type="checkbox" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} />
-          Voiceover
-        </label>
-        <button
-          type="button"
-          className={btn}
-          disabled={busy || scenes.length === 0}
-          onClick={() => void render()}
-        >
-          {rendering ? "Rendering…" : videoUrl ? "Re-render video" : "Render video"}
-        </button>
       </div>
+
+      <label className="flex items-center gap-2 text-small font-medium text-walshe-ink">
+        <input type="checkbox" className="h-4 w-4 accent-walshe-amber" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} />
+        Voiceover
+      </label>
 
       {error && (
         <p role="alert" className="text-small text-walshe-danger">
@@ -184,25 +186,28 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
       )}
 
       {scenes.length === 0 ? (
-        <p className="text-small text-walshe-grey">
+        <p className="rounded-md border border-dashed border-walshe-stone bg-walshe-mist/50 px-4 py-6 text-center text-small text-walshe-grey">
           {items.length === 0
             ? "Select catalog items to build a video, or add a scene manually."
             : "No scenes yet. Auto-generate a script from your selection or add a scene."}
         </p>
       ) : (
-        <ol className="flex flex-col gap-2">
+        <ol className="flex flex-col gap-2.5">
           {scenes.map((s, i) => (
-            <li key={s.id} className="flex flex-col gap-1 rounded-sm border border-walshe-stone p-3">
-              <div className="flex items-center justify-between text-small text-walshe-grey">
-                <span>Scene {i + 1}</span>
+            <li key={s.id} className="flex flex-col gap-2 rounded-md border border-walshe-line bg-walshe-mist/40 p-3">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-2 text-small font-semibold text-walshe-ink">
+                  <span className="grid h-6 w-6 place-items-center rounded-sm bg-walshe-teal text-[12px] font-bold text-walshe-mint">{i + 1}</span>
+                  Scene {i + 1}
+                </span>
                 <span className="flex gap-1">
-                  <button type="button" className={btn} aria-label={`Move scene ${i + 1} up`} disabled={busy || i === 0} onClick={() => move(s.id, -1)}>
+                  <button type="button" className={mini} aria-label={`Move scene ${i + 1} up`} disabled={busy || i === 0} onClick={() => move(s.id, -1)}>
                     Up
                   </button>
-                  <button type="button" className={btn} aria-label={`Move scene ${i + 1} down`} disabled={busy || i === scenes.length - 1} onClick={() => move(s.id, 1)}>
+                  <button type="button" className={mini} aria-label={`Move scene ${i + 1} down`} disabled={busy || i === scenes.length - 1} onClick={() => move(s.id, 1)}>
                     Down
                   </button>
-                  <button type="button" className={btn} aria-label={`Remove scene ${i + 1}`} disabled={busy} onClick={() => remove(s.id)}>
+                  <button type="button" className={mini} aria-label={`Remove scene ${i + 1}`} disabled={busy} onClick={() => remove(s.id)}>
                     Remove
                   </button>
                 </span>
@@ -210,14 +215,16 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
               <input
                 className={field}
                 aria-label={`Scene ${i + 1} title`}
+                placeholder="Scene title"
                 maxLength={MAX_TEXT}
                 value={s.title}
                 disabled={busy}
                 onChange={(e) => update(s.id, { title: e.target.value })}
               />
               <textarea
-                className={field}
+                className="field-area text-small"
                 aria-label={`Scene ${i + 1} caption`}
+                placeholder="Caption"
                 maxLength={MAX_TEXT}
                 rows={2}
                 value={s.caption}
@@ -229,9 +236,18 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
         </ol>
       )}
 
+      <button
+        type="button"
+        className="btn-primary self-start"
+        disabled={busy || scenes.length === 0}
+        onClick={() => void render()}
+      >
+        {rendering ? "Rendering…" : videoUrl ? "Re-render video" : "Render video"}
+      </button>
+
       {rendering && !videoUrl && <p className="text-small text-walshe-grey">Rendering video, this can take a moment…</p>}
       {videoUrl && (
-        <video controls src={videoUrl} className="w-full rounded-sm border border-walshe-stone" aria-label="Video preview" />
+        <video controls src={videoUrl} className="w-full rounded-md border border-walshe-line" aria-label="Video preview" />
       )}
     </section>
   );

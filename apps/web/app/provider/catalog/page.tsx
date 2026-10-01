@@ -34,36 +34,38 @@ export default function ProviderCatalogPage() {
           ))}
         </ul>
       ) : entries.length === 0 ? (
-        <div className="card flex flex-col items-start gap-3 p-8">
-          <h2 className="text-h3 font-bold text-walshe-ink">No entries yet</h2>
+        <div className="card flex flex-col items-start gap-3 p-10 text-center sm:items-center">
+          <h2 className="text-h3 text-walshe-ink">No entries yet</h2>
           <p className="max-w-md text-body text-walshe-grey">
             Create your first entry to start building your verified catalog.
           </p>
-          <Link href="/provider/catalog/new" className="btn-primary">
+          <Link href="/provider/catalog/new" className="btn-primary mt-1">
             Create an entry
           </Link>
         </div>
       ) : (
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {entries.map((e) => (
-            <li key={e.id} className="card card-hover flex flex-col overflow-hidden">
-              <CatalogThumb imageKey={e.asset_keys?.[0]} alt={e.title} className="h-36 w-full" />
-              <div className="flex flex-1 flex-col gap-2 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="font-medium text-walshe-ink">{e.title}</h2>
-                  <span className={e.brand_safe ? "chip-verified shrink-0" : "chip-draft shrink-0"}>
-                    {e.brand_safe ? "Brand-safe" : "Draft"}
-                  </span>
-                </div>
+            <li key={e.id} className="card card-hover group flex flex-col overflow-hidden">
+              <div className="relative overflow-hidden">
+                <CatalogThumb imageKey={e.asset_keys?.[0]} alt={e.title} className="h-40 w-full transition-transform duration-500 group-hover:scale-105" />
+                <span className={e.brand_safe ? "chip-verified absolute left-3.5 top-3.5" : "chip-draft absolute left-3.5 top-3.5"}>
+                  {e.brand_safe ? "Brand-safe" : "Draft"}
+                </span>
+              </div>
+              <div className="flex flex-1 flex-col gap-2 p-5">
+                <h2 className="text-h3 text-[1.0625rem] text-walshe-ink">{e.title}</h2>
                 <p className="text-small capitalize text-walshe-grey">
                   {e.type} · {e.destination}
                 </p>
-                <p className="text-small text-walshe-grey">Status: {e.status}</p>
+                <p className="text-small text-walshe-grey">
+                  Status: <span className="capitalize text-walshe-ink">{e.status}</span>
+                </p>
                 <Link
                   href={`/provider/catalog/${e.id}`}
-                  className="mt-auto inline-block text-small font-medium text-walshe-teal hover:underline"
+                  className="mt-auto inline-flex items-center gap-1 pt-2 text-small font-semibold text-walshe-ink hover:text-walshe-amber-600"
                 >
-                  Manage access
+                  Manage access →
                 </Link>
               </div>
             </li>

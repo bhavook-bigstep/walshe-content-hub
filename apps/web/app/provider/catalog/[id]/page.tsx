@@ -89,16 +89,16 @@ export default function ProviderEntryPage() {
         </div>
       )}
       {entry && (
-        <form onSubmit={onSubmit} className="card space-y-4 p-6">
-          <label className="flex items-center gap-3 text-body">
+        <form onSubmit={onSubmit} className="card space-y-5 p-7">
+          <label className="flex items-start gap-3 rounded-md border border-walshe-line bg-walshe-mist/50 p-4 text-body">
             <input
               type="checkbox"
               checked={brandSafe}
               onChange={(e) => setBrandSafe(e.target.checked)}
-              className="h-5 w-5 rounded-sm accent-[color:var(--walshe-teal)]"
+              className="mt-0.5 h-5 w-5 rounded-sm accent-[color:var(--walshe-teal)]"
             />
             <span>
-              <span className="font-medium text-walshe-ink">Mark as brand-safe</span>
+              <span className="font-semibold text-walshe-ink">Mark as brand-safe</span>
               <span className="block text-small text-walshe-grey">Only brand-safe, approved content reaches the trade.</span>
             </span>
           </label>
@@ -111,18 +111,20 @@ export default function ProviderEntryPage() {
             <input value={agents} onChange={(e) => setAgents(e.target.value)} className="field" placeholder="3, 4" />
           </label>
           {error && (
-            <p role="alert" className="text-small text-walshe-danger">
+            <p role="alert" className="text-small font-medium text-walshe-danger">
               {error}
             </p>
           )}
           {saved && (
-            <p role="status" className="chip-verified">
+            <p role="status" className="chip-verified w-fit">
               Access settings saved.
             </p>
           )}
-          <button type="submit" disabled={busy} className="btn-primary">
-            {busy ? "Saving…" : "Save access"}
-          </button>
+          <div className="border-t border-walshe-line pt-5">
+            <button type="submit" disabled={busy} className="btn-primary">
+              {busy ? "Saving…" : "Save access"}
+            </button>
+          </div>
         </form>
       )}
     </div>
