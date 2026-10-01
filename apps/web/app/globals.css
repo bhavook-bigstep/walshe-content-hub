@@ -77,12 +77,19 @@
   .btn-on-dark {
     @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-walshe-amber px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:bg-walshe-amber-600 hover:-translate-y-0.5;
   }
-  /* Card — white, hairline, large radius; soft shadow + lift on hover. */
+  /* Card — white, hairline, generous radius; soft shadow + lift on hover. */
   .card {
-    @apply rounded-lg border border-walshe-line bg-walshe-white shadow-card;
+    @apply overflow-hidden rounded-xl border border-walshe-line bg-walshe-white shadow-card;
   }
   .card-hover {
-    @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lift;
+    @apply transition-all duration-300 hover:-translate-y-1 hover:border-walshe-line hover:shadow-lift;
+  }
+  /* Image-forward content card: a rounded media panel + caption, reference-style. */
+  .media-card {
+    @apply group block overflow-hidden rounded-xl;
+  }
+  .media-card img {
+    @apply transition-transform duration-700 group-hover:scale-105;
   }
   .eyebrow {
     @apply text-eyebrow uppercase text-walshe-amber;
@@ -107,8 +114,8 @@
 }
 
 @layer utilities {
-  /* Scroll-reveal (vita-style). Elements get .reveal; a client observer adds .reveal-in. */
   @media (prefers-reduced-motion: no-preference) {
+    /* Scroll-reveal: elements get .reveal; a client observer adds .reveal-in. */
     .reveal {
       opacity: 0;
       transform: translateY(24px);
@@ -120,5 +127,20 @@
       opacity: 1;
       transform: none;
     }
+
+    /* On-load entrance: direct children fade + rise with a subtle stagger (nav, hero). */
+    @keyframes wh-fade-up {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: none; }
+    }
+    .load-stagger > * {
+      opacity: 0;
+      animation: wh-fade-up 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    .load-stagger > *:nth-child(1) { animation-delay: 0.08s; }
+    .load-stagger > *:nth-child(2) { animation-delay: 0.18s; }
+    .load-stagger > *:nth-child(3) { animation-delay: 0.28s; }
+    .load-stagger > *:nth-child(4) { animation-delay: 0.38s; }
+    .load-stagger > *:nth-child(5) { animation-delay: 0.48s; }
   }
 }

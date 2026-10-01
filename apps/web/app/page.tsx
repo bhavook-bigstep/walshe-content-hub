@@ -56,13 +56,13 @@ export default function Landing() {
   return (
     <main className="bg-walshe-paper">
       {/* ======================= HERO ======================= */}
-      <header className="relative min-h-[94vh] overflow-hidden text-white">
+      <header className="relative min-h-[108vh] overflow-hidden text-white">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={IMG(1018, 2000, 1300)} alt="" className="absolute inset-0 z-0 h-full w-full object-cover" />
         <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(7,20,24,.5)_0%,rgba(7,20,24,.1)_30%,rgba(7,20,24,.18)_66%,rgba(7,20,24,.62)_100%)]" />
 
         {/* Framed nav: logo bay · links · divider · CTA bay, with a bottom hairline (movie-frame). */}
-        <nav className="relative z-10 flex h-[76px] items-stretch border-b border-white/15 text-[15px]">
+        <nav className="load-stagger relative z-10 flex h-[76px] items-stretch border-b border-white/15 text-[15px]">
           <Link href="/" className="flex items-center border-r border-white/15 px-7">
             <Wordmark onDark />
           </Link>
@@ -79,7 +79,7 @@ export default function Landing() {
           </Link>
         </nav>
 
-        <div className="relative z-10 mx-auto flex min-h-[calc(94vh-76px)] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-10 text-center">
+        <div className="relative z-10 mx-auto flex min-h-[calc(100vh-76px)] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-10 text-center">
           <Reveal as="h1" className="max-w-[18ch] text-[clamp(56px,10vw,132px)] font-light leading-[0.92] tracking-[-0.045em]">
             Verified destinations
           </Reveal>
@@ -108,7 +108,7 @@ export default function Landing() {
                   <h3 className="text-[21px] font-medium tracking-tight">{c.title}</h3>
                   <span className="whitespace-nowrap text-small text-white/50">{c.tag}</span>
                 </div>
-                <div className="group mt-6 overflow-hidden rounded-lg">
+                <div className="group mt-6 overflow-hidden rounded-xl">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={IMG(c.id, 820, 1040)} alt={c.title} className="aspect-[4/5] w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 </div>
