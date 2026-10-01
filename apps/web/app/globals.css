@@ -33,6 +33,15 @@
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
+    scrollbar-width: none; /* Firefox — hide the scrollbar, keep scrolling */
+    -ms-overflow-style: none; /* legacy Edge/IE */
+  }
+  /* Hide the scrollbar visual on WebKit/Blink (Chrome, Safari) — scrolling still works. */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
   body {
     background-color: var(--walshe-base);
