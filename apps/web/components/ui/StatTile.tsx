@@ -19,7 +19,7 @@ export default function StatTile({
     <div className="card card-hover flex flex-col gap-2 p-5" data-testid="stat-tile">
       <div className="flex items-center justify-between">
         <span className="text-small font-medium text-walshe-grey">{label}</span>
-        {icon && <span className="text-walshe-teal" aria-hidden>{icon}</span>}
+        {icon && <span className="text-walshe-mint" aria-hidden>{icon}</span>}
       </div>
       <span className="text-[34px] font-extrabold leading-none tracking-[-0.03em] text-walshe-ink tabular-nums">{value}</span>
       <div className="flex items-center gap-2">

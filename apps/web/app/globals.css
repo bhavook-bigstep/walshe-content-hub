@@ -2,24 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* The Walshe Group design system (AC19): black & white with a deep teal accent, stone/mint
-   neutrals, an elegant serif for display headings. CSS vars mirror the Tailwind tokens. */
+/* The Walshe Group design system (AC19): a deep teal-green base (#005653, the Walshe brand green)
+   with light off-white text, mint accents, and an elegant serif for display headings. Dark,
+   immersive, editorial — matching the reference's flow. CSS vars mirror the Tailwind tokens. */
 :root {
-  --walshe-ink: #0a0a0a;
-  --walshe-black: #000000;
+  --walshe-base: #005653;
+  --walshe-deep: #003e3c;
+  --walshe-ink: #eaf4f1;
+  --walshe-white: #ffffff;
+  --walshe-paper: #005653;
+  --walshe-mist: #005653;
+  --walshe-stone: #0c6a64;
+  --walshe-line: #15766f;
+  --walshe-mint: #e5f6df;
   --walshe-teal: #005653;
   --walshe-teal-700: #003e3c;
-  --walshe-teal-100: #cfe6e3;
-  --walshe-paper: #ffffff;
-  --walshe-white: #ffffff;
-  --walshe-mist: #f6f5f2;
-  --walshe-stone: #ecebe8;
-  --walshe-line: #e4e3df;
-  --walshe-mint: #e5f6df;
-  --walshe-grey: #737373;
-  --walshe-green: #00ae41;
-  --walshe-danger: #b3261e;
-  --walshe-warn: #8a5a00;
+  --walshe-grey: #a7c6c2;
+  --walshe-green: #4fcaa0;
+  --walshe-danger: #e06a63;
+  --walshe-warn: #e0b24a;
 
   --radius-sm: 2px;
   --radius-md: 3px;
@@ -33,7 +34,7 @@
     scroll-behavior: smooth;
   }
   body {
-    background-color: var(--walshe-paper);
+    background-color: var(--walshe-base);
     color: var(--walshe-ink);
     font-family: var(--font-sans), "Inter", "Helvetica Neue", system-ui, sans-serif;
   }
@@ -44,7 +45,7 @@
     text-wrap: balance;
   }
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 2px solid var(--walshe-teal);
+    outline: 2px solid var(--walshe-mint);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
@@ -54,61 +55,56 @@
 }
 
 @layer components {
-  /* Elegant serif for display headings (Walshe identity). */
   .font-display {
     font-family: var(--font-serif), "Playfair Display", Georgia, serif;
   }
 
-  /* Primary CTA — teal pill. 48px min touch target (AC23). */
+  /* Primary CTA — white pill, teal label (high contrast on the green base). */
   .btn-primary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-walshe-teal px-6 py-3 text-small font-semibold text-white transition-all hover:bg-walshe-teal-700 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-6 py-3 text-small font-semibold text-walshe-teal transition-all hover:bg-walshe-mint hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
   }
-  /* Secondary — ink outline pill. */
   .btn-secondary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill border border-walshe-ink/25 bg-transparent px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:border-walshe-ink/50 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill border border-white/35 bg-transparent px-6 py-3 text-small font-semibold text-white transition-all hover:border-white/70 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-small font-semibold text-walshe-ink transition-colors hover:bg-walshe-stone;
+    @apply inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-small font-semibold text-white transition-colors hover:bg-white/10;
   }
-  /* On a dark surface — white pill. */
   .btn-on-dark {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:-translate-y-0.5;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-6 py-3 text-small font-semibold text-walshe-teal transition-all hover:bg-walshe-mint hover:-translate-y-0.5;
   }
-  /* Card — white, hairline, crisp corners; soft shadow + lift on hover. */
+  /* Card — translucent panel on the green, hairline, crisp corners; lift on hover. */
   .card {
-    @apply overflow-hidden rounded-none border border-walshe-line bg-walshe-white shadow-card;
+    @apply overflow-hidden rounded-none border border-white/10 bg-white/[0.04];
   }
   .card-hover {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:border-walshe-line hover:shadow-lift;
+    @apply transition-all duration-300 hover:-translate-y-1 hover:border-white/25 hover:bg-white/[0.07];
   }
   .media-card {
     @apply group block overflow-hidden rounded-none;
   }
   .eyebrow {
-    @apply text-eyebrow uppercase text-walshe-teal;
+    @apply text-eyebrow uppercase text-walshe-mint;
   }
-  /* Verified chip — mint, teal text. */
   .chip-verified {
     @apply inline-flex items-center gap-1.5 rounded-pill bg-walshe-mint px-3 py-1 text-small font-semibold text-walshe-teal;
   }
   .chip-draft {
-    @apply inline-flex items-center gap-1.5 rounded-pill bg-walshe-stone px-3 py-1 text-small font-semibold text-walshe-grey;
+    @apply inline-flex items-center gap-1.5 rounded-pill bg-white/10 px-3 py-1 text-small font-semibold text-white/70;
   }
   .field {
-    @apply block h-12 w-full rounded-sm border border-walshe-line bg-walshe-white px-4 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal;
+    @apply block h-12 w-full rounded-sm border border-white/20 bg-white/[0.06] px-4 text-body text-white placeholder:text-white/40 focus:border-walshe-mint;
   }
   .field-area {
-    @apply block w-full rounded-sm border border-walshe-line bg-walshe-white px-4 py-3 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal;
+    @apply block w-full rounded-sm border border-white/20 bg-white/[0.06] px-4 py-3 text-body text-white placeholder:text-white/40 focus:border-walshe-mint;
   }
   .label {
-    @apply mb-1.5 block text-small font-semibold text-walshe-ink;
+    @apply mb-1.5 block text-small font-semibold text-white;
   }
 }
 
 @layer utilities {
   @media (prefers-reduced-motion: no-preference) {
-    /* Scroll-reveal with a direction (data-dir). A client observer adds .reveal-in.
-       down = drop from above · up = rise from below · right = slide from left · left = slide from right. */
+    /* Scroll-reveal with a direction (data-dir). down=drop · up=rise · right=from-left · left=from-right. */
     .reveal {
       opacity: 0;
       transition: opacity 0.75s cubic-bezier(0.22, 0.61, 0.36, 1),
@@ -121,7 +117,6 @@
     .reveal[data-dir="left"] { transform: translateX(28px); }
     .reveal-in { opacity: 1; transform: none; }
 
-    /* On-load entrance: direct children fade + DROP from the top with a subtle stagger. */
     @keyframes wh-drop {
       from { opacity: 0; transform: translateY(-14px); }
       to { opacity: 1; transform: none; }
@@ -136,8 +131,6 @@
     .load-stagger > *:nth-child(4) { animation-delay: 0.38s; }
     .load-stagger > *:nth-child(5) { animation-delay: 0.48s; }
 
-    /* Lines that draw themselves in (nav borders). opacity:1 overrides any .load-stagger on the
-       same parent so the lines stay visible while they scale in. */
     @keyframes wh-draw-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
     @keyframes wh-draw-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
     .draw-x { opacity: 1; transform-origin: left center; animation: wh-draw-x 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) 0.15s both; }

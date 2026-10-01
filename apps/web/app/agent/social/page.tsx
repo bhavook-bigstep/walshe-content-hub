@@ -114,7 +114,7 @@ export default function AgentSocialPage() {
                 <span className="flex min-w-0 items-center gap-3">
                   <span
                     aria-hidden
-                    className={`h-2.5 w-2.5 flex-none rounded-pill ${p.status === "published" ? "bg-walshe-green" : "bg-walshe-teal"}`}
+                    className={`h-2.5 w-2.5 flex-none rounded-pill ${p.status === "published" ? "bg-walshe-green" : "bg-walshe-mint"}`}
                   />
                   <span className="min-w-0 text-walshe-ink">
                     <span className="font-semibold">Composition #{p.composition_id}</span> on{" "}

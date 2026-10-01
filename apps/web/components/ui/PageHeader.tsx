@@ -34,7 +34,7 @@ export default function PageHeader({
                     {c.href && !last ? (
                       <Link
                         href={c.href}
-                        className="rounded-sm font-medium text-walshe-teal transition-colors hover:text-walshe-teal-700 hover:underline"
+                        className="rounded-sm font-medium text-walshe-mint transition-colors hover:text-walshe-mint hover:underline"
                       >
                         {c.label}
                       </Link>

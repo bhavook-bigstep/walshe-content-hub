@@ -9,7 +9,7 @@ export default function WalsheLogo({
   className?: string;
 }) {
   const onTeal = tone === "teal";
-  const tile = onTeal ? "bg-walshe-mint text-walshe-teal" : "bg-walshe-teal text-walshe-mint";
+  const tile = onTeal ? "bg-walshe-mint text-walshe-teal" : "bg-walshe-mint text-walshe-teal";
   const word = onTeal ? "text-walshe-white" : "text-walshe-ink";
   const sub = onTeal ? "text-walshe-mint" : "text-walshe-grey";
   return (

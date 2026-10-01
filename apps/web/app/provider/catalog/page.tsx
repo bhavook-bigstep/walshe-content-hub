@@ -63,7 +63,7 @@ export default function ProviderCatalogPage() {
                 </p>
                 <Link
                   href={`/provider/catalog/${e.id}`}
-                  className="mt-auto inline-flex items-center gap-1 pt-2 text-small font-semibold text-walshe-ink hover:text-walshe-teal-700"
+                  className="mt-auto inline-flex items-center gap-1 pt-2 text-small font-semibold text-walshe-ink hover:text-walshe-mint"
                 >
                   Manage access →
                 </Link>

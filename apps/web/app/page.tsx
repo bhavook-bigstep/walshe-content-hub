@@ -19,7 +19,7 @@ function Mark({ className = "" }: { className?: string }) {
 function Wordmark({ onDark = false }: { onDark?: boolean }) {
   return (
     <span className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-md bg-walshe-teal text-[17px] font-bold text-white">W</span>
+      <span className="grid h-9 w-9 place-items-center rounded-md bg-white text-[17px] font-bold text-walshe-teal">W</span>
       <span className={`text-[19px] font-semibold tracking-tight ${onDark ? "text-white" : "text-walshe-ink"}`}>Walshe</span>
     </span>
   );
@@ -30,7 +30,7 @@ function SectionHead({ eyebrow, title, dark = false }: { eyebrow: string; title:
   return (
     <div className={`grid gap-6 border-t pt-8 md:grid-cols-[minmax(0,2.4fr)_minmax(0,9fr)] md:gap-12 ${dark ? "border-white/15" : "border-walshe-line"}`}>
       <Reveal className="flex items-center gap-2.5">
-        <Mark className={`h-4 w-4 ${dark ? "text-walshe-teal" : "text-walshe-teal"}`} />
+        <Mark className={`h-4 w-4 ${dark ? "text-walshe-mint" : "text-walshe-mint"}`} />
         <span className={`text-eyebrow uppercase ${dark ? "text-white/60" : "text-walshe-grey"}`}>{eyebrow}</span>
       </Reveal>
       <Reveal as="h2" className={`font-display max-w-[20ch] text-[clamp(30px,4.6vw,64px)] font-normal leading-[1.05] tracking-[-0.02em] ${dark ? "text-white" : "text-walshe-ink"}`} delayMs={80}>
@@ -77,9 +77,9 @@ export default function Landing() {
             Publish verified content once. The trade turns it into on-brand campaigns — in minutes.
           </Reveal>
           <Reveal className="mt-10" delayMs={220}>
-            <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-white py-4 pl-7 pr-5 text-[15px] font-semibold text-walshe-ink transition-transform hover:-translate-y-0.5">
+            <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-white py-4 pl-7 pr-5 text-[15px] font-semibold text-walshe-teal transition-transform hover:-translate-y-0.5">
               Explore the catalog
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-ink text-white">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-teal text-white">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </span>
             </Link>
@@ -113,7 +113,7 @@ export default function Landing() {
                     </div>
                     <div className="mt-6 flex items-center justify-between border-t border-walshe-line pt-5">
                       <span className="text-small text-walshe-grey">Trade-ready</span>
-                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-teal transition-colors hover:text-walshe-teal-700">
+                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-mint transition-colors hover:text-walshe-mint">
                         Use content <ArrowIcon />
                       </Link>
                     </div>
@@ -158,7 +158,7 @@ export default function Landing() {
           <div className="mt-16 grid gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
               <Reveal key={s.n} dir="right" delayMs={i * 80}>
-                <div className="text-small font-semibold text-walshe-teal">{s.n}</div>
+                <div className="text-small font-semibold text-walshe-mint">{s.n}</div>
                 <h3 className="mt-4 text-[21px] font-medium tracking-tight text-walshe-ink">{s.t}</h3>
                 <p className="mt-3 text-small leading-relaxed text-walshe-grey">{s.b}</p>
               </Reveal>
@@ -174,9 +174,9 @@ export default function Landing() {
             Put verified content to work.
           </Reveal>
           <Reveal className="mt-10 flex justify-center" delayMs={120}>
-            <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-walshe-ink py-4 pl-7 pr-5 text-[15px] font-semibold text-white transition-transform hover:-translate-y-0.5">
+            <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-white py-4 pl-7 pr-5 text-[15px] font-semibold text-walshe-teal transition-transform hover:-translate-y-0.5">
               Get started
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-teal text-walshe-ink">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-teal text-white">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </span>
             </Link>

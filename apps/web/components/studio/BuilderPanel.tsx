@@ -153,7 +153,7 @@ export default function BuilderPanel({
       <button type="button" className="btn-primary self-start" disabled={!canRun} onClick={() => void run()}>
         {loading ? "Generating…" : "Generate design"}
       </button>
-      {notice && <p role="status" className="text-small text-walshe-teal">{notice}</p>}
+      {notice && <p role="status" className="text-small text-walshe-mint">{notice}</p>}
       {error && <p role="alert" className="text-small text-walshe-danger">{error}</p>}
     </section>
   );

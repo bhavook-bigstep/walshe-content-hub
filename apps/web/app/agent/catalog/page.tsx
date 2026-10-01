@@ -90,13 +90,13 @@ export default function AgentCatalogPage() {
           <h2 className="text-small font-semibold text-walshe-ink">In composition ({selected.length})</h2>
           <ul className="mt-2 flex flex-wrap gap-2 text-small">
             {selected.map((s) => (
-              <li key={s.id} className="inline-flex items-center gap-2 rounded-pill bg-walshe-teal-100 px-3 py-1 text-walshe-teal">
+              <li key={s.id} className="inline-flex items-center gap-2 rounded-pill bg-white/10 px-3 py-1 text-walshe-mint">
                 {s.title}
                 <button
                   type="button"
                   aria-label={`Remove ${s.title}`}
                   onClick={() => setSelected((all) => all.filter((x) => x.id !== s.id))}
-                  className="text-walshe-teal/70 hover:text-walshe-teal"
+                  className="text-walshe-mint/70 hover:text-walshe-mint"
                 >
                   ✕
                 </button>

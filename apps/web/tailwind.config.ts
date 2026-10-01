@@ -11,23 +11,22 @@ const config: Config = {
     extend: {
       colors: {
         walshe: {
-          // The Walshe Group palette (from walshegroup.com): black & white with a deep teal accent,
-          // stone/mint neutrals, grey text. Monochrome-premium.
-          ink: "#0A0A0A", // headings + body text (near-black)
-          black: "#000000", // pure-black dark sections
-          teal: "#005653", // accent — CTAs, active state, eyebrows, verified
-          "teal-700": "#003E3C", // hover / pressed
-          "teal-100": "#CFE6E3", // light teal tint
-          paper: "#FFFFFF", // primary surface
+          // The Walshe Group green as the base (deep teal-green), light off-white text, mint accent.
+          base: "#005653", // page background — the Walshe green
+          deep: "#003E3C", // deeper teal — glass nav, recessed
+          ink: "#EAF4F1", // primary text (light off-white)
           white: "#FFFFFF",
-          mist: "#F6F5F2", // warm off-white section background
-          stone: "#ECEBE8", // alt surface / soft panels
-          line: "#E4E3DF", // hairline dividers / borders
-          mint: "#E5F6DF", // light tint (chips, pills on light)
-          grey: "#737373", // muted / caption text
-          green: "#00AE41", // success
-          danger: "#B3261E",
-          warn: "#8A5A00",
+          paper: "#005653",
+          mist: "#005653", // section bg = base
+          stone: "#0C6A64", // subtle raised surface
+          line: "#15766F", // hairline borders on teal
+          mint: "#E5F6DF", // accent — eyebrows, active, highlights
+          teal: "#005653", // brand (text on white pills / chips)
+          "teal-700": "#003E3C",
+          grey: "#A7C6C2", // muted text (light)
+          green: "#4FCAA0", // success
+          danger: "#E06A63",
+          warn: "#E0B24A",
         },
       },
       fontFamily: {

@@ -56,7 +56,7 @@ export default function ExportMenu({
   }
 
   const btn =
-    "inline-flex w-full items-center justify-between gap-2 rounded-sm border border-walshe-stone bg-walshe-white px-4 py-3 text-small font-semibold text-walshe-ink transition-colors hover:border-walshe-ink/25 hover:bg-walshe-mist disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex w-full items-center justify-between gap-2 rounded-sm border border-white/15 bg-white/[0.06] px-4 py-3 text-small font-semibold text-walshe-ink transition-colors hover:border-white/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50";
   const chevron = (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="text-walshe-grey">
       <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16" />

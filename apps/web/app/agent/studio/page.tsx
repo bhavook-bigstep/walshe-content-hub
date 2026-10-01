@@ -89,7 +89,7 @@ export default function StudioPage() {
       />
 
       {/* Slim top tool bar: format + canvas tools, grouped (Canva-style). */}
-      <div className="mb-5 rounded-lg border border-walshe-line bg-walshe-white p-3 shadow-card sm:px-4">
+      <div className="mb-5 rounded-lg border border-walshe-line bg-white/[0.06] p-3 shadow-card sm:px-4">
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
           <div className="flex items-end pb-2">
             <FormatPicker value={design.format} onChange={pickFormat} />

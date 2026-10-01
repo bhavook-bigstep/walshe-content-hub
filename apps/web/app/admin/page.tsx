@@ -146,7 +146,7 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {users!.map((u) => (
-                  <tr key={u.id} className="border-b border-walshe-line/70 last:border-0 transition-colors hover:bg-walshe-mist/50">
+                  <tr key={u.id} className="border-b border-walshe-line/70 last:border-0 transition-colors hover:bg-white/10/50">
                     <td className="px-5 py-3.5 font-medium text-walshe-ink">{u.email}</td>
                     <td className="px-5 py-3.5 text-walshe-grey">{ROLE_LABEL[u.role] ?? u.role}</td>
                     <td className="px-5 py-3.5">

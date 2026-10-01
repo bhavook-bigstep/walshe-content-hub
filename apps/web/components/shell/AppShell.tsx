@@ -42,8 +42,8 @@ function isActive(pathname: string, href: string): boolean {
 function Wordmark() {
   return (
     <span className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-sm bg-walshe-teal text-[17px] font-bold text-white">W</span>
-      <span className="text-[18px] font-semibold tracking-tight text-walshe-ink">Walshe</span>
+      <span className="grid h-9 w-9 place-items-center rounded-sm bg-white text-[17px] font-bold text-walshe-teal">W</span>
+      <span className="text-[18px] font-semibold tracking-tight text-white">Walshe</span>
     </span>
   );
 }
@@ -62,13 +62,13 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
 
   return (
     <div className="min-h-screen bg-walshe-mist">
-      {/* Sticky framed top nav (light) — borders draw in, matching the landing's scrolled nav. */}
-      <header className="load-stagger sticky top-0 z-40 flex h-[72px] items-stretch bg-white/95 text-walshe-ink backdrop-blur-sm">
-        <span aria-hidden className="draw-x absolute bottom-0 left-0 h-px w-full bg-walshe-line" />
+      {/* Sticky framed top nav — deep-teal liquid glass, borders draw in (matches the landing). */}
+      <header className="load-stagger sticky top-0 z-40 flex h-[72px] items-stretch bg-walshe-deep/55 text-white shadow-[0_8px_30px_-16px_rgba(0,0,0,0.45)] backdrop-blur-2xl backdrop-saturate-150">
+        <span aria-hidden className="draw-x absolute bottom-0 left-0 h-px w-full bg-white/20" />
 
         <Link href={home} className="relative flex items-center px-6">
           <Wordmark />
-          <span aria-hidden className="draw-y absolute right-0 top-0 h-full w-px bg-walshe-line" />
+          <span aria-hidden className="draw-y absolute right-0 top-0 h-full w-px bg-white/20" />
         </Link>
 
         <nav aria-label="Primary" className="hidden flex-1 items-stretch px-2 lg:flex">
@@ -80,20 +80,20 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={`relative flex items-center px-4 text-[14.5px] font-medium transition-colors ${
-                  active ? "text-walshe-teal" : "text-walshe-ink/65 hover:text-walshe-ink"
+                  active ? "text-walshe-mint" : "text-white/70 hover:text-white"
                 }`}
               >
                 {item.label}
-                {active && <span aria-hidden className="absolute inset-x-4 bottom-0 h-0.5 bg-walshe-teal" />}
+                {active && <span aria-hidden className="absolute inset-x-4 bottom-0 h-0.5 bg-walshe-mint" />}
               </Link>
             );
           })}
         </nav>
 
         <div className="relative ml-auto hidden items-center gap-4 px-6 lg:flex">
-          <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-walshe-line" />
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-walshe-grey">{ROLE_LABEL[role]}</span>
-          <button type="button" onClick={signOut} className="rounded-pill border border-walshe-ink/20 px-4 py-2 text-[13px] font-semibold text-walshe-ink transition-colors hover:bg-walshe-stone">
+          <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/20" />
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/55">{ROLE_LABEL[role]}</span>
+          <button type="button" onClick={signOut} className="rounded-pill border border-white/25 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/10">
             Sign out
           </button>
         </div>
@@ -109,19 +109,19 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
 
       {/* Mobile menu */}
       {open && (
-        <div id="app-mobile-nav" className="border-b border-walshe-line bg-white px-4 py-3 text-walshe-ink lg:hidden">
+        <div id="app-mobile-nav" className="border-b border-white/10 bg-walshe-deep px-4 py-3 text-white lg:hidden">
           <nav className="flex flex-col">
             {items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className={`rounded-sm px-3 py-2.5 text-[15px] font-medium ${isActive(pathname, item.href) ? "text-walshe-teal" : "text-walshe-ink/75 hover:bg-walshe-stone"}`}
+                className={`rounded-sm px-3 py-2.5 text-[15px] font-medium ${isActive(pathname, item.href) ? "text-walshe-mint" : "text-white/75 hover:bg-white/10"}`}
               >
                 {item.label}
               </Link>
             ))}
-            <button type="button" onClick={signOut} className="mt-1 rounded-sm px-3 py-2.5 text-left text-[15px] font-medium text-walshe-ink/75 hover:bg-walshe-stone">
+            <button type="button" onClick={signOut} className="mt-1 rounded-sm px-3 py-2.5 text-left text-[15px] font-medium text-white/75 hover:bg-white/10">
               Sign out
             </button>
           </nav>

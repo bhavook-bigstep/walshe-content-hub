@@ -12,9 +12,9 @@ export interface EngagementPoint {
 // Chart series — "vita" palette: teal, green, amber. Each series keeps one colour AND a distinct
 // marker shape, so it never relies on colour alone (WCAG non-colour encoding).
 const SERIES = [
-  { key: "impressions", label: "Impressions", color: "var(--walshe-teal)", marker: "circle" },
+  { key: "impressions", label: "Impressions", color: "#FFFFFF", marker: "circle" },
   { key: "engagement", label: "Engagement", color: "var(--walshe-green)", marker: "square" },
-  { key: "clicks", label: "Clicks", color: "var(--walshe-teal)", marker: "triangle" },
+  { key: "clicks", label: "Clicks", color: "var(--walshe-mint)", marker: "triangle" },
 ] as const;
 
 type Key = (typeof SERIES)[number]["key"];
@@ -74,7 +74,7 @@ export default function EngagementChart({
         {SERIES.map((s) => (
           <li
             key={s.key}
-            className="inline-flex items-center gap-2 rounded-pill border border-walshe-stone bg-walshe-white px-3 py-1"
+            className="inline-flex items-center gap-2 rounded-pill border border-white/15 bg-white/[0.06] px-3 py-1"
           >
             <svg width="16" height="16" viewBox="-8 -8 16 16" aria-hidden>
               {marker(s.marker, 0, 0, s.color)}
@@ -89,7 +89,7 @@ export default function EngagementChart({
           <table className="w-full text-small" data-testid="engagement-chart-table">
             <caption className="sr-only">{summary}</caption>
             <thead>
-              <tr className="border-b border-walshe-stone text-left text-walshe-grey">
+              <tr className="border-b border-white/15 text-left text-walshe-grey">
                 <th className="py-2 pr-4 font-medium">Post</th>
                 {SERIES.map((s) => (
                   <th key={s.key} className="py-2 pr-4 font-medium">
@@ -100,7 +100,7 @@ export default function EngagementChart({
             </thead>
             <tbody>
               {points.map((p) => (
-                <tr key={p.label} className="border-b border-walshe-stone/60">
+                <tr key={p.label} className="border-b border-white/15/60">
                   <td className="py-2 pr-4">{p.label}</td>
                   {SERIES.map((s) => (
                     <td key={s.key} className="py-2 pr-4 tabular-nums">

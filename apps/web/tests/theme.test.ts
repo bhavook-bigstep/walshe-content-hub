@@ -11,14 +11,13 @@ describe("walshe design tokens", () => {
     const walshe = colors!.walshe;
     expect(walshe).toBeDefined();
 
-    // The Walshe Group palette — black & white with a deep teal accent, stone/mint neutrals.
+    // The Walshe Group green as the base, light off-white text, mint accent.
     expect(walshe).toMatchObject({
-      ink: "#0A0A0A",
+      base: "#005653",
       teal: "#005653",
-      paper: "#FFFFFF",
-      stone: "#ECEBE8",
+      ink: "#EAF4F1",
       mint: "#E5F6DF",
-      grey: "#737373",
+      white: "#FFFFFF",
     });
 
     // Inter for UI/body, a serif for display headings.
