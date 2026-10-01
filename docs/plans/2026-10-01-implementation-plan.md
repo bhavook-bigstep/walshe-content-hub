@@ -5,6 +5,8 @@
 - **Charter (scoping record):** `docs/plans/2026-10-01-requirements-charter.md` v2 · **Ledger:** `docs/plans/2026-10-01-run-ledger.md`
 - **Brainstorm decision carried in:** `docs/brainstorms/2026-10-01-governing-requirements-file.md` → **Approach D** (governed Markdown + thin generated status matrix enforced in CI + acceptance).
 
+> **Plan status (revised 2026-10-01, PLAN re-pass).** §1 (the user's governed + governing requirements file) has since **landed and is green** — `/requirements.manifest.yaml` + `scripts/acceptance_matrix.py` + `scripts/check_requirements_sync.py` + `.github/workflows/ci.yml` (`pytest scripts/tests` → 20 passed; sync guard → PASS, 18 in sync). This revision verifies every AC row below still holds, maps the four system contracts to their enforcing proofs (§6), and records the governance observation that Contract 3 has no dedicated AC. Live status is tracked in the run ledger's generated matrix, never here — this file remains the forward HOW, the ledger the status.
+
 ## 0. Intake (restated)
 
 - **Goal.** A concrete, reviewable build plan with exact files/functions/config, a dependency graph, and one test per acceptance item (AC1–AC18), plus the mechanism that makes `/REQUIREMENTS.md` both *governed* and *governing* (the user's standing request).
@@ -172,7 +174,20 @@ Each AC lands with its proof test and a manifest row in the same change, so the 
 - **Secrets:** all keys from env (`app/config.py`); `.env.example` has names only; no key is logged (log provider *name*, never value) or shown in exports (asserted in AC12/AC16 tests). Satisfies `security.md` + Contract 2.
 - **Determinism:** AI forced to stub in tests; clock + randomness injected (`deps.get_clock`); ffmpeg/TTS/MinIO/network all mocked in unit tests; one seeded dataset drives search/engagement/e2e. Satisfies `testing.md` + Contract 4.
 - **Synthetic fixtures:** `apps/api/tests/conftest.py` builds users with fake passwords (`test-pass-xxxx`), 1×1 PNG byte blobs, seeded catalog; no real records/keys.
-- **Traceability (Contract 3):** `app/models/audit.py:AuditLog` + `app/audit.py:record(action,actor,target)` written on delete/unpublish/overwrite; `test_audit.py::test_destructive_actions_are_logged`.
+- **Traceability (Contract 3):** `app/models/audit.py:AuditLog` + `app/audit.py:record(action,actor,target)` written on delete/unpublish/overwrite; `apps/api/tests/test_audit.py::test_destructive_actions_are_logged`.
+
+### 6a. System contracts → enforcing proofs (governance map)
+
+The spec's four non-functional contracts (`/REQUIREMENTS.md` §4) each map to a concrete, named proof so none is prose-only:
+
+| Contract | Enforced by | Proof (node-id) |
+| --- | --- | --- |
+| **C1** — only approved brand-safe content reaches agents | `app/services/visibility.py:agent_visible_q` (single choke-point) | `test_visibility_contract.py::test_agent_never_sees_unapproved` (= AC6) |
+| **C2** — no secrets/PII leave the boundary (keys from env) | `app/config.py` env-only; provider logs name not value; exports scrubbed | `test_ai_provider.py::test_factory_selects_and_falls_back` (AC16) + `test_export.py::test_pdf_and_html_from_design` asserts no key in output (AC12) |
+| **C3** — destructive actions are traceable | `app/audit.py:record` on delete/unpublish/overwrite | `test_audit.py::test_destructive_actions_are_logged` |
+| **C4** — runs reproducible; AI deterministic in tests | stub-forced AI + injected clock/seed + mocked boundaries | `test_builder.py::test_builder_stub_is_deterministic` (AC10) + `test_seed.py::test_seed_is_idempotent_and_complete` (AC17) |
+
+> **Governance observation (no scope change).** C1/C2/C4 are each pinned to an AC in `/requirements.manifest.yaml`, so the acceptance matrix reds the build if they regress. **C3's proof (`test_audit.py`) is not wired to any AC** — the 18-item acceptance contract has no dedicated audit item, so C3 is tested but not governed by the matrix. Options for the user (any is a spec edit → version bump + change-log row + approval, per `/REQUIREMENTS.md` §Governance): (a) add `AC19 — destructive actions are audit-logged [requirement]` and map `test_audit.py` to it; (b) extend AC6's manifest `api:` list with the audit proof; or (c) accept C3 as a tested-but-unmatrixed contract. Recommended: **(a)** — it keeps one-contract-one-AC symmetry and makes the matrix the single source of enforcement. Deferred to the user; this PLAN pass makes no scope change (spec stays v1.0.0).
 
 ## 7. Risks & mitigations
 

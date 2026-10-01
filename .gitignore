@@ -17,6 +17,11 @@ postgres-data/
 minio-data/
 playwright-report/
 test-results/
+.report.json
+.vitest.json
+.e2e.json
+*.db
+content_hub.db
 *.mp4
 !docs/**/*.mp4
 .oneshot/

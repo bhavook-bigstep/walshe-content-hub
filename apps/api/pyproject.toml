@@ -1,0 +1,39 @@
+[project]
+name = "walsh-content-hub-api"
+version = "0.1.0"
+description = "Walsh Content Hub API (FastAPI) — PoC"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "sqlalchemy>=2.0",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "reportlab>=4.2",
+    "httpx>=0.27",
+    "python-multipart>=0.0.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-json-report>=1.5",
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# PoC-appropriate rule set: pyflakes + pycodestyle + isort + bugbear.
+select = ["E", "F", "I", "B"]
+ignore = ["B008"]  # FastAPI uses function calls (Depends(...)) in argument defaults by design.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.uv]
+# No build backend needed: this is an application, not a distributable package.
+package = false
