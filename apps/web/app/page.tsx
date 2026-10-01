@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Reveal from "../components/ui/Reveal";
+import SiteNav from "../components/site/SiteNav";
 
 // Public landing (AC20) — immersive editorial direction modelled on the reference's structure:
 // full-bleed cinematic hero with a framed nav, 2-column section headers (small eyebrow left, large
@@ -61,31 +62,14 @@ const STEPS = [
 export default function Landing() {
   return (
     <main className="bg-walshe-paper">
+      <SiteNav />
       {/* ======================= HERO ======================= */}
       <header className="relative min-h-[108vh] overflow-hidden text-white">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={IMG(1018, 2000, 1300)} alt="" className="absolute inset-0 z-0 h-full w-full object-cover" />
         <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(7,20,24,.5)_0%,rgba(7,20,24,.1)_30%,rgba(7,20,24,.18)_66%,rgba(7,20,24,.62)_100%)]" />
 
-        {/* Framed nav: logo bay · links · divider · CTA bay, with a bottom hairline (movie-frame). */}
-        <nav className="load-stagger relative z-10 flex h-[76px] items-stretch border-b border-white/15 text-[15px]">
-          <Link href="/" className="flex items-center border-r border-white/15 px-7">
-            <Wordmark onDark />
-          </Link>
-          <div className="hidden flex-1 items-center justify-end gap-9 px-8 lg:flex">
-            {["For the trade", "Destinations", "How it works"].map((l) => (
-              <span key={l} className="cursor-default font-medium text-white/85 transition-colors hover:text-white">{l}</span>
-            ))}
-          </div>
-          <Link href="/login" className="ml-auto flex items-center border-l border-white/15 px-7 font-semibold text-white lg:ml-0">
-            Sign in
-          </Link>
-          <Link href="/login" className="hidden items-center border-l border-white/15 px-7 font-semibold text-white transition-colors hover:bg-white/10 lg:flex">
-            Explore
-          </Link>
-        </nav>
-
-        <div className="relative z-10 mx-auto flex min-h-[calc(100vh-76px)] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-10 text-center">
+        <div className="relative z-10 mx-auto flex min-h-[108vh] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-20 text-center">
           <Reveal as="h1" className="max-w-[18ch] text-[clamp(56px,10vw,132px)] font-light leading-[0.92] tracking-[-0.045em]">
             Verified destinations
           </Reveal>
