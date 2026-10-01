@@ -6,22 +6,14 @@ import { ApiError, login, me } from "../../lib/api";
 import { ROLE_HOME } from "../../lib/rbac";
 import { clear, setSession, setToken } from "../../lib/session";
 
-// Walshe wordmark for the auth screen — amber "W" tile + product wordmark (vita language).
+// Auth-screen lockup — The Walshe Group wordmark (white) above the product descriptor.
 function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
-  const word = tone === "light" ? "text-white" : "text-walshe-ink";
   const sub = tone === "light" ? "text-white/70" : "text-walshe-grey";
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <span
-        aria-hidden
-        className="grid h-10 w-10 place-items-center rounded-md bg-white text-[19px] font-extrabold leading-none text-walshe-teal"
-      >
-        W
-      </span>
-      <span className="flex flex-col leading-none">
-        <span className={`text-[17px] font-extrabold tracking-tight ${word}`}>Walshe</span>
-        <span className={`mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${sub}`}>Content Hub</span>
-      </span>
+    <span className="inline-flex flex-col gap-2.5">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/img/walshe-group-white.png" alt="The Walshe Group" className="h-12 w-auto" />
+      <span className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${sub}`}>Content Hub</span>
     </span>
   );
 }

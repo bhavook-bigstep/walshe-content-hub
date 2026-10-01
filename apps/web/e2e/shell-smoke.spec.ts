@@ -10,6 +10,6 @@ test("branded nav after login", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav).toBeVisible();
   await expect(nav.getByRole("link", { name: "Design Studio" })).toBeVisible();
-  // The Walshe wordmark is present in the shell (sibling of the nav, not inside it).
-  await expect(page.getByText("Walshe", { exact: false }).first()).toBeVisible();
+  // The Walshe Group wordmark (logo image) is present in the shell.
+  await expect(page.getByRole("img", { name: /walshe/i }).first()).toBeVisible();
 });

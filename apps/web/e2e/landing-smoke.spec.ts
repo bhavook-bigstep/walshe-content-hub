@@ -7,6 +7,6 @@ test("landing hero and cta", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /verified destinations/i })).toBeVisible();
   // A clear CTA into sign-in exists.
   await expect(page.getByRole("link", { name: /^sign in$/i }).first()).toBeVisible();
-  // The Walshe wordmark is present.
-  await expect(page.getByText("Walshe", { exact: false }).first()).toBeVisible();
+  // The Walshe Group wordmark (logo image) is present.
+  await expect(page.getByRole("img", { name: /walshe/i }).first()).toBeVisible();
 });

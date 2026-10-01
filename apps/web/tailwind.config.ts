@@ -12,14 +12,14 @@ const config: Config = {
       colors: {
         walshe: {
           // The Walshe Group green as the base (deep teal-green), light off-white text, mint accent.
-          base: "#005653", // page background — the Walshe green
-          deep: "#003E3C", // deeper teal — glass nav, recessed
+          base: "#03160F", // deep near-black teal-green base
+          deep: "#010B08", // near-black teal — glass nav, recessed
           ink: "#EAF4F1", // primary text (light off-white)
           white: "#FFFFFF",
-          paper: "#005653",
-          mist: "#005653", // section bg = base
-          stone: "#0C6A64", // subtle raised surface
-          line: "#15766F", // hairline borders on teal
+          paper: "#03160F",
+          mist: "#03160F",
+          stone: "#0E3A35", // subtle raised surface
+          line: "#1C5C56", // hairline borders
           mint: "#E5F6DF", // accent — eyebrows, active, highlights
           teal: "#005653", // brand (text on white pills / chips)
           "teal-700": "#003E3C",
@@ -30,17 +30,17 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Inter for UI/body; an elegant serif for display headings (Walshe's identity).
+        // Inter everywhere — body, UI, and display — matching the reference's single-family system.
         sans: ["var(--font-sans)", "Inter", "Helvetica Neue", "system-ui", "sans-serif"],
-        serif: ["var(--font-serif)", "Playfair Display", "Georgia", "Times New Roman", "serif"],
         ui: ["var(--font-ui)", "var(--font-sans)", "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
-        // Light, editorial grotesque scale (Inter) — big and airy, not heavy.
-        display: ["5rem", { lineHeight: "0.98", fontWeight: "300", letterSpacing: "-0.035em" }],
-        h1: ["2.75rem", { lineHeight: "1.05", fontWeight: "500", letterSpacing: "-0.025em" }],
-        h2: ["2.1rem", { lineHeight: "1.1", fontWeight: "500", letterSpacing: "-0.02em" }],
-        h3: ["1.3125rem", { lineHeight: "1.3", fontWeight: "600", letterSpacing: "-0.01em" }],
+        // Heavy, tightly-tracked grotesque scale (Inter) — the reference runs display at ~600
+        // weight with strong negative tracking (its hero is Inter 600 at ~-0.066em).
+        display: ["5rem", { lineHeight: "0.98", fontWeight: "600", letterSpacing: "-0.055em" }],
+        h1: ["2.75rem", { lineHeight: "1.05", fontWeight: "600", letterSpacing: "-0.04em" }],
+        h2: ["2.1rem", { lineHeight: "1.1", fontWeight: "600", letterSpacing: "-0.035em" }],
+        h3: ["1.3125rem", { lineHeight: "1.3", fontWeight: "600", letterSpacing: "-0.02em" }],
         body: ["1rem", { lineHeight: "1.6" }],
         small: ["0.875rem", { lineHeight: "1.35" }],
         eyebrow: ["0.78rem", { lineHeight: "1.2", fontWeight: "700", letterSpacing: "0.16em" }],

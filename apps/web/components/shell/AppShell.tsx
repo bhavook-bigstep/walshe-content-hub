@@ -40,12 +40,9 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 function Wordmark() {
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-sm bg-white text-[17px] font-bold text-walshe-teal">W</span>
-      <span className="text-[18px] font-semibold tracking-tight text-white">Walshe</span>
-    </span>
-  );
+  // The Walshe Group wordmark (white, three-line lockup) — on the dark glass nav.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/img/walshe-group-white.png" alt="The Walshe Group" className="h-10 w-auto" />;
 }
 
 export default function AppShell({ role, children }: { role: Role; children: ReactNode }) {
@@ -63,7 +60,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
   return (
     <div className="min-h-screen bg-walshe-mist">
       {/* Sticky framed top nav — deep-teal liquid glass, borders draw in (matches the landing). */}
-      <header className="load-stagger sticky top-0 z-40 flex h-[72px] items-stretch bg-walshe-deep/55 text-white shadow-[0_8px_30px_-16px_rgba(0,0,0,0.45)] backdrop-blur-2xl backdrop-saturate-150">
+      <header className="load-stagger sticky top-0 z-40 flex h-[72px] items-stretch bg-walshe-deep/35 text-white shadow-[0_10px_30px_-16px_rgba(0,0,0,0.5)] backdrop-blur-md backdrop-saturate-[1.8]">
         <span aria-hidden className="draw-x absolute bottom-0 left-0 h-px w-full bg-white/20" />
 
         <Link href={home} className="relative flex items-center px-6">

@@ -19,17 +19,15 @@ export default function SiteNav() {
     <header
       className={`load-stagger fixed inset-x-0 top-0 z-50 flex h-[76px] items-stretch text-[15px] text-white transition-all duration-500 ${
         solid
-          ? "bg-walshe-deep/55 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.4)] backdrop-blur-2xl backdrop-saturate-150"
+          ? "bg-walshe-deep/30 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.5)] backdrop-blur-md backdrop-saturate-[1.8]"
           : "bg-transparent"
       }`}
     >
       <span aria-hidden className="draw-x absolute bottom-0 left-0 h-px w-full bg-white/25" />
 
-      <Link href="/" className="relative flex items-center px-7">
-        <span className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-sm bg-white text-[17px] font-bold text-walshe-teal">W</span>
-          <span className="text-[19px] font-semibold tracking-tight">Walshe</span>
-        </span>
+      <Link href="/" className="relative flex items-center px-7" aria-label="The Walshe Group — home">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/img/walshe-group-white.png" alt="The Walshe Group" className="h-11 w-auto" />
         <span aria-hidden className="draw-y absolute right-0 top-0 h-full w-px bg-white/25" />
       </Link>
 

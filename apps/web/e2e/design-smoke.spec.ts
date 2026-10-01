@@ -42,7 +42,7 @@ test("agent app shell shows branded nav and logo", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav.getByRole("link", { name: "Catalog" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Design Studio" })).toBeVisible();
-  await expect(page.getByText("Walshe").first()).toBeVisible();
+  await expect(page.getByRole("img", { name: /walshe/i }).first()).toBeVisible();
 });
 
 // AC22 — polished dashboard: stat tiles + a chart render for the agent.
