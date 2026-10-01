@@ -2,17 +2,21 @@
 
 import { useEffect, useRef, type ElementType, type ReactNode } from "react";
 
-// Scroll-reveal wrapper (vita-style smoothness). Content renders immediately (SSR-friendly and
-// visible to tests / no-JS); when it scrolls into view, `.reveal-in` triggers a smooth fade+rise.
-// The opacity:0 start is applied only under prefers-reduced-motion: no-preference (see globals.css).
+type Dir = "down" | "up" | "left" | "right";
+
+// Scroll-reveal wrapper. Content renders immediately (SSR-friendly / visible to tests); when it
+// scrolls into view, `.reveal-in` triggers a smooth fade in the chosen direction. Varying the
+// direction across sections (down / up / left / right) gives the page rhythm and symmetry.
 export default function Reveal({
   as: Tag = "div",
   className = "",
+  dir = "down",
   delayMs = 0,
   children,
 }: {
   as?: ElementType;
   className?: string;
+  dir?: Dir;
   delayMs?: number;
   children: ReactNode;
 }) {
@@ -41,7 +45,7 @@ export default function Reveal({
   }, []);
 
   return (
-    <Tag ref={ref} className={`reveal ${className}`} style={delayMs ? { transitionDelay: `${delayMs}ms` } : undefined}>
+    <Tag ref={ref} data-dir={dir} className={`reveal ${className}`} style={delayMs ? { transitionDelay: `${delayMs}ms` } : undefined}>
       {children}
     </Tag>
   );

@@ -88,32 +88,32 @@ export default function Landing() {
       </header>
 
       {/* ======================= VERIFIED CATALOG (retreats-style, dark) ======================= */}
-      <section className="bg-walshe-ink py-24 text-white">
+      <section className="bg-walshe-mist py-24">
         <div className="mx-auto max-w-content px-7">
-          <SectionHead eyebrow="Verified catalog" title="Content the trade can trust, in more than six markets." dark />
+          <SectionHead eyebrow="Verified catalog" title="Content the trade can trust, in more than six markets." />
           <div className="mt-16 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
             {CATALOG.map((c, i) => (
-              <Reveal key={c.title} delayMs={i * 90}>
-                <article className="group flex h-full flex-col overflow-hidden rounded-none border border-white/10 bg-white/[0.035] transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.06]">
+              <Reveal key={c.title} dir="up" delayMs={i * 90}>
+                <article className="card card-hover group flex h-full flex-col">
                   <div className="relative aspect-[16/11] overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={IMG(c.id, 900, 620)} alt={c.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                     <span className="chip-verified absolute left-4 top-4">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="#0FA37F" aria-hidden><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="#005653" aria-hidden><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
                       Verified
                     </span>
                   </div>
                   <div className="flex flex-1 flex-col p-6">
-                    <h3 className="text-[21px] font-medium tracking-tight text-white">{c.title}</h3>
-                    <p className="mt-2.5 text-small leading-relaxed text-white/60">{c.blurb}</p>
-                    <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-small text-white/55">
+                    <h3 className="text-[21px] font-medium tracking-tight text-walshe-ink">{c.title}</h3>
+                    <p className="mt-2.5 text-small leading-relaxed text-walshe-grey">{c.blurb}</p>
+                    <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-small text-walshe-grey">
                       <span className="inline-flex items-center gap-1.5"><PinIcon />{c.place}</span>
                       <span className="inline-flex items-center gap-1.5"><TagIcon />{c.type}</span>
                       <span className="inline-flex items-center gap-1.5"><StackIcon />{c.assets}</span>
                     </div>
-                    <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-5">
-                      <span className="text-small text-white/45">Trade-ready</span>
-                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-white transition-colors group-hover:text-walshe-teal">
+                    <div className="mt-6 flex items-center justify-between border-t border-walshe-line pt-5">
+                      <span className="text-small text-walshe-grey">Trade-ready</span>
+                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-teal transition-colors hover:text-walshe-teal-700">
                         Use content <ArrowIcon />
                       </Link>
                     </div>
@@ -130,11 +130,11 @@ export default function Landing() {
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="The hub" title="Not just a library — a way of working, for the whole trade." />
           <div className="mt-16 grid items-start gap-12 lg:grid-cols-2">
-            <Reveal className="overflow-hidden rounded-none">
+            <Reveal dir="right" className="overflow-hidden rounded-none">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={IMG(1039, 1100, 1300)} alt="" className="aspect-[5/6] w-full object-cover" />
             </Reveal>
-            <Reveal delayMs={120}>
+            <Reveal dir="left" delayMs={120}>
               <p className="max-w-[46ch] text-[clamp(18px,2.1vw,24px)] font-light leading-snug text-walshe-ink">
                 The Walshe Content Hub blends a verified destination catalog with a Canva-style studio and an AI Builder — so an agent can go from brief to published campaign without leaving one place.
               </p>
@@ -152,15 +152,15 @@ export default function Landing() {
       </section>
 
       {/* ======================= STEPS (dark) ======================= */}
-      <section className="bg-walshe-teal py-24 text-white">
+      <section className="border-t border-walshe-line py-24">
         <div className="mx-auto max-w-content px-7">
-          <SectionHead eyebrow="How it works" title="From verified content to published campaign." dark />
+          <SectionHead eyebrow="How it works" title="From verified content to published campaign." />
           <div className="mt-16 grid gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
-              <Reveal key={s.n} delayMs={i * 80}>
+              <Reveal key={s.n} dir="right" delayMs={i * 80}>
                 <div className="text-small font-semibold text-walshe-teal">{s.n}</div>
-                <h3 className="mt-4 text-[21px] font-medium tracking-tight">{s.t}</h3>
-                <p className="mt-3 text-small leading-relaxed text-white/60">{s.b}</p>
+                <h3 className="mt-4 text-[21px] font-medium tracking-tight text-walshe-ink">{s.t}</h3>
+                <p className="mt-3 text-small leading-relaxed text-walshe-grey">{s.b}</p>
               </Reveal>
             ))}
           </div>
