@@ -40,10 +40,16 @@ function SectionHead({ eyebrow, title, dark = false }: { eyebrow: string; title:
 }
 
 const CATALOG = [
-  { id: 1015, title: "Harbour Festival", meta: "Event · Galway", tag: "/ 12 assets" },
-  { id: 1016, title: "Cliffs of Moher", meta: "Place · Clare", tag: "/ 20 assets" },
-  { id: 1036, title: "Trade Showcase", meta: "Opportunity · Dublin", tag: "/ 8 assets" },
+  { id: 1015, title: "Harbour Festival", type: "Event", place: "Galway", assets: "12 assets", blurb: "A week of food, music and sea air on Ireland’s west coast." },
+  { id: 1016, title: "Cliffs of Moher", type: "Place", place: "Clare", assets: "20 assets", blurb: "The signature view of the Wild Atlantic Way, sunrise to storm." },
+  { id: 1036, title: "Trade Showcase", type: "Opportunity", place: "Dublin", assets: "8 assets", blurb: "Agent-only offers and airline deals, refreshed each season." },
 ];
+
+// Small line icons for the card properties row (reference featured-item pattern).
+const PinIcon = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>);
+const TagIcon = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20.6 13.4 12 22l-9-9V4h9z" /><circle cx="7.5" cy="7.5" r="1.3" /></svg>);
+const StackIcon = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M3 9h18M8 18v2M16 18v2" /></svg>);
+const ArrowIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>);
 
 const STEPS = [
   { n: "01", t: "Browse", b: "Search the approved catalog by destination, season or type." },
@@ -101,18 +107,34 @@ export default function Landing() {
       <section className="bg-walshe-ink py-24 text-white">
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="Verified catalog" title="Content the trade can trust, in more than six markets." dark />
-          <div className="mt-16 grid gap-y-14 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-0 lg:divide-x lg:divide-white/12">
+          <div className="mt-16 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
             {CATALOG.map((c, i) => (
-              <Reveal key={c.title} className={`${i > 0 ? "lg:pl-10" : ""} ${i < CATALOG.length - 1 ? "lg:pr-10" : ""}`} delayMs={i * 90}>
-                <div className="flex items-baseline justify-between gap-4">
-                  <h3 className="text-[21px] font-medium tracking-tight">{c.title}</h3>
-                  <span className="whitespace-nowrap text-small text-white/50">{c.tag}</span>
-                </div>
-                <div className="group mt-6 overflow-hidden rounded-xl">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={IMG(c.id, 820, 1040)} alt={c.title} className="aspect-[4/5] w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                </div>
-                <p className="mt-5 text-small text-white/55">{c.meta}</p>
+              <Reveal key={c.title} delayMs={i * 90}>
+                <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.06]">
+                  <div className="relative aspect-[16/11] overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={IMG(c.id, 900, 620)} alt={c.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                    <span className="chip-verified absolute left-4 top-4">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="#0FA37F" aria-hidden><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
+                      Verified
+                    </span>
+                  </div>
+                  <div className="flex flex-1 flex-col p-6">
+                    <h3 className="text-[21px] font-medium tracking-tight text-white">{c.title}</h3>
+                    <p className="mt-2.5 text-small leading-relaxed text-white/60">{c.blurb}</p>
+                    <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-small text-white/55">
+                      <span className="inline-flex items-center gap-1.5"><PinIcon />{c.place}</span>
+                      <span className="inline-flex items-center gap-1.5"><TagIcon />{c.type}</span>
+                      <span className="inline-flex items-center gap-1.5"><StackIcon />{c.assets}</span>
+                    </div>
+                    <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-5">
+                      <span className="text-small text-white/45">Trade-ready</span>
+                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-white transition-colors group-hover:text-walshe-amber">
+                        Use content <ArrowIcon />
+                      </Link>
+                    </div>
+                  </div>
+                </article>
               </Reveal>
             ))}
           </div>

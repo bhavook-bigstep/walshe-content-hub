@@ -115,12 +115,12 @@
 
 @layer utilities {
   @media (prefers-reduced-motion: no-preference) {
-    /* Scroll-reveal: elements get .reveal; a client observer adds .reveal-in. */
+    /* Scroll-reveal: text/blocks DROP in from above (top-to-down). A client observer adds .reveal-in. */
     .reveal {
       opacity: 0;
-      transform: translateY(24px);
-      transition: opacity 0.8s cubic-bezier(0.22, 0.61, 0.36, 1),
-        transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);
+      transform: translateY(-16px);
+      transition: opacity 0.75s cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 0.75s cubic-bezier(0.22, 0.61, 0.36, 1);
       will-change: opacity, transform;
     }
     .reveal-in {
@@ -128,14 +128,14 @@
       transform: none;
     }
 
-    /* On-load entrance: direct children fade + rise with a subtle stagger (nav, hero). */
-    @keyframes wh-fade-up {
-      from { opacity: 0; transform: translateY(12px); }
+    /* On-load entrance: direct children fade + DROP from the top with a subtle stagger (nav, hero). */
+    @keyframes wh-drop {
+      from { opacity: 0; transform: translateY(-14px); }
       to { opacity: 1; transform: none; }
     }
     .load-stagger > * {
       opacity: 0;
-      animation: wh-fade-up 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+      animation: wh-drop 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) both;
     }
     .load-stagger > *:nth-child(1) { animation-delay: 0.08s; }
     .load-stagger > *:nth-child(2) { animation-delay: 0.18s; }
