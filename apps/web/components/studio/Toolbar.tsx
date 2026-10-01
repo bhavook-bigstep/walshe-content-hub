@@ -77,7 +77,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
       <Group label="Text">
         <input
           aria-label="Text content"
-          className="h-9 w-36 rounded-sm border border-walshe-stone bg-walshe-white px-2.5 text-small text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-amber"
+          className="h-9 w-36 rounded-sm border border-walshe-stone bg-walshe-white px-2.5 text-small text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />

@@ -56,7 +56,7 @@ export default function PageHeader({
         ) : (
           eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>
         )}
-        <h1 className="text-h1 text-walshe-ink">{title}</h1>
+        <h1 className="font-display text-h1 font-normal text-walshe-ink">{title}</h1>
         {description && <p className="mt-2 max-w-2xl text-body text-walshe-grey">{description}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}

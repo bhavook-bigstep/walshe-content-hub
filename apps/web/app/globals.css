@@ -2,31 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Walshe Content Hub design system (AC19) — v2 "vita" direction. CSS vars mirror the Tailwind
-   tokens (tailwind.config.ts) so non-Tailwind consumers (inline styles, charts) read the same
-   palette. */
+/* The Walshe Group design system (AC19): black & white with a deep teal accent, stone/mint
+   neutrals, an elegant serif for display headings. CSS vars mirror the Tailwind tokens. */
 :root {
-  --walshe-amber: #fba13a;
-  --walshe-amber-600: #ea8a26;
-  --walshe-ink: #071418;
-  --walshe-teal: #0d2e37;
-  --walshe-teal-800: #143f4b;
-  --walshe-teal-700: #0a2129;
-  --walshe-teal-100: #e6eef0;
+  --walshe-ink: #0a0a0a;
+  --walshe-black: #000000;
+  --walshe-teal: #005653;
+  --walshe-teal-700: #003e3c;
+  --walshe-teal-100: #cfe6e3;
   --walshe-paper: #ffffff;
   --walshe-white: #ffffff;
-  --walshe-mist: #f4f5f4;
-  --walshe-stone: #eef0ef;
-  --walshe-line: #e7e9e8;
-  --walshe-mint: #e8f3ef;
-  --walshe-grey: #5d6c7b;
-  --walshe-green: #0fa37f;
+  --walshe-mist: #f6f5f2;
+  --walshe-stone: #ecebe8;
+  --walshe-line: #e4e3df;
+  --walshe-mint: #e5f6df;
+  --walshe-grey: #737373;
+  --walshe-green: #00ae41;
   --walshe-danger: #b3261e;
   --walshe-warn: #8a5a00;
 
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
   --radius-pill: 999px;
 }
 
@@ -43,15 +40,11 @@
   h1,
   h2,
   h3 {
-    /* Inherit color so headings go dark on light surfaces and light on dark ones
-       (set text-white on the dark container); do not force a color here. */
     color: inherit;
     text-wrap: balance;
-    letter-spacing: -0.02em;
   }
-  /* Visible focus ring across the app. */
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 2px solid var(--walshe-amber);
+    outline: 2px solid var(--walshe-teal);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
@@ -61,52 +54,51 @@
 }
 
 @layer components {
-  /* Primary CTA — amber pill, ink label. 48px min target for touch (AC23). */
+  /* Elegant serif for display headings (Walshe identity). */
+  .font-display {
+    font-family: var(--font-serif), "Playfair Display", Georgia, serif;
+  }
+
+  /* Primary CTA — teal pill. 48px min touch target (AC23). */
   .btn-primary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-walshe-amber px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:bg-walshe-amber-600 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-walshe-teal px-6 py-3 text-small font-semibold text-white transition-all hover:bg-walshe-teal-700 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
   }
-  /* Secondary CTA — ink outline on light. */
+  /* Secondary — ink outline pill. */
   .btn-secondary {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill border border-walshe-ink/20 bg-transparent px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:border-walshe-ink/40 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill border border-walshe-ink/25 bg-transparent px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:border-walshe-ink/50 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
   }
-  /* Ghost / tertiary. */
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-small font-semibold text-walshe-ink transition-colors hover:bg-walshe-mist;
+    @apply inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-small font-semibold text-walshe-ink transition-colors hover:bg-walshe-stone;
   }
-  /* Dark-surface CTA (on teal) — amber pill. */
+  /* On a dark surface — white pill. */
   .btn-on-dark {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-walshe-amber px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:bg-walshe-amber-600 hover:-translate-y-0.5;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:-translate-y-0.5;
   }
-  /* Card — white, hairline, crisp corners; soft shadow + lift on hover (reference is near-sharp). */
+  /* Card — white, hairline, crisp corners; soft shadow + lift on hover. */
   .card {
     @apply overflow-hidden rounded-none border border-walshe-line bg-walshe-white shadow-card;
   }
   .card-hover {
     @apply transition-all duration-300 hover:-translate-y-1 hover:border-walshe-line hover:shadow-lift;
   }
-  /* Image-forward content card: a sharp media panel + caption, reference-style. */
   .media-card {
     @apply group block overflow-hidden rounded-none;
   }
-  .media-card img {
-    @apply transition-transform duration-700 group-hover:scale-105;
-  }
   .eyebrow {
-    @apply text-eyebrow uppercase text-walshe-amber;
+    @apply text-eyebrow uppercase text-walshe-teal;
   }
-  /* Verified chip — white, green check. */
+  /* Verified chip — mint, teal text. */
   .chip-verified {
-    @apply inline-flex items-center gap-1.5 rounded-pill bg-white/95 px-3 py-1 text-small font-semibold text-walshe-ink shadow-sm;
+    @apply inline-flex items-center gap-1.5 rounded-pill bg-walshe-mint px-3 py-1 text-small font-semibold text-walshe-teal;
   }
   .chip-draft {
     @apply inline-flex items-center gap-1.5 rounded-pill bg-walshe-stone px-3 py-1 text-small font-semibold text-walshe-grey;
   }
-  /* Form field — 48px, amber focus. */
   .field {
-    @apply block h-12 w-full rounded-sm border border-walshe-stone bg-walshe-white px-4 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-amber;
+    @apply block h-12 w-full rounded-sm border border-walshe-line bg-walshe-white px-4 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal;
   }
   .field-area {
-    @apply block w-full rounded-sm border border-walshe-stone bg-walshe-white px-4 py-3 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-amber;
+    @apply block w-full rounded-sm border border-walshe-line bg-walshe-white px-4 py-3 text-body text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal;
   }
   .label {
     @apply mb-1.5 block text-small font-semibold text-walshe-ink;
@@ -115,7 +107,7 @@
 
 @layer utilities {
   @media (prefers-reduced-motion: no-preference) {
-    /* Scroll-reveal: text/blocks DROP in from above (top-to-down). A client observer adds .reveal-in. */
+    /* Scroll-reveal: text/blocks DROP in from above (top-to-down). */
     .reveal {
       opacity: 0;
       transform: translateY(-16px);
@@ -128,7 +120,7 @@
       transform: none;
     }
 
-    /* On-load entrance: direct children fade + DROP from the top with a subtle stagger (nav, hero). */
+    /* On-load entrance: direct children fade + DROP from the top with a subtle stagger. */
     @keyframes wh-drop {
       from { opacity: 0; transform: translateY(-14px); }
       to { opacity: 1; transform: none; }

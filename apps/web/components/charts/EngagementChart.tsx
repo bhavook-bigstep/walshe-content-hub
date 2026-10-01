@@ -14,7 +14,7 @@ export interface EngagementPoint {
 const SERIES = [
   { key: "impressions", label: "Impressions", color: "var(--walshe-teal)", marker: "circle" },
   { key: "engagement", label: "Engagement", color: "var(--walshe-green)", marker: "square" },
-  { key: "clicks", label: "Clicks", color: "var(--walshe-amber)", marker: "triangle" },
+  { key: "clicks", label: "Clicks", color: "var(--walshe-teal)", marker: "triangle" },
 ] as const;
 
 type Key = (typeof SERIES)[number]["key"];

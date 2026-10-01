@@ -22,7 +22,7 @@ export default function SiteNav() {
     >
       <Link href="/" className="flex items-center border-r border-white/15 px-7">
         <span className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-sm bg-walshe-amber text-[17px] font-bold text-walshe-ink">W</span>
+          <span className="grid h-9 w-9 place-items-center rounded-sm bg-walshe-teal text-[17px] font-bold text-white">W</span>
           <span className="text-[19px] font-semibold tracking-tight text-white">Walshe</span>
         </span>
       </Link>

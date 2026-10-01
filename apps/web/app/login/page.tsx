@@ -14,7 +14,7 @@ function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
     <span className="inline-flex items-center gap-2.5">
       <span
         aria-hidden
-        className="grid h-10 w-10 place-items-center rounded-md bg-walshe-amber text-[19px] font-extrabold leading-none text-walshe-ink"
+        className="grid h-10 w-10 place-items-center rounded-md bg-walshe-teal text-[19px] font-extrabold leading-none text-walshe-ink"
       >
         W
       </span>

@@ -93,7 +93,7 @@ export default function ProviderHomePage() {
                   <p className="text-small capitalize text-walshe-grey">
                     {e.type} · {e.destination}
                   </p>
-                  <Link href={`/provider/catalog/${e.id}`} className="inline-flex items-center gap-1 pt-1 text-small font-semibold text-walshe-ink hover:text-walshe-amber-600">
+                  <Link href={`/provider/catalog/${e.id}`} className="inline-flex items-center gap-1 pt-1 text-small font-semibold text-walshe-ink hover:text-walshe-teal-700">
                     Manage access →
                   </Link>
                 </div>

@@ -11,29 +11,29 @@ const config: Config = {
     extend: {
       colors: {
         walshe: {
-          // Core
-          amber: "#FBA13A", // primary accent — CTAs, highlights, active state
-          "amber-600": "#EA8A26", // hover / pressed
-          ink: "#071418", // headings + body text, near-black deep teal
-          teal: "#0D2E37", // dark surfaces — sidebar, dark sections
-          "teal-800": "#143F4B", // raised on dark
-          "teal-700": "#0A2129", // deepest
-          "teal-100": "#E6EEF0", // light teal tint (hover on light)
+          // The Walshe Group palette (from walshegroup.com): black & white with a deep teal accent,
+          // stone/mint neutrals, grey text. Monochrome-premium.
+          ink: "#0A0A0A", // headings + body text (near-black)
+          black: "#000000", // pure-black dark sections
+          teal: "#005653", // accent — CTAs, active state, eyebrows, verified
+          "teal-700": "#003E3C", // hover / pressed
+          "teal-100": "#CFE6E3", // light teal tint
           paper: "#FFFFFF", // primary surface
           white: "#FFFFFF",
-          mist: "#F4F5F4", // off-white section background
-          stone: "#EEF0EF", // borders + alt surface
-          line: "#E7E9E8", // hairline dividers
-          mint: "#E8F3EF", // light tint (chips, pills on light)
-          grey: "#5D6C7B", // muted / caption text
-          green: "#0FA37F", // verified / success accent
+          mist: "#F6F5F2", // warm off-white section background
+          stone: "#ECEBE8", // alt surface / soft panels
+          line: "#E4E3DF", // hairline dividers / borders
+          mint: "#E5F6DF", // light tint (chips, pills on light)
+          grey: "#737373", // muted / caption text
+          green: "#00AE41", // success
           danger: "#B3261E",
           warn: "#8A5A00",
         },
       },
       fontFamily: {
-        // Inter carries the whole system (display + body), matching the approved direction.
+        // Inter for UI/body; an elegant serif for display headings (Walshe's identity).
         sans: ["var(--font-sans)", "Inter", "Helvetica Neue", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "Playfair Display", "Georgia", "Times New Roman", "serif"],
         ui: ["var(--font-ui)", "var(--font-sans)", "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {

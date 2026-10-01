@@ -42,7 +42,7 @@ function isActive(pathname: string, href: string): boolean {
 function Wordmark() {
   return (
     <span className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-sm bg-walshe-amber text-[17px] font-bold text-walshe-ink">W</span>
+      <span className="grid h-9 w-9 place-items-center rounded-sm bg-walshe-teal text-[17px] font-bold text-white">W</span>
       <span className="text-[18px] font-semibold tracking-tight text-white">Walshe</span>
     </span>
   );
@@ -77,11 +77,11 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={`relative flex items-center px-4 text-[14.5px] font-medium transition-colors ${
-                  active ? "text-walshe-amber" : "text-white/75 hover:text-white"
+                  active ? "text-walshe-teal" : "text-white/75 hover:text-white"
                 }`}
               >
                 {item.label}
-                {active && <span aria-hidden className="absolute inset-x-4 bottom-0 h-0.5 bg-walshe-amber" />}
+                {active && <span aria-hidden className="absolute inset-x-4 bottom-0 h-0.5 bg-walshe-teal" />}
               </Link>
             );
           })}
@@ -112,7 +112,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className={`rounded-sm px-3 py-2.5 text-[15px] font-medium ${isActive(pathname, item.href) ? "text-walshe-amber" : "text-white/80 hover:bg-white/10"}`}
+                className={`rounded-sm px-3 py-2.5 text-[15px] font-medium ${isActive(pathname, item.href) ? "text-walshe-teal" : "text-white/80 hover:bg-white/10"}`}
               >
                 {item.label}
               </Link>

@@ -175,7 +175,7 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
       </div>
 
       <label className="flex items-center gap-2 text-small font-medium text-walshe-ink">
-        <input type="checkbox" className="h-4 w-4 accent-walshe-amber" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} />
+        <input type="checkbox" className="h-4 w-4 accent-walshe-teal" checked={narrate} onChange={(e) => setNarrate(e.target.checked)} />
         Voiceover
       </label>
 

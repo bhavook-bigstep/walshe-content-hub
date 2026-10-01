@@ -11,19 +11,20 @@ describe("walshe design tokens", () => {
     const walshe = colors!.walshe;
     expect(walshe).toBeDefined();
 
-    // Core palette — the approved direction's brand tokens.
+    // The Walshe Group palette — black & white with a deep teal accent, stone/mint neutrals.
     expect(walshe).toMatchObject({
-      amber: "#FBA13A",
-      ink: "#071418",
-      teal: "#0D2E37",
+      ink: "#0A0A0A",
+      teal: "#005653",
       paper: "#FFFFFF",
-      grey: "#5D6C7B",
-      green: "#0FA37F",
+      stone: "#ECEBE8",
+      mint: "#E5F6DF",
+      grey: "#737373",
     });
 
-    // Inter carries the type system.
+    // Inter for UI/body, a serif for display headings.
     const fontFamily = config.theme?.extend?.fontFamily as Record<string, string[]> | undefined;
     expect(fontFamily?.sans).toContain("Inter");
+    expect(fontFamily?.serif).toBeDefined();
 
     // Crisp editorial radii with a pill for buttons.
     const radius = config.theme?.extend?.borderRadius as Record<string, string> | undefined;

@@ -19,7 +19,7 @@ function Mark({ className = "" }: { className?: string }) {
 function Wordmark({ onDark = false }: { onDark?: boolean }) {
   return (
     <span className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 place-items-center rounded-md bg-walshe-amber text-[17px] font-bold text-walshe-ink">W</span>
+      <span className="grid h-9 w-9 place-items-center rounded-md bg-walshe-teal text-[17px] font-bold text-white">W</span>
       <span className={`text-[19px] font-semibold tracking-tight ${onDark ? "text-white" : "text-walshe-ink"}`}>Walshe</span>
     </span>
   );
@@ -30,10 +30,10 @@ function SectionHead({ eyebrow, title, dark = false }: { eyebrow: string; title:
   return (
     <div className={`grid gap-6 border-t pt-8 md:grid-cols-[minmax(0,2.4fr)_minmax(0,9fr)] md:gap-12 ${dark ? "border-white/15" : "border-walshe-line"}`}>
       <Reveal className="flex items-center gap-2.5">
-        <Mark className={`h-4 w-4 ${dark ? "text-walshe-amber" : "text-walshe-amber"}`} />
+        <Mark className={`h-4 w-4 ${dark ? "text-walshe-teal" : "text-walshe-teal"}`} />
         <span className={`text-eyebrow uppercase ${dark ? "text-white/60" : "text-walshe-grey"}`}>{eyebrow}</span>
       </Reveal>
-      <Reveal as="h2" className={`max-w-[20ch] text-[clamp(30px,4.6vw,64px)] font-light leading-[1.03] tracking-[-0.03em] ${dark ? "text-white" : "text-walshe-ink"}`} delayMs={80}>
+      <Reveal as="h2" className={`font-display max-w-[20ch] text-[clamp(30px,4.6vw,64px)] font-normal leading-[1.05] tracking-[-0.02em] ${dark ? "text-white" : "text-walshe-ink"}`} delayMs={80}>
         {title}
       </Reveal>
     </div>
@@ -70,7 +70,7 @@ export default function Landing() {
         <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(7,20,24,.5)_0%,rgba(7,20,24,.1)_30%,rgba(7,20,24,.18)_66%,rgba(7,20,24,.62)_100%)]" />
 
         <div className="relative z-10 mx-auto flex min-h-[108vh] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-20 text-center">
-          <Reveal as="h1" className="max-w-[18ch] text-[clamp(56px,10vw,132px)] font-light leading-[0.92] tracking-[-0.045em]">
+          <Reveal as="h1" className="font-display max-w-[18ch] text-[clamp(52px,9vw,120px)] font-normal leading-[0.98] tracking-[-0.02em]">
             Verified destinations
           </Reveal>
           <Reveal as="p" className="mt-8 max-w-[44ch] text-[clamp(17px,2vw,22px)] font-light leading-snug text-white/90" delayMs={120}>
@@ -113,7 +113,7 @@ export default function Landing() {
                     </div>
                     <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-5">
                       <span className="text-small text-white/45">Trade-ready</span>
-                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-white transition-colors group-hover:text-walshe-amber">
+                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-white transition-colors group-hover:text-walshe-teal">
                         Use content <ArrowIcon />
                       </Link>
                     </div>
@@ -141,7 +141,7 @@ export default function Landing() {
               <div className="mt-14 grid grid-cols-2 gap-x-10 gap-y-12">
                 {[["10,000", "Trade agents reached"], ["50 yrs", "In travel, in 2026"], ["100%", "Brand-verified content"], ["6", "Destination markets"]].map(([k, l]) => (
                   <div key={l}>
-                    <div className="text-[clamp(40px,5vw,64px)] font-light leading-none tracking-[-0.03em] text-walshe-ink">{k}</div>
+                    <div className="font-display text-[clamp(40px,5vw,64px)] font-normal leading-none tracking-[-0.02em] text-walshe-ink">{k}</div>
                     <div className="mt-3 text-small font-medium text-walshe-grey">{l}</div>
                   </div>
                 ))}
@@ -158,7 +158,7 @@ export default function Landing() {
           <div className="mt-16 grid gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
               <Reveal key={s.n} delayMs={i * 80}>
-                <div className="text-small font-semibold text-walshe-amber">{s.n}</div>
+                <div className="text-small font-semibold text-walshe-teal">{s.n}</div>
                 <h3 className="mt-4 text-[21px] font-medium tracking-tight">{s.t}</h3>
                 <p className="mt-3 text-small leading-relaxed text-white/60">{s.b}</p>
               </Reveal>
@@ -170,13 +170,13 @@ export default function Landing() {
       {/* ======================= CTA ======================= */}
       <section className="py-32">
         <div className="mx-auto max-w-content px-7 text-center">
-          <Reveal as="h2" className="mx-auto max-w-[16ch] text-[clamp(36px,6.5vw,92px)] font-light leading-[0.98] tracking-[-0.04em] text-walshe-ink">
+          <Reveal as="h2" className="font-display mx-auto max-w-[16ch] text-[clamp(36px,6.5vw,88px)] font-normal leading-[1.0] tracking-[-0.02em] text-walshe-ink">
             Put verified content to work.
           </Reveal>
           <Reveal className="mt-10 flex justify-center" delayMs={120}>
             <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-walshe-ink py-4 pl-7 pr-5 text-[15px] font-semibold text-white transition-transform hover:-translate-y-0.5">
               Get started
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-amber text-walshe-ink">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-teal text-walshe-ink">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </span>
             </Link>

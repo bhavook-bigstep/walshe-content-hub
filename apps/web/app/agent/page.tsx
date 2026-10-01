@@ -131,7 +131,7 @@ export default function AgentHomePage() {
             <ol className="space-y-3">
               {topPosts.map((p, i) => (
                 <li key={p.post_id} className="flex items-center gap-3">
-                  <span className="grid h-6 w-6 flex-none place-items-center rounded-md bg-walshe-amber text-[12px] font-extrabold text-walshe-ink tabular-nums">
+                  <span className="grid h-6 w-6 flex-none place-items-center rounded-md bg-walshe-teal text-[12px] font-extrabold text-walshe-ink tabular-nums">
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -205,7 +205,7 @@ export default function AgentHomePage() {
             <Link key={q.href} href={q.href} className="card card-hover group block p-5">
               <span className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-walshe-ink">{q.title}</span>
-                <span aria-hidden className="text-walshe-amber transition-transform group-hover:translate-x-0.5">→</span>
+                <span aria-hidden className="text-walshe-teal transition-transform group-hover:translate-x-0.5">→</span>
               </span>
               <span className="mt-1 block text-small text-walshe-grey">{q.body}</span>
             </Link>
