@@ -54,8 +54,24 @@ Priority tiers: **P1** = AC1,3,4,6,7,8,9,12,16,17,18 · **P2** = AC10,11,13 · *
 - Social layer simulated (no real OAuth). Auth = simple email+password + role guards. Canvas = Fabric.js.
 - Real assets added via the app (Provider catalog UI) after seeded placeholders.
 
-## Blockers (if STUCK)
-- (none yet)
+## Blockers (if STUCK) — escalated to user 2026-10-01
+
+**Workflow result:** `stuck · stage=budget · outer 3/3 exhausted · gaps=null` (19 agents, 0 errors).
+`gaps=null` because the inner loop re-planned (E→C) every outer iteration on design-change
+findings, so the **Acceptance phase never ran**. Verified state established manually instead.
+
+**Verified governed verdict** (acceptance_matrix with real api+web reports): **12 met / 6 missing**.
+- Met (tests pass): AC1-9, AC12, AC16, AC17. API suite 17 PASS; web vitest 2 PASS.
+- Missing: AC10 (Builder AI), AC11 (personalize), AC13 (video), AC14 (social), AC15 (dashboard), AC18 (Playwright e2e).
+
+**Caveats the matrix does NOT capture (critical):**
+1. **No web UI exists.** `apps/web` is pure TS logic only (`lib/studio/formats.ts`, `ops.ts` + tests). No Next.js pages, no Fabric.js canvas — AC8/AC9 "met" = logic, nothing a human can open/click.
+2. **OPEN P1 security hole:** `GET /assets/{object_key:path}` (apps/api/app/routers/assets.py:42) has **no auth + no visibility check** → unauthenticated asset egress. Violates Contract 1 & 2. Flagged by reviewers in outer-2 and outer-3, never fixed.
+3. **Docker won't run:** docker-compose uses `postgresql+psycopg://` but no psycopg in api deps. Tests pass only on in-memory SQLite; AC17 one-command run is unverified/broken.
+
+**Why stuck (what was tried):** (a) outer-1 implement pass spent on the mid-run "governed requirements file" ask; (b) reviewers legitimately kept raising design-change P1/P2 (asset auth hole, governance node-id bug, manifest pointing at non-existent tests) forcing re-plans that skipped acceptance; (c) scope (full monorepo + Fabric studio + Builder + video + social + e2e) is too large for a 3×2 budget.
+
+**Decision needed from user:** scope/approach for re-entry (see escalation message). Likely path: fix P1 asset auth + docker driver, build the actual Next.js UI so there is something to verify/demo, then P2 (Builder/personalize/video); defer P3 (social/dashboard). Needs another focused loop with the web UI as the critical path.
 
 ## Generated acceptance matrix
 
