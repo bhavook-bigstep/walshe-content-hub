@@ -50,6 +50,11 @@ jobs:
             apps/api/tests scripts/tests -o testpaths= -p no:cacheprovider \
             -q --json-report --json-report-file=apps/api/.report.json
       - if: steps.guard.outputs.present == 'yes'
+        name: contract-sync (Pydantic <-> generated TS types)
+        # Runs in the api job because the drift guard must import the Pydantic models (uv venv);
+        # it shells out to node + openapi-typescript (node is preinstalled on the runner).
+        run: uv run --project apps/api python scripts/check_api_types_sync.py
+      - if: steps.guard.outputs.present == 'yes'
         uses: actions/upload-artifact@v4
         with:
           name: api-report

@@ -323,3 +323,100 @@ Per `/REQUIREMENTS.md` §6: real social OAuth, billing, white-label theming, ful
 
 ### 9.6 Out of scope this phase (guard)
 AC10 (Builder AI), AC11 (personalize), AC13 (video) — **P2, deferred**. AC14 (social), AC15 (dashboard) — **P3, deferred**. No social/engagement UI, no Builder panel, no video panel is built in P1-UI; the studio ships manual-mode + export only.
+
+## 10. REWORK plan — two design-change findings (MANAGER re-pass, RE-ENTRY, 2026-10-01)
+
+**Why this section exists.** Review raised two design-change findings that are *contract-vs-code conflicts* under CLAUDE.md's rule ("treat a conflict between code and /REQUIREMENTS.md as a bug in the code"), so they cannot be closed by a quiet local edit — each needs either a conforming restructure or a governed spec amendment. This section is the concrete REWORK: exact files/functions/config, the dependency graph (what parallelises on disjoint files), and a proof test per change. It sits **ahead of** §9 Gates 1–6 (all of which have already landed; P1-UI = 13/13 met per the ledger). The P1-UI acceptance items (**AC1,2,3,4,5,6,7,8,9,12,16,17,18**) are **re-covered** in §10.4 — the REWORK must keep every one of them green.
+
+### 10.1 Finding F1 — module/library boundary divergence from the governed architecture
+
+**The conflict (verified on disk this pass).** CLAUDE.md Architecture (line 32–39) and `REQUIREMENTS.md` §5 govern a *"Monorepo (pnpm + turborepo + uv)"* with **`packages/shared` holding shared TS types + the API client**. None of that infrastructure exists: no `turbo.json`, no `pnpm-workspace.yaml`, no root `package.json`, no `packages/` directory (confirmed: all absent). The API client and every request/response type live in **`apps/web/lib/api.ts`** and are **hand-duplicated** from the Python Pydantic schemas — `Entry`/`EntryCreate`/`AccessUpdate` (`apps/web/lib/api.ts:17–40`) mirror `apps/api/app/schemas/catalog.py:8–34` (`EntryCreate`/`AccessUpdate`/`EntryOut`) with **no compile-time link**, so the two can silently drift (e.g. a new Pydantic field, a type change, or a renamed enum value never reaches the TS side and no build fails).
+
+**Chosen REWORK — Primary: conform the code to the spec (no amendment, no approval needed).** Make the repo match §5 verbatim *and* eliminate the real bug (silent drift) by making the Python side the single source of truth and **generating** the TS contract from it with a drift guard. This is the first option the finding names ("restructuring into the governed turborepo + `packages/shared`") and it needs no scope change, so `/REQUIREMENTS.md` stays **v1.0.0**.
+
+- **Root workspace scaffold (new files):**
+  - `pnpm-workspace.yaml` — `packages: ["apps/*", "packages/*"]`.
+  - `package.json` (root, private) — `packageManager: pnpm@9`; devDeps `turbo@^2`, `openapi-typescript@^7`, `typescript@^5`; scripts `build`/`test`/`lint`/`typecheck` → `turbo run …`, `gen:api-types` → `node scripts/gen-api-types.mjs`.
+  - `turbo.json` — pipeline `build` (`dependsOn: ["^build"]`, outputs `.next/**` for web), `test`, `lint`, `typecheck`. (turborepo is justified, not gold-plating: this repo is 3 JS/TS packages — `apps/web` + `packages/shared` + root — squarely in turbo's 2–10-package sweet spot; see citations.)
+- **`packages/shared` — the single home of the web↔api contract (new):**
+  - `packages/shared/package.json` — name `@walsh/shared`, exports `./types` + `./client`; scripts `typecheck`, `gen`.
+  - `packages/shared/tsconfig.json` (strict).
+  - `packages/shared/openapi.json` — **committed deterministic snapshot** of the FastAPI OpenAPI schema (produced by `scripts/dump_openapi.py`; source of truth = the Pydantic models, so this is downstream of `apps/api/app/schemas/*`).
+  - `packages/shared/src/api-types.ts` — **generated** (`openapi-typescript packages/shared/openapi.json -o …`); never hand-edited. Friendly aliases re-exported: `export type Entry = components["schemas"]["EntryOut"]`, `EntryCreate = components["schemas"]["EntryCreate"]`, `AccessUpdate = components["schemas"]["AccessUpdate"]`, plus `User`.
+  - `packages/shared/src/client.ts` — the typed API client **moved from** `apps/web/lib/api.ts`, now importing its types from `./api-types` (fulfils "`packages/shared` holding shared TS types **+ the API client**"). Contract-2 invariant preserved: never logs the bearer token or any provider key.
+  - `packages/shared/src/index.ts` — re-exports `./client` + `./types`.
+- **Generator + drift guard (the compile-time link the finding says is missing):**
+  - `scripts/dump_openapi.py` — imports `app.main:create_app`, writes `app.openapi()` with `sort_keys=True` to a path (hermetic, no network, deterministic).
+  - `scripts/gen-api-types.mjs` — runs `dump_openapi.py` → `openapi.json`, then `openapi-typescript` → `src/api-types.ts`.
+  - `scripts/check_api_types_sync.py` — regenerate both artefacts into a temp dir and compare byte-for-byte against the committed `packages/shared/openapi.json` + `src/api-types.ts`; **non-empty diff → non-zero exit** (fails the build). This is what makes Pydantic↔TS unable to silently drift.
+  - **Wiring:** add a `api-types-sync` target to the `Makefile` (invoked inside `verify`, before `web-typecheck`) and a `contract-sync` step to the `.github/workflows/ci.yml` `web` job.
+- **Consumer shim (minimal churn):** `apps/web/package.json` adds `"@walsh/shared": "workspace:*"`; **`apps/web/lib/api.ts` becomes a thin re-export** of `@walsh/shared` (`export * from "@walsh/shared"`) so existing screen imports (`@/lib/api`) keep resolving — no per-screen edits, and the one-and-only definition now lives in `packages/shared`, generated.
+
+**Fallback (cheaper; the second option the finding names — user may elect it at ⏸ verify gate).** A **governed amendment**: bump `/REQUIREMENTS.md` **1.0.0 → 1.1.0** (minor = soften an infra requirement) + CLAUDE.md Architecture, right-sizing §5 to the as-built two-app PoC layout (pnpm + uv retained; **turborepo + a separate `packages/shared` workspace deferred post-PoC — YAGNI for a 2-app repo**) and declaring that the web↔api contract is instead guaranteed by the **generated-types drift guard inside `apps/web`**. Add a Change-log row; stage the diff and **route it to the human verify gate — never self-approve**. This keeps the drift guard (the real fix) and drops only the workspace scaffolding.
+
+**Manager recommendation:** take the **Primary** (restructure) — it closes the conflict with no pending approval and is strictly governance-safe; run it **risk-first as Gate R1** (before any further UI work) because converting `apps/web` into a workspace member touches the lockfile and could regress the already-green web suites, so its green gate (below) is the checkpoint. If the user prefers to minimise structural churn, the Fallback amendment is pre-written and ready to approve at the gate.
+
+- **Gate R1 green checkpoint:** `pnpm -w install` resolves; `turbo run typecheck` → 0 errors; `pnpm --filter web exec vitest run` → **AC8/AC9 still pass**; `playwright test` → **AC18 studio-smoke still passes**; `python scripts/check_api_types_sync.py` → **PASS (no drift)**; and a **deliberate-drift unit test** proves the guard bites.
+- **Proof test (new; governance/contract, not an AC — like the audit test, so no manifest row and `check_requirements_sync` stays green):** `scripts/tests/test_api_types_sync.py::test_detects_pydantic_drift` — feed a doctored `openapi.json` (one field removed) to the checker and assert it exits non-zero; feed the real snapshot and assert it exits zero. (testing.md: new logic ships with a test, synthetic fixtures, deterministic.)
+
+### 10.2 Finding F2 — Contract 3 unimplemented + untested for `set_access` (unpublish / overwrite)
+
+**The conflict (verified on disk).** Contract 3 (CLAUDE.md line 66, `REQUIREMENTS.md` §4.3) covers **delete / unpublish / overwrite**, but the only audit test (`apps/api/tests/test_audit.py::test_destructive_actions_are_logged`) asserts the **`delete`** path only. `PATCH /catalog/{id}` → `set_access` (`apps/api/app/routers/catalog.py:44–64`) can **unpublish** (`status` approved→draft, lines 56–57) and **overwrite** access scope / `brand_safe` (lines 54–61), yet it writes **no audit row** and no test asserts one. The traceability contract is both **unimplemented for mutation and untested** — a test alone would just expose the gap, so the fix is to add `audit.record(...)` to `set_access`, then assert it.
+
+**Chosen REWORK (code + test; no scope change — a system-contract fix, not an AC edit).**
+- **`apps/api/app/routers/catalog.py`:**
+  - Extend the import to `from app.models.catalog import CatalogEntry, CatalogType, EntryStatus`.
+  - In `set_access`, **before** mutating, capture `was_approved = entry.status == EntryStatus.approved`.
+  - After applying the fields, record the traceable actions (caller already commits; `audit.record` flushes):
+    - **unpublish** — `if body.status is not None and was_approved and body.status != EntryStatus.approved:` → `audit.record(db, actor_id=provider.id, action="unpublish", target_type="catalog_entry", target_id=entry_id)`.
+    - **overwrite** — `if body.brand_safe is not None or body.allowed_tenant_ids is not None or body.allowed_agent_ids is not None:` → `audit.record(db, …, action="overwrite", …)`.
+  - Then the existing `db.commit()` / `db.refresh(entry)` / `return entry` — response shape (`EntryOut`) unchanged, so **AC5's test stays green** and the web Provider access UI is unaffected.
+- **Proof test (new; Contract 3, unmatrixed — no manifest row):** add to `apps/api/tests/test_audit.py` → `test_set_access_unpublish_and_overwrite_are_logged`: create an entry; PATCH approved+brand_safe+`allowed_tenant_ids=[1]` → assert one `AuditLog` row `action="overwrite", target_id=entry_id, actor_id>0`; PATCH `status="draft"` → assert an `action="unpublish"` row; PATCH `allowed_tenant_ids=[999]` → assert a second `overwrite` row. Synthetic data, deterministic (testing.md).
+- **Governance note (unchanged, deferred to user):** Contract 3 still has **no dedicated AC** (ledger "— (C3)"). This REWORK *implements + tests* the contract; it does **not** invent an AC. The standing open decision — add `AC19`, fold the audit proof into AC6, or accept C3 as tested-but-unmatrixed — remains the user's and is a spec edit (version bump + change-log + approval), so **no scope change is made here**; `/REQUIREMENTS.md` stays v1.0.0.
+
+### 10.3 Dependency graph + parallelisation (REWORK, disjoint files)
+
+```
+ R1  F1 restructure  ── root {pnpm-workspace.yaml, package.json, turbo.json}
+     (risk-first)        + packages/shared/**  + scripts/{dump_openapi.py, gen-api-types.mjs, check_api_types_sync.py}
+                         + apps/web/lib/api.ts (→ re-export)  + apps/web/package.json
+                         + scripts/tests/test_api_types_sync.py
+         │  (shared edits: Makefile + .github/workflows/ci.yml  ← SERIALISE with R2)
+         │
+ R2  F2 audit fix   ── apps/api/app/routers/catalog.py  +  apps/api/tests/test_audit.py
+     (independent)
+         │
+         ▼
+   make verify  (re-covers §9 Gates 1–6 + the two new sync/audit proofs)  ──►  ⏸ G human verify
+```
+
+**Parallel on disjoint files:** **R1 ∥ R2.** R1 is entirely root + `packages/shared` + `scripts/*` + `apps/web/**`; R2 is entirely `apps/api/app/routers/catalog.py` + `apps/api/tests/test_audit.py`. No shared source file → **two workers in parallel**. **Serial edge:** both R1 and R2 add lines to `Makefile` and `.github/workflows/ci.yml` (R1 adds `api-types-sync`; R2 needs no Makefile change but CI re-runs the api job) — coordinate those two shared files on one worker (land R1's Makefile/CI edit, R2 touches neither). Everything funnels into `make verify` → ⏸ G.
+
+### 10.4 P1-UI re-coverage (the REWORK must keep all 13 green)
+
+The REWORK touches the P1-UI items only as follows; every proof node-id is unchanged (manifest stable → `check_requirements_sync` green → no version bump).
+
+| AC | Proof node-id | REWORK interaction |
+| --- | --- | --- |
+| AC1 | `apps/api/tests/test_auth_rbac.py::test_role_guard_blocks_wrong_role` | none — keep green |
+| AC2 | `apps/api/tests/test_admin.py::test_approve_provider_flips_flag` | none — keep green |
+| AC3 | `apps/api/tests/test_catalog_crud.py::test_create_entry_each_type` | none — keep green |
+| AC4 | `apps/api/tests/test_assets.py::test_upload_then_fetch` | none — keep green |
+| AC5 | `apps/api/tests/test_catalog_access.py::test_set_brand_safe_and_access_scope` | **F2**: `set_access` now also writes audit rows; response shape unchanged → **stays green** (verify explicitly) |
+| AC6 | `apps/api/tests/test_visibility_contract.py::test_agent_never_sees_unapproved` | none — keep green |
+| AC7 | `apps/api/tests/test_catalog_search.py::test_filter_by_destination_and_type` | none — keep green |
+| AC8 | `apps/web/tests/formats.test.ts::test_format_presets` | **F1**: web becomes a workspace member; vitest must still pass after `@walsh/shared` wiring |
+| AC9 | `apps/web/tests/studio-ops.test.ts::test_manual_ops_mutate_design` | **F1**: same — keep green |
+| AC12 | `apps/api/tests/test_export.py::test_pdf_and_html_from_design` | none — keep green |
+| AC16 | `apps/api/tests/test_ai_provider.py::test_factory_selects_and_falls_back` | none — keep green (stub fallback unchanged) |
+| AC17 | `apps/api/tests/test_seed.py::test_seed_is_idempotent_and_complete` | **F1**: root `package.json`/`turbo.json`/`pnpm-workspace.yaml` added; `docker compose config -q` still valid |
+| AC18 | `scripts/tests/test_acceptance_matrix.py::test_evaluate_classifies_met_partial_missing` · `scripts/tests/test_requirements_sync.py::test_sync_detects_missing_and_extra` · `apps/web/e2e/studio-smoke.spec.ts::studio smoke` | **F1**: e2e runs through the workspace build — the AC18 studio-smoke is the primary regression guard for the restructure |
+
+New tests added by the REWORK are **both unmatrixed** (Contract-level, not AC): `scripts/tests/test_api_types_sync.py::test_detects_pydantic_drift` (F1) and `apps/api/tests/test_audit.py::test_set_access_unpublish_and_overwrite_are_logged` (F2). No manifest row → `check_requirements_sync` stays green → **`/REQUIREMENTS.md` stays v1.0.0** (Primary path). Only the Fallback amendment would bump the version, and only with user approval at ⏸ G.
+
+### 10.5 Determinism / secrets / citations (REWORK-specific)
+- **Determinism:** `scripts/dump_openapi.py` writes with `sort_keys=True`; `openapi-typescript` is deterministic for a fixed input; the drift guard compares byte-for-byte. Audit rows carry only integer ids (actor/target) — no PII. (Contract 4 / `testing.md`.)
+- **Secrets:** the client moved to `packages/shared/src/client.ts` keeps the Contract-2 invariant (never logs the token or any provider key); `openapi.json` is schema-only (no keys, no data). (Contract 2 / `security.md`.)
+- **Citations** (`.claude/rules/citations.md` — these are contestable design choices):
+  - *Generate the TS contract from the FastAPI OpenAPI schema (single source of truth + regenerate-on-change):* **openapi-typescript — openapi-ts.dev / openapi-ts GitHub — https://openapi-ts.dev/ , https://github.com/openapi-ts/openapi-typescript (accessed 2026-10-01).** Supports FastAPI's `/openapi.json`, emits runtime-free types; "when the backend changes, you regenerate, and the compiler shows you every place that needs updating" — exactly the compile-time link F1 is missing.
+  - *turborepo is proportionate for this repo size, not overhead:* **Monorepo JS tooling fundamentals — mironsoft.de — https://www.mironsoft.de/en/blog/monorepo-js-tooling-fundamentals (accessed 2026-10-01)** ("with few completely independent packages … overhead often outweighs the benefit" — hence the Fallback stays available) and **Turborepo Monorepo Guide — ecosire.com — https://ecosire.com/blog/turborepo-monorepo-guide (accessed 2026-10-01)** (turbo's value lands at ~2–10 packages — where this repo sits). Together they justify Primary (conform) *and* keep Fallback (amend) honestly on the table.

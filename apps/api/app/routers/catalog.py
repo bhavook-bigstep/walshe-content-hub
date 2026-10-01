@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app import audit
 from app.deps import get_db, require_role
-from app.models.catalog import CatalogEntry, CatalogType
+from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
 from app.models.user import Role, User
 from app.schemas.catalog import AccessUpdate, EntryCreate, EntryOut
 from app.services.visibility import agent_visible_entries, is_visible_to_agent
@@ -51,6 +51,7 @@ def set_access(
     entry = db.get(CatalogEntry, entry_id)
     if entry is None or entry.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    was_approved = entry.status == EntryStatus.approved
     if body.brand_safe is not None:
         entry.brand_safe = body.brand_safe
     if body.status is not None:
@@ -59,6 +60,27 @@ def set_access(
         entry.allowed_tenant_ids = body.allowed_tenant_ids
     if body.allowed_agent_ids is not None:
         entry.allowed_agent_ids = body.allowed_agent_ids
+    # Contract 3: unpublish and access/brand-safety overwrites are traceable.
+    if body.status is not None and was_approved and body.status != EntryStatus.approved:
+        audit.record(
+            db,
+            actor_id=provider.id,
+            action="unpublish",
+            target_type="catalog_entry",
+            target_id=entry_id,
+        )
+    if (
+        body.brand_safe is not None
+        or body.allowed_tenant_ids is not None
+        or body.allowed_agent_ids is not None
+    ):
+        audit.record(
+            db,
+            actor_id=provider.id,
+            action="overwrite",
+            target_type="catalog_entry",
+            target_id=entry_id,
+        )
     db.commit()
     db.refresh(entry)
     return entry

@@ -11,9 +11,9 @@ WEB_REPORT := $(ROOT)/$(WEB_DIR)/.vitest.json
 E2E_REPORT := $(ROOT)/$(WEB_DIR)/.e2e.json
 LEDGER := docs/plans/2026-10-01-run-ledger.md
 
-.PHONY: verify lint api-test web-typecheck web-test e2e matrix sync compose-config
+.PHONY: verify lint api-test api-types-sync web-typecheck web-test e2e matrix sync compose-config
 
-verify: lint api-test web-typecheck web-test e2e matrix sync compose-config
+verify: lint api-test api-types-sync web-typecheck web-test e2e matrix sync compose-config
 	@echo "verify: all gates passed"
 
 lint:
@@ -28,6 +28,12 @@ api-test:
 		--rootdir "$(ROOT)" -c $(API_DIR)/pyproject.toml \
 		$(API_DIR)/tests scripts/tests -o testpaths= -p no:cacheprovider \
 		-q --json-report --json-report-file=$(API_REPORT)
+
+# Drift guard: committed openapi.json / api-types.ts must match the Pydantic models.
+# Runs under the api venv (uv) so dump_openapi can import the Pydantic models; the script itself
+# shells out to node + openapi-typescript to regenerate the TS types for the byte-for-byte compare.
+api-types-sync:
+	uv run --project $(API_DIR) python scripts/check_api_types_sync.py
 
 web-typecheck:
 	cd $(WEB_DIR) && pnpm exec tsc --noEmit
