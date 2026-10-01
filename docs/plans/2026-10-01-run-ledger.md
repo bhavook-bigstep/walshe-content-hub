@@ -4,8 +4,11 @@ Durable state for a `/oneshot-poc:run`. **Every phase reads this first and appen
 done.** Content-free: status and decisions only, never secrets/PII.
 
 - **Governing spec:** `/REQUIREMENTS.md` (v1.0.0, ACTIVE) — the acceptance contract the loop verifies against · **Charter (scoping record):** `docs/plans/2026-10-01-requirements-charter.md` (v2) · **Branch:** `feat/content-hub-poc`
-- **Current phase:** `IMPLEMENT` (inner-iter 1 in progress — §1 governance + the P1 **API** core + the P1 **web studio slice (AC8/AC9)** landed & green; P2/P3 + Playwright e2e still to build)
-- **Outer loop:** `0/3` · **Inner loop:** `1/2`
+- **Current phase:** `RE-ENTRY (B)` — 2026-10-01, run #2 on the **upgraded** workflow (churn-guard + self-describing stuck + phase-scoping + manager/worker tiers). Scoped to the **"Verifiable UI slice"** phase so we reach a clickable product at ⏸ G.
+- **This run's phase:** `P1-UI` · items = AC1,AC2,AC3,AC4,AC5,AC6,AC7,AC8,AC9,AC12,AC16,AC17,AC18. **Deferred to a later run:** P2 (AC10 Builder, AC11 personalize, AC13 video), P3 (AC14 social, AC15 dashboard).
+- **Run #2 feedback folded in:** (1) the FastAPI backend for AC1-9,12,16,17 exists + unit-tested BUT **there is no web UI** — build the real Next.js app (login+RBAC, Super-Admin, Provider catalog, Agent browse + Fabric.js Design Studio) wired to the API, using the `ui-design-loop` for visual quality; (2) **fix P1 security** — `GET /assets/{object_key}` unauthenticated egress (apps/api/app/routers/assets.py:42) → require auth + visibility check; (3) **fix docker** — add a Postgres driver (`psycopg[binary]`) so `docker compose up` works; (4) build the **Playwright e2e** smoke (AC18).
+- **Budgets:** maxOuter 4 · maxInner 2 · maxReplans 2.
+- **Outer loop:** `0/4` · **Inner loop:** `0/2`
 - **Plan:** `docs/plans/2026-10-01-implementation-plan.md` — exact files/functions/config + dependency graph + one proof test per AC; governance mechanism (Approach D) specified under §1/AC18. **Revised 2026-10-01 (PLAN re-pass):** added a plan-status note (§1 landed + green), a system-contracts→proofs map (§6a), and a governance observation that Contract 3 has no dedicated AC. **Revised 2026-10-01 (PLAN re-pass #2):** verified every AC row against the built P1 API core; recorded the as-built divergence (`Base.metadata.create_all`, Alembic deferred) in §2/AC17; restated the forward plan (web slice + P2 + P3 + e2e). No AC scope change.
 
 ## Requirement status (the acceptance checklist)
