@@ -12,8 +12,8 @@ export default function SmoothScroll() {
     const coarse = window.matchMedia?.("(pointer: coarse)").matches;
     if (reduce || coarse) return;
 
-    const EASE = 0.09; // lower = smoother/slower glide
-    const SPEED = 0.85; // <1 = a little slower per wheel tick
+    const EASE = 0.16; // higher = snappier catch-up (still smooth)
+    const SPEED = 1; // full wheel distance — glide, don't drag
     let target = window.scrollY;
     let current = window.scrollY;
     let active = false;
