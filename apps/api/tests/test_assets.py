@@ -91,3 +91,24 @@ def test_agent_fetches_visible_asset(client, provider_headers, agent_headers):
     got = client.get(f"/assets/{key}", headers=agent_headers)
     assert got.status_code == 200
     assert got.content == PNG_1X1
+
+
+def test_non_image_upload_is_rejected(client, provider_headers):
+    entry_id = _create_entry(client, provider_headers)
+    # text/html and image/svg+xml both carry active markup -> refused at the boundary (stored-XSS).
+    for name, ctype in (("evil.html", "text/html"), ("evil.svg", "image/svg+xml")):
+        resp = client.post(
+            f"/catalog/{entry_id}/image",
+            headers=provider_headers,
+            files={"file": (name, b"<script>alert(1)</script>", ctype)},
+        )
+        assert resp.status_code == 415, resp.text
+
+
+def test_served_asset_has_safe_headers(client, provider_headers):
+    _, key = _upload(client, provider_headers)
+    got = client.get(f"/assets/{key}", headers=provider_headers)
+    assert got.status_code == 200
+    # Never content-sniffed, never rendered inline as a document.
+    assert got.headers["x-content-type-options"] == "nosniff"
+    assert got.headers["content-disposition"] == "attachment"

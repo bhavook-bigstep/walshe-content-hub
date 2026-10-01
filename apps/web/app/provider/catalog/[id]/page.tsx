@@ -4,29 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, setAccess, type Entry } from "../../../../lib/api";
-
-const STORE_KEY = "walsh.provider.entries"; // local snapshot; see catalog/page.tsx
-
-function readList(): Entry[] {
-  try {
-    const raw = globalThis.localStorage?.getItem(STORE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? (parsed as Entry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function save(entry: Entry): void {
-  try {
-    globalThis.localStorage?.setItem(
-      STORE_KEY,
-      JSON.stringify(readList().map((x) => (x.id === entry.id ? entry : x))),
-    );
-  } catch {
-    /* storage blocked */
-  }
-}
+import { getEntry, upsertEntry } from "../../../../lib/provider-store";
 
 /** Parse "1, 2, 3" into unique positive integers; null when any token is invalid. */
 function parseIds(text: string): number[] | null {
@@ -54,7 +32,7 @@ export default function ProviderEntryPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const found = readList().find((x) => x.id === id) ?? null;
+    const found = getEntry(id);
     setEntry(found);
     if (found) setBrandSafe(found.brand_safe);
   }, [id]);
@@ -76,7 +54,7 @@ export default function ProviderEntryPage() {
         allowed_tenant_ids: tenantIds,
         allowed_agent_ids: agentIds,
       });
-      save(updated);
+      upsertEntry(updated);
       setEntry(updated);
       setSaved(true);
     } catch (err) {

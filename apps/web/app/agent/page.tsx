@@ -19,6 +19,18 @@ export default function AgentHomePage() {
             <span className="block text-sm text-slate-600">Compose pamphlets, posts and more</span>
           </Link>
         </li>
+        <li>
+          <Link href="/agent/social" className="block rounded-lg bg-white p-4 shadow hover:bg-slate-50">
+            <span className="font-medium">Social</span>
+            <span className="block text-sm text-slate-600">Plan and schedule social posts</span>
+          </Link>
+        </li>
+        <li>
+          <Link href="/agent/engagement" className="block rounded-lg bg-white p-4 shadow hover:bg-slate-50">
+            <span className="font-medium">Engagement</span>
+            <span className="block text-sm text-slate-600">Track audience engagement</span>
+          </Link>
+        </li>
       </ul>
     </main>
   );

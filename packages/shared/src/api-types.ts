@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/builder/design": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Design */
+        post: operations["design_builder_design_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog": {
         parameters: {
             query?: never;
@@ -137,6 +154,23 @@ export interface paths {
         put?: never;
         /** Upload Image */
         post: operations["upload_image_catalog__entry_id__image_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engagement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Engagement */
+        get: operations["list_engagement_engagement_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -194,6 +228,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/render/video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render Video
+         * @description Render items to a rudimentary MP4 (no client-supplied file paths are ever used).
+         */
+        post: operations["render_video_render_video_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/social/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish */
+        post: operations["publish_social_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/social/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Schedule */
+        post: operations["schedule_social_schedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/social/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unpublish
+         * @description Revert a published post to scheduled; traceable via audit (Contract 3).
+         */
+        post: operations["unpublish_social_unpublish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -213,11 +321,46 @@ export interface components {
             /** File */
             file: string;
         };
+        /** BuilderItemIn */
+        BuilderItemIn: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Destination
+             * @default
+             */
+            destination: string;
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+        };
         /**
          * CatalogType
          * @enum {string}
          */
         CatalogType: "event" | "place" | "opportunity" | "offer" | "itinerary";
+        /** DesignRequest */
+        DesignRequest: {
+            /** Items */
+            items: components["schemas"]["BuilderItemIn"][];
+            /** Prompt */
+            prompt: string;
+        };
+        /** EngagementOut */
+        EngagementOut: {
+            /** Clicks */
+            clicks: number;
+            /** Engagement */
+            engagement: number;
+            /** Impressions */
+            impressions: number;
+            /** Post Id */
+            post_id: number;
+        };
         /** EntryCreate */
         EntryCreate: {
             /**
@@ -269,6 +412,32 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** PostOut */
+        PostOut: {
+            /** Channel */
+            channel: string;
+            /** Composition Id */
+            composition_id: number;
+            /** Id */
+            id: number;
+            /** Published At */
+            published_at: string | null;
+            /** Scheduled At */
+            scheduled_at: string | null;
+            status: components["schemas"]["PostStatus"];
+        };
+        /**
+         * PostStatus
+         * @enum {string}
+         */
+        PostStatus: "scheduled" | "published";
+        /** PublishRequest */
+        PublishRequest: {
+            /** Channel */
+            channel: string;
+            /** Composition Id */
+            composition_id: number;
+        };
         /** RenderRequest */
         RenderRequest: {
             /** Design */
@@ -281,6 +450,15 @@ export interface components {
          * @enum {string}
          */
         Role: "super_admin" | "content_provider" | "tourism_agent";
+        /** ScheduleRequest */
+        ScheduleRequest: {
+            /** Channel */
+            channel: string;
+            /** Composition Id */
+            composition_id: number;
+            /** Scheduled At */
+            scheduled_at?: string | null;
+        };
         /** TokenResponse */
         TokenResponse: {
             /** Access Token */
@@ -315,6 +493,18 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VideoRequest */
+        VideoRequest: {
+            /** Items */
+            items: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Narrate
+             * @default false
+             */
+            narrate: boolean;
         };
     };
     responses: never;
@@ -456,6 +646,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+        };
+    };
+    design_builder_design_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -658,6 +883,26 @@ export interface operations {
             };
         };
     };
+    list_engagement_engagement_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngagementOut"][];
+                };
+            };
+        };
+    };
     health_health_get: {
         parameters: {
             query?: never;
@@ -735,6 +980,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    render_video_render_video_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_social_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    schedule_social_schedule_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unpublish_social_unpublish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostOut"];
                 };
             };
             /** @description Validation Error */

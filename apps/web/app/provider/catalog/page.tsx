@@ -3,26 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Entry } from "../../../lib/api";
-
-// The API has no provider-scoped list route (GET /catalog is agent-only, Contract 1), so this
-// screen lists the entries this browser created/edited, kept as a local snapshot.
-const STORE_KEY = "walsh.provider.entries";
-
-function loadEntries(): Entry[] {
-  try {
-    const raw = globalThis.localStorage?.getItem(STORE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? (parsed as Entry[]) : [];
-  } catch {
-    return [];
-  }
-}
+import { listEntries } from "../../../lib/provider-store";
 
 export default function ProviderCatalogPage() {
   const [entries, setEntries] = useState<Entry[] | null>(null);
 
   useEffect(() => {
-    setEntries(loadEntries());
+    setEntries(listEntries());
   }, []);
 
   return (

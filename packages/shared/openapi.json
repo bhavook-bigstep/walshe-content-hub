@@ -70,6 +70,38 @@
         "title": "Body_upload_image_catalog__entry_id__image_post",
         "type": "object"
       },
+      "BuilderItemIn": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "destination": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Destination",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "BuilderItemIn",
+        "type": "object"
+      },
       "CatalogType": {
         "enum": [
           "event",
@@ -80,6 +112,59 @@
         ],
         "title": "CatalogType",
         "type": "string"
+      },
+      "DesignRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BuilderItemIn"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "prompt": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt",
+          "items"
+        ],
+        "title": "DesignRequest",
+        "type": "object"
+      },
+      "EngagementOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "engagement": {
+            "title": "Engagement",
+            "type": "integer"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "post_id": {
+            "title": "Post Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "post_id",
+          "impressions",
+          "clicks",
+          "engagement"
+        ],
+        "title": "EngagementOut",
+        "type": "object"
       },
       "EntryCreate": {
         "properties": {
@@ -212,6 +297,85 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "PostOut": {
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "composition_id": {
+            "title": "Composition Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PostStatus"
+          }
+        },
+        "required": [
+          "id",
+          "composition_id",
+          "channel",
+          "status",
+          "scheduled_at",
+          "published_at"
+        ],
+        "title": "PostOut",
+        "type": "object"
+      },
+      "PostStatus": {
+        "enum": [
+          "scheduled",
+          "published"
+        ],
+        "title": "PostStatus",
+        "type": "string"
+      },
+      "PublishRequest": {
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "composition_id": {
+            "title": "Composition Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "composition_id",
+          "channel"
+        ],
+        "title": "PublishRequest",
+        "type": "object"
+      },
       "RenderRequest": {
         "properties": {
           "design": {
@@ -234,6 +398,36 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "ScheduleRequest": {
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "composition_id": {
+            "title": "Composition Id",
+            "type": "integer"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          }
+        },
+        "required": [
+          "composition_id",
+          "channel"
+        ],
+        "title": "ScheduleRequest",
+        "type": "object"
       },
       "TokenResponse": {
         "properties": {
@@ -330,6 +524,30 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VideoRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "narrate": {
+            "default": false,
+            "title": "Narrate",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "VideoRequest",
         "type": "object"
       }
     },
@@ -532,6 +750,54 @@
         "summary": "Me",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/builder/design": {
+      "post": {
+        "operationId": "design_builder_design_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Design Builder Design Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Design",
+        "tags": [
+          "builder"
         ]
       }
     },
@@ -870,6 +1136,36 @@
         ]
       }
     },
+    "/engagement": {
+      "get": {
+        "operationId": "list_engagement_engagement_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EngagementOut"
+                  },
+                  "title": "Response List Engagement Engagement Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Engagement",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "operationId": "health_health_get",
@@ -986,6 +1282,190 @@
         "summary": "Render Pdf",
         "tags": [
           "render"
+        ]
+      }
+    },
+    "/render/video": {
+      "post": {
+        "description": "Render items to a rudimentary MP4 (no client-supplied file paths are ever used).",
+        "operationId": "render_video_render_video_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Render Video",
+        "tags": [
+          "render"
+        ]
+      }
+    },
+    "/social/publish": {
+      "post": {
+        "operationId": "publish_social_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Publish",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/social/schedule": {
+      "post": {
+        "operationId": "schedule_social_schedule_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Schedule",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/social/unpublish": {
+      "post": {
+        "description": "Revert a published post to scheduled; traceable via audit (Contract 3).",
+        "operationId": "unpublish_social_unpublish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Unpublish",
+        "tags": [
+          "social"
         ]
       }
     }

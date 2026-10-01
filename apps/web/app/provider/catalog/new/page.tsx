@@ -3,20 +3,9 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { ApiError, createEntry, uploadImage, type CatalogType, type Entry } from "../../../../lib/api";
+import { upsertEntry } from "../../../../lib/provider-store";
 
 const TYPES: readonly CatalogType[] = ["event", "place", "opportunity", "offer", "itinerary"];
-const STORE_KEY = "walsh.provider.entries"; // local snapshot; see catalog/page.tsx
-
-function remember(entry: Entry): void {
-  try {
-    const raw = globalThis.localStorage?.getItem(STORE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    const list = Array.isArray(parsed) ? (parsed as Entry[]) : [];
-    globalThis.localStorage?.setItem(STORE_KEY, JSON.stringify([entry, ...list.filter((x) => x.id !== entry.id)]));
-  } catch {
-    /* storage blocked: entry still exists server-side */
-  }
-}
 
 export default function NewEntryPage() {
   const [type, setType] = useState<CatalogType>("event");
@@ -46,7 +35,7 @@ export default function NewEntryPage() {
           .map((t) => t.trim())
           .filter(Boolean),
       });
-      remember(entry);
+      upsertEntry(entry);
       setCreated(entry);
       if (file) {
         try {

@@ -29,6 +29,7 @@ def build_schema() -> dict:
     settings = Settings(
         _env_file=None,
         database_url="sqlite+pysqlite:///:memory:",
+        jwt_secret="openapi-dump-not-a-real-secret",  # schema dump only; no tokens are signed
         minio_endpoint=None,
         minio_access_key=None,
         minio_secret_key=None,

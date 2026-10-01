@@ -7,12 +7,17 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# A world-known placeholder that was previously the default signing secret. It must never sign real
+# tokens; ``app.main.create_app`` fails fast if it (or an empty secret) reaches startup.
+INSECURE_JWT_SECRET = "dev-only-insecure-secret-change-me"
+
 
 class Settings(BaseSettings):
     """Runtime configuration, loaded from environment variables / a local ``.env``.
 
-    Defaults are safe-for-dev only (sqlite, a throwaway signing secret). Production supplies a
-    Postgres ``DATABASE_URL`` and a real ``JWT_SECRET`` via the environment.
+    The ``database_url`` default is safe-for-dev (sqlite). ``jwt_secret`` has **no** usable default:
+    every real run must supply ``JWT_SECRET`` via the environment, and ``create_app`` refuses to
+    start without one (no silent fallback to a committed secret).
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -20,8 +25,8 @@ class Settings(BaseSettings):
     # Storage
     database_url: str = "sqlite+pysqlite:///./content_hub.db"
 
-    # Auth
-    jwt_secret: str = "dev-only-insecure-secret-change-me"
+    # Auth — must be provided via JWT_SECRET; empty default forces an explicit configuration.
+    jwt_secret: str = ""
     token_ttl_seconds: int = 60 * 60 * 8
 
     # MinIO / object storage (real backend used only when configured)

@@ -3,8 +3,11 @@
 import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import type { Canvas } from "fabric";
+import BuilderPanel, { type BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
 import ExportMenu from "../../../components/studio/ExportMenu";
 import FormatPicker from "../../../components/studio/FormatPicker";
+import PersonalizePanel from "../../../components/studio/PersonalizePanel";
+import VideoPanel from "../../../components/studio/VideoPanel";
 import Toolbar, { type CatalogImageOption } from "../../../components/studio/Toolbar";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import { addShape, addText, newDesign, setBackground, type DesignDoc } from "../../../lib/studio/ops";
@@ -20,6 +23,11 @@ const SEED_IMAGE =
   );
 const CATALOG_IMAGES: readonly CatalogImageOption[] = [
   { catalogItemId: "seed-1", label: "Sample", src: SEED_IMAGE },
+];
+
+// Synthetic items standing in for the agent's approved catalog selection.
+const PANEL_ITEMS: readonly BuilderCatalogItem[] = [
+  { id: 1, title: "Cliffs of Moher", destination: "Clare", description: "Dramatic sea cliffs on the Wild Atlantic Way.", imageSrc: SEED_IMAGE },
 ];
 
 function seeded(format: FormatName): DesignDoc {
@@ -56,6 +64,9 @@ export default function StudioPage() {
         catalogImages={CATALOG_IMAGES}
       />
       <StudioCanvas design={design} pageIndex={pageIndex} onReady={onReady} />
+      <BuilderPanel design={design} pageIndex={pageIndex} items={[...PANEL_ITEMS]} onChange={setDesign} />
+      <PersonalizePanel design={design} pageIndex={pageIndex} onChange={setDesign} />
+      <VideoPanel items={[...PANEL_ITEMS]} />
       <ExportMenu design={design} pageIndex={pageIndex} getCanvas={() => canvasRef.current} />
     </main>
   );

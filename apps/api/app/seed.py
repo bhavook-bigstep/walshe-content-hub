@@ -5,11 +5,15 @@ same row counts — safe to re-run against the dev stack. Uses only synthetic, n
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
 from app.models.composition import Composition
+from app.models.engagement import Engagement
+from app.models.post import Post, PostStatus
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
 
@@ -79,6 +83,32 @@ def _upsert_entry(
     return entry
 
 
+_SEED_CHANNEL = "facebook"
+_SEED_PUBLISHED_AT = datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)  # fixed => deterministic
+_SEED_METRICS = {"impressions": 1200, "clicks": 84, "engagement": 150}  # synthetic
+
+
+def _upsert_post_with_engagement(db: Session, composition_id: int) -> None:
+    post = db.execute(
+        select(Post).where(Post.composition_id == composition_id, Post.channel == _SEED_CHANNEL)
+    ).scalar_one_or_none()
+    if post is None:
+        post = Post(
+            composition_id=composition_id,
+            channel=_SEED_CHANNEL,
+            status=PostStatus.published,
+            scheduled_at=_SEED_PUBLISHED_AT,
+            published_at=_SEED_PUBLISHED_AT,
+        )
+        db.add(post)
+        db.flush()
+    has_metrics = db.execute(
+        select(Engagement.id).where(Engagement.post_id == post.id)
+    ).first()
+    if has_metrics is None:
+        db.add(Engagement(post_id=post.id, **_SEED_METRICS))
+
+
 def seed(db: Session) -> dict[str, int]:
     """Populate the database idempotently. Returns row counts for verification."""
     tenant = _upsert_tenant(db, "Walsh Tourism Board")
@@ -99,9 +129,13 @@ def seed(db: Session) -> dict[str, int]:
         select(Composition).where(Composition.agent_id == agent.id)
     ).scalar_one_or_none()
     if existing_comp is None:
-        db.add(
-            Composition(agent_id=agent.id, format="social", item_ids=[entries[0].id, entries[1].id])
+        existing_comp = Composition(
+            agent_id=agent.id, format="social", item_ids=[entries[0].id, entries[1].id]
         )
+        db.add(existing_comp)
+        db.flush()
+
+    _upsert_post_with_engagement(db, existing_comp.id)
 
     db.commit()
 
@@ -109,4 +143,6 @@ def seed(db: Session) -> dict[str, int]:
         "users": db.scalar(select(func.count()).select_from(User)),
         "entries": db.scalar(select(func.count()).select_from(CatalogEntry)),
         "compositions": db.scalar(select(func.count()).select_from(Composition)),
+        "posts": db.scalar(select(func.count()).select_from(Post)),
+        "engagement": db.scalar(select(func.count()).select_from(Engagement)),
     }

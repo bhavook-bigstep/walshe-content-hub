@@ -10,7 +10,7 @@
     "gen:api-types": "node scripts/gen-api-types.mjs"
   },
   "devDependencies": {
-    "openapi-typescript": "^7.0.0",
+    "openapi-typescript": "7.13.0",
     "turbo": "^2.0.0",
     "typescript": "^5.0.0"
   }

@@ -64,7 +64,9 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me}
+      # No committed fallback: the API refuses to start unless a real JWT_SECRET is supplied
+      # (set it in .env). A world-known default would let anyone forge tokens.
+      JWT_SECRET: ${JWT_SECRET:-}
     ports:
       - "8000:8000"
 

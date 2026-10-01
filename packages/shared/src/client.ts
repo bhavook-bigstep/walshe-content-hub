@@ -9,6 +9,12 @@ export type AccessUpdate = Schemas["AccessUpdate"];
 export type User = Schemas["UserOut"];
 export type CatalogType = Entry["type"];
 export type EntryStatus = Entry["status"];
+export type DesignRequest = Schemas["DesignRequest"];
+export type VideoRequest = Schemas["VideoRequest"];
+export type ScheduleRequest = Schemas["ScheduleRequest"];
+export type PublishRequest = Schemas["PublishRequest"];
+export type Post = Schemas["PostOut"];
+export type Engagement = Schemas["EngagementOut"];
 
 export let API_URL: string =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
@@ -132,6 +138,28 @@ export async function renderPdf(design: Record<string, unknown>): Promise<Blob> 
 export async function renderEmailHtml(design: Record<string, unknown>): Promise<string> {
   const res = await send("/render/email-html", json({ design }));
   return ((await res.json()) as { html: string }).html;
+}
+
+/** AI/builder-generated design (opaque serialisable design model). */
+export async function builderDesign(body: DesignRequest): Promise<Record<string, unknown>> {
+  return (await (await send("/builder/design", json(body))).json()) as Record<string, unknown>;
+}
+
+/** Renders items to an MP4 blob (server never accepts client file paths). */
+export async function renderVideo(body: VideoRequest): Promise<Blob> {
+  return (await send("/render/video", json(body))).blob();
+}
+
+export async function scheduleSocialPost(body: ScheduleRequest): Promise<Post> {
+  return (await (await send("/social/schedule", json(body))).json()) as Post;
+}
+
+export async function publishSocialPost(body: PublishRequest): Promise<Post> {
+  return (await (await send("/social/publish", json(body))).json()) as Post;
+}
+
+export async function listEngagement(): Promise<Engagement[]> {
+  return (await (await send("/engagement")).json()) as Engagement[];
 }
 
 /** Assets need the bearer header, so <img src> cannot hit the API directly: authed fetch -> blob -> object URL. */

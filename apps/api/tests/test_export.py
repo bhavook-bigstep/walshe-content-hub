@@ -35,3 +35,15 @@ def test_pdf_and_html_from_design(client, agent_headers):
     resp = client.post("/render/pdf", headers=agent_headers, json={"design": DESIGN})
     assert resp.status_code == 200
     assert resp.content.startswith(b"%PDF")
+
+
+def test_email_html_escapes_markup():
+    # A catalog/agent-controlled string must never inject live markup into the export.
+    payload = "<script>alert(1)</script> & <b>bold</b>"
+    html = design_to_email_html({"pages": [{"nodes": [{"type": "text", "text": payload}]}]})
+    # The raw tags do not survive...
+    assert "<script>" not in html
+    assert "<b>bold</b>" not in html
+    # ...they are HTML-escaped instead.
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&amp;" in html

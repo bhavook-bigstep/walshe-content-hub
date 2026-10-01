@@ -14,6 +14,12 @@ router = APIRouter(tags=["assets"])
 
 _provider_only = require_role(Role.content_provider)
 
+# Raster image types only. SVG and HTML are deliberately excluded: both can carry active markup
+# (Contract 2 / stored-XSS) and must never be stored or served as inline documents.
+_ALLOWED_IMAGE_TYPES = frozenset(
+    {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"}
+)
+
 
 def get_storage(request: Request) -> Storage:
     return request.app.state.storage
@@ -30,8 +36,16 @@ async def upload_image(
     entry = db.get(CatalogEntry, entry_id)
     if entry is None or entry.provider_id != provider.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    # Validate the upload at the boundary: the provider-controlled content-type must be a raster
+    # image. Anything else (text/html, image/svg+xml, octet-stream, ...) is refused outright so no
+    # active markup can be stored and later served inline (stored-XSS defense).
+    content_type = (file.content_type or "").lower()
+    if content_type not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "Unsupported image type; allowed: png, jpeg, gif, webp, avif",
+        )
     data = await file.read()
-    content_type = file.content_type or "application/octet-stream"
     key = f"entries/{entry_id}/{file.filename}"
     storage.put_object(key, data, content_type)
     asset = Asset(entry_id=entry_id, object_key=key, content_type=content_type)
@@ -54,4 +68,13 @@ def fetch_asset(
         data, content_type = storage.get_object(object_key)
     except KeyError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Asset not found") from None
-    return Response(content=data, media_type=content_type)
+    # Defense in depth: even though only validated raster images are ever stored, forbid
+    # content-sniffing and never let the bytes be interpreted as an inline document.
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": "attachment",
+        },
+    )
