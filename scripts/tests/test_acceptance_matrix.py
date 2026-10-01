@@ -147,6 +147,20 @@ def test_parse_playwright_report_walks_nested_suites():
     assert res["apps/web/e2e/c.spec.ts::smoke"] is True
 
 
+def test_parse_playwright_report_rejoins_rootdir_relative_file():
+    # Real Playwright reports emit spec.file relative to config.rootDir (apps/web/e2e), which
+    # drops the repo anchor the manifest uses. The parser must rejoin rootDir so the node-id
+    # matches "apps/web/e2e/<file>::<title>".
+    obj = {
+        "config": {"rootDir": "/abs/checkout/apps/web/e2e"},
+        "suites": [
+            {"specs": [{"file": "studio-smoke.spec.ts", "title": "studio smoke", "ok": True}]}
+        ],
+    }
+    res = am.parse_playwright_report(obj)
+    assert res["apps/web/e2e/studio-smoke.spec.ts::studio smoke"] is True
+
+
 def test_collect_results_merges_three_reports():
     merged = am.collect_results(
         api_json={"tests": [{"nodeid": "a::x", "outcome": "passed"}]},

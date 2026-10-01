@@ -27,3 +27,7 @@ content_hub.db
 .oneshot/
 .coverage
 **/.coverage
+# Next.js / TS build artifacts
+next-env.d.ts
+*.tsbuildinfo
+e2e-results.json

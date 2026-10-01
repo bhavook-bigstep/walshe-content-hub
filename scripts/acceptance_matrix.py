@@ -144,9 +144,17 @@ def parse_playwright_report(obj: dict | None) -> dict[str, bool]:
     if not obj:
         return results
 
+    # Playwright emits spec.file relative to config.rootDir (the common ancestor of the test
+    # dirs, e.g. apps/web/e2e), which drops the repo anchor the manifest node-ids use. Rejoin
+    # rootDir so the "apps/web/" anchor is present again; paths already absolute/anchored are
+    # left untouched, so reports that already carry a repo-relative file still parse unchanged.
+    root = str((obj.get("config") or {}).get("rootDir") or "").rstrip("/")
+
     def walk(suite: dict) -> None:
         for spec in suite.get("specs", []):
             file_path = spec.get("file", suite.get("file", ""))
+            if root and not file_path.startswith("/") and "apps/web/" not in file_path:
+                file_path = f"{root}/{file_path}"
             title = spec.get("title", "")
             ok = bool(spec.get("ok", False))
             # Fall back to the per-result status if 'ok' is absent.

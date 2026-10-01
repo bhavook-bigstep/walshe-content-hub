@@ -40,13 +40,14 @@ jobs:
       - if: steps.guard.outputs.present == 'yes'
         name: api lint + type + tests (json report)
         # Lint runs inside apps/api; pytest runs from the repo root with the rootdir forced to it
-        # so json-report node-ids are repo-relative (apps/api/tests/...) and match the proof
-        # manifest exactly — otherwise the acceptance matrix cannot see these passing tests.
+        # so json-report node-ids are repo-relative (apps/api/tests/... and scripts/tests/...) and
+        # match the proof manifest exactly — otherwise the acceptance matrix cannot see these
+        # passing tests. scripts/tests is included because AC18's proofs live there.
         run: |
           (cd apps/api && uv sync && uv run ruff check .)
-          uv run --project apps/api pytest \
+          uv run --project apps/api --with pyyaml pytest \
             --rootdir "$PWD" -c apps/api/pyproject.toml \
-            apps/api/tests -o testpaths= \
+            apps/api/tests scripts/tests -o testpaths= -p no:cacheprovider \
             -q --json-report --json-report-file=apps/api/.report.json
       - if: steps.guard.outputs.present == 'yes'
         uses: actions/upload-artifact@v4

@@ -4,9 +4,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.deps import get_db, require_role
+from app.deps import get_current_user, get_db, require_role
 from app.models.catalog import Asset, CatalogEntry
 from app.models.user import Role, User
+from app.services.visibility import visible_asset_or_none
 from app.storage.minio_client import Storage
 
 router = APIRouter(tags=["assets"])
@@ -43,7 +44,12 @@ async def upload_image(
 def fetch_asset(
     object_key: str,
     storage: Storage = Depends(get_storage),
+    current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> Response:
+    # 404 (not 403) for hidden and unknown keys alike, so keys cannot be probed.
+    if visible_asset_or_none(db, current, object_key) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Asset not found")
     try:
         data, content_type = storage.get_object(object_key)
     except KeyError:

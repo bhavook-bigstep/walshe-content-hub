@@ -204,3 +204,122 @@ The spec's four non-functional contracts (`/REQUIREMENTS.md` §4) each map to a 
 ## 8. Not doing (scope guard)
 
 Per `/REQUIREMENTS.md` §6: real social OAuth, billing, white-label theming, full video editing, production auth hardening, real email delivery, CRM/newsletter integrations, the commercial model. No scope change to AC1–AC18 → **no version bump** of `/REQUIREMENTS.md` triggered by this plan.
+
+---
+
+## 9. P1-UI phase build plan — "Verifiable UI slice" (RE-ENTRY B, MANAGER re-pass 2026-10-01)
+
+**Scope of this section:** the 13 acceptance items in phase **P1-UI** only — **AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9, AC12, AC16, AC17, AC18**. P2 (AC10/11/13) and P3 (AC14/15) are explicitly *out of scope this phase* (deferred to a later run). This section is the concrete HOW for the already-chosen re-entry approach (ledger → "Chosen re-entry approach: Approach 2 — risk-first vertical slice"): it does not re-pick the approach, it specifies exact files/functions/config, the dependency graph, and one proof test per item.
+
+**As-built starting point (verified on disk this pass):** the FastAPI `apps/api` already satisfies AC1,2,3,4,5,6,7,12,16,17 server-side (17 pytest PASS) and `apps/web/lib/studio/{formats,ops}.ts` already satisfy AC8/AC9 logic (2 vitest PASS). **What P1-UI adds is the missing web UI + three defect fixes.** No new API feature is required for P1-UI; the only API change is the Gate-1 security fix. Environment confirmed this pass: `node v26.6.0`, `pnpm`, `npx`, `playwright`, `docker` all present.
+
+### 9.1 The three carried-over defects (must land before "verifiable")
+
+| # | Defect | Exact location | Fix |
+| --- | --- | --- | --- |
+| D1 | **Unauthenticated asset egress** (P1 security; Contracts 1+2) | `apps/api/app/routers/assets.py:42` `fetch_asset` has no `Depends` auth and no visibility check | Gate 1 below |
+| D2 | **Docker can't boot** — compose uses `postgresql+psycopg://` (`infra/docker-compose.yml:59`) but `psycopg` is absent from `apps/api/pyproject.toml` deps | `apps/api/pyproject.toml` dependencies | Gate 2 below |
+| D3 | **No Playwright e2e** — AC18 e2e node-id in the manifest points at a file that does not exist | `apps/web/e2e/studio-smoke.spec.ts` (missing) | Gate 5 below |
+
+### 9.2 Gates (each = one commit + one green gate; order from the chosen approach)
+
+#### Gate 1 — asset-auth fix + shared visibility predicate  → proves **AC4, AC6** (Contracts 1+2)
+- **`apps/api/app/services/visibility.py`** — add one new choke-point function reused by the asset route so asset-access and catalog-access rules can never drift:
+  - `visible_asset_or_none(db, user, object_key) -> Asset | None` — (a) **reject path traversal first**: if `object_key` contains `..`, a leading `/`, or a backslash → return `None` (never touch storage); (b) look up `Asset` by `object_key`; (c) load its `CatalogEntry`; (d) role logic reusing the *existing* predicate: `content_provider` → own entry only (`entry.provider_id == user.id`); `tourism_agent` → `is_visible_to_agent(entry, user)` (the same function catalog reads use); `super_admin` → allowed. Return the `Asset` or `None`.
+- **`apps/api/app/routers/assets.py`** — rewrite `fetch_asset`:
+  - add `current: User = Depends(get_current_user)` (any authenticated user; `401` when the token is missing/invalid — already handled by `get_current_user`).
+  - `asset = visible_asset_or_none(db, current, object_key)`; if `None` → `raise HTTPException(404, "Asset not found")` — **404 not 403** so a hidden/unknown key is indistinguishable from missing (can't be probed).
+  - only then `storage.get_object(asset.object_key)`.
+  - inject `db: Session = Depends(get_db)` (currently absent).
+- **Test (AC4 proof, same node-id):** `apps/api/tests/test_assets.py::test_upload_then_fetch` — **update**: provider uploads → provider fetches own asset with `provider_headers` → `200` + bytes match. **Add (strengthen AC6/Contract 1, no manifest row needed):** `test_asset_requires_auth` (no header → `401`), `test_agent_cannot_fetch_hidden_asset` (asset on a draft/unsafe entry, agent → `404`), `test_asset_path_traversal_rejected` (`GET /assets/..%2f..%2fetc%2fpasswd` → `404`), `test_agent_fetches_visible_asset` (entry approved+brand-safe → agent `200`).
+- **Web side consumed later:** `apps/web/lib/api.ts:fetchAssetObjectUrl(objectKey)` — authed `fetch` with the bearer token → `blob()` → `URL.createObjectURL` (the locked-in "authed-fetch → blob URL" decision; no API change, no cookie-proxy).
+
+#### Gate 2 — docker driver + compose validation  → proves **AC17**
+- **`apps/api/pyproject.toml`** — add `"psycopg[binary]>=3.2"` to `[project].dependencies`; run `uv lock` to refresh `apps/api/uv.lock`.
+- **Validation (no runtime DB needed, hermetic):** `docker compose -f infra/docker-compose.yml config -q` must exit 0 — added to `make verify` (Gate 6) and already runnable in CI.
+- **Test (AC17 proof, unchanged):** `apps/api/tests/test_seed.py::test_seed_is_idempotent_and_complete` (already green). The driver fix is verified by `uv sync` resolving + `compose config` passing, recorded in the gate's commit; full `docker compose up` stays "not runtime-verified in this env" (honest caveat kept).
+
+#### Gate 3 — Fabric-in-Next studio spike (retire the hardest unknown while budget is intact)
+- **`apps/web/` scaffold (prerequisite for Gates 3–5):**
+  - `apps/web/package.json` — add deps `next@^15`, `react@^19`, `react-dom@^19`, `fabric@^6`, `tailwindcss`, `postcss`, `autoprefixer`, `@playwright/test`; scripts `dev` (`next dev`), `build` (`next build`), `start` (`next start`), `lint` (`next lint`), `typecheck` (`tsc --noEmit`), `e2e` (`playwright test`). Keep existing `vitest`/`typecheck`.
+  - `apps/web/next.config.mjs`, `tailwind.config.ts`, `postcss.config.mjs`, `app/globals.css`.
+  - `apps/web/tsconfig.json` — extend `include` to `app`, `components`, `lib`, `tests`; add Next types.
+- **`apps/web/components/studio/StudioCanvas.tsx`** — the spike: a client component (`"use client"`) that mounts Fabric.js on a `<canvas>` and renders a `DesignDoc` (from `lib/studio/ops.ts`) → Fabric objects, and maps Fabric mutations back through the **pure `lib/studio` ops** (which stay the single source of truth — the canvas is a view, never the model).
+- **`apps/web/app/agent/studio/page.tsx`** — imports `StudioCanvas` via `dynamic(() => import(...), { ssr: false })` (Fabric needs `window`; this kills the SSR canvas crash — the documented risk).
+- **Gate = `next build` succeeds** (no SSR/`window` crash) and the canvas renders a seeded design. No new proof test here; AC8/AC9 keep their vitest proofs, canvas rendering rides the Gate-5 e2e.
+
+#### Gate 4 — app shell + typed client + role guards, then the four screens  → proves **AC1, AC2, AC3, AC5, AC7, AC12** (+ AC8/AC9 wiring)
+- **Shell + client + auth (built first; prerequisite for every screen):**
+  - `apps/web/lib/api.ts` — typed client over the FastAPI surface: `login(email,password)`, `me()`, `listAgentCatalog({destination,type,q})`, `getEntry(id)`, `createEntry(body)`, `setAccess(id,body)`, `uploadImage(id,file)`, `listUsers()`, `approveProvider(id)`, `renderPdf(design)`, `renderEmailHtml(design)`, `fetchAssetObjectUrl(key)`. Bearer token from `lib/session.ts`. **Never logs the token or any key** (Contract 2).
+  - `apps/web/lib/session.ts` — token + role in `localStorage` (try/catch guarded), `getRole()`, `clear()`.
+  - `apps/web/lib/rbac.ts` — `ROUTE_ROLES` map (`/admin*`→super_admin, `/provider*`→content_provider, `/agent*`→tourism_agent) + `allowed(path, role)`.
+  - `apps/web/middleware.ts` — redirect to `/login` when no session; redirect to the role's home when a role hits another role's route (the negative-redirect behaviour the Gate-5 test asserts).
+  - `apps/web/app/layout.tsx`, `apps/web/app/page.tsx` (→ `/login`), `apps/web/app/login/page.tsx` (**AC1** UI).
+  - Proportionate **loading / empty / error** states per screen (one spinner, one empty line, one error line — not a full failure matrix; budget-proportionate per the chosen approach).
+- **The four screens are on DISJOINT files → parallelisable across workers (see 9.3):**
+  - **Agent (AC6/AC7):** `apps/web/app/agent/catalog/page.tsx` — browse + search box + destination/type filters (calls `listAgentCatalog`) + "add to composition"; thumbnails via `fetchAssetObjectUrl`.
+  - **Agent studio (AC8/AC9/AC12):** `apps/web/app/agent/studio/page.tsx` + `components/studio/{FormatPicker,Toolbar,ExportMenu}.tsx`. `FormatPicker` → `lib/studio/formats.ts`; `Toolbar` → `lib/studio/ops.ts`; `ExportMenu`: **PNG** via Fabric `canvas.toDataURL` (+ `lib/studio/export.ts:filenameFor(format)` pure helper), **PDF**/**email-HTML** via `renderPdf`/`renderEmailHtml`.
+  - **Provider (AC3/AC4/AC5):** `apps/web/app/provider/catalog/page.tsx` (list), `.../new/page.tsx` (create form **AC3** + image upload **AC4**), `.../[id]/page.tsx` (brand-safe toggle + tenant/agent access scope **AC5**).
+  - **Super-Admin (AC2):** `apps/web/app/admin/page.tsx` — user list + "Approve provider" action.
+- **Tests (proofs unchanged — these screens are wired to already-proven API/logic; the UI itself is proven by the Gate-5 e2e):** AC1 `test_auth_rbac.py::test_role_guard_blocks_wrong_role`; AC2 `test_admin.py::test_approve_provider_flips_flag`; AC3 `test_catalog_crud.py::test_create_entry_each_type`; AC5 `test_catalog_access.py::test_set_brand_safe_and_access_scope`; AC7 `test_catalog_search.py::test_filter_by_destination_and_type`; AC8 `formats.test.ts::test_format_presets`; AC9 `studio-ops.test.ts::test_manual_ops_mutate_design`; AC12 `test_export.py::test_pdf_and_html_from_design` (+ PNG exercised in the e2e).
+
+#### Gate 5 — Playwright smoke + negative redirect  → proves **AC18**
+- **`apps/web/playwright.config.ts`** — `webServer` runs the **production build** (`next build && next start`) + the API (`uvicorn app.main:create_app --factory`) + `seed`, against stub AI (no keys) and seeded users → deterministic (the locked decision; kills `next dev` cold-compile flake). Single chromium project, `reporter: json`.
+- **`apps/web/e2e/studio-smoke.spec.ts`** — `test('studio smoke', …)` (title **must** be exactly `studio smoke` so the parsed node-id is `apps/web/e2e/studio-smoke.spec.ts::studio smoke`, matching the manifest): login as `agent@example.test` → browse catalog → open studio → pick a format → add a catalog image + a text node → **export PNG** (assert the download) and **export PDF** (assert `%PDF`).
+- **`apps/web/e2e/rbac-smoke.spec.ts`** — `test('agent is redirected away from admin', …)`: logged-in agent navigates to `/admin` → lands on the agent home, not the admin page (the grafted negative e2e).
+- **Tests (AC18 proofs — the 3 manifest node-ids):** `scripts/tests/test_acceptance_matrix.py::test_evaluate_classifies_met_partial_missing`, `scripts/tests/test_requirements_sync.py::test_sync_detects_missing_and_extra` (both already green), **+ the now-real** `apps/web/e2e/studio-smoke.spec.ts::studio smoke`.
+
+#### Gate 6 — `make verify` aggregate + README runbook
+- **`Makefile`** `verify` target, in order: `ruff check` → api `pytest … --json-report` → web `tsc --noEmit` → `vitest run --reporter=json` → `playwright test --reporter=json` → `python scripts/acceptance_matrix.py --api-report … --web-report … --e2e-report … --write-ledger --check` → `python scripts/check_requirements_sync.py` → `docker compose -f infra/docker-compose.yml config -q`.
+- **`README.md`** runbook: `docker compose up`, seed command, dev commands, test + e2e commands, and the "no key → deterministic stub AI" note.
+- **No new AC** — this gate makes AC18 enforceable end-to-end and regenerates the ledger matrix (never hand-edited).
+
+### 9.3 Dependency graph + parallelisation (disjoint files)
+
+```
+          ┌─ Gate 1  apps/api/app/{services/visibility.py, routers/assets.py} + tests  ─┐
+ start ───┤                                                                              ├─► Gate 5 (e2e)
+          └─ Gate 2  apps/api/pyproject.toml + infra/docker-compose.yml (config only)  ─┘        │
+                                                                                                 ▼
+ web-scaffold (apps/web/package.json, next/tailwind/tsconfig)  ─► Gate 3 (StudioCanvas spike) ──► Gate 6
+                                                              └─► Gate 4 shell+client+auth (AC1) ─┤
+                                                                      │                           │
+                                      ┌───────────────┬──────────────┼───────────────┐           │
+                                      ▼               ▼              ▼                ▼           │
+                                 Agent AC6/7     Provider AC3/4/5  Admin AC2    Studio AC8/9/12 ──┘
+                                 (app/agent/*)   (app/provider/*)  (app/admin/*) (app/agent/studio/*
+                                                                                  + components/studio/*)
+```
+
+**What runs in PARALLEL on disjoint files:**
+1. **Gate 1 ∥ Gate 2** — Gate 1 edits `app/services/visibility.py` + `app/routers/assets.py`; Gate 2 edits `pyproject.toml` + `docker-compose.yml`. No shared file → two workers in parallel.
+2. **Gate 3 ∥ Gate 4-shell** — once the web scaffold lands, the `StudioCanvas` spike (`components/studio/StudioCanvas.tsx`) and the app shell/client/auth (`lib/api.ts`, `lib/session.ts`, `middleware.ts`, `app/login/*`) touch disjoint files → parallel.
+3. **The four screens** — after Gate-4 shell + typed client exist, Agent (`app/agent/catalog/*`), Provider (`app/provider/*`), Admin (`app/admin/*`), and Studio (`app/agent/studio/*` + `components/studio/*`) are on disjoint route/component folders → **four parallel workers**, all consuming the one shared `lib/api.ts` (read-only to them) and the shared `lib/studio` (studio worker only).
+
+**Serial edges (cannot parallelise):** web-scaffold → everything web; Gate-4 shell → the four screens (they import `lib/api.ts`); all screens + Gate 1 + Gate 2 → Gate 5 e2e (it drives the whole stack); Gate 5 → Gate 6 (`make verify` consumes the e2e report). **Critical path:** `scaffold → Gate 4 shell → (slowest screen) → Gate 5 e2e → Gate 6`.
+
+### 9.4 One test per acceptance item (P1-UI)
+
+| AC | Proof node-id (wired in `requirements.manifest.yaml`) | Change this phase |
+| --- | --- | --- |
+| AC1 | `apps/api/tests/test_auth_rbac.py::test_role_guard_blocks_wrong_role` | keep green; login UI exercised by Gate-5 e2e |
+| AC2 | `apps/api/tests/test_admin.py::test_approve_provider_flips_flag` | keep green; admin screen wired |
+| AC3 | `apps/api/tests/test_catalog_crud.py::test_create_entry_each_type` | keep green; provider create form wired |
+| AC4 | `apps/api/tests/test_assets.py::test_upload_then_fetch` | **updated** for auth (Gate 1) |
+| AC5 | `apps/api/tests/test_catalog_access.py::test_set_brand_safe_and_access_scope` | keep green; provider access UI wired |
+| AC6 | `apps/api/tests/test_visibility_contract.py::test_agent_never_sees_unapproved` | keep green; **strengthened** — asset route now reuses the same predicate (Gate 1) |
+| AC7 | `apps/api/tests/test_catalog_search.py::test_filter_by_destination_and_type` | keep green; agent browse UI wired |
+| AC8 | `apps/web/tests/formats.test.ts::test_format_presets` | keep green; FormatPicker wired |
+| AC9 | `apps/web/tests/studio-ops.test.ts::test_manual_ops_mutate_design` | keep green; Toolbar/canvas wired |
+| AC12 | `apps/api/tests/test_export.py::test_pdf_and_html_from_design` | keep green; **PNG** added client-side, exercised in Gate-5 e2e |
+| AC16 | `apps/api/tests/test_ai_provider.py::test_factory_selects_and_falls_back` | keep green; **no UI work** (Builder is deferred P2) — stub fallback stays the P1-UI runtime default |
+| AC17 | `apps/api/tests/test_seed.py::test_seed_is_idempotent_and_complete` | keep green; **+ `docker compose config -q`** (Gate 2) |
+| AC18 | `scripts/tests/test_acceptance_matrix.py::test_evaluate_classifies_met_partial_missing` · `scripts/tests/test_requirements_sync.py::test_sync_detects_missing_and_extra` · `apps/web/e2e/studio-smoke.spec.ts::studio smoke` | **e2e now built** (Gate 5) → AC18 moves `missing (0/3) → met (3/3)` |
+
+### 9.5 Determinism / secrets / fixtures (phase-specific)
+- **Determinism:** e2e runs against `next build && next start` + seeded DB + **stub AI** (no keys) + fixed seed users; Fabric node-ids stay derived from `lib/studio` (no `Math.random`/`Date.now`); Playwright single chromium project. (Contract 4 / `testing.md`.)
+- **Secrets:** `lib/api.ts` logs neither the bearer token nor any provider key; `.env.example` stays names-only; asset bytes are synthetic 1×1 PNGs. (Contract 2 / `security.md`.)
+- **No manifest/spec change:** the manifest already lists exactly these node-ids (incl. the e2e), so `check_requirements_sync` stays green and **`/REQUIREMENTS.md` stays v1.0.0 — no version bump** (this phase builds the UI + fixes defects; it changes no acceptance scope).
+
+### 9.6 Out of scope this phase (guard)
+AC10 (Builder AI), AC11 (personalize), AC13 (video) — **P2, deferred**. AC14 (social), AC15 (dashboard) — **P3, deferred**. No social/engagement UI, no Builder panel, no video panel is built in P1-UI; the studio ships manual-mode + export only.

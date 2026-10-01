@@ -9,8 +9,8 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
-from app.models.user import User
+from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
+from app.models.user import Role, User
 
 
 def is_visible_to_agent(entry: CatalogEntry, agent: User) -> bool:
@@ -55,3 +55,25 @@ def agent_visible_entries(
             continue
         result.append(entry)
     return result
+
+
+def visible_asset_or_none(db: Session, user: User, object_key: str) -> Asset | None:
+    """Return the Asset for ``object_key`` iff ``user`` may read it, else None (Contract 1/2).
+
+    Unknown keys, hidden entries and traversal attempts are all indistinguishable (None).
+    """
+    if ".." in object_key or object_key.startswith("/") or "\\" in object_key:
+        return None  # reject traversal before any lookup or storage access
+    asset = db.execute(select(Asset).where(Asset.object_key == object_key)).scalars().first()
+    if asset is None:
+        return None
+    entry = db.get(CatalogEntry, asset.entry_id)
+    if entry is None:
+        return None
+    if user.role == Role.super_admin:
+        return asset
+    if user.role == Role.content_provider:
+        return asset if entry.provider_id == user.id else None
+    if user.role == Role.tourism_agent:
+        return asset if is_visible_to_agent(entry, user) else None
+    return None
