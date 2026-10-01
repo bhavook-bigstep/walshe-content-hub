@@ -47,11 +47,12 @@ const config: Config = {
         eyebrow: ["0.78rem", { lineHeight: "1.2", fontWeight: "700", letterSpacing: "0.16em" }],
       },
       borderRadius: {
-        sm: "10px",
-        md: "16px",
-        lg: "22px",
-        xl: "28px",
-        "2xl": "34px",
+        // Crisp, editorial corners (reference uses near-zero radius on media/cards). Pills stay round.
+        sm: "2px",
+        md: "3px",
+        lg: "4px",
+        xl: "6px",
+        "2xl": "8px",
         pill: "999px",
       },
       boxShadow: {

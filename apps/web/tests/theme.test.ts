@@ -25,8 +25,8 @@ describe("walshe design tokens", () => {
     const fontFamily = config.theme?.extend?.fontFamily as Record<string, string[]> | undefined;
     expect(fontFamily?.sans).toContain("Inter");
 
-    // Rounded, editorial radii incl. a pill for buttons.
+    // Crisp editorial radii with a pill for buttons.
     const radius = config.theme?.extend?.borderRadius as Record<string, string> | undefined;
-    expect(radius).toMatchObject({ md: "16px", lg: "22px", pill: "999px" });
+    expect(radius).toMatchObject({ md: "3px", lg: "4px", pill: "999px" });
   });
 });

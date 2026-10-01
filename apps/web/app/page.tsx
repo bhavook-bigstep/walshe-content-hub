@@ -110,7 +110,7 @@ export default function Landing() {
           <div className="mt-16 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
             {CATALOG.map((c, i) => (
               <Reveal key={c.title} delayMs={i * 90}>
-                <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.06]">
+                <article className="group flex h-full flex-col overflow-hidden rounded-none border border-white/10 bg-white/[0.035] transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.06]">
                   <div className="relative aspect-[16/11] overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={IMG(c.id, 900, 620)} alt={c.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -146,7 +146,7 @@ export default function Landing() {
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="The hub" title="Not just a library — a way of working, for the whole trade." />
           <div className="mt-16 grid items-start gap-12 lg:grid-cols-2">
-            <Reveal className="overflow-hidden rounded-xl">
+            <Reveal className="overflow-hidden rounded-none">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={IMG(1039, 1100, 1300)} alt="" className="aspect-[5/6] w-full object-cover" />
             </Reveal>

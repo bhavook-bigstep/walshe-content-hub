@@ -77,16 +77,16 @@
   .btn-on-dark {
     @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-walshe-amber px-6 py-3 text-small font-semibold text-walshe-ink transition-all hover:bg-walshe-amber-600 hover:-translate-y-0.5;
   }
-  /* Card — white, hairline, generous radius; soft shadow + lift on hover. */
+  /* Card — white, hairline, crisp corners; soft shadow + lift on hover (reference is near-sharp). */
   .card {
-    @apply overflow-hidden rounded-xl border border-walshe-line bg-walshe-white shadow-card;
+    @apply overflow-hidden rounded-none border border-walshe-line bg-walshe-white shadow-card;
   }
   .card-hover {
     @apply transition-all duration-300 hover:-translate-y-1 hover:border-walshe-line hover:shadow-lift;
   }
-  /* Image-forward content card: a rounded media panel + caption, reference-style. */
+  /* Image-forward content card: a sharp media panel + caption, reference-style. */
   .media-card {
-    @apply group block overflow-hidden rounded-xl;
+    @apply group block overflow-hidden rounded-none;
   }
   .media-card img {
     @apply transition-transform duration-700 group-hover:scale-105;
