@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Reveal from "../components/ui/Reveal";
-import SmoothScroll from "../components/ui/SmoothScroll";
 import SiteNav from "../components/site/SiteNav";
 
 // Public landing (AC20) — immersive editorial direction modelled on the reference's structure:
@@ -79,7 +78,6 @@ const SOCIALS = [
 export default function Landing() {
   return (
     <main className="bg-walshe-paper">
-      <SmoothScroll />
       <SiteNav />
       {/* ======================= HERO ======================= */}
       <header className="relative min-h-[108vh] overflow-hidden text-white">
