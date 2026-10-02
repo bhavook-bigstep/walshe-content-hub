@@ -3,6 +3,7 @@
 Every delete / unpublish / overwrite records who did what to which target. Never stores secrets
 or PII payloads — only an actor id, an action verb, and a target reference.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

@@ -92,6 +92,58 @@ def test_admin_creates_provider_with_org_unapproved(
     assert agent.json()["tenant_id"] is None
 
 
+def test_provider_self_register_is_pending(client: TestClient) -> None:
+    resp = client.post(
+        "/auth/register/provider",
+        json={
+            "email": "board@test.local",
+            "password": "test-pass-123",
+            "organization": "Tourism Narnia",
+            "contact_name": "Dana",
+            "markets": ["Narnia"],
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    me = client.get("/auth/me", headers=_bearer(resp.json()["access_token"])).json()
+    assert me["role"] == "content_provider"
+    assert me["approved"] is False  # pending verification
+    assert me["tenant_id"] is not None
+    assert me["display_name"] == "Dana"
+
+
+def test_pending_provider_blocked_until_approved(
+    client: TestClient, admin_headers: dict[str, str]
+) -> None:
+    token = client.post(
+        "/auth/register/provider",
+        json={
+            "email": "pending@test.local",
+            "password": "test-pass-123",
+            "organization": "Pending Board",
+        },
+    ).json()["access_token"]
+    ph = _bearer(token)
+    entry = {
+        "type": "place",
+        "title": "X",
+        "description": "d",
+        "destination": "Dublin",
+        "market_tags": [],
+    }
+
+    # Pending provider has no workspace access — cannot publish content.
+    assert client.post("/catalog", headers=ph, json=entry).status_code == 403
+
+    users = client.get("/admin/users", headers=admin_headers).json()
+    pid = next(u["id"] for u in users if u["email"] == "pending@test.local")
+    approved = client.post(f"/admin/providers/{pid}/approve", headers=admin_headers)
+    assert approved.status_code == 200
+    assert approved.json()["approved"] is True
+
+    # After approval the same provider can publish.
+    assert client.post("/catalog", headers=ph, json=entry).status_code == 201
+
+
 def test_admin_create_user_guards_role_and_auth(
     client: TestClient, admin_headers: dict[str, str], agent_headers: dict[str, str]
 ) -> None:

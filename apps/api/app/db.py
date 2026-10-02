@@ -4,6 +4,7 @@ Kept framework-light: ``create_app`` builds an engine from ``Settings`` and stas
 on ``app.state`` so tests can inject an isolated in-memory SQLite engine (hermetic + deterministic,
 Contract 4) without touching module globals.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import create_engine

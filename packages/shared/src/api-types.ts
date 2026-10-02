@@ -92,7 +92,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Me
+         * @description Edit own profile (AC27). Only provided fields change.
+         */
+        patch: operations["update_me_auth_me_patch"];
         trace?: never;
     };
     "/auth/register": {
@@ -110,6 +114,28 @@ export interface paths {
          *     success by returning a bearer token. Agents need no approval (that gate is for providers).
          */
         post: operations["register_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register/provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Provider
+         * @description Provider self-registration (AC25): creates a PENDING Content Provider tied to its
+         *     organization (tenant). They can sign in, but see a holding screen until a Super Admin approves.
+         *     A token is returned so they land straight on that holding screen.
+         */
+        post: operations["register_provider_auth_register_provider_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -219,6 +245,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/me/organization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Organization */
+        get: operations["get_organization_me_organization_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Organization */
+        patch: operations["update_organization_me_organization_patch"];
         trace?: never;
     };
     "/render/email-html": {
@@ -441,6 +485,35 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** OrganizationOut */
+        OrganizationOut: {
+            /** Blurb */
+            blurb: string | null;
+            /** Id */
+            id: number;
+            /** Logo Url */
+            logo_url: string | null;
+            /** Markets */
+            markets: string[];
+            /** Name */
+            name: string;
+            /** Verified */
+            verified: boolean;
+        };
+        /**
+         * OrganizationUpdate
+         * @description Provider-owned org profile edit (AC27). `verified` is Super-Admin controlled, not here.
+         */
+        OrganizationUpdate: {
+            /** Blurb */
+            blurb?: string | null;
+            /** Logo Url */
+            logo_url?: string | null;
+            /** Markets */
+            markets?: string[] | null;
+            /** Name */
+            name?: string | null;
+        };
         /** PostOut */
         PostOut: {
             /** Channel */
@@ -460,12 +533,44 @@ export interface components {
          * @enum {string}
          */
         PostStatus: "scheduled" | "published";
+        /**
+         * ProfileUpdate
+         * @description Self-service profile edit (AC27). All fields optional; only provided ones change.
+         */
+        ProfileUpdate: {
+            /** Avatar Color */
+            avatar_color?: string | null;
+            /** Bio */
+            bio?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Preferences */
+            preferences?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** PublishRequest */
         PublishRequest: {
             /** Channel */
             channel: string;
             /** Composition Id */
             composition_id: number;
+        };
+        /**
+         * RegisterProviderRequest
+         * @description Provider self-registration (AC25) — creates a PENDING Content Provider (awaits approval).
+         */
+        RegisterProviderRequest: {
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Email */
+            email: string;
+            /** Markets */
+            markets?: string[];
+            /** Organization */
+            organization: string;
+            /** Password */
+            password: string;
         };
         /**
          * RegisterRequest
@@ -512,10 +617,23 @@ export interface components {
         UserOut: {
             /** Approved */
             approved: boolean;
+            /**
+             * Avatar Color
+             * @default #005653
+             */
+            avatar_color: string;
+            /** Bio */
+            bio?: string | null;
+            /** Display Name */
+            display_name?: string | null;
             /** Email */
             email: string;
             /** Id */
             id: number;
+            /** Preferences */
+            preferences?: {
+                [key: string]: unknown;
+            };
             role: components["schemas"]["Role"];
             /** Tenant Id */
             tenant_id: number | null;
@@ -732,6 +850,39 @@ export interface operations {
             };
         };
     };
+    update_me_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_auth_register_post: {
         parameters: {
             query?: never;
@@ -742,6 +893,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_provider_auth_register_provider_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterProviderRequest"];
             };
         };
         responses: {
@@ -1036,6 +1220,59 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    get_organization_me_organization_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationOut"];
+                };
+            };
+        };
+    };
+    update_organization_me_organization_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

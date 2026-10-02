@@ -1,4 +1,5 @@
 """Asset routes (AC4): upload an image for an entry -> storage; serve it back."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status

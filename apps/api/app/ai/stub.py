@@ -3,6 +3,7 @@
 Produces a stable, prompt-derived completion with no network and no key, so the demo runs and
 tests are reproducible when no provider key is present.
 """
+
 from __future__ import annotations
 
 import hashlib

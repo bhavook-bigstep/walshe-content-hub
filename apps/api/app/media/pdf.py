@@ -4,6 +4,7 @@ A *design* is a serialisable dict: ``{"pages": [{"nodes": [{"type": "text", "tex
 Each page becomes one PDF page (multi-page pamphlets supported). No external resource is fetched
 and no secret is embedded — only the design's own text/layout.
 """
+
 from __future__ import annotations
 
 import io

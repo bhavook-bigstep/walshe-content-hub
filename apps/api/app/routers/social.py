@@ -1,4 +1,5 @@
 """Social schedule/publish routes (AC14) — agent-only, simulated connector."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -59,9 +60,7 @@ def _channel(channel: str) -> str:
     try:
         return social_sim.validate_channel(channel)
     except social_sim.UnsupportedChannel as err:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "Unsupported channel"
-        ) from err
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unsupported channel") from err
 
 
 def _find(db: Session, composition_id: int, channel: str) -> Post | None:

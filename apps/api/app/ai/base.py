@@ -1,4 +1,5 @@
 """The single AI interface every provider implements (AC16)."""
+
 from __future__ import annotations
 
 import abc

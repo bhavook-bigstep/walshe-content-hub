@@ -126,3 +126,23 @@ acceptance:
       - "apps/api/tests/test_register.py::test_admin_create_user_guards_role_and_auth"
     e2e:
       - "apps/web/e2e/register-smoke.spec.ts::public register creates an agent and lands on agent home"
+  # --- v2.2.0 Profiles, dual workspaces & role-based registration ---
+  AC25:
+    tier: P2
+    api:
+      - "apps/api/tests/test_register.py::test_provider_self_register_is_pending"
+      - "apps/api/tests/test_register.py::test_pending_provider_blocked_until_approved"
+    e2e:
+      - "apps/web/e2e/register-smoke.spec.ts::provider registration enters the review queue"
+  AC26:
+    tier: design
+    e2e:
+      - "apps/web/e2e/viewport-smoke.spec.ts::agent workspace fits the viewport with no page scroll"
+      - "apps/web/e2e/viewport-smoke.spec.ts::provider holding screen fits the viewport"
+  AC27:
+    tier: P2
+    api:
+      - "apps/api/tests/test_profile.py::test_update_and_read_own_profile"
+      - "apps/api/tests/test_profile.py::test_provider_updates_organization_profile"
+    e2e:
+      - "apps/web/e2e/profile-smoke.spec.ts::agent sets a display name and sees it in the workspace"

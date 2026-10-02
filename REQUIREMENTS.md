@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.1.0 |
+| **Version** | 2.2.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -121,9 +121,32 @@ provisioning model that fits the verified-content trust boundary.
   password) and admin create-user (provider+org unapproved, non-admin forbidden, super_admin role
   rejected); Playwright covers the public register → agent-home flow.
 
-**Priority tiers** (build order; acceptance reports honestly against all 24):
+### Profiles, dual workspaces & role-based registration (v2.2.0) `[explicit – feedback]`
+
+Charter: `docs/plans/2026-10-02-requirements-charter.md`. The signed-in experience becomes a
+proper, character-rich **workspace per role**, entered through a role-aware registration flow.
+
+- **AC25** — **Role-based registration & provider queue**: `/register` opens with a **role choice**.
+  A **Tourism Agent** is created and signed in immediately. A **Content Provider** self-registers
+  (email, password, organization, contact) into a **pending** state and sees an "application under
+  review — our team will contact you" **holding screen** with no workspace access until a **Super
+  Admin approves**; approval unlocks the provider workspace. API-enforced; no role escalation
+  (self-register can't mint an admin, a provider can't self-approve).
+- **AC26** — **Fixed-viewport workspace**: every signed-in screen fits the viewport with **no
+  document scroll** — content that must scroll is bounded inside its own region and scrolls there,
+  so everything is visible at a glance or behind a menu/dialog. No page overflow (height or width)
+  at desktop or mobile, both roles.
+- **AC27** — **Rich profiles**: a profile/settings page (display name, avatar, bio, preferences)
+  reached from a top-bar profile menu; the workspace greets by name and shows the avatar; Content
+  Providers have an **organization page** (logo, blurb, markets served, verification badge).
+> **Staged (charter Phase 2–3, promoted to acceptance items here when built):** the Agent
+> features (saved projects, collections, brand kit, templates) and the Provider structured
+> AI-crawlable inventory (rich content types + custom sections, media library, team members,
+> performance). See `docs/plans/2026-10-02-requirements-charter.md`.
+
+**Priority tiers** (build order; acceptance reports honestly against all 27):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23 (all prior ACs must stay green).
+design = AC19,20,21,22,23 · workspace = AC25,26,27 (+AC28,29 staged; all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -151,3 +174,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
 | 2.1.0 | 2026-10-02 | **Account provisioning**: added **AC24** (hybrid registration) — public agent self-register, Super-Admin-provisioned providers with org/tenant + approval, role-escalation prevented. Enables creating the three roles through the product rather than only the seed. All prior ACs stay green. | user + Claude |
+| 2.2.0 | 2026-10-02 | **Profiles & dual workspaces** (charter `docs/plans/2026-10-02-requirements-charter.md`): added **AC25–AC29** — role-based registration + provider queue/holding; fixed-viewport workspace; rich profiles + provider org page; agent features (saved projects, collections, brand kit, templates); provider structured AI-crawlable inventory (custom sections, media library, team, performance). Built in phases; all prior ACs stay green. | user + Claude |

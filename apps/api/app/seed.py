@@ -3,6 +3,7 @@
 Upserts by stable natural keys (user email, entry (provider,title)) so running it twice yields the
 same row counts — safe to re-run against the dev stack. Uses only synthetic, non-PII fixtures.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -102,27 +103,38 @@ def _upsert_post_with_engagement(db: Session, composition_id: int) -> None:
         )
         db.add(post)
         db.flush()
-    has_metrics = db.execute(
-        select(Engagement.id).where(Engagement.post_id == post.id)
-    ).first()
+    has_metrics = db.execute(select(Engagement.id).where(Engagement.post_id == post.id)).first()
     if has_metrics is None:
         db.add(Engagement(post_id=post.id, **_SEED_METRICS))
+
+
+_SEED_DISPLAY_NAMES = {
+    Role.super_admin: "Walsh Admin",
+    Role.content_provider: "Dana Walsh",
+    Role.tourism_agent: "Alex Rivera",
+}
 
 
 def seed(db: Session) -> dict[str, int]:
     """Populate the database idempotently. Returns row counts for verification."""
     tenant = _upsert_tenant(db, "Walsh Tourism Board")
+    # Organization profile (AC27) — a verified board with markets.
+    tenant.blurb = "The national tourism board for Ireland's Wild Atlantic Way and beyond."
+    tenant.markets = ["Ireland", "Australia", "New Zealand"]
+    tenant.verified = True
 
     users = {
         role: _upsert_user(db, email, role, tenant.id if role != Role.super_admin else None)
         for email, role, _ in _SEED_USERS
     }
+    for role, user in users.items():
+        if not user.display_name:
+            user.display_name = _SEED_DISPLAY_NAMES[role]
     provider = users[Role.content_provider]
     agent = users[Role.tourism_agent]
 
     entries = [
-        _upsert_entry(db, provider.id, type_, title, dest)
-        for type_, title, dest in _SEED_ENTRIES
+        _upsert_entry(db, provider.id, type_, title, dest) for type_, title, dest in _SEED_ENTRIES
     ]
 
     existing_comp = db.execute(

@@ -1,4 +1,5 @@
 """Engagement dashboard (AC15): per-post metric rows, tourism agents only."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends

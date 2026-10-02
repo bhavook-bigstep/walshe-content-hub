@@ -3,6 +3,7 @@
 Stdlib only (``hashlib`` PBKDF2 + ``hmac`` signatures) — no native build deps, fully deterministic
 given a fixed salt in tests. PoC-grade auth, not production hardening (out of scope, spec §6).
 """
+
 from __future__ import annotations
 
 import base64

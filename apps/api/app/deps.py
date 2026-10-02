@@ -1,4 +1,5 @@
 """FastAPI dependencies: settings, DB session, current user, and role guards (AC1 RBAC)."""
+
 from __future__ import annotations
 
 from collections.abc import Iterator

@@ -6,6 +6,7 @@ optionally narrated by ``say``/``espeak``. Subprocess and tool lookup are inject
 tests never encode. Only argv lists are used (no shell), and overlay text is escaped for
 drawtext.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -92,8 +93,22 @@ def build_scene_cmd(
 
 
 def build_concat_cmd(list_file: str, out: str) -> list[str]:
-    return ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
-            "-i", list_file, "-c", "copy", out]
+    return [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        list_file,
+        "-c",
+        "copy",
+        out,
+    ]
 
 
 def _tts_cmd(which: Callable[[str], str | None], text: str, out: str) -> list[str] | None:
@@ -136,8 +151,10 @@ def render_video(
         image = images[scene.index] if scene.index < len(images) else None
         runner(build_scene_cmd(scene, image, clip, audio), check=True, capture_output=True)
         clips.append(clip)
-        srt.append(f"{scene.index + 1}\n{_ts(start)} --> {_ts(start + scene.duration)}\n"
-                   f"{scene.caption or scene.title}\n")
+        srt.append(
+            f"{scene.index + 1}\n{_ts(start)} --> {_ts(start + scene.duration)}\n"
+            f"{scene.caption or scene.title}\n"
+        )
         start += scene.duration
     (work / "captions.srt").write_text("\n".join(srt), encoding="utf-8")
     list_file = work / "clips.txt"

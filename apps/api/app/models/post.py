@@ -1,4 +1,5 @@
 """Social post model (AC14) — a composition scheduled/published to a simulated channel."""
+
 from __future__ import annotations
 
 import enum

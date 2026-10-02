@@ -7,6 +7,7 @@ validated against the selected items so ungrounded output is dropped, and an unu
 back to the deterministic layout. Output is shaped like the render pipeline's ``design`` dict
 (``pages[].nodes[]``) so it can be passed straight to ``/render``.
 """
+
 from __future__ import annotations
 
 import json

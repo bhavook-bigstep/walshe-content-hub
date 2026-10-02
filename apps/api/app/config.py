@@ -3,6 +3,7 @@
 Keys (``ANTHROPIC_API_KEY`` etc.) are read from env only and are *never* logged or serialised;
 see ``app.ai.factory`` which logs the provider *name*, never its key.
 """
+
 from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict

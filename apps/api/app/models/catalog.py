@@ -3,6 +3,7 @@
 Access scoping (``allowed_tenant_ids`` / ``allowed_agent_ids``) plus ``status`` and ``brand_safe``
 are the data behind Contract 1 — enforced in one place by ``app.services.visibility``.
 """
+
 from __future__ import annotations
 
 import enum

@@ -1,4 +1,5 @@
 """Anthropic Claude provider (AC16). Key from env; HTTP mocked in tests, never called live there."""
+
 from __future__ import annotations
 
 import httpx

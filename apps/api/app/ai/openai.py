@@ -1,4 +1,5 @@
 """OpenAI provider (AC16). Key from env; HTTP mocked in tests."""
+
 from __future__ import annotations
 
 import httpx

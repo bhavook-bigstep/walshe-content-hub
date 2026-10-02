@@ -2,6 +2,7 @@
 
 Logs the provider *name* only — never a key (Contract 2).
 """
+
 from __future__ import annotations
 
 import logging

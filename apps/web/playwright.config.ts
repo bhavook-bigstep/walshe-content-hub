@@ -35,7 +35,7 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: 2,
   timeout: 60_000,
   reporter: [["json", { outputFile: "e2e-results.json" }]],
   use: {

@@ -1,4 +1,5 @@
 """Render routes (AC12/AC13): design -> PDF / email HTML / video MP4."""
+
 from __future__ import annotations
 
 import os

@@ -1,4 +1,5 @@
 """Importing this package registers every ORM model on ``Base.metadata``."""
+
 from __future__ import annotations
 
 from app.models.audit import AuditLog

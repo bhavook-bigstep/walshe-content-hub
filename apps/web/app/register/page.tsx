@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { ApiError, me, register } from "../../lib/api";
+import { ApiError, me, register, registerProvider } from "../../lib/api";
 import { ROLE_HOME } from "../../lib/rbac";
 import { clear, setSession, setToken } from "../../lib/session";
 
-// Public self-registration (AC24a) — always creates a Tourism Agent, then signs in. Content
-// Providers are provisioned by a Super Admin (AC24b), so this screen offers the agent path only.
+// Role-based registration (AC25): first choose a path. A Tourism Agent is created and signed in
+// immediately; a Content Provider self-registers into a pending queue and lands on a holding screen.
+type Step = "choose" | "agent" | "provider";
+
 function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
   const sub = tone === "light" ? "text-white/70" : "text-walshe-grey";
   return (
@@ -19,40 +21,79 @@ function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
   );
 }
 
+function errorMessage(err: unknown): string {
+  if (err instanceof ApiError && err.status === 409) {
+    return "An account with this email already exists. Try signing in.";
+  }
+  if (err instanceof ApiError) return err.message;
+  return "Something went wrong. Please try again.";
+}
+
 export default function RegisterPage() {
+  const [step, setStep] = useState<Step>("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [organization, setOrganization] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [markets, setMarkets] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
+  function validatePasswords(): boolean {
     if (password.length < 8) {
       setError("Use at least 8 characters for your password.");
-      return;
+      return false;
     }
     if (password !== confirm) {
       setError("Those passwords don’t match.");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function finishSignIn(token: string, fallback: string) {
+    setToken(token);
+    const user = await me();
+    setSession(token, user.role);
+    window.location.assign(fallback || ROLE_HOME[user.role]);
+  }
+
+  async function onAgentSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!validatePasswords()) return;
     setBusy(true);
     try {
-      const token = await register(email, password);
-      setToken(token);
-      const user = await me();
-      setSession(token, user.role);
-      window.location.assign(ROLE_HOME[user.role]);
+      await finishSignIn(await register(email, password), ROLE_HOME.tourism_agent);
     } catch (err) {
       clear();
-      setError(
-        err instanceof ApiError && err.status === 409
-          ? "An account with this email already exists. Try signing in."
-          : err instanceof ApiError
-            ? err.message
-            : "Something went wrong. Please try again.",
-      );
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  }
+
+  async function onProviderSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!validatePasswords()) return;
+    setBusy(true);
+    try {
+      const token = await registerProvider({
+        email,
+        password,
+        organization,
+        contact_name: contactName || null,
+        markets: markets
+          .split(",")
+          .map((m) => m.trim())
+          .filter(Boolean),
+      });
+      // Provider is pending → land on the holding screen at /provider.
+      await finishSignIn(token, "/provider");
+    } catch (err) {
+      clear();
+      setError(errorMessage(err));
       setBusy(false);
     }
   }
@@ -79,84 +120,151 @@ export default function RegisterPage() {
             <AuthMark tone="light" />
           </Link>
           <div className="max-w-[30ch]">
-            <p className="eyebrow">For the trade</p>
-            <h2 className="mt-4 text-h1 text-white">Turn verified content into campaigns.</h2>
+            <p className="eyebrow">Join the hub</p>
+            <h2 className="mt-4 text-h1 text-white">One verified catalog. Two ways in.</h2>
             <p className="mt-5 text-[17px] leading-relaxed text-white/80">
-              Create a free agent account to browse the verified catalog and build on-brand marketing
-              in the Design Studio.
+              Travel agents build on-brand marketing from verified content. Tourism boards publish that
+              content to the trade. Choose your path to get started.
             </p>
           </div>
           <p className="text-small font-medium text-white/65">Celebrating 50 years in business in 2026</p>
         </div>
       </aside>
 
-      {/* Form */}
+      {/* Right column */}
       <div className="flex items-center justify-center px-5 py-12 sm:px-8">
         <div className="w-full max-w-sm">
           <Link href="/" className="mb-8 inline-block lg:hidden">
             <AuthMark />
           </Link>
 
-          <div className="mb-7">
-            <p className="eyebrow">Create your account</p>
-            <h1 className="mt-3 text-h2 text-walshe-ink">Join as an agent</h1>
-            <p className="mt-2 text-body text-walshe-grey">
-              Tourism boards are added by the Walshe team — agents sign up here.
-            </p>
-          </div>
-
-          <form onSubmit={onSubmit} className="card space-y-5 p-7" aria-busy={busy}>
-            <label className="block">
-              <span className="label">Email</span>
-              <input
-                type="email"
-                required
-                autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="field"
-              />
-            </label>
-            <label className="block">
-              <span className="label">Password</span>
-              <input
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="field"
-              />
-            </label>
-            <p className="-mt-2.5 text-small text-walshe-grey">At least 8 characters.</p>
-            <label className="block">
-              <span className="label">Confirm password</span>
-              <input
-                type="password"
-                required
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className="field"
-              />
-            </label>
-            {error && (
-              <p role="alert" className="text-small font-medium text-walshe-danger">
-                {error}
+          {step === "choose" && (
+            <>
+              <div className="mb-7">
+                <p className="eyebrow">Create your account</p>
+                <h1 className="mt-3 text-h2 text-walshe-ink">How will you use the hub?</h1>
+                <p className="mt-2 text-body text-walshe-grey">Pick the option that describes you.</p>
+              </div>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setStep("agent");
+                  }}
+                  className="card card-hover block w-full p-5 text-left"
+                >
+                  <p className="text-[17px] font-semibold text-walshe-ink">I’m a travel agent</p>
+                  <p className="mt-1 text-small text-walshe-grey">
+                    Browse verified content and build marketing. Instant access.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setStep("provider");
+                  }}
+                  className="card card-hover block w-full p-5 text-left"
+                >
+                  <p className="text-[17px] font-semibold text-walshe-ink">I’m a tourism board / content provider</p>
+                  <p className="mt-1 text-small text-walshe-grey">
+                    Publish verified content. Our team reviews and onboards you.
+                  </p>
+                </button>
+              </div>
+              <p className="mt-6 text-center text-small text-walshe-grey">
+                Already have an account?{" "}
+                <Link href="/login" className="font-semibold text-walshe-teal underline-offset-2 hover:underline">
+                  Sign in
+                </Link>
               </p>
-            )}
-            <button type="submit" disabled={busy} className="btn-primary w-full">
-              {busy ? "Creating account…" : "Create account"}
-            </button>
-          </form>
+            </>
+          )}
 
-          <p className="mt-6 text-center text-small text-walshe-grey">
-            Already have an account?{" "}
-            <Link href="/login" className="font-semibold text-walshe-teal underline-offset-2 hover:underline">
-              Sign in
-            </Link>
-          </p>
+          {step === "agent" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep("choose")}
+                className="mb-5 text-small font-medium text-walshe-grey transition-colors hover:text-walshe-ink"
+              >
+                ← Back
+              </button>
+              <div className="mb-7">
+                <p className="eyebrow">Travel agent</p>
+                <h1 className="mt-3 text-h2 text-walshe-ink">Create your account</h1>
+                <p className="mt-2 text-body text-walshe-grey">You’ll be signed in right away.</p>
+              </div>
+              <form onSubmit={onAgentSubmit} className="card space-y-5 p-7" aria-busy={busy}>
+                <label className="block">
+                  <span className="label">Email</span>
+                  <input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="field" />
+                </label>
+                <label className="block">
+                  <span className="label">Password</span>
+                  <input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="field" />
+                </label>
+                <label className="block">
+                  <span className="label">Confirm password</span>
+                  <input type="password" required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="field" />
+                </label>
+                {error && <p role="alert" className="text-small font-medium text-walshe-danger">{error}</p>}
+                <button type="submit" disabled={busy} className="btn-primary w-full">
+                  {busy ? "Creating account…" : "Create account"}
+                </button>
+              </form>
+            </>
+          )}
+
+          {step === "provider" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep("choose")}
+                className="mb-5 text-small font-medium text-walshe-grey transition-colors hover:text-walshe-ink"
+              >
+                ← Back
+              </button>
+              <div className="mb-7">
+                <p className="eyebrow">Tourism board / provider</p>
+                <h1 className="mt-3 text-h2 text-walshe-ink">Request access</h1>
+                <p className="mt-2 text-body text-walshe-grey">
+                  We verify providers before publishing. Our team will be in touch to onboard you.
+                </p>
+              </div>
+              <form onSubmit={onProviderSubmit} className="card space-y-5 p-7" aria-busy={busy}>
+                <label className="block">
+                  <span className="label">Organization</span>
+                  <input type="text" required value={organization} onChange={(e) => setOrganization(e.target.value)} placeholder="e.g. Tourism Ireland" className="field" />
+                </label>
+                <label className="block">
+                  <span className="label">Your name</span>
+                  <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} className="field" />
+                </label>
+                <label className="block">
+                  <span className="label">Markets</span>
+                  <input type="text" value={markets} onChange={(e) => setMarkets(e.target.value)} placeholder="Ireland, Australia" className="field" />
+                </label>
+                <label className="block">
+                  <span className="label">Email</span>
+                  <input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="field" />
+                </label>
+                <label className="block">
+                  <span className="label">Password</span>
+                  <input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="field" />
+                </label>
+                <label className="block">
+                  <span className="label">Confirm password</span>
+                  <input type="password" required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="field" />
+                </label>
+                {error && <p role="alert" className="text-small font-medium text-walshe-danger">{error}</p>}
+                <button type="submit" disabled={busy} className="btn-primary w-full">
+                  {busy ? "Submitting…" : "Request access"}
+                </button>
+              </form>
+            </>
+          )}
         </div>
       </div>
     </main>

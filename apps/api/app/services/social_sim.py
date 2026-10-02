@@ -3,6 +3,7 @@
 No real OAuth and no network egress (Contract 2): "publishing" is a pure, deterministic function
 that validates the channel and returns a synthetic receipt.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

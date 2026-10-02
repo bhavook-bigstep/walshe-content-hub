@@ -4,6 +4,7 @@ A single ``Storage`` interface with two implementations: an in-memory fake (herm
 key-less dev) and a MinIO-backed one (imported lazily, only when configured). Agent image uploads
 and the demo all go through this interface, never a raw client.
 """
+
 from __future__ import annotations
 
 import abc

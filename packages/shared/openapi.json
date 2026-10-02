@@ -310,6 +310,119 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "OrganizationOut": {
+        "properties": {
+          "blurb": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blurb"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "markets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "blurb",
+          "logo_url",
+          "markets",
+          "verified"
+        ],
+        "title": "OrganizationOut",
+        "type": "object"
+      },
+      "OrganizationUpdate": {
+        "description": "Provider-owned org profile edit (AC27). `verified` is Super-Admin controlled, not here.",
+        "properties": {
+          "blurb": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blurb"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "markets": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Markets"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "OrganizationUpdate",
+        "type": "object"
+      },
       "PostOut": {
         "properties": {
           "channel": {
@@ -371,6 +484,61 @@
         "title": "PostStatus",
         "type": "string"
       },
+      "ProfileUpdate": {
+        "description": "Self-service profile edit (AC27). All fields optional; only provided ones change.",
+        "properties": {
+          "avatar_color": {
+            "anyOf": [
+              {
+                "maxLength": 9,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Color"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "maxLength": 600,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferences"
+          }
+        },
+        "title": "ProfileUpdate",
+        "type": "object"
+      },
       "PublishRequest": {
         "properties": {
           "channel": {
@@ -387,6 +555,53 @@
           "channel"
         ],
         "title": "PublishRequest",
+        "type": "object"
+      },
+      "RegisterProviderRequest": {
+        "description": "Provider self-registration (AC25) — creates a PENDING Content Provider (awaits approval).",
+        "properties": {
+          "contact_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "markets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Markets",
+            "type": "array"
+          },
+          "organization": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Organization",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "organization"
+        ],
+        "title": "RegisterProviderRequest",
         "type": "object"
       },
       "RegisterRequest": {
@@ -487,6 +702,33 @@
             "title": "Approved",
             "type": "boolean"
           },
+          "avatar_color": {
+            "default": "#005653",
+            "title": "Avatar Color",
+            "type": "string"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "email": {
             "title": "Email",
             "type": "string"
@@ -494,6 +736,11 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "preferences": {
+            "additionalProperties": true,
+            "title": "Preferences",
+            "type": "object"
           },
           "role": {
             "$ref": "#/components/schemas/Role"
@@ -860,6 +1107,51 @@
         "tags": [
           "auth"
         ]
+      },
+      "patch": {
+        "description": "Edit own profile (AC27). Only provided fields change.",
+        "operationId": "update_me_auth_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Me",
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/auth/register": {
@@ -899,6 +1191,48 @@
           }
         },
         "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/register/provider": {
+      "post": {
+        "description": "Provider self-registration (AC25): creates a PENDING Content Provider tied to its\norganization (tenant). They can sign in, but see a holding screen until a Super Admin approves.\nA token is returned so they land straight on that holding screen.",
+        "operationId": "register_provider_auth_register_provider_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Provider",
         "tags": [
           "auth"
         ]
@@ -1339,6 +1673,76 @@
         "summary": "Health",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/me/organization": {
+      "get": {
+        "operationId": "get_organization_me_organization_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Organization",
+        "tags": [
+          "organization"
+        ]
+      },
+      "patch": {
+        "operationId": "update_organization_me_organization_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Organization",
+        "tags": [
+          "organization"
         ]
       }
     },

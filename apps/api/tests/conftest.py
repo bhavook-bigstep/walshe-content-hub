@@ -3,6 +3,7 @@
 No real secrets or PII: passwords are obvious fakes (``test-pass-*``) and the DB is a throwaway
 file per test (Contract 4: reproducible, isolated).
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterator
@@ -12,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
-from app.models.user import Role, User
+from app.models.user import Role, Tenant, User
 from app.security import hash_password
 
 # Synthetic credentials — fake by construction (testing.md allows obviously-fake fixtures).
@@ -41,6 +42,9 @@ def app(settings: Settings):
     # Insert one user per role with known fake passwords.
     SessionLocal = application.state.sessionmaker
     with SessionLocal() as db:
+        # An organization (tenant id 1) the provider/agent belong to.
+        db.add(Tenant(name="Test Tourism Board", verified=True, markets=["Ireland"]))
+        db.flush()
         for role, (email, password) in USERS.items():
             db.add(
                 User(

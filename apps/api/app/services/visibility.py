@@ -4,6 +4,7 @@ Every agent-facing read goes through ``agent_visible_entries`` (or ``is_visible_
 single entry). An agent may only ever see entries that are **approved**, **brand-safe**, and within
 their **access scope**. No router issues an ad-hoc agent query.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -57,9 +58,7 @@ def agent_visible_entries(
     return result
 
 
-def agent_visible_entries_by_ids(
-    db: Session, agent: User, ids: list[int]
-) -> list[CatalogEntry]:
+def agent_visible_entries_by_ids(db: Session, agent: User, ids: list[int]) -> list[CatalogEntry]:
     """Resolve ``ids`` in request order (de-duped), dropping unknown or hidden entries.
 
     Visibility is decided solely by ``is_visible_to_agent`` — no additional access rule.

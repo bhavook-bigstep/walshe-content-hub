@@ -3,6 +3,7 @@
 Provider side (AC3/AC5): create entries, set brand-safe + access scope, delete (audited, C3).
 Agent side (AC6/AC7): list/search — **only** via ``agent_visible_entries`` (Contract 1 choke-point).
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -27,6 +28,9 @@ def create_entry(
     db: Session = Depends(get_db),
     provider: User = Depends(_provider_only),
 ) -> CatalogEntry:
+    # A pending (unapproved) provider has no workspace access until verified (AC25).
+    if not provider.approved:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Your organization is pending verification")
     entry = CatalogEntry(
         type=body.type,
         title=body.title,

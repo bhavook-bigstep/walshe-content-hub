@@ -1,4 +1,5 @@
 """Agent composition model (AC7) — selected catalog items + chosen format."""
+
 from __future__ import annotations
 
 from sqlalchemy import ForeignKey, String

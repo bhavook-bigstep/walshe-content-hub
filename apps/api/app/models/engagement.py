@@ -3,6 +3,7 @@
 Registration in ``app.models`` and demo seeding are intentionally deferred (t6); importing this
 module is what registers the table on ``Base.metadata``.
 """
+
 from __future__ import annotations
 
 from sqlalchemy import Integer

@@ -8,6 +8,10 @@ export type EntryCreate = Schemas["EntryCreate"];
 export type AccessUpdate = Schemas["AccessUpdate"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
+export type RegisterProviderInput = Schemas["RegisterProviderRequest"];
+export type ProfileUpdateInput = Schemas["ProfileUpdate"];
+export type Organization = Schemas["OrganizationOut"];
+export type OrganizationUpdateInput = Schemas["OrganizationUpdate"];
 export type CatalogType = Entry["type"];
 export type EntryStatus = Entry["status"];
 export type DesignRequest = Schemas["DesignRequest"];
@@ -96,6 +100,27 @@ export async function login(email: string, password: string): Promise<string> {
 export async function register(email: string, password: string): Promise<string> {
   const res = await send("/auth/register", json({ email, password }), false);
   return ((await res.json()) as { access_token: string }).access_token;
+}
+
+/** Provider self-registration (AC25): creates a PENDING provider and returns a bearer token. */
+export async function registerProvider(body: RegisterProviderInput): Promise<string> {
+  const res = await send("/auth/register/provider", json(body), false);
+  return ((await res.json()) as { access_token: string }).access_token;
+}
+
+/** Update the signed-in user's profile (AC27). */
+export async function updateProfile(body: ProfileUpdateInput): Promise<User> {
+  return (await (await send("/auth/me", { ...json(body), method: "PATCH" })).json()) as User;
+}
+
+/** The signed-in provider's organization profile (AC27). */
+export async function getOrganization(): Promise<Organization> {
+  return (await (await send("/me/organization")).json()) as Organization;
+}
+
+export async function updateOrganization(body: OrganizationUpdateInput): Promise<Organization> {
+  const init = { ...json(body), method: "PATCH" };
+  return (await (await send("/me/organization", init)).json()) as Organization;
 }
 
 export async function me(): Promise<User> {
