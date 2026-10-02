@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import PageTransition from "../components/ui/PageTransition";
 
 // Inter throughout — body, UI, and the large display headings — matching the reference's
 // single-family system (Inter 300–700, tight negative tracking at display sizes). The variable
@@ -19,7 +20,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-walshe-paper text-walshe-ink antialiased">{children}</body>
+      <body className="min-h-screen bg-walshe-paper text-walshe-ink antialiased">
+        <PageTransition />
+        {children}
+      </body>
     </html>
   );
 }
