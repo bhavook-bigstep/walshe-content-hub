@@ -13,6 +13,15 @@ export type MediaItem = Schemas["MediaItem"];
 export type TeamMember = Schemas["TeamMember"];
 export type TeamInvite = Schemas["TeamInvite"];
 export type Performance = Schemas["PerformanceOut"];
+export type Project = Schemas["ProjectOut"];
+export type ProjectCreate = Schemas["ProjectCreate"];
+export type ProjectUpdate = Schemas["ProjectUpdate"];
+export type Collection = Schemas["CollectionOut"];
+export type CollectionCreate = Schemas["CollectionCreate"];
+export type CollectionUpdate = Schemas["CollectionUpdate"];
+export type BrandKit = Schemas["BrandKitOut"];
+export type BrandKitUpdate = Schemas["BrandKitUpdate"];
+export type DesignTemplate = Schemas["DesignTemplate"];
 export type AccessUpdate = Schemas["AccessUpdate"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
@@ -175,6 +184,44 @@ export async function inviteMember(body: TeamInvite): Promise<User> {
 /** How agents use this provider's content (AC29). */
 export async function getPerformance(): Promise<Performance> {
   return (await (await send("/me/performance")).json()) as Performance;
+}
+
+// --- Agent features (AC28) ---
+export async function listProjects(): Promise<Project[]> {
+  return (await (await send("/me/projects")).json()) as Project[];
+}
+export async function createProject(body: ProjectCreate): Promise<Project> {
+  return (await (await send("/me/projects", json(body))).json()) as Project;
+}
+export async function updateProject(id: number, body: ProjectUpdate): Promise<Project> {
+  return (await (await send(`/me/projects/${id}`, { ...json(body), method: "PUT" })).json()) as Project;
+}
+export async function deleteProject(id: number): Promise<void> {
+  await send(`/me/projects/${id}`, { method: "DELETE" });
+}
+
+export async function listCollections(): Promise<Collection[]> {
+  return (await (await send("/me/collections")).json()) as Collection[];
+}
+export async function createCollection(body: CollectionCreate): Promise<Collection> {
+  return (await (await send("/me/collections", json(body))).json()) as Collection;
+}
+export async function updateCollection(id: number, body: CollectionUpdate): Promise<Collection> {
+  return (await (await send(`/me/collections/${id}`, { ...json(body), method: "PUT" })).json()) as Collection;
+}
+export async function deleteCollection(id: number): Promise<void> {
+  await send(`/me/collections/${id}`, { method: "DELETE" });
+}
+
+export async function getBrandKit(): Promise<BrandKit> {
+  return (await (await send("/me/brand-kit")).json()) as BrandKit;
+}
+export async function updateBrandKit(body: BrandKitUpdate): Promise<BrandKit> {
+  return (await (await send("/me/brand-kit", { ...json(body), method: "PUT" })).json()) as BrandKit;
+}
+
+export async function listDesignTemplates(): Promise<DesignTemplate[]> {
+  return (await (await send("/me/design-templates")).json()) as DesignTemplate[];
 }
 
 export async function setAccess(id: number, body: AccessUpdate): Promise<Entry> {

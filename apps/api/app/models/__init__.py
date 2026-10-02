@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.models.agent_features import BrandKit, Collection
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
@@ -24,4 +25,6 @@ __all__ = [
     "Post",
     "PostStatus",
     "Engagement",
+    "Collection",
+    "BrandKit",
 ]

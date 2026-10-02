@@ -148,12 +148,16 @@ proper, character-rich **workspace per role**, entered through a role-aware regi
   pytest covers structured create/edit + templates schema + media/team/performance (provider-only);
   Playwright covers building a structured entry with a custom section.
 
-> **Staged (charter Phase 3, promoted here when built):** the Agent features — saved projects,
-> collections, brand kit, templates. See `docs/plans/2026-10-02-requirements-charter.md`.
+- **AC28** — **Agent workspace features**: **Saved projects** (persist/reopen Design Studio
+  compositions — a named composition with its canvas design), **Collections** (group catalog items
+  for reuse), **Brand kit** (logo, colours and contact stored once and reused when personalising),
+  and **Templates** (start a design from a preset). Each is agent-owned and persisted. Proof:
+  pytest covers projects + collections CRUD, brand kit round-trip and the templates list
+  (agent-only); Playwright covers creating a collection.
 
-**Priority tiers** (build order; acceptance reports honestly against all 28):
+**Priority tiers** (build order; acceptance reports honestly against all 29):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23 · workspace = AC25,26,27,29 (agent features staged; all prior stay green).
+design = AC19,20,21,22,23 · workspace = AC25,26,27,28,29 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 

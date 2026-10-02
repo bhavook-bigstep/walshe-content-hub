@@ -13,6 +13,7 @@ from app.config import INSECURE_JWT_SECRET, Settings, get_settings
 from app.db import create_all, make_engine, make_sessionmaker
 from app.routers import (
     admin,
+    agent,
     assets,
     auth,
     builder,
@@ -74,6 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(engagement.router)
     app.include_router(org.router)
     app.include_router(provider.router)
+    app.include_router(agent.router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:

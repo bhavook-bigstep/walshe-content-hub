@@ -17,6 +17,10 @@ const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
     { href: "/agent", label: "Overview" },
     { href: "/agent/catalog", label: "Catalog" },
     { href: "/agent/studio", label: "Design Studio" },
+    { href: "/agent/projects", label: "Projects" },
+    { href: "/agent/collections", label: "Collections" },
+    { href: "/agent/templates", label: "Templates" },
+    { href: "/agent/brand-kit", label: "Brand kit" },
     { href: "/agent/social", label: "Social" },
     { href: "/agent/engagement", label: "Engagement" },
   ],
@@ -56,6 +60,10 @@ const CRUMB_LABELS: Readonly<Record<string, string>> = {
   media: "Media library",
   team: "Team",
   performance: "Performance",
+  projects: "Projects",
+  collections: "Collections",
+  templates: "Templates",
+  "brand-kit": "Brand kit",
 };
 
 function isActive(pathname: string, href: string): boolean {

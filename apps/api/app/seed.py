@@ -184,7 +184,11 @@ def seed(db: Session) -> dict[str, int]:
     ).scalar_one_or_none()
     if existing_comp is None:
         existing_comp = Composition(
-            agent_id=agent.id, format="social", item_ids=[entries[0].id, entries[1].id]
+            agent_id=agent.id,
+            name="Galway launch post",
+            format="social",
+            item_ids=[entries[0].id, entries[1].id],
+            design={"nodes": []},
         )
         db.add(existing_comp)
         db.flush()

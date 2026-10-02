@@ -146,6 +146,14 @@ acceptance:
       - "apps/api/tests/test_profile.py::test_provider_updates_organization_profile"
     e2e:
       - "apps/web/e2e/profile-smoke.spec.ts::agent sets a display name and sees it in the workspace"
+  AC28:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_projects_crud"
+      - "apps/api/tests/test_agent_features.py::test_collections_crud"
+      - "apps/api/tests/test_agent_features.py::test_brand_kit_and_templates"
+    e2e:
+      - "apps/web/e2e/agent-features-smoke.spec.ts::agent creates a collection"
   AC29:
     tier: P2
     api:

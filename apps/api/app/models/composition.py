@@ -16,3 +16,6 @@ class Composition(Base):
     agent_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     format: Mapped[str] = mapped_column(String(50), default="social")
     item_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    # Saved projects (AC28): a name + the Studio canvas design so it can be reopened.
+    name: Mapped[str] = mapped_column(String(200), default="")
+    design: Mapped[dict] = mapped_column(JSON, default=dict)
