@@ -126,14 +126,22 @@
   }
 }
 
-/* App-page entrance — a light, GSAP-free fade + rise for signed-in page content. It pairs with the
-   page transition (the black panel slides down to reveal the page as its content rises in). */
+/* Workspace navigation sweep — when the signed-in content changes (e.g. a sidebar link), the new
+   page sweeps in LEFT-TO-RIGHT. Scoped to the content region only (never the top bar or sidebar).
+   GSAP-free CSS. */
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes app-enter {
-    from { opacity: 0; transform: translateY(14px); }
+  @keyframes app-sweep {
+    from { opacity: 0; transform: translateX(-26px); }
     to { opacity: 1; transform: none; }
   }
-  .page-enter { animation: app-enter 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+  .page-enter { animation: app-sweep 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+  /* Sidebar profile menu — slides up when the profile is clicked. */
+  @keyframes menu-slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  .menu-slide-up { animation: menu-slide-up 0.18s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 }
 
 /* Page transition overlay — a near-black panel fades in moving down to cover, then slides down to

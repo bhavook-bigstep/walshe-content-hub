@@ -27,6 +27,9 @@ export default function PageTransition() {
     if (isReduced()) return;
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      // Inside the signed-in workspace, navigation uses the content sweep (AppShell), not the
+      // full-screen black transition — so don't intercept clicks there.
+      if (/^\/(agent|provider|admin)(\/|$)/.test(pathname)) return;
       const anchor = (e.target as HTMLElement | null)?.closest?.("a");
       if (!anchor) return;
       const href = anchor.getAttribute("href");

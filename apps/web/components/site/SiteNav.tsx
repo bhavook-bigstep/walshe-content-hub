@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { me } from "../../lib/api";
+import { ROLE_HOME } from "../../lib/rbac";
+import { getToken } from "../../lib/session";
 
 // Landing nav: a framed bar — logo bay · section links · Sign in bay — whose hairline borders DRAW
 // themselves in on load, with the bar's contents dropping in (load-stagger). Transparent over the
@@ -14,11 +17,25 @@ const NAV_LINKS = [
 
 export default function SiteNav() {
   const [solid, setSolid] = useState(false);
+  const [account, setAccount] = useState<{ name: string; home: string } | null>(null);
+
   useEffect(() => {
     const onScroll = () => setSolid(window.scrollY > 80);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // If already signed in, the Sign-in bay shows the person's alias and links to their workspace.
+  useEffect(() => {
+    if (!getToken()) return;
+    let alive = true;
+    me()
+      .then((u) => alive && setAccount({ name: u.display_name || u.email, home: ROLE_HOME[u.role] }))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, []);
 
   return (
@@ -44,10 +61,23 @@ export default function SiteNav() {
         ))}
       </div>
 
-      <Link href="/login" className="relative ml-auto flex items-center px-7 font-semibold transition-colors hover:bg-white/10 lg:ml-0">
-        <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
-        Sign in
-      </Link>
+      {account ? (
+        <Link
+          href={account.home}
+          className="relative ml-auto flex items-center gap-2.5 px-7 font-semibold transition-colors hover:bg-white/10 lg:ml-0"
+        >
+          <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
+          <span aria-hidden className="grid h-7 w-7 flex-none place-items-center rounded-full bg-white text-[12px] font-bold text-walshe-teal">
+            {account.name.trim().charAt(0).toUpperCase()}
+          </span>
+          <span className="max-w-[16ch] truncate">{account.name}</span>
+        </Link>
+      ) : (
+        <Link href="/login" className="relative ml-auto flex items-center px-7 font-semibold transition-colors hover:bg-white/10 lg:ml-0">
+          <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
+          Sign in
+        </Link>
+      )}
     </header>
   );
 }
