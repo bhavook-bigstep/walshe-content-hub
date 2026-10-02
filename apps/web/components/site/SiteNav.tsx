@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 // Landing nav: a framed bar — logo bay · links · Sign in bay · Explore bay — whose hairline borders
-// DRAW themselves in on load. Transparent over the hero; on scroll it becomes a deep-teal "liquid
-// glass" bar (translucent + heavy backdrop blur). White text throughout.
+// DRAW themselves in on load, with the bar's contents dropping in (load-stagger). Transparent over
+// the hero; on scroll it becomes a deep-teal "liquid glass" bar (translucent + backdrop blur).
+// White text throughout; the logo turns gold on hover.
 export default function SiteNav() {
   const [solid, setSolid] = useState(false);
   useEffect(() => {

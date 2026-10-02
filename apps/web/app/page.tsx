@@ -202,8 +202,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ======================= FOOTER (brand-green band, modelled on walshegroup.com) ======= */}
-      <footer className="bg-walshe-teal text-white">
+      {/* ======================= FOOTER (same deep-teal glass styling as the navbar) =========== */}
+      <footer className="relative border-t border-white/15 bg-walshe-deep/30 text-white shadow-[0_-10px_30px_-14px_rgba(0,0,0,0.5)] backdrop-blur-md backdrop-saturate-[1.8]">
         <div className="mx-auto max-w-content px-7 py-16 sm:py-20">
           <div className="grid gap-12 lg:grid-cols-[auto_1fr_auto] lg:items-start lg:gap-16">
             {/* Wordmark */}
