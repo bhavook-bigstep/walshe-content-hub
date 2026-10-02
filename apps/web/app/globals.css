@@ -16,6 +16,7 @@
   --walshe-stone: #0e3a35;
   --walshe-line: #1c5c56;
   --walshe-mint: #e5f6df;
+  --walshe-gold: #e4c372;
   --walshe-teal: #005653;
   --walshe-teal-700: #003e3c;
   --walshe-grey: #a7c6c2;
@@ -67,6 +68,15 @@
 @layer components {
   /* Display headings use Inter (matching the reference) with a heavy weight and tight negative
      tracking — the reference's hero runs Inter 600 at ~-0.066em. Size utilities set the scale. */
+  /* The Walshe Group wordmark rendered as a recolorable mask (the PNG is white-on-transparent, so
+     its alpha becomes the mask). The background-color is the visible ink — set it to white, and to
+     gold on hover via a group-hover utility. Width/height come from utilities at each use site. */
+  .logo-mark {
+    display: block;
+    -webkit-mask: url("/img/walshe-group-white.png") no-repeat center / contain;
+    mask: url("/img/walshe-group-white.png") no-repeat center / contain;
+  }
+
   .font-display {
     font-family: var(--font-sans), "Inter", "Helvetica Neue", system-ui, sans-serif;
     font-weight: 600;

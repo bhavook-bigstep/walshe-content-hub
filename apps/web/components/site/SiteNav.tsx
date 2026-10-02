@@ -25,9 +25,8 @@ export default function SiteNav() {
     >
       <span aria-hidden className="draw-x absolute bottom-0 left-0 h-px w-full bg-white/25" />
 
-      <Link href="/" className="relative flex items-center px-7" aria-label="The Walshe Group — home">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/img/walshe-group-white.png" alt="The Walshe Group" className="h-11 w-auto" />
+      <Link href="/" className="group relative flex items-center px-7" aria-label="The Walshe Group — home">
+        <span role="img" aria-label="The Walshe Group" className="logo-mark h-11 w-[78px] bg-white transition-colors duration-300 group-hover:bg-walshe-gold" />
         <span aria-hidden className="draw-y absolute right-0 top-0 h-full w-px bg-white/25" />
       </Link>
 

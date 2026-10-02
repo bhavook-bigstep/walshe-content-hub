@@ -40,9 +40,8 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 function Wordmark() {
-  // The Walshe Group wordmark (white, three-line lockup) — on the dark glass nav.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/img/walshe-group-white.png" alt="The Walshe Group" className="h-10 w-auto" />;
+  // The Walshe Group wordmark as a recolorable mask — white, turning gold on nav hover.
+  return <span role="img" aria-label="The Walshe Group" className="logo-mark h-10 w-[71px] bg-white transition-colors duration-300 group-hover:bg-walshe-gold" />;
 }
 
 export default function AppShell({ role, children }: { role: Role; children: ReactNode }) {
@@ -63,7 +62,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
       <header className="load-stagger sticky top-0 z-40 flex h-[72px] items-stretch bg-walshe-deep/35 text-white shadow-[0_10px_30px_-16px_rgba(0,0,0,0.5)] backdrop-blur-md backdrop-saturate-[1.8]">
         <span aria-hidden className="draw-x absolute bottom-0 left-0 h-px w-full bg-white/20" />
 
-        <Link href={home} className="relative flex items-center px-6">
+        <Link href={home} className="group relative flex items-center px-6">
           <Wordmark />
           <span aria-hidden className="draw-y absolute right-0 top-0 h-full w-px bg-white/20" />
         </Link>
