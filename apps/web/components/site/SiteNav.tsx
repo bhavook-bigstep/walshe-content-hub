@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { me } from "../../lib/api";
 import { ROLE_HOME } from "../../lib/rbac";
 import { getToken } from "../../lib/session";
+import ThemeToggle from "../ui/ThemeToggle";
 
 // Landing nav: a framed bar — logo bay · section links · Sign in bay — whose hairline borders DRAW
 // themselves in on load, with the bar's contents dropping in (load-stagger). Transparent over the
@@ -42,7 +43,7 @@ export default function SiteNav() {
     <header
       className={`load-stagger fixed inset-x-0 top-0 z-50 flex h-[76px] items-stretch text-[15px] text-white transition-all duration-500 ${
         solid
-          ? "bg-walshe-deep/30 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.5)] backdrop-blur-md backdrop-saturate-[1.8]"
+          ? "bg-[#010b08]/35 shadow-[0_10px_30px_-14px_rgba(0,0,0,0.5)] backdrop-blur-md backdrop-saturate-[1.8]"
           : "bg-transparent"
       }`}
     >
@@ -61,10 +62,15 @@ export default function SiteNav() {
         ))}
       </div>
 
+      <div className="relative ml-auto flex items-center px-5">
+        <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
+        <ThemeToggle compact className="grid h-9 w-9 place-items-center rounded-full text-white/85 transition-colors hover:bg-white/10 hover:text-white" />
+      </div>
+
       {account ? (
         <Link
           href={account.home}
-          className="relative ml-auto flex items-center gap-2.5 px-7 font-semibold transition-colors hover:bg-white/10 lg:ml-0"
+          className="relative flex items-center gap-2.5 px-7 font-semibold transition-colors hover:bg-white/10"
         >
           <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
           <span aria-hidden className="grid h-7 w-7 flex-none place-items-center rounded-full bg-white text-[12px] font-bold text-walshe-teal">
@@ -73,7 +79,7 @@ export default function SiteNav() {
           <span className="max-w-[16ch] truncate">{account.name}</span>
         </Link>
       ) : (
-        <Link href="/login" className="relative ml-auto flex items-center px-7 font-semibold transition-colors hover:bg-white/10 lg:ml-0">
+        <Link href="/login" className="relative flex items-center px-7 font-semibold transition-colors hover:bg-white/10">
           <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
           Sign in
         </Link>

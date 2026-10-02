@@ -17,9 +17,15 @@ export const metadata = {
   description: "Verified destination content, assembled into trade marketing in minutes.",
 };
 
+// Set the theme before first paint (no flash). Stored choice wins; otherwise follow the OS.
+const themeScript = `(function(){try{var t=localStorage.getItem('walsh-theme');var d=(t==='light'||t==='dark')?t:(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',d);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();`;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-screen bg-walshe-paper text-walshe-ink antialiased">
         <PageTransition />
         {children}

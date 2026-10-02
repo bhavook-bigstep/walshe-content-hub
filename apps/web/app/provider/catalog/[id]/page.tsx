@@ -95,7 +95,7 @@ export default function ProviderEntryPage() {
               type="checkbox"
               checked={brandSafe}
               onChange={(e) => setBrandSafe(e.target.checked)}
-              className="mt-0.5 h-5 w-5 rounded-sm accent-[color:var(--walshe-teal)]"
+              className="mt-0.5 h-5 w-5 rounded-sm accent-[color:rgb(var(--walshe-teal))]"
             />
             <span>
               <span className="font-semibold text-walshe-ink">Mark as brand-safe</span>

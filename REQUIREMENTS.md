@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.2.0 |
+| **Version** | 2.3.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -155,9 +155,24 @@ proper, character-rich **workspace per role**, entered through a role-aware regi
   pytest covers projects + collections CRUD, brand kit round-trip and the templates list
   (agent-only); Playwright covers creating a collection.
 
-**Priority tiers** (build order; acceptance reports honestly against all 29):
+### Theming & workspace usability (v2.3.0) `[explicit – feedback]`
+
+Charter: `docs/plans/2026-10-02-theming-usability-charter.md`.
+
+- **AC30 — Light & dark themes**: the entire app (landing, auth, workspace) supports light and dark,
+  driven by design tokens (CSS variables, swapped per theme). It **follows the OS preference by
+  default**, a **remembered toggle** (in the sidebar / landing nav) overrides it, and there is **no
+  flash** of the wrong theme on first paint. Proof: a theme test asserts both palettes exist;
+  Playwright toggles the theme in the workspace, asserts the document theme attribute + the page
+  background change, and that the choice persists across reload.
+
+> **Staged (charter, promoted here when built):** **workspace usability** — features wired
+> end-to-end (add-to-collection from the catalog, open-a-project / use-a-template in the Studio,
+> brand kit applied when personalising) with polished states.
+
+**Priority tiers** (build order; acceptance reports honestly against all 30):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23 · workspace = AC25,26,27,28,29 (all prior ACs stay green).
+design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -186,3 +201,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
 | 2.1.0 | 2026-10-02 | **Account provisioning**: added **AC24** (hybrid registration) — public agent self-register, Super-Admin-provisioned providers with org/tenant + approval, role-escalation prevented. Enables creating the three roles through the product rather than only the seed. All prior ACs stay green. | user + Claude |
 | 2.2.0 | 2026-10-02 | **Profiles & dual workspaces** (charter `docs/plans/2026-10-02-requirements-charter.md`): added **AC25–AC29** — role-based registration + provider queue/holding; fixed-viewport workspace; rich profiles + provider org page; agent features (saved projects, collections, brand kit, templates); provider structured AI-crawlable inventory (custom sections, media library, team, performance). Built in phases; all prior ACs stay green. | user + Claude |
+| 2.3.0 | 2026-10-02 | **Theming & usability** (charter `docs/plans/2026-10-02-theming-usability-charter.md`): added **AC30** — token-driven light & dark themes across the whole app (OS default, remembered toggle, no flash); the design tokens became CSS variables. Workspace-usability wiring + polish staged for the same cycle. All prior ACs stay green. | user + Claude |

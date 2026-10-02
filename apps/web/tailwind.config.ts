@@ -10,24 +10,31 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Tokens are CSS vars (RGB channels) so they swap per theme (light/dark) AND still support
+        // Tailwind opacity modifiers like bg-walshe-deep/30. Values live in app/globals.css.
         walshe: {
-          // The Walshe Group green as the base (deep teal-green), light off-white text, mint accent.
-          base: "#03160F", // deep near-black teal-green base
-          deep: "#010B08", // near-black teal — glass nav, recessed
-          ink: "#EAF4F1", // primary text (light off-white)
-          white: "#FFFFFF",
-          paper: "#03160F",
-          mist: "#03160F",
-          stone: "#0E3A35", // subtle raised surface
-          line: "#1C5C56", // hairline borders
-          mint: "#E5F6DF", // accent — eyebrows, active, highlights
-          gold: "#C47A2E", // rustic gold with an orange warmth — logo hover
-          teal: "#005653", // brand (text on white pills / chips)
-          "teal-700": "#003E3C",
-          grey: "#A7C6C2", // muted text (light)
-          green: "#4FCAA0", // success
-          danger: "#E06A63",
-          warn: "#E0B24A",
+          base: "rgb(var(--walshe-base) / <alpha-value>)",
+          deep: "rgb(var(--walshe-deep) / <alpha-value>)",
+          ink: "rgb(var(--walshe-ink) / <alpha-value>)",
+          white: "rgb(var(--walshe-white) / <alpha-value>)",
+          paper: "rgb(var(--walshe-paper) / <alpha-value>)",
+          mist: "rgb(var(--walshe-mist) / <alpha-value>)",
+          stone: "rgb(var(--walshe-stone) / <alpha-value>)",
+          line: "rgb(var(--walshe-line) / <alpha-value>)",
+          mint: "rgb(var(--walshe-mint) / <alpha-value>)",
+          gold: "rgb(var(--walshe-gold) / <alpha-value>)",
+          teal: "rgb(var(--walshe-teal) / <alpha-value>)",
+          "teal-700": "rgb(var(--walshe-teal-700) / <alpha-value>)",
+          grey: "rgb(var(--walshe-grey) / <alpha-value>)",
+          green: "rgb(var(--walshe-green) / <alpha-value>)",
+          danger: "rgb(var(--walshe-danger) / <alpha-value>)",
+          warn: "rgb(var(--walshe-warn) / <alpha-value>)",
+        },
+        // App chrome (sidebar / top bar) — fg flips with the theme so white-on-dark becomes
+        // dark-on-light. Use text-chrome-fg / bg-chrome-bg / bg-chrome-fg/10 etc.
+        chrome: {
+          bg: "rgb(var(--chrome-bg) / <alpha-value>)",
+          fg: "rgb(var(--chrome-fg) / <alpha-value>)",
         },
       },
       fontFamily: {

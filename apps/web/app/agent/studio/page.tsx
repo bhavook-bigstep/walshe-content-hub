@@ -110,7 +110,7 @@ export default function StudioPage() {
         <div
           className="flex min-h-[460px] items-center justify-center overflow-auto rounded-lg border border-walshe-line bg-walshe-mist p-6 sm:p-10"
           style={{
-            backgroundImage: "radial-gradient(var(--walshe-stone) 1.1px, transparent 1.1px)",
+            backgroundImage: "radial-gradient(rgb(var(--walshe-stone)) 1.1px, transparent 1.1px)",
             backgroundSize: "18px 18px",
           }}
         >

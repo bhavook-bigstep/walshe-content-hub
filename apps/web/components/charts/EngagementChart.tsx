@@ -12,9 +12,9 @@ export interface EngagementPoint {
 // Chart series — "vita" palette: teal, green, amber. Each series keeps one colour AND a distinct
 // marker shape, so it never relies on colour alone (WCAG non-colour encoding).
 const SERIES = [
-  { key: "impressions", label: "Impressions", color: "#FFFFFF", marker: "circle" },
-  { key: "engagement", label: "Engagement", color: "var(--walshe-green)", marker: "square" },
-  { key: "clicks", label: "Clicks", color: "var(--walshe-mint)", marker: "triangle" },
+  { key: "impressions", label: "Impressions", color: "rgb(var(--walshe-ink))", marker: "circle" },
+  { key: "engagement", label: "Engagement", color: "rgb(var(--walshe-green))", marker: "square" },
+  { key: "clicks", label: "Clicks", color: "rgb(var(--walshe-mint))", marker: "triangle" },
 ] as const;
 
 type Key = (typeof SERIES)[number]["key"];
@@ -74,7 +74,7 @@ export default function EngagementChart({
         {SERIES.map((s) => (
           <li
             key={s.key}
-            className="inline-flex items-center gap-2 rounded-pill border border-white/15 bg-white/[0.06] px-3 py-1"
+            className="inline-flex items-center gap-2 rounded-pill border border-walshe-line bg-walshe-stone/50 px-3 py-1"
           >
             <svg width="16" height="16" viewBox="-8 -8 16 16" aria-hidden>
               {marker(s.marker, 0, 0, s.color)}
@@ -89,7 +89,7 @@ export default function EngagementChart({
           <table className="w-full text-small" data-testid="engagement-chart-table">
             <caption className="sr-only">{summary}</caption>
             <thead>
-              <tr className="border-b border-white/15 text-left text-walshe-grey">
+              <tr className="border-b border-walshe-line text-left text-walshe-grey">
                 <th className="py-2 pr-4 font-medium">Post</th>
                 {SERIES.map((s) => (
                   <th key={s.key} className="py-2 pr-4 font-medium">
@@ -100,7 +100,7 @@ export default function EngagementChart({
             </thead>
             <tbody>
               {points.map((p) => (
-                <tr key={p.label} className="border-b border-white/15/60">
+                <tr key={p.label} className="border-b border-walshe-line/60">
                   <td className="py-2 pr-4">{p.label}</td>
                   {SERIES.map((s) => (
                     <td key={s.key} className="py-2 pr-4 tabular-nums">
@@ -125,8 +125,8 @@ export default function EngagementChart({
             const gy = PAD.top + plotH - g * plotH;
             return (
               <g key={g}>
-                <line x1={PAD.left} y1={gy} x2={W - PAD.right} y2={gy} stroke="var(--walshe-line)" strokeWidth={1} />
-                <text x={PAD.left - 8} y={gy + 4} textAnchor="end" fontSize="11" fill="var(--walshe-grey)">
+                <line x1={PAD.left} y1={gy} x2={W - PAD.right} y2={gy} stroke="rgb(var(--walshe-line))" strokeWidth={1} />
+                <text x={PAD.left - 8} y={gy + 4} textAnchor="end" fontSize="11" fill="rgb(var(--walshe-grey))">
                   {Math.round(g * max).toLocaleString("en-US")}
                 </text>
               </g>
@@ -134,7 +134,7 @@ export default function EngagementChart({
           })}
           {/* x labels */}
           {points.map((p, i) => (
-            <text key={p.label} x={x(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="var(--walshe-grey)">
+            <text key={p.label} x={x(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="rgb(var(--walshe-grey))">
               {p.label.replace("Post ", "")}
             </text>
           ))}

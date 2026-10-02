@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { me, type User } from "../../lib/api";
 import type { Role } from "../../lib/rbac";
 import { clear } from "../../lib/session";
+import ThemeToggle from "../ui/ThemeToggle";
 
 interface NavItem {
   href: string;
@@ -101,7 +102,7 @@ function Logo({ className = "logo-mark h-10 w-[71px]", onClick }: { className?: 
       <span
         role="img"
         aria-label="The Walshe Group"
-        className={`${className} bg-white transition-colors duration-300 group-hover:bg-walshe-gold`}
+        className={`${className} bg-chrome-fg transition-colors duration-300 group-hover:bg-walshe-gold`}
       />
     </Link>
   );
@@ -159,7 +160,7 @@ function SidebarInner({
 }) {
   return (
     <>
-      <div className="flex h-16 flex-none items-center border-b border-white/10 px-5">
+      <div className="flex h-16 flex-none items-center border-b border-chrome-fg/10 px-5">
         <Logo onClick={onNavigate} />
       </div>
       <nav aria-label="Primary" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -172,7 +173,7 @@ function SidebarInner({
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={`relative flex items-center rounded-md px-3.5 py-2.5 text-[14.5px] font-medium transition-colors ${
-                active ? "bg-white/10 text-white" : "text-white/65 hover:bg-white/5 hover:text-white"
+                active ? "bg-chrome-fg/10 text-chrome-fg" : "text-chrome-fg/65 hover:bg-chrome-fg/5 hover:text-chrome-fg"
               }`}
             >
               {active && (
@@ -183,6 +184,11 @@ function SidebarInner({
           );
         })}
       </nav>
+
+      {/* Theme toggle */}
+      <div className="flex-none border-t border-chrome-fg/10 px-3 py-2">
+        <ThemeToggle className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-[13.5px] font-medium text-chrome-fg/70 transition-colors hover:bg-chrome-fg/10 hover:text-chrome-fg" />
+      </div>
 
       {/* Profile section — click to slide a menu up with the profile + sign-out options. */}
       <ProfileSection
@@ -225,11 +231,11 @@ function ProfileSection({
   }, [open]);
 
   return (
-    <div ref={ref} className="relative flex-none border-t border-white/10 p-3">
+    <div ref={ref} className="relative flex-none border-t border-chrome-fg/10 p-3">
       {open && (
         <div
           role="menu"
-          className="menu-slide-up absolute inset-x-3 bottom-full z-50 mb-2 overflow-hidden rounded-md border border-white/10 bg-walshe-deep shadow-[0_-18px_40px_-18px_rgba(0,0,0,0.7)]"
+          className="menu-slide-up absolute inset-x-3 bottom-full z-50 mb-2 overflow-hidden rounded-md border border-chrome-fg/10 bg-chrome-bg shadow-[0_-18px_40px_-18px_rgba(0,0,0,0.7)]"
         >
           <Link
             href={`${ROLE_BASE[role]}/profile`}
@@ -238,7 +244,7 @@ function ProfileSection({
               setOpen(false);
               onNavigate?.();
             }}
-            className="block px-4 py-2.5 text-small font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            className="block px-4 py-2.5 text-small font-medium text-chrome-fg/80 transition-colors hover:bg-chrome-fg/10 hover:text-chrome-fg"
           >
             Profile &amp; settings
           </Link>
@@ -246,7 +252,7 @@ function ProfileSection({
             type="button"
             role="menuitem"
             onClick={signOut}
-            className="block w-full px-4 py-2.5 text-left text-small font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            className="block w-full px-4 py-2.5 text-left text-small font-medium text-chrome-fg/80 transition-colors hover:bg-chrome-fg/10 hover:text-chrome-fg"
           >
             Sign out
           </button>
@@ -257,18 +263,18 @@ function ProfileSection({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/5"
+        className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-chrome-fg/5"
       >
         <span
           aria-hidden
-          className="grid h-9 w-9 flex-none place-items-center rounded-full text-[13px] font-bold text-white"
+          className="grid h-9 w-9 flex-none place-items-center rounded-full text-[13px] font-bold text-chrome-fg"
           style={{ backgroundColor: avatarColor }}
         >
           {initials}
         </span>
         <span className="min-w-0 flex-1 text-left">
-          <span className="block truncate text-small font-semibold text-white">{displayName}</span>
-          <span className="block text-[11px] text-white/45">{ROLE_LABEL[role]}</span>
+          <span className="block truncate text-small font-semibold text-chrome-fg">{displayName}</span>
+          <span className="block text-[11px] text-chrome-fg/45">{ROLE_LABEL[role]}</span>
         </span>
         <svg
           width="16"
@@ -278,7 +284,7 @@ function ProfileSection({
           stroke="currentColor"
           strokeWidth="2.2"
           strokeLinecap="round"
-          className={`flex-none text-white/50 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`flex-none text-chrome-fg/50 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden
         >
           <path d="M6 15l6-6 6 6" />
@@ -317,7 +323,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
   return (
     <div className="flex h-screen overflow-hidden bg-walshe-mist">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 flex-none flex-col border-r border-white/10 bg-walshe-deep lg:flex">
+      <aside className="hidden w-64 flex-none flex-col border-r border-chrome-fg/10 bg-chrome-bg lg:flex">
         <SidebarInner
           items={items}
           pathname={pathname}
@@ -332,14 +338,14 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar — breadcrumbs + profile menu (liquid glass) */}
-        <header className="relative z-30 flex h-16 flex-none items-center gap-3 border-b border-white/10 bg-walshe-deep/70 px-5 backdrop-blur-md backdrop-saturate-[1.6] sm:px-7">
+        <header className="relative z-30 flex h-16 flex-none items-center gap-3 border-b border-chrome-fg/10 bg-chrome-bg/70 px-5 backdrop-blur-md backdrop-saturate-[1.6] sm:px-7">
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Open navigation"
             aria-expanded={open}
             aria-controls="app-drawer"
-            className="-ml-1 flex items-center rounded-md p-1.5 text-white/80 hover:bg-white/10 lg:hidden"
+            className="-ml-1 flex items-center rounded-md p-1.5 text-chrome-fg/80 hover:bg-chrome-fg/10 lg:hidden"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
               <path d="M3 6h18M3 12h18M3 18h18" />
@@ -365,7 +371,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
           <div onClick={() => setOpen(false)} aria-hidden className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px]" />
           <aside
             id="app-drawer"
-            className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/10 bg-walshe-deep"
+            className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-chrome-fg/10 bg-chrome-bg"
           >
             <SidebarInner
               items={items}

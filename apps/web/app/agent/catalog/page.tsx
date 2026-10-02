@@ -135,7 +135,7 @@ export default function AgentCatalogPage() {
                 <div className="relative">
                   <CatalogThumb imageKey={e.image_key ?? e.asset_keys?.[0]} alt={e.title} />
                   <span className="chip-verified absolute left-3.5 top-3.5">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--walshe-green)" strokeWidth="3" aria-hidden>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--walshe-green))" strokeWidth="3" aria-hidden>
                       <path d="M5 13l4 4L19 7" />
                     </svg>
                     Verified

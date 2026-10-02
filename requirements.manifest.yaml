@@ -100,6 +100,12 @@ acceptance:
     tier: design
     web:
       - "apps/web/tests/theme.test.ts::test_theme_exposes_walshe_tokens"
+  AC30:
+    tier: design
+    web:
+      - "apps/web/tests/theme.test.ts::test_light_and_dark_palettes_defined"
+    e2e:
+      - "apps/web/e2e/theme-smoke.spec.ts::agent can switch between light and dark themes"
   AC20:
     tier: design
     e2e:
