@@ -126,6 +126,16 @@
   }
 }
 
+/* App-page entrance — a light, GSAP-free fade + rise for signed-in page content. It pairs with the
+   page transition (the black panel slides down to reveal the page as its content rises in). */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes app-enter {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+  .page-enter { animation: app-enter 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+}
+
 /* Page transition overlay — a near-black panel fades in moving down to cover, then slides down to
    reveal the new page (modelled on travelproductions.film). Driven by PageTransition.tsx. */
 .page-transition {

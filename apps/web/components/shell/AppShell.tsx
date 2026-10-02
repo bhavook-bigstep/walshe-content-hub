@@ -124,8 +124,8 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
         </div>
       )}
 
-      {/* Content */}
-      <main className="mx-auto max-w-[1200px] px-5 py-8 sm:px-8 sm:py-10">{children}</main>
+      {/* Content — re-keyed on route so the light entrance replays on each navigation. */}
+      <main key={pathname} className="page-enter mx-auto max-w-[1200px] px-5 py-8 sm:px-8 sm:py-10">{children}</main>
     </div>
   );
 }
