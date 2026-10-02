@@ -21,7 +21,7 @@ const config: Config = {
           stone: "#0E3A35", // subtle raised surface
           line: "#1C5C56", // hairline borders
           mint: "#E5F6DF", // accent — eyebrows, active, highlights
-          gold: "#D4AF37", // metallic gold — logo hover
+          gold: "#C47A2E", // rustic gold with an orange warmth — logo hover
           teal: "#005653", // brand (text on white pills / chips)
           "teal-700": "#003E3C",
           grey: "#A7C6C2", // muted text (light)

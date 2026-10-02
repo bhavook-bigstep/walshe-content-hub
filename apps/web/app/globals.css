@@ -16,7 +16,7 @@
   --walshe-stone: #0e3a35;
   --walshe-line: #1c5c56;
   --walshe-mint: #e5f6df;
-  --walshe-gold: #d4af37;
+  --walshe-gold: #c47a2e;
   --walshe-teal: #005653;
   --walshe-teal-700: #003e3c;
   --walshe-grey: #a7c6c2;
@@ -128,30 +128,30 @@
 
 @layer utilities {
   @media (prefers-reduced-motion: no-preference) {
-    /* Scroll-reveal: content "writes on" with a smooth left-to-right wipe + fade — reads like
-       typing but continuous (no caret, no stepping, no appear-then-wait). Uses a mask (paint-only)
-       rather than clip-path, so the element keeps its full geometry and the IntersectionObserver
-       still fires (a zero-area clip-path would deadlock the reveal). The soft mask edge feathers
-       the wipe. The data-dir attribute is kept for API compatibility; every reveal wipes the same. */
-    .reveal {
-      opacity: 0;
-      -webkit-mask-image: linear-gradient(to right, #000 78%, transparent 100%);
-      mask-image: linear-gradient(to right, #000 78%, transparent 100%);
-      -webkit-mask-repeat: no-repeat;
-      mask-repeat: no-repeat;
-      -webkit-mask-position: left center;
-      mask-position: left center;
-      -webkit-mask-size: 0% 100%;
-      mask-size: 0% 100%;
-      transition: opacity 0.9s cubic-bezier(0.22, 0.61, 0.36, 1),
-        -webkit-mask-size 1.2s cubic-bezier(0.22, 0.61, 0.36, 1),
-        mask-size 1.2s cubic-bezier(0.22, 0.61, 0.36, 1);
-      will-change: opacity, mask-size;
-    }
-    .reveal-in {
-      opacity: 1;
-      -webkit-mask-size: 320% 100%;
-      mask-size: 320% 100%;
+    /* Scroll-reveal system — motion is driven by GSAP + ScrollTrigger (see Reveal.tsx); CSS only
+       prevents a flash before GSAP mounts and sets up the split-text + colour-sweep painting.
+       These rules live under no-preference so reduced-motion viewers see the final state. */
+    .rv:not([data-rv="chars"]) { opacity: 0; }         /* hidden until GSAP reveals it */
+    .rv[data-rv="chars"] .rv-char { opacity: 0; }      /* chars hidden; parent stays visible */
+
+    /* Split-text spans: words stay whole, characters animate individually. */
+    .rv-word { display: inline-block; }
+    .rv-char { display: inline-block; will-change: transform, opacity; }
+
+    /* Long paragraphs — painted with a gradient clipped to the text so GSAP can sweep the colour
+       from a dull tint (--dull) to its full colour (--full). Only under no-preference, so
+       reduced-motion keeps the element's normal text colour. */
+    .rv[data-rv="color"] {
+      --full: #eaf4f1;
+      --dull: #5f7c78;
+      background-image: linear-gradient(100deg, var(--full) 42%, var(--dull) 60%);
+      background-repeat: no-repeat;
+      background-size: 260% 100%;
+      background-position: 100% 0;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
     }
 
     @keyframes wh-drop {

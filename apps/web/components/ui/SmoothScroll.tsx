@@ -3,29 +3,23 @@
 import { useEffect } from "react";
 import Lenis from "lenis";
 import "lenis/dist/lenis.css";
+import gsap from "gsap";
 
-// Smooth scrolling via Lenis (darkroom.engineering) — the standard library the reference-style
-// sites use. It preserves momentum, so this is a gentle, barely-slower glide rather than a drag.
-// Wheel only; touch scrolling stays native, and reduced-motion viewers get no smoothing at all.
+// Smooth scrolling (Lenis) driven by the GSAP ticker — the same stack the reference site uses, so
+// the smoothed scroll and the GSAP reveals share one clock. Wheel only; touch devices and
+// reduced-motion viewers keep fully native scrolling.
 export default function SmoothScroll() {
   useEffect(() => {
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
-    const lenis = new Lenis({
-      lerp: 0.12, // light smoothing — close to native, just a touch softer/slower
-      wheelMultiplier: 1,
-      smoothWheel: true,
-    });
+    const lenis = new Lenis({ lerp: 0.12, wheelMultiplier: 1, smoothWheel: true });
 
-    let raf = 0;
-    const loop = (time: number) => {
-      lenis.raf(time);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
+    const raf = (time: number) => lenis.raf(time * 1000); // GSAP ticker gives seconds; Lenis wants ms
+    gsap.ticker.add(raf);
+    gsap.ticker.lagSmoothing(0);
 
     return () => {
-      cancelAnimationFrame(raf);
+      gsap.ticker.remove(raf);
       lenis.destroy();
     };
   }, []);

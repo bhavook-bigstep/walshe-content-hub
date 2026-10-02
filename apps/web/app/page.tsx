@@ -21,11 +21,11 @@ function Mark({ className = "" }: { className?: string }) {
 function SectionHead({ eyebrow, title, dark = false }: { eyebrow: string; title: string; dark?: boolean }) {
   return (
     <div className={`grid gap-6 border-t pt-8 md:grid-cols-[minmax(0,2.4fr)_minmax(0,9fr)] md:gap-12 ${dark ? "border-white/15" : "border-walshe-line"}`}>
-      <Reveal className="flex items-center gap-2.5">
+      <Reveal variant="slidey" dir="down" className="flex items-center gap-2.5">
         <Mark className={`h-4 w-4 ${dark ? "text-walshe-mint" : "text-walshe-mint"}`} />
         <span className={`text-eyebrow uppercase ${dark ? "text-white/60" : "text-walshe-grey"}`}>{eyebrow}</span>
       </Reveal>
-      <Reveal as="h2" className={`font-display max-w-[20ch] text-[clamp(30px,4.6vw,64px)] font-semibold leading-[1.05] tracking-[-0.04em] ${dark ? "text-white" : "text-walshe-ink"}`} delayMs={80}>
+      <Reveal as="h2" variant="chars" delayMs={160} className={`font-display max-w-[20ch] text-[clamp(30px,4.6vw,64px)] font-semibold leading-[1.05] tracking-[-0.04em] ${dark ? "text-white" : "text-walshe-ink"}`}>
         {title}
       </Reveal>
     </div>
@@ -78,7 +78,7 @@ const SOCIALS = [
 
 export default function Landing() {
   return (
-    <main className="bg-walshe-paper">
+    <main className="bg-walshe-paper [overflow-x:clip]">
       <SmoothScroll />
       <SiteNav />
       {/* ======================= HERO ======================= */}
@@ -88,13 +88,13 @@ export default function Landing() {
         <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(3,22,15,.62)_0%,rgba(3,22,15,.32)_30%,rgba(3,22,15,.44)_66%,rgba(3,22,15,.86)_100%)]" />
 
         <div className="relative z-10 mx-auto flex min-h-[108vh] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-20 text-center">
-          <Reveal as="h1" className="font-display max-w-[18ch] text-[clamp(52px,9vw,120px)] font-semibold leading-[0.98] tracking-[-0.055em]">
+          <Reveal as="h1" variant="chars" className="font-display max-w-[18ch] text-[clamp(52px,9vw,120px)] font-semibold leading-[0.98] tracking-[-0.055em]">
             Verified destinations
           </Reveal>
-          <Reveal as="p" className="mt-8 max-w-[44ch] text-[clamp(17px,2vw,22px)] font-light leading-snug text-white/90" delayMs={120}>
+          <Reveal as="p" variant="color" dir="up" delayMs={280} full="#ffffff" dull="rgba(255,255,255,0.42)" className="mt-8 max-w-[44ch] text-[clamp(17px,2vw,22px)] font-light leading-snug">
             Publish verified content once. The trade turns it into on-brand campaigns — in minutes.
           </Reveal>
-          <Reveal className="mt-10" delayMs={220}>
+          <Reveal variant="slidey" dir="up" className="mt-10" delayMs={620}>
             <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-white py-4 pl-7 pr-5 text-[15px] font-semibold text-walshe-teal transition-transform hover:-translate-y-0.5">
               Explore the catalog
               <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-teal text-white">
@@ -110,35 +110,38 @@ export default function Landing() {
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="Verified catalog" title="Content the trade can trust, in more than six markets." />
           <div className="mt-16 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
-            {CATALOG.map((c, i) => (
-              <Reveal key={c.title} dir="up" delayMs={i * 90}>
-                <article className="card card-hover group flex h-full flex-col">
-                  <div className="relative aspect-[16/11] overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={IMG(c.id, 900, 620)} alt={c.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                    <span className="chip-verified absolute left-4 top-4">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="#005653" aria-hidden><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
-                      Verified
-                    </span>
-                  </div>
-                  <div className="flex flex-1 flex-col p-6">
-                    <h3 className="text-[21px] font-medium tracking-tight text-walshe-ink">{c.title}</h3>
-                    <p className="mt-2.5 text-small leading-relaxed text-walshe-grey">{c.blurb}</p>
-                    <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-small text-walshe-grey">
-                      <span className="inline-flex items-center gap-1.5"><PinIcon />{c.place}</span>
-                      <span className="inline-flex items-center gap-1.5"><TagIcon />{c.type}</span>
-                      <span className="inline-flex items-center gap-1.5"><StackIcon />{c.assets}</span>
+            {CATALOG.map((c, i) => {
+              const base = i * 150; // the card's own slide-in delay; inner content cascades after it
+              return (
+                <Reveal key={c.title} variant="slidex" delayMs={base}>
+                  <article className="card card-hover group flex h-full flex-col">
+                    <div className="relative aspect-[16/11] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={IMG(c.id, 900, 620)} alt={c.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                      <span className="chip-verified absolute left-4 top-4">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="#005653" aria-hidden><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
+                        Verified
+                      </span>
                     </div>
-                    <div className="mt-6 flex items-center justify-between border-t border-walshe-line pt-5">
-                      <span className="text-small text-walshe-grey">Trade-ready</span>
-                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-mint transition-colors hover:text-walshe-mint">
-                        Use content <ArrowIcon />
-                      </Link>
+                    <div className="flex flex-1 flex-col p-6">
+                      <Reveal as="h3" variant="slidey" dir="up" delayMs={base + 220} className="text-[21px] font-medium tracking-tight text-walshe-ink">{c.title}</Reveal>
+                      <Reveal as="p" variant="slidey" dir="up" delayMs={base + 330} className="mt-2.5 text-small leading-relaxed text-walshe-grey">{c.blurb}</Reveal>
+                      <Reveal variant="slidey" dir="up" delayMs={base + 430} className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-small text-walshe-grey">
+                        <span className="inline-flex items-center gap-1.5"><PinIcon />{c.place}</span>
+                        <span className="inline-flex items-center gap-1.5"><TagIcon />{c.type}</span>
+                        <span className="inline-flex items-center gap-1.5"><StackIcon />{c.assets}</span>
+                      </Reveal>
+                      <Reveal variant="slidey" dir="up" delayMs={base + 520} className="mt-6 flex items-center justify-between border-t border-walshe-line pt-5">
+                        <span className="text-small text-walshe-grey">Trade-ready</span>
+                        <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-mint transition-colors hover:text-walshe-mint">
+                          Use content <ArrowIcon />
+                        </Link>
+                      </Reveal>
                     </div>
-                  </div>
-                </article>
-              </Reveal>
-            ))}
+                  </article>
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -148,23 +151,23 @@ export default function Landing() {
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="The hub" title="Not just a library — a way of working, for the whole trade." />
           <div className="mt-16 grid items-start gap-12 lg:grid-cols-2">
-            <Reveal dir="right" className="overflow-hidden rounded-none">
+            <Reveal variant="slidey" dir="down" delayMs={100} className="overflow-hidden rounded-none">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/img/skyline-nyc.jpg" alt="Manhattan skyline at golden hour" className="aspect-[5/6] w-full object-cover" />
             </Reveal>
-            <Reveal dir="left" delayMs={120}>
-              <p className="max-w-[46ch] text-[clamp(18px,2.1vw,24px)] font-light leading-snug text-walshe-ink">
+            <div>
+              <Reveal as="p" variant="color" dir="up" delayMs={250} className="max-w-[46ch] text-[clamp(18px,2.1vw,24px)] font-light leading-snug text-walshe-ink">
                 The Walshe Content Hub blends a verified destination catalog with a Canva-style studio and an AI Builder — so an agent can go from brief to published campaign without leaving one place.
-              </p>
+              </Reveal>
               <div className="mt-14 grid grid-cols-2 gap-x-10 gap-y-12">
-                {[["10,000", "Trade agents reached"], ["50 yrs", "In travel, in 2026"], ["100%", "Brand-verified content"], ["6", "Destination markets"]].map(([k, l]) => (
-                  <div key={l}>
+                {[["10,000", "Trade agents reached"], ["50 yrs", "In travel, in 2026"], ["100%", "Brand-verified content"], ["6", "Destination markets"]].map(([k, l], i) => (
+                  <Reveal key={l} variant="slidey" dir="up" delayMs={450 + i * 130}>
                     <div className="font-display text-[clamp(40px,5vw,64px)] font-semibold leading-none tracking-[-0.045em] text-walshe-ink">{k}</div>
                     <div className="mt-3 text-small font-medium text-walshe-grey">{l}</div>
-                  </div>
+                  </Reveal>
                 ))}
               </div>
-            </Reveal>
+            </div>
           </div>
         </div>
       </section>
@@ -175,7 +178,7 @@ export default function Landing() {
           <SectionHead eyebrow="How it works" title="From verified content to published campaign." />
           <div className="mt-16 grid gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
-              <Reveal key={s.n} dir="right" delayMs={i * 80}>
+              <Reveal key={s.n} variant="slidey" dir="up" delayMs={i * 140}>
                 <div className="text-small font-semibold text-walshe-mint">{s.n}</div>
                 <h3 className="mt-4 text-[21px] font-medium tracking-tight text-walshe-ink">{s.t}</h3>
                 <p className="mt-3 text-small leading-relaxed text-walshe-grey">{s.b}</p>
@@ -188,10 +191,10 @@ export default function Landing() {
       {/* ======================= CTA ======================= */}
       <section className="py-32">
         <div className="mx-auto max-w-content px-7 text-center">
-          <Reveal as="h2" className="font-display mx-auto max-w-[16ch] text-[clamp(36px,6.5vw,88px)] font-semibold leading-[1.0] tracking-[-0.05em] text-walshe-ink">
+          <Reveal as="h2" variant="chars" className="font-display mx-auto max-w-[16ch] text-[clamp(36px,6.5vw,88px)] font-semibold leading-[1.0] tracking-[-0.05em] text-walshe-ink">
             Put verified content to work.
           </Reveal>
-          <Reveal className="mt-10 flex justify-center" delayMs={120}>
+          <Reveal variant="slidey" dir="up" className="mt-10 flex justify-center" delayMs={260}>
             <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-white py-4 pl-7 pr-5 text-[15px] font-semibold text-walshe-teal transition-transform hover:-translate-y-0.5">
               Get started
               <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-teal text-white">
