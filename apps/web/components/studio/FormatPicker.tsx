@@ -14,7 +14,7 @@ export default function FormatPicker({
       <span className="text-small font-semibold text-walshe-ink">Format</span>
       <select
         aria-label="Format"
-        className="h-10 rounded-sm border border-white/15 bg-white/[0.06] px-3 text-small font-medium text-walshe-ink transition-colors hover:border-white/30 focus:border-walshe-mint"
+        className="h-10 rounded-sm border border-walshe-line bg-walshe-stone/60 px-3 text-small font-medium text-walshe-ink transition-colors hover:border-walshe-ink/30 focus:border-walshe-mint"
         value={value}
         onChange={(e) => onChange(e.target.value as FormatName)}
       >

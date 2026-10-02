@@ -168,3 +168,9 @@ acceptance:
       - "apps/api/tests/test_inventory.py::test_media_team_and_performance"
     e2e:
       - "apps/web/e2e/inventory-smoke.spec.ts::provider creates a structured entry with a custom section"
+  # --- v2.4.0 Workspace usability (features wired end-to-end) ---
+  AC31:
+    tier: P2
+    e2e:
+      - "apps/web/e2e/agent-usability-smoke.spec.ts::agent adds a catalog item to a collection"
+      - "apps/web/e2e/agent-usability-smoke.spec.ts::agent opens a saved project in the studio"

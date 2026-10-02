@@ -190,6 +190,9 @@ export async function getPerformance(): Promise<Performance> {
 export async function listProjects(): Promise<Project[]> {
   return (await (await send("/me/projects")).json()) as Project[];
 }
+export async function getProject(id: number): Promise<Project> {
+  return (await (await send(`/me/projects/${id}`)).json()) as Project;
+}
 export async function createProject(body: ProjectCreate): Promise<Project> {
   return (await (await send("/me/projects", json(body))).json()) as Project;
 }

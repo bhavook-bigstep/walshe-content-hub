@@ -53,7 +53,7 @@ export default function TemplatesPage() {
               <span className="chip-draft">{t.format}</span>
               <h3 className="mt-3 text-h3 font-semibold text-walshe-ink">{t.name}</h3>
               <p className="mt-1 text-small text-walshe-grey">{t.description}</p>
-              <Link href="/agent/studio" className="btn-primary mt-2 inline-flex">
+              <Link href={`/agent/studio?template=${t.id}`} className="btn-primary mt-2 inline-flex">
                 Use template
               </Link>
             </div>

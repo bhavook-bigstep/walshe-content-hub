@@ -152,10 +152,10 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
   const busy = generating || rendering;
   // Compact outlined chip for secondary / per-scene controls.
   const btn =
-    "inline-flex items-center justify-center gap-1.5 rounded-sm border border-white/15 bg-white/[0.06] px-3 py-2 text-small font-medium text-walshe-ink transition-colors hover:border-white/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex items-center justify-center gap-1.5 rounded-sm border border-walshe-line bg-walshe-stone/60 px-3 py-2 text-small font-medium text-walshe-ink transition-colors hover:border-walshe-ink/30 hover:bg-walshe-ink/10 disabled:cursor-not-allowed disabled:opacity-50";
   // Tiny controls inside a scene row.
   const mini =
-    "inline-flex items-center justify-center rounded-sm border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[13px] font-medium text-walshe-ink transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex items-center justify-center rounded-sm border border-walshe-line bg-walshe-stone/60 px-2.5 py-1 text-[13px] font-medium text-walshe-ink transition-colors hover:bg-walshe-ink/10 disabled:cursor-not-allowed disabled:opacity-50";
   const field = "field text-small";
 
   return (
@@ -186,7 +186,7 @@ export default function VideoPanel({ items }: { items: BuilderCatalogItem[] }) {
       )}
 
       {scenes.length === 0 ? (
-        <p className="rounded-md border border-dashed border-white/15 bg-walshe-mist/50 px-4 py-6 text-center text-small text-walshe-grey">
+        <p className="rounded-md border border-dashed border-walshe-line bg-walshe-mist/50 px-4 py-6 text-center text-small text-walshe-grey">
           {items.length === 0
             ? "Select catalog items to build a video, or add a scene manually."
             : "No scenes yet. Auto-generate a script from your selection or add a scene."}

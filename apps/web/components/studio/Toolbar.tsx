@@ -28,7 +28,7 @@ interface Props {
 
 // Light editor toolbar (Canva-style): compact outlined chips on the white tool bar.
 const btn =
-  "inline-flex items-center gap-1.5 rounded-sm border border-white/15 bg-white/[0.06] px-3 py-2 text-small font-medium text-walshe-ink transition-colors hover:border-white/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center gap-1.5 rounded-sm border border-walshe-line bg-walshe-stone/60 px-3 py-2 text-small font-medium text-walshe-ink transition-colors hover:border-walshe-ink/30 hover:bg-walshe-ink/10 disabled:cursor-not-allowed disabled:opacity-50";
 
 // Small, descriptive label that heads each control group.
 function Group({ label, children }: { label: string; children: ReactNode }) {
@@ -77,7 +77,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
       <Group label="Text">
         <input
           aria-label="Text content"
-          className="h-9 w-36 rounded-sm border border-white/15 bg-white/[0.06] px-2.5 text-small text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-mint"
+          className="h-9 w-36 rounded-sm border border-walshe-line bg-walshe-stone/60 px-2.5 text-small text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-mint"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -108,7 +108,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
           type="color"
           value={bg}
           onChange={(e) => setBg(e.target.value)}
-          className="h-9 w-9 cursor-pointer rounded-sm border border-white/15 bg-white/[0.06] p-0.5"
+          className="h-9 w-9 cursor-pointer rounded-sm border border-walshe-line bg-walshe-stone/60 p-0.5"
         />
         <button type="button" className={btn} onClick={() => onChange(setBackground(design, pageIndex, bg))}>
           Set background

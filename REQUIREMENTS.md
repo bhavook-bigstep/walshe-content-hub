@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.3.0 |
+| **Version** | 2.4.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -166,13 +166,18 @@ Charter: `docs/plans/2026-10-02-theming-usability-charter.md`.
   Playwright toggles the theme in the workspace, asserts the document theme attribute + the page
   background change, and that the choice persists across reload.
 
-> **Staged (charter, promoted here when built):** **workspace usability** — features wired
-> end-to-end (add-to-collection from the catalog, open-a-project / use-a-template in the Studio,
-> brand kit applied when personalising) with polished states.
+- **AC31 — Workspace features wired end-to-end**: the agent workspace features connect into real
+  flows rather than standing alone. From the **catalog**, an agent saves an approved item into a new
+  or existing **collection** without leaving the page; from **Projects** / **Templates**, an agent
+  **opens a saved project** or **starts from a template** in the Design Studio (via the Studio's
+  `?project=` / `?template=` routes), **saves** a composition back to Projects, and the **brand kit**
+  pre-fills the Studio's Personalise panel. Empty/loading/confirmation states are handled. Proof:
+  Playwright adds a catalog item to a brand-new collection (confirmation + the collection holds it),
+  and saves a Studio design then re-opens it from Projects (asserting the `?project=` route loads it).
 
-**Priority tiers** (build order; acceptance reports honestly against all 30):
+**Priority tiers** (build order; acceptance reports honestly against all 31):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29 (all prior ACs stay green).
+design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -202,3 +207,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.1.0 | 2026-10-02 | **Account provisioning**: added **AC24** (hybrid registration) — public agent self-register, Super-Admin-provisioned providers with org/tenant + approval, role-escalation prevented. Enables creating the three roles through the product rather than only the seed. All prior ACs stay green. | user + Claude |
 | 2.2.0 | 2026-10-02 | **Profiles & dual workspaces** (charter `docs/plans/2026-10-02-requirements-charter.md`): added **AC25–AC29** — role-based registration + provider queue/holding; fixed-viewport workspace; rich profiles + provider org page; agent features (saved projects, collections, brand kit, templates); provider structured AI-crawlable inventory (custom sections, media library, team, performance). Built in phases; all prior ACs stay green. | user + Claude |
 | 2.3.0 | 2026-10-02 | **Theming & usability** (charter `docs/plans/2026-10-02-theming-usability-charter.md`): added **AC30** — token-driven light & dark themes across the whole app (OS default, remembered toggle, no flash); the design tokens became CSS variables. Workspace-usability wiring + polish staged for the same cycle. All prior ACs stay green. | user + Claude |
+| 2.4.0 | 2026-10-02 | **Workspace usability wired** (same charter): promoted the staged item to **AC31** — agent features connected end-to-end (catalog→collection save, Projects/Templates→Studio open via `?project=`/`?template=`, Studio→Projects save, brand kit pre-fills Personalise) with handled empty/loading/confirmation states. All prior ACs stay green. | user + Claude |

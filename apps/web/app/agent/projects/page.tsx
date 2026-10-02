@@ -69,7 +69,7 @@ export default function ProjectsPage() {
                 {p.format} · {p.item_ids.length} items
               </p>
               <div className="mt-4 flex items-center justify-between">
-                <Link href="/agent/studio" className="btn-ghost">
+                <Link href={`/agent/studio?project=${p.id}`} className="btn-ghost">
                   Open in studio
                 </Link>
                 <button

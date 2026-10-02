@@ -78,7 +78,7 @@ export default function ProviderPerformancePage() {
                   {data!.rows.map((r) => (
                     <tr
                       key={r.entry_id}
-                      className="border-b border-walshe-line/70 last:border-0 transition-colors hover:bg-white/5"
+                      className="border-b border-walshe-line/70 last:border-0 transition-colors hover:bg-walshe-ink/5"
                     >
                       <td className="px-5 py-3.5 font-medium text-walshe-ink">{r.title}</td>
                       <td className="px-5 py-3.5 text-walshe-grey tabular-nums">{r.uses}</td>

@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Canvas } from "fabric";
 import BuilderPanel, { type BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
 import ExportMenu from "../../../components/studio/ExportMenu";
@@ -10,7 +11,15 @@ import PersonalizePanel from "../../../components/studio/PersonalizePanel";
 import VideoPanel from "../../../components/studio/VideoPanel";
 import Toolbar, { type CatalogImageOption } from "../../../components/studio/Toolbar";
 import PageHeader from "../../../components/ui/PageHeader";
-import { fetchAssetObjectUrl, listAgentCatalog, type Entry } from "../../../lib/api";
+import {
+  createProject,
+  fetchAssetObjectUrl,
+  getProject,
+  listAgentCatalog,
+  listDesignTemplates,
+  updateProject,
+  type Entry,
+} from "../../../lib/api";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import { addShape, addText, newDesign, setBackground, type DesignDoc } from "../../../lib/studio/ops";
 
@@ -50,9 +59,21 @@ function seeded(format: FormatName): DesignDoc {
 }
 
 export default function StudioPage() {
+  return (
+    <Suspense fallback={<p className="text-small text-walshe-grey">Loading the studio…</p>}>
+      <StudioEditor />
+    </Suspense>
+  );
+}
+
+function StudioEditor() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
   const [pageIndex, setPageIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
+  const [project, setProject] = useState<{ id: number; name: string } | null>(null);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const params = useSearchParams();
   const canvasRef = useRef<Canvas | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -80,16 +101,78 @@ export default function StudioPage() {
     setPageIndex(0);
   }
 
+  // Open a saved project (?project=id) or start from a template (?template=id) (AC31).
+  useEffect(() => {
+    const pid = params.get("project");
+    const tid = params.get("template");
+    if (pid) {
+      getProject(Number(pid))
+        .then((p) => {
+          setProject({ id: p.id, name: p.name });
+          const d = p.design as unknown as Partial<DesignDoc> | undefined;
+          if (d && Array.isArray(d.pages) && d.pages.length > 0) setDesign(d as DesignDoc);
+        })
+        .catch(() => {});
+    } else if (tid) {
+      listDesignTemplates()
+        .then((templates) => {
+          const t = templates.find((x) => x.id === tid);
+          if (!t) return;
+          const fmt = (["social", "story", "pamphlet"].includes(t.format) ? t.format : "social") as FormatName;
+          pickFormat(fmt);
+          setProject({ id: 0, name: `${t.name} (template)` });
+        })
+        .catch(() => {});
+    }
+    // params are read once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function saveProject() {
+    setSaveMsg(null);
+    setSaving(true);
+    try {
+      // The API stores `design` as a generic JSON object; DesignDoc is our richer view of it.
+      const designJson = design as unknown as Record<string, unknown>;
+      if (project && project.id > 0) {
+        await updateProject(project.id, { design: designJson });
+        setSaveMsg("Saved.");
+      } else {
+        const name = (project?.name || "Untitled project").replace(" (template)", "");
+        const created = await createProject({ name, format: design.format, design: designJson });
+        setProject({ id: created.id, name: created.name });
+        setSaveMsg("Saved to Projects.");
+      }
+    } catch {
+      setSaveMsg("Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
-        breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Design Studio" }]}
         title="Design Studio"
         description="Compose pamphlets, posts and stories on the canvas — manually or with the AI Builder."
+        action={
+          <div className="flex items-center gap-3">
+            {saveMsg && <span className="text-small font-medium text-walshe-green">{saveMsg}</span>}
+            <button type="button" onClick={saveProject} disabled={saving} className="btn-primary">
+              {saving ? "Saving…" : project && project.id > 0 ? "Save project" : "Save to projects"}
+            </button>
+          </div>
+        }
       />
 
+      {project && (
+        <p className="-mt-3 mb-5 text-small text-walshe-grey">
+          Editing: <span className="font-semibold text-walshe-ink">{project.name}</span>
+        </p>
+      )}
+
       {/* Slim top tool bar: format + canvas tools, grouped (Canva-style). */}
-      <div className="mb-5 rounded-lg border border-walshe-line bg-white/[0.06] p-3 shadow-card sm:px-4">
+      <div className="mb-5 rounded-lg border border-walshe-line bg-walshe-stone/60 p-3 shadow-card sm:px-4">
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
           <div className="flex items-end pb-2">
             <FormatPicker value={design.format} onChange={pickFormat} />

@@ -86,7 +86,7 @@ export default function AgentEngagementPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-small" data-testid="engagement-table">
                 <thead>
-                  <tr className="border-b border-white/15 text-left text-walshe-grey">
+                  <tr className="border-b border-walshe-line text-left text-walshe-grey">
                     <th className="py-2 pr-4 font-medium">Post</th>
                     <th className="py-2 pr-4 font-medium">Impressions</th>
                     <th className="py-2 pr-4 font-medium">Clicks</th>
