@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { ApiError, login, me } from "../../lib/api";
+import { ApiError, me, register } from "../../lib/api";
 import { ROLE_HOME } from "../../lib/rbac";
 import { clear, setSession, setToken } from "../../lib/session";
 
-// Auth-screen lockup — The Walshe Group wordmark (white) above the product descriptor.
+// Public self-registration (AC24a) — always creates a Tourism Agent, then signs in. Content
+// Providers are provisioned by a Super Admin (AC24b), so this screen offers the agent path only.
 function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
   const sub = tone === "light" ? "text-white/70" : "text-walshe-grey";
   return (
@@ -18,18 +19,27 @@ function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
   );
 }
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    if (password.length < 8) {
+      setError("Use at least 8 characters for your password.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Those passwords don’t match.");
+      return;
+    }
+    setBusy(true);
     try {
-      const token = await login(email, password);
+      const token = await register(email, password);
       setToken(token);
       const user = await me();
       setSession(token, user.role);
@@ -37,8 +47,8 @@ export default function LoginPage() {
     } catch (err) {
       clear();
       setError(
-        err instanceof ApiError && err.status === 401
-          ? "Invalid email or password."
+        err instanceof ApiError && err.status === 409
+          ? "An account with this email already exists. Try signing in."
           : err instanceof ApiError
             ? err.message
             : "Something went wrong. Please try again.",
@@ -50,13 +60,10 @@ export default function LoginPage() {
   return (
     <main className="grid min-h-screen bg-walshe-mist lg:grid-cols-[1.05fr_1fr]">
       {/* Photographic brand panel (wide screens only) */}
-      <aside
-        className="relative hidden overflow-hidden lg:block"
-        aria-hidden
-      >
+      <aside className="relative hidden overflow-hidden lg:block" aria-hidden>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="https://picsum.photos/seed/walshe-login-coast/1200/1400"
+          src="https://picsum.photos/seed/walshe-register-coast/1200/1400"
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -72,13 +79,11 @@ export default function LoginPage() {
             <AuthMark tone="light" />
           </Link>
           <div className="max-w-[30ch]">
-            <p className="eyebrow">Premium brands, trusted outcomes</p>
-            <h2 className="mt-4 text-h1 text-white">
-              Verified destination content, trade-ready in minutes.
-            </h2>
+            <p className="eyebrow">For the trade</p>
+            <h2 className="mt-4 text-h1 text-white">Turn verified content into campaigns.</h2>
             <p className="mt-5 text-[17px] leading-relaxed text-white/80">
-              Tourism boards publish once. 10,000 travel agents turn it into on-brand campaigns — without
-              leaving the hub.
+              Create a free agent account to browse the verified catalog and build on-brand marketing
+              in the Design Studio.
             </p>
           </div>
           <p className="text-small font-medium text-white/65">Celebrating 50 years in business in 2026</p>
@@ -93,9 +98,11 @@ export default function LoginPage() {
           </Link>
 
           <div className="mb-7">
-            <p className="eyebrow">Welcome back</p>
-            <h1 className="mt-3 text-h2 text-walshe-ink">Sign in</h1>
-            <p className="mt-2 text-body text-walshe-grey">Access the Walshe Content Hub.</p>
+            <p className="eyebrow">Create your account</p>
+            <h1 className="mt-3 text-h2 text-walshe-ink">Join as an agent</h1>
+            <p className="mt-2 text-body text-walshe-grey">
+              Tourism boards are added by the Walshe team — agents sign up here.
+            </p>
           </div>
 
           <form onSubmit={onSubmit} className="card space-y-5 p-7" aria-busy={busy}>
@@ -115,9 +122,22 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
-                autoComplete="current-password"
+                minLength={8}
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="field"
+              />
+            </label>
+            <p className="-mt-2.5 text-small text-walshe-grey">At least 8 characters.</p>
+            <label className="block">
+              <span className="label">Confirm password</span>
+              <input
+                type="password"
+                required
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
                 className="field"
               />
             </label>
@@ -127,18 +147,15 @@ export default function LoginPage() {
               </p>
             )}
             <button type="submit" disabled={busy} className="btn-primary w-full">
-              {busy ? "Signing in…" : "Sign in"}
+              {busy ? "Creating account…" : "Create account"}
             </button>
           </form>
 
           <p className="mt-6 text-center text-small text-walshe-grey">
-            New to the hub?{" "}
-            <Link href="/register" className="font-semibold text-walshe-teal underline-offset-2 hover:underline">
-              Create an agent account
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold text-walshe-teal underline-offset-2 hover:underline">
+              Sign in
             </Link>
-          </p>
-          <p className="mt-3 text-center text-small text-walshe-grey">
-            Trusted by destination boards across ANZ · 50 years in travel
           </p>
         </div>
       </div>

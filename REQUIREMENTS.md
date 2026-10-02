@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.0.0 |
+| **Version** | 2.1.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -106,9 +106,24 @@ generic/plain default. Anchored to walshegroup.com (exact tokens), ElevateTouris
 > against the Walshe design brief (`docs/design/ui-brief.md`) each design round and must PASS, and
 > the user confirms the look at ⏸ G. This is the subjective bar AC19–AC23 can't fully encode.
 
-**Priority tiers** (build order; acceptance reports honestly against all 23):
-P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15 ·
-**P0 for this run — design = AC19,20,21,22,23** (the overhaul; functional AC1–18 must stay green).
+### Access & Accounts (v2.1.0 — registration) `[explicit – feedback]`
+
+The three roles must be creatable through the product (not only via the seed), using a **hybrid**
+provisioning model that fits the verified-content trust boundary.
+
+- **AC24** — **Account provisioning (hybrid)**: (a) **Tourism Agents self-register** on a public
+  `/register` page (email + password) and are signed in on success; (b) the **Super Admin provisions
+  Content Providers** (and may add agents) from the admin console, naming the provider's
+  organization (tenant) — new providers start **unapproved** until verified (AC2); (c) **role
+  escalation is prevented** — self-registration can only create a Tourism Agent, and admin
+  user-creation cannot mint a Super Admin; the first Super Admin stays seeded. The API enforces all
+  of this authoritatively. Proof: pytest covers self-register (agent, duplicate-email, weak
+  password) and admin create-user (provider+org unapproved, non-admin forbidden, super_admin role
+  rejected); Playwright covers the public register → agent-home flow.
+
+**Priority tiers** (build order; acceptance reports honestly against all 24):
+P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
+design = AC19,20,21,22,23 (all prior ACs must stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -135,3 +150,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | --- | --- | --- | --- |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
+| 2.1.0 | 2026-10-02 | **Account provisioning**: added **AC24** (hybrid registration) — public agent self-register, Super-Admin-provisioned providers with org/tenant + approval, role-escalation prevented. Enables creating the three roles through the product rather than only the seed. All prior ACs stay green. | user + Claude |

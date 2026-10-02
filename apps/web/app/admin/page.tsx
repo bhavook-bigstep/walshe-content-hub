@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import PageHeader from "../../components/ui/PageHeader";
 import StatTile from "../../components/ui/StatTile";
-import { approveProvider, listUsers, type User } from "../../lib/api";
+import { approveProvider, createUser, listUsers, type User } from "../../lib/api";
 
 // Super-admin screen (AC2). Route is guarded by middleware; the API re-checks the role on every call.
 function messageOf(e: unknown): string {
@@ -20,6 +20,15 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
+
+  // Provision-a-user form (AC24b).
+  const [cuEmail, setCuEmail] = useState("");
+  const [cuPassword, setCuPassword] = useState("");
+  const [cuRole, setCuRole] = useState<"content_provider" | "tourism_agent">("content_provider");
+  const [cuOrg, setCuOrg] = useState("");
+  const [cuBusy, setCuBusy] = useState(false);
+  const [cuError, setCuError] = useState<string | null>(null);
+  const [cuDone, setCuDone] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -45,6 +54,38 @@ export default function AdminPage() {
       setError(messageOf(e));
     } finally {
       setPendingId(null);
+    }
+  }
+
+  async function onCreate(e: FormEvent) {
+    e.preventDefault();
+    setCuError(null);
+    setCuDone(null);
+    if (cuPassword.length < 8) {
+      setCuError("Password must be at least 8 characters.");
+      return;
+    }
+    setCuBusy(true);
+    try {
+      const created = await createUser({
+        email: cuEmail,
+        password: cuPassword,
+        role: cuRole,
+        organization: cuRole === "content_provider" ? cuOrg : null,
+      });
+      setUsers((prev) => (prev ? [...prev, created] : [created]));
+      setCuDone(
+        `${ROLE_LABEL[created.role]} ${created.email} created${
+          created.role === "content_provider" ? " — pending verification." : "."
+        }`,
+      );
+      setCuEmail("");
+      setCuPassword("");
+      setCuOrg("");
+    } catch (err) {
+      setCuError(messageOf(err));
+    } finally {
+      setCuBusy(false);
     }
   }
 
@@ -81,6 +122,82 @@ export default function AdminPage() {
             <StatTile label="Pending verification" value={queue.length} caption="Providers awaiting approval" />
           </>
         )}
+      </section>
+
+      {/* Provision a user (AC24b) */}
+      <section aria-labelledby="provision-title" className="mb-10">
+        <div className="mb-4">
+          <p className="eyebrow">Add to the hub</p>
+          <h2 id="provision-title" className="mt-2 text-h3 text-walshe-ink">
+            Provision a user
+          </h2>
+          <p className="mt-1 text-small text-walshe-grey">
+            Create a Content Provider (tied to an organization, pending verification) or a Tourism Agent.
+          </p>
+        </div>
+        <form onSubmit={onCreate} className="card grid gap-5 p-6 sm:grid-cols-2" aria-busy={cuBusy}>
+          <label className="block">
+            <span className="label">Role</span>
+            <select
+              value={cuRole}
+              onChange={(e) => setCuRole(e.target.value as "content_provider" | "tourism_agent")}
+              className="field"
+            >
+              <option value="content_provider">Content provider</option>
+              <option value="tourism_agent">Tourism agent</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="label">{cuRole === "content_provider" ? "Organization" : "Organization (n/a)"}</span>
+            <input
+              type="text"
+              value={cuOrg}
+              onChange={(e) => setCuOrg(e.target.value)}
+              disabled={cuRole !== "content_provider"}
+              required={cuRole === "content_provider"}
+              placeholder="e.g. Tourism Ireland"
+              className="field disabled:opacity-50"
+            />
+          </label>
+          <label className="block">
+            <span className="label">Email</span>
+            <input
+              type="email"
+              required
+              autoComplete="off"
+              value={cuEmail}
+              onChange={(e) => setCuEmail(e.target.value)}
+              className="field"
+            />
+          </label>
+          <label className="block">
+            <span className="label">Temporary password</span>
+            <input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={cuPassword}
+              onChange={(e) => setCuPassword(e.target.value)}
+              className="field"
+            />
+          </label>
+          <div className="sm:col-span-2">
+            {cuError && (
+              <p role="alert" className="mb-3 text-small font-medium text-walshe-danger">
+                {cuError}
+              </p>
+            )}
+            {cuDone && (
+              <p role="status" className="mb-3 text-small font-medium text-walshe-green">
+                {cuDone}
+              </p>
+            )}
+            <button type="submit" disabled={cuBusy} className="btn-primary">
+              {cuBusy ? "Creating…" : "Create user"}
+            </button>
+          </div>
+        </form>
       </section>
 
       {/* Verification queue */}

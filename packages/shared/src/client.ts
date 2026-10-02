@@ -7,6 +7,7 @@ export type Entry = Schemas["EntryOut"];
 export type EntryCreate = Schemas["EntryCreate"];
 export type AccessUpdate = Schemas["AccessUpdate"];
 export type User = Schemas["UserOut"];
+export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
 export type CatalogType = Entry["type"];
 export type EntryStatus = Entry["status"];
 export type DesignRequest = Schemas["DesignRequest"];
@@ -91,6 +92,12 @@ export async function login(email: string, password: string): Promise<string> {
   return ((await res.json()) as { access_token: string }).access_token;
 }
 
+/** Public self-registration (AC24): creates a Tourism Agent and returns a bearer token. */
+export async function register(email: string, password: string): Promise<string> {
+  const res = await send("/auth/register", json({ email, password }), false);
+  return ((await res.json()) as { access_token: string }).access_token;
+}
+
 export async function me(): Promise<User> {
   return (await (await send("/auth/me")).json()) as User;
 }
@@ -129,6 +136,11 @@ export async function listUsers(): Promise<User[]> {
 export async function approveProvider(userId: number): Promise<User> {
   const res = await send(`/admin/providers/${userId}/approve`, { method: "POST" });
   return (await res.json()) as User;
+}
+
+/** Super-Admin user provisioning (AC24): create a Content Provider (with organization) or Agent. */
+export async function createUser(body: AdminCreateUserInput): Promise<User> {
+  return (await (await send("/admin/users", json(body))).json()) as User;
 }
 
 export async function renderPdf(design: Record<string, unknown>): Promise<Blob> {

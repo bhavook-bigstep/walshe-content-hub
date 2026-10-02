@@ -1,4 +1,5 @@
 """Auth routes (AC1): login -> bearer token; me -> current user."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,11 +8,42 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.deps import get_current_user, get_db, get_settings
-from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserOut
-from app.security import create_token, verify_password
+from app.models.user import Role, User
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserOut
+from app.security import create_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(
+    body: RegisterRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> TokenResponse:
+    """Public self-registration (AC24): always a Tourism Agent — no role escalation. Signs in on
+    success by returning a bearer token. Agents need no approval (that gate is for providers)."""
+    exists = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
+    if exists is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists")
+    user = User(
+        email=body.email,
+        password_hash=hash_password(body.password),
+        role=Role.tourism_agent,
+        tenant_id=None,
+        approved=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token = create_token(
+        secret=settings.jwt_secret,
+        sub=user.id,
+        role=user.role.value,
+        tenant_id=user.tenant_id,
+        ttl=settings.token_ttl_seconds,
+    )
+    return TokenResponse(access_token=token)
 
 
 @router.post("/login", response_model=TokenResponse)

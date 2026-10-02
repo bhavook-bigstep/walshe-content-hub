@@ -31,7 +31,13 @@ export interface paths {
         /** List Users */
         get: operations["list_users_admin_users_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create User
+         * @description Super Admin provisions a user (AC24). Can create a Content Provider or Tourism Agent, never
+         *     another Super Admin (that role stays seeded). A provider is tied to its organization (tenant)
+         *     and starts unapproved until verified (AC2); an agent is usable immediately.
+         */
+        post: operations["create_user_admin_users_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -83,6 +89,27 @@ export interface paths {
         get: operations["me_auth_me_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description Public self-registration (AC24): always a Tourism Agent — no role escalation. Signs in on
+         *     success by returning a bearer token. Agents need no approval (that gate is for providers).
+         */
+        post: operations["register_auth_register_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -317,6 +344,19 @@ export interface components {
             brand_safe?: boolean | null;
             status?: components["schemas"]["EntryStatus"] | null;
         };
+        /**
+         * AdminCreateUserRequest
+         * @description Super-Admin user provisioning (AC24b). Role is validated in the route (no super_admin).
+         */
+        AdminCreateUserRequest: {
+            /** Email */
+            email: string;
+            /** Organization */
+            organization?: string | null;
+            /** Password */
+            password: string;
+            role: components["schemas"]["Role"];
+        };
         /** Body_upload_image_catalog__entry_id__image_post */
         Body_upload_image_catalog__entry_id__image_post: {
             /** File */
@@ -426,6 +466,16 @@ export interface components {
             channel: string;
             /** Composition Id */
             composition_id: number;
+        };
+        /**
+         * RegisterRequest
+         * @description Public self-registration (AC24a) — only ever creates a Tourism Agent.
+         */
+        RegisterRequest: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
         };
         /** RenderRequest */
         RenderRequest: {
@@ -565,6 +615,39 @@ export interface operations {
             };
         };
     };
+    create_user_admin_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     fetch_asset_assets__object_key__get: {
         parameters: {
             query?: never;
@@ -645,6 +728,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+        };
+    };
+    register_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

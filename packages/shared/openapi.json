@@ -56,6 +56,43 @@
         "title": "AccessUpdate",
         "type": "object"
       },
+      "AdminCreateUserRequest": {
+        "description": "Super-Admin user provisioning (AC24b). Role is validated in the route (no super_admin).",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "organization": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization"
+          },
+          "password": {
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "role"
+        ],
+        "title": "AdminCreateUserRequest",
+        "type": "object"
+      },
       "Body_upload_image_catalog__entry_id__image_post": {
         "properties": {
           "file": {
@@ -352,6 +389,27 @@
         "title": "PublishRequest",
         "type": "object"
       },
+      "RegisterRequest": {
+        "description": "Public self-registration (AC24a) — only ever creates a Tourism Agent.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "RegisterRequest",
+        "type": "object"
+      },
       "RenderRequest": {
         "properties": {
           "design": {
@@ -645,6 +703,51 @@
         "tags": [
           "admin"
         ]
+      },
+      "post": {
+        "description": "Super Admin provisions a user (AC24). Can create a Content Provider or Tourism Agent, never\nanother Super Admin (that role stays seeded). A provider is tied to its organization (tenant)\nand starts unapproved until verified (AC2); an agent is usable immediately.",
+        "operationId": "create_user_admin_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create User",
+        "tags": [
+          "admin"
+        ]
       }
     },
     "/assets/{object_key}": {
@@ -754,6 +857,48 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "description": "Public self-registration (AC24): always a Tourism Agent — no role escalation. Signs in on\nsuccess by returning a bearer token. Agents need no approval (that gate is for providers).",
+        "operationId": "register_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register",
         "tags": [
           "auth"
         ]

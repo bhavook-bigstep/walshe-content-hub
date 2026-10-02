@@ -135,7 +135,8 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC21 | design | met | 1/1 |
 | AC22 | design | met | 1/1 |
 | AC23 | design | met | 1/1 |
+| AC24 | P3 | met | 5/5 |
 
-**Totals:** 23 met · 0 partial · 0 missing · 23 total.
+**Totals:** 24 met · 0 partial · 0 missing · 24 total.
 
 <!-- END GENERATED ACCEPTANCE MATRIX -->

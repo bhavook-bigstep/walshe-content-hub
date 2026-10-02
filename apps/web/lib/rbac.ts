@@ -36,7 +36,8 @@ export function allowed(path: string, role: Role | null): boolean {
 
 /** Middleware decision: redirect target path, or null to let the request through. */
 export function redirectFor(path: string, role: Role | null): string | null {
-  if (path === "/login") return role ? ROLE_HOME[role] : null;
+  // Public auth pages: send signed-in users to their home; let everyone else through.
+  if (path === "/login" || path === "/register") return role ? ROLE_HOME[role] : null;
   if (requiredRole(path) === null) return null;
   if (role === null) return "/login";
   return allowed(path, role) ? null : ROLE_HOME[role];

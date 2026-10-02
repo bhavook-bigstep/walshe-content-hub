@@ -116,3 +116,13 @@ acceptance:
     tier: design
     e2e:
       - "apps/web/e2e/responsive-smoke.spec.ts::no horizontal overflow on mobile"
+  # --- v2.1.0 Access & Accounts (hybrid registration) ---
+  AC24:
+    tier: P3
+    api:
+      - "apps/api/tests/test_register.py::test_self_register_creates_agent_and_signs_in"
+      - "apps/api/tests/test_register.py::test_self_register_rejects_duplicate_and_weak_password"
+      - "apps/api/tests/test_register.py::test_admin_creates_provider_with_org_unapproved"
+      - "apps/api/tests/test_register.py::test_admin_create_user_guards_role_and_auth"
+    e2e:
+      - "apps/web/e2e/register-smoke.spec.ts::public register creates an agent and lands on agent home"
