@@ -1,4 +1,5 @@
 """AC4 — Upload an image for an entry; fetch it back (storage is the in-memory fake)."""
+
 from __future__ import annotations
 
 # A minimal, valid 1x1 PNG (synthetic bytes, no real asset).

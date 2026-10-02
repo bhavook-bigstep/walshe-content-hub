@@ -1,4 +1,5 @@
 """Contract 1 prerequisite — agent_visible_entries_by_ids + EntryOut.asset_keys."""
+
 from __future__ import annotations
 
 from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus

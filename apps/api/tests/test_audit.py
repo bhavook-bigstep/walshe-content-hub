@@ -1,4 +1,5 @@
 """Contract 3 — destructive actions are traceable (audit log)."""
+
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -24,13 +25,17 @@ def test_destructive_actions_are_logged(client, app, provider_headers):
 
     SessionLocal = app.state.sessionmaker
     with SessionLocal() as db:
-        rows = db.execute(
-            select(AuditLog).where(
-                AuditLog.action == "delete",
-                AuditLog.target_type == "catalog_entry",
-                AuditLog.target_id == entry_id,
+        rows = (
+            db.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "delete",
+                    AuditLog.target_type == "catalog_entry",
+                    AuditLog.target_id == entry_id,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert len(rows) == 1
     assert rows[0].actor_id > 0  # recorded who performed it (no PII, just the id)
 
@@ -38,11 +43,15 @@ def test_destructive_actions_are_logged(client, app, provider_headers):
 def _actions(app, entry_id: int) -> list[str]:
     SessionLocal = app.state.sessionmaker
     with SessionLocal() as db:
-        rows = db.execute(
-            select(AuditLog)
-            .where(AuditLog.target_type == "catalog_entry", AuditLog.target_id == entry_id)
-            .order_by(AuditLog.id)
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(AuditLog)
+                .where(AuditLog.target_type == "catalog_entry", AuditLog.target_id == entry_id)
+                .order_by(AuditLog.id)
+            )
+            .scalars()
+            .all()
+        )
     return [r.action for r in rows]
 
 

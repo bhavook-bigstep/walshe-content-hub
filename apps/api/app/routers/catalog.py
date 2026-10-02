@@ -10,16 +10,29 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import audit
+from app.content_templates import CONTENT_TEMPLATES
 from app.deps import get_db, require_role
 from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
 from app.models.user import Role, User
-from app.schemas.catalog import AccessUpdate, EntryCreate, EntryOut
+from app.schemas.catalog import (
+    AccessUpdate,
+    ContentTemplates,
+    EntryContentUpdate,
+    EntryCreate,
+    EntryOut,
+)
 from app.services.visibility import agent_visible_entries, is_visible_to_agent
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
 _provider_only = require_role(Role.content_provider)
 _agent_only = require_role(Role.tourism_agent)
+
+
+@router.get("/templates", response_model=ContentTemplates)
+def content_templates() -> ContentTemplates:
+    """Self-describing schema of the structured fields per content type (AC29)."""
+    return ContentTemplates(templates=CONTENT_TEMPLATES)
 
 
 @router.post("", response_model=EntryOut, status_code=status.HTTP_201_CREATED)
@@ -37,9 +50,35 @@ def create_entry(
         description=body.description,
         destination=body.destination,
         market_tags=body.market_tags,
+        attributes=body.attributes,
+        highlights=body.highlights,
+        custom_sections=[s.model_dump() for s in body.custom_sections],
         provider_id=provider.id,
     )
     db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@router.put("/{entry_id}", response_model=EntryOut)
+def update_content(
+    entry_id: int,
+    body: EntryContentUpdate,
+    db: Session = Depends(get_db),
+    provider: User = Depends(_provider_only),
+) -> CatalogEntry:
+    """Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on
+    the PATCH endpoint."""
+    entry = db.get(CatalogEntry, entry_id)
+    if entry is None or entry.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    data = body.model_dump(exclude_unset=True)
+    for field in ("title", "description", "destination", "market_tags", "attributes", "highlights"):
+        if field in data and data[field] is not None:
+            setattr(entry, field, data[field])
+    if "custom_sections" in data and data["custom_sections"] is not None:
+        entry.custom_sections = [dict(s) for s in data["custom_sections"]]
     db.commit()
     db.refresh(entry)
     return entry

@@ -1,4 +1,5 @@
 """AC16 — provider abstraction: config-selected, env keys, stub fallback, no network."""
+
 from __future__ import annotations
 
 import httpx

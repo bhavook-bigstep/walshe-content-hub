@@ -5,6 +5,14 @@ import type { components } from "./api-types";
 type Schemas = components["schemas"];
 export type Entry = Schemas["EntryOut"];
 export type EntryCreate = Schemas["EntryCreate"];
+export type EntryContentUpdate = Schemas["EntryContentUpdate"];
+export type CustomSection = Schemas["CustomSection"];
+export type ContentTemplates = Schemas["ContentTemplates"];
+export type TemplateField = Schemas["TemplateField"];
+export type MediaItem = Schemas["MediaItem"];
+export type TeamMember = Schemas["TeamMember"];
+export type TeamInvite = Schemas["TeamInvite"];
+export type Performance = Schemas["PerformanceOut"];
 export type AccessUpdate = Schemas["AccessUpdate"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
@@ -137,6 +145,36 @@ export async function getEntry(id: number): Promise<Entry> {
 
 export async function createEntry(body: EntryCreate): Promise<Entry> {
   return (await (await send("/catalog", json(body))).json()) as Entry;
+}
+
+/** Self-describing structured-field schema per content type (AC29). */
+export async function getContentTemplates(): Promise<ContentTemplates> {
+  return (await (await send("/catalog/templates", {}, false)).json()) as ContentTemplates;
+}
+
+/** Edit an entry's structured content (AC29). */
+export async function updateEntryContent(id: number, body: EntryContentUpdate): Promise<Entry> {
+  const init = { ...json(body), method: "PUT" };
+  return (await (await send(`/catalog/${id}`, init)).json()) as Entry;
+}
+
+/** Provider media library — every asset across the provider's entries (AC29). */
+export async function listMedia(): Promise<MediaItem[]> {
+  return (await (await send("/me/media")).json()) as MediaItem[];
+}
+
+/** Provider team members in the same organization (AC29). */
+export async function listTeam(): Promise<TeamMember[]> {
+  return (await (await send("/me/team")).json()) as TeamMember[];
+}
+
+export async function inviteMember(body: TeamInvite): Promise<User> {
+  return (await (await send("/me/team", json(body))).json()) as User;
+}
+
+/** How agents use this provider's content (AC29). */
+export async function getPerformance(): Promise<Performance> {
+  return (await (await send("/me/performance")).json()) as Performance;
 }
 
 export async function setAccess(id: number, body: AccessUpdate): Promise<Entry> {

@@ -1,4 +1,5 @@
 """AC13 — rudimentary video MP4. ffmpeg/TTS mocked; real encode is opt-in (RUN_REAL_FFMPEG=1)."""
+
 from __future__ import annotations
 
 import os
@@ -48,12 +49,18 @@ def test_scene_script_deterministic_and_cmd_shape(tmp_path):
 def test_no_tts_tool_and_missing_ffmpeg(tmp_path):
     scenes = build_scene_script(ITEMS)
     calls: list[list[str]] = []
-    render_video(scenes, None, out_dir=tmp_path, runner=lambda c, **k: calls.append(c),
-                 which={"ffmpeg": "f"}.get)
+    render_video(
+        scenes,
+        None,
+        out_dir=tmp_path,
+        runner=lambda c, **k: calls.append(c),
+        which={"ffmpeg": "f"}.get,
+    )
     assert all(c[0] == "ffmpeg" for c in calls)
     with pytest.raises(RuntimeError):
-        render_video(scenes, None, out_dir=tmp_path, runner=lambda *a, **k: None,
-                     which=lambda _: None)
+        render_video(
+            scenes, None, out_dir=tmp_path, runner=lambda *a, **k: None, which=lambda _: None
+        )
 
 
 def test_escape_drawtext():
@@ -80,10 +87,17 @@ def test_video_route_agent_only(client, agent_headers, provider_headers, monkeyp
 def test_video_route_renders_catalog_image(app, client, agent_headers, monkeypatch):
     png = b"\x89PNG\r\n\x1a\nsynthetic-bytes"
     with app.state.sessionmaker() as db:
+
         def mk(title, status):
             e = CatalogEntry(
-                type=CatalogType.event, title=title, description="", destination="Galway",
-                status=status, brand_safe=True, allowed_tenant_ids=[], allowed_agent_ids=[],
+                type=CatalogType.event,
+                title=title,
+                description="",
+                destination="Galway",
+                status=status,
+                brand_safe=True,
+                allowed_tenant_ids=[],
+                allowed_agent_ids=[],
                 provider_id=1,
             )
             db.add(e)

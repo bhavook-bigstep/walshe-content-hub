@@ -118,6 +118,48 @@
         "title": "CatalogType",
         "type": "string"
       },
+      "ContentTemplates": {
+        "description": "Self-describing schema of the structured fields per content type (AC29).",
+        "properties": {
+          "templates": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/TemplateField"
+              },
+              "type": "array"
+            },
+            "title": "Templates",
+            "type": "object"
+          }
+        },
+        "required": [
+          "templates"
+        ],
+        "title": "ContentTemplates",
+        "type": "object"
+      },
+      "CustomSection": {
+        "description": "A titled rich block for content that doesn't fit the type's template (AC29).",
+        "properties": {
+          "body": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Body",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "CustomSection",
+        "type": "object"
+      },
       "DesignRequest": {
         "properties": {
           "item_ids": {
@@ -171,8 +213,118 @@
         "title": "EngagementOut",
         "type": "object"
       },
+      "EntryContentUpdate": {
+        "description": "Provider-owned content edit (AC29). All fields optional; only provided ones change.",
+        "properties": {
+          "attributes": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributes"
+          },
+          "custom_sections": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CustomSection"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Sections"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "highlights": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highlights"
+          },
+          "market_tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Tags"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "EntryContentUpdate",
+        "type": "object"
+      },
       "EntryCreate": {
         "properties": {
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
+          },
+          "custom_sections": {
+            "items": {
+              "$ref": "#/components/schemas/CustomSection"
+            },
+            "title": "Custom Sections",
+            "type": "array"
+          },
           "description": {
             "default": "",
             "title": "Description",
@@ -183,6 +335,13 @@
             "minLength": 1,
             "title": "Destination",
             "type": "string"
+          },
+          "highlights": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Highlights",
+            "type": "array"
           },
           "market_tags": {
             "items": {
@@ -219,9 +378,23 @@
             "title": "Asset Keys",
             "type": "array"
           },
+          "attributes": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Attributes",
+            "type": "object"
+          },
           "brand_safe": {
             "title": "Brand Safe",
             "type": "boolean"
+          },
+          "custom_sections": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CustomSection"
+            },
+            "title": "Custom Sections",
+            "type": "array"
           },
           "description": {
             "title": "Description",
@@ -230,6 +403,14 @@
           "destination": {
             "title": "Destination",
             "type": "string"
+          },
+          "highlights": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Highlights",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -308,6 +489,34 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MediaItem": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "entry_title": {
+            "title": "Entry Title",
+            "type": "string"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key",
+          "content_type",
+          "entry_id",
+          "entry_title"
+        ],
+        "title": "MediaItem",
         "type": "object"
       },
       "OrganizationOut": {
@@ -421,6 +630,60 @@
           }
         },
         "title": "OrganizationUpdate",
+        "type": "object"
+      },
+      "PerformanceOut": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PerformanceRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "total_reach": {
+            "title": "Total Reach",
+            "type": "integer"
+          },
+          "total_uses": {
+            "title": "Total Uses",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_uses",
+          "total_reach",
+          "rows"
+        ],
+        "title": "PerformanceOut",
+        "type": "object"
+      },
+      "PerformanceRow": {
+        "properties": {
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "reach": {
+            "title": "Reach",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "uses": {
+            "title": "Uses",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entry_id",
+          "title",
+          "uses",
+          "reach"
+        ],
+        "title": "PerformanceRow",
         "type": "object"
       },
       "PostOut": {
@@ -676,6 +939,101 @@
           "channel"
         ],
         "title": "ScheduleRequest",
+        "type": "object"
+      },
+      "TeamInvite": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "TeamInvite",
+        "type": "object"
+      },
+      "TeamMember": {
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "boolean"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "approved"
+        ],
+        "title": "TeamMember",
+        "type": "object"
+      },
+      "TemplateField": {
+        "properties": {
+          "help": {
+            "default": "",
+            "title": "Help",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "title": "TemplateField",
         "type": "object"
       },
       "TokenResponse": {
@@ -1420,6 +1778,28 @@
         ]
       }
     },
+    "/catalog/templates": {
+      "get": {
+        "description": "Self-describing schema of the structured fields per content type (AC29).",
+        "operationId": "content_templates_catalog_templates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentTemplates"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Content Templates",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/catalog/{entry_id}": {
       "delete": {
         "operationId": "delete_entry_catalog__entry_id__delete",
@@ -1558,6 +1938,62 @@
         "tags": [
           "catalog"
         ]
+      },
+      "put": {
+        "description": "Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on\nthe PATCH endpoint.",
+        "operationId": "update_content_catalog__entry_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryContentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Content",
+        "tags": [
+          "catalog"
+        ]
       }
     },
     "/catalog/{entry_id}/image": {
@@ -1676,6 +2112,37 @@
         ]
       }
     },
+    "/me/media": {
+      "get": {
+        "description": "Every image/asset across this provider's catalog entries, in one place (AC29).",
+        "operationId": "media_library_me_media_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MediaItem"
+                  },
+                  "title": "Response Media Library Me Media Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Media Library",
+        "tags": [
+          "provider"
+        ]
+      }
+    },
     "/me/organization": {
       "get": {
         "operationId": "get_organization_me_organization_get",
@@ -1743,6 +2210,109 @@
         "summary": "Update Organization",
         "tags": [
           "organization"
+        ]
+      }
+    },
+    "/me/performance": {
+      "get": {
+        "description": "How agents use this provider's content (AC29): compositions that reference each entry, and\nthe reach (impressions) of posts built from them. Derived from seeded/mock engagement.",
+        "operationId": "content_performance_me_performance_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Content Performance",
+        "tags": [
+          "provider"
+        ]
+      }
+    },
+    "/me/team": {
+      "get": {
+        "description": "Colleagues in the same organization (tenant) (AC29).",
+        "operationId": "team_members_me_team_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamMember"
+                  },
+                  "title": "Response Team Members Me Team Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Team Members",
+        "tags": [
+          "provider"
+        ]
+      },
+      "post": {
+        "description": "Invite a colleague into the organization (AC29). They join the provider's tenant and, since\nthe organization is already onboarded, are usable immediately.",
+        "operationId": "invite_member_me_team_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamInvite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Invite Member",
+        "tags": [
+          "provider"
         ]
       }
     },

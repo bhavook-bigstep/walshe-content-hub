@@ -1,4 +1,5 @@
 """AC3 — Provider creates catalog entries of every type."""
+
 from __future__ import annotations
 
 from app.models.catalog import CatalogType

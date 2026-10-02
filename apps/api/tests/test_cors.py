@@ -2,6 +2,7 @@
 
 Browser dev/e2e needs cross-origin access; prod (empty CORS_ORIGINS) stays closed by default.
 """
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient

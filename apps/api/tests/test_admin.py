@@ -1,4 +1,5 @@
 """AC2 — Super Admin approves a content provider."""
+
 from __future__ import annotations
 
 from app.models.user import Role, User

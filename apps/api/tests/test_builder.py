@@ -1,4 +1,5 @@
 """AC10 — Builder: deterministic stub, grounded in selected items, agent-only, no network."""
+
 from __future__ import annotations
 
 import json

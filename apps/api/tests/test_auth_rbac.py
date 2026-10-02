@@ -1,4 +1,5 @@
 """AC1 — 3-role login + RBAC."""
+
 from __future__ import annotations
 
 

@@ -38,6 +38,14 @@ class CatalogEntry(Base):
     destination: Mapped[str] = mapped_column(String(200), index=True)
     market_tags: Mapped[list[str]] = mapped_column(JSON, default=list)
 
+    # Structured inventory (AC29) — explicit, typed data so AI agents can crawl it reliably.
+    # `attributes` holds the per-type template fields ({field_key: value}); `highlights` are
+    # structured selling points; `custom_sections` capture anything outside the template as
+    # titled rich blocks ([{title, body}]).
+    attributes: Mapped[dict] = mapped_column(JSON, default=dict)
+    highlights: Mapped[list[str]] = mapped_column(JSON, default=list)
+    custom_sections: Mapped[list[dict]] = mapped_column(JSON, default=list)
+
     status: Mapped[EntryStatus] = mapped_column(Enum(EntryStatus), default=EntryStatus.draft)
     brand_safe: Mapped[bool] = mapped_column(Boolean, default=False)
     # Empty lists == open to all approved+brand-safe viewers; non-empty == restricted scope.

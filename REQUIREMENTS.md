@@ -139,14 +139,21 @@ proper, character-rich **workspace per role**, entered through a role-aware regi
 - **AC27** — **Rich profiles**: a profile/settings page (display name, avatar, bio, preferences)
   reached from a top-bar profile menu; the workspace greets by name and shows the avatar; Content
   Providers have an **organization page** (logo, blurb, markets served, verification badge).
-> **Staged (charter Phase 2–3, promoted to acceptance items here when built):** the Agent
-> features (saved projects, collections, brand kit, templates) and the Provider structured
-> AI-crawlable inventory (rich content types + custom sections, media library, team members,
-> performance). See `docs/plans/2026-10-02-requirements-charter.md`.
+- **AC29** — **Provider structured inventory**: the catalog is a structured tourism **inventory** —
+  each content type declares typed template fields (a **self-describing schema** at
+  `GET /catalog/templates` for AI agents), entries carry those typed `attributes` + `highlights`,
+  and **custom sections** capture anything outside the template, so the inventory stays rich *and*
+  machine-crawlable. Plus a **media library** (all the provider's assets), **team members** (invite
+  colleagues into the org), and a **content-performance** view (how agents use the content). Proof:
+  pytest covers structured create/edit + templates schema + media/team/performance (provider-only);
+  Playwright covers building a structured entry with a custom section.
 
-**Priority tiers** (build order; acceptance reports honestly against all 27):
+> **Staged (charter Phase 3, promoted here when built):** the Agent features — saved projects,
+> collections, brand kit, templates. See `docs/plans/2026-10-02-requirements-charter.md`.
+
+**Priority tiers** (build order; acceptance reports honestly against all 28):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23 · workspace = AC25,26,27 (+AC28,29 staged; all prior ACs stay green).
+design = AC19,20,21,22,23 · workspace = AC25,26,27,29 (agent features staged; all prior stay green).
 
 ## 4. Non-functional / system contracts
 

@@ -35,6 +35,37 @@ _SEED_ENTRIES = [
     (CatalogType.itinerary, "Wild Atlantic Way", "Mayo"),
 ]
 
+# Structured template attributes per type (AC29) — synthetic but schema-correct.
+_SEED_ATTRIBUTES: dict[CatalogType, dict] = {
+    CatalogType.event: {
+        "start_date": "2026-07-18",
+        "end_date": "2026-07-26",
+        "venue": "Galway Docks",
+        "expected_attendance": 40000,
+    },
+    CatalogType.place: {
+        "region": "Wild Atlantic Way",
+        "best_season": "Spring, Summer",
+        "latitude": 52.9719,
+        "longitude": -9.4261,
+    },
+    CatalogType.opportunity: {
+        "deadline": "2026-05-31",
+        "commission": "12%",
+        "partner": "Aer Lingus",
+    },
+    CatalogType.offer: {
+        "price_from": 899,
+        "currency": "EUR",
+        "valid_until": "2026-11-30",
+    },
+    CatalogType.itinerary: {
+        "duration_days": 7,
+        "stops": "Galway, Clifden, Westport, Sligo",
+        "difficulty": "Easy",
+    },
+}
+
 
 def _upsert_tenant(db: Session, name: str) -> Tenant:
     tenant = db.execute(select(Tenant).where(Tenant.name == name)).scalar_one_or_none()
@@ -78,6 +109,17 @@ def _upsert_entry(
             status=EntryStatus.approved,
             brand_safe=True,
             provider_id=provider_id,
+            attributes=_SEED_ATTRIBUTES.get(type_, {}),
+            highlights=[
+                f"Signature {type_.value} on the Wild Atlantic Way",
+                "Trade-ready assets included",
+            ],
+            custom_sections=[
+                {
+                    "title": "Why agents love it",
+                    "body": f"A reliable, verified {type_.value} in {destination}.",
+                }
+            ],
         )
         db.add(entry)
         db.flush()

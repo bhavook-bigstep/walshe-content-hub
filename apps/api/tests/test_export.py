@@ -1,4 +1,5 @@
 """AC12 — Export a design to PDF + email HTML (Contract 2: no secrets in output)."""
+
 from __future__ import annotations
 
 import re

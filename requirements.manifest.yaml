@@ -146,3 +146,11 @@ acceptance:
       - "apps/api/tests/test_profile.py::test_provider_updates_organization_profile"
     e2e:
       - "apps/web/e2e/profile-smoke.spec.ts::agent sets a display name and sees it in the workspace"
+  AC29:
+    tier: P2
+    api:
+      - "apps/api/tests/test_inventory.py::test_create_structured_entry_with_custom_sections"
+      - "apps/api/tests/test_inventory.py::test_content_templates_schema"
+      - "apps/api/tests/test_inventory.py::test_media_team_and_performance"
+    e2e:
+      - "apps/web/e2e/inventory-smoke.spec.ts::provider creates a structured entry with a custom section"

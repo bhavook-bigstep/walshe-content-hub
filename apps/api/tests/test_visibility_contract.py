@@ -1,4 +1,5 @@
 """AC6 — CONTRACT 1: agents only ever see approved, brand-safe, in-scope entries."""
+
 from __future__ import annotations
 
 

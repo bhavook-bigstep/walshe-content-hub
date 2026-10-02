@@ -1,4 +1,5 @@
 """AC17 — seed is idempotent and complete."""
+
 from __future__ import annotations
 
 from sqlalchemy import func, select

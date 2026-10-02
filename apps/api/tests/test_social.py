@@ -1,4 +1,5 @@
 """AC14 social schedule/publish (simulated). Clock injected; synthetic data only."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ FIXED = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 def sclient(settings):
     application = create_app(settings)
     application.include_router(social.router)
-    application.dependency_overrides[social.get_clock] = lambda: (lambda: FIXED)
+    application.dependency_overrides[social.get_clock] = lambda: lambda: FIXED
     with application.state.sessionmaker() as db:
         from app.models.user import User as U
         from app.security import hash_password

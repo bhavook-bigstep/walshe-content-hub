@@ -1,4 +1,5 @@
 """AC15 engagement dashboard — synthetic rows inserted directly (decoupled from app seeding)."""
+
 from __future__ import annotations
 
 import pytest

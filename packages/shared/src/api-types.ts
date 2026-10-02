@@ -177,6 +177,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Content Templates
+         * @description Self-describing schema of the structured fields per content type (AC29).
+         */
+        get: operations["content_templates_catalog_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog/{entry_id}": {
         parameters: {
             query?: never;
@@ -186,7 +206,12 @@ export interface paths {
         };
         /** Get For Agent */
         get: operations["get_for_agent_catalog__entry_id__get"];
-        put?: never;
+        /**
+         * Update Content
+         * @description Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on
+         *     the PATCH endpoint.
+         */
+        put: operations["update_content_catalog__entry_id__put"];
         post?: never;
         /** Delete Entry */
         delete: operations["delete_entry_catalog__entry_id__delete"];
@@ -247,6 +272,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Media Library
+         * @description Every image/asset across this provider's catalog entries, in one place (AC29).
+         */
+        get: operations["media_library_me_media_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/organization": {
         parameters: {
             query?: never;
@@ -263,6 +308,52 @@ export interface paths {
         head?: never;
         /** Update Organization */
         patch: operations["update_organization_me_organization_patch"];
+        trace?: never;
+    };
+    "/me/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Content Performance
+         * @description How agents use this provider's content (AC29): compositions that reference each entry, and
+         *     the reach (impressions) of posts built from them. Derived from seeded/mock engagement.
+         */
+        get: operations["content_performance_me_performance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Team Members
+         * @description Colleagues in the same organization (tenant) (AC29).
+         */
+        get: operations["team_members_me_team_get"];
+        put?: never;
+        /**
+         * Invite Member
+         * @description Invite a colleague into the organization (AC29). They join the provider's tenant and, since
+         *     the organization is already onboarded, are usable immediately.
+         */
+        post: operations["invite_member_me_team_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/render/email-html": {
@@ -411,6 +502,29 @@ export interface components {
          * @enum {string}
          */
         CatalogType: "event" | "place" | "opportunity" | "offer" | "itinerary";
+        /**
+         * ContentTemplates
+         * @description Self-describing schema of the structured fields per content type (AC29).
+         */
+        ContentTemplates: {
+            /** Templates */
+            templates: {
+                [key: string]: components["schemas"]["TemplateField"][];
+            };
+        };
+        /**
+         * CustomSection
+         * @description A titled rich block for content that doesn't fit the type's template (AC29).
+         */
+        CustomSection: {
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** Title */
+            title: string;
+        };
         /** DesignRequest */
         DesignRequest: {
             /** Item Ids */
@@ -429,8 +543,36 @@ export interface components {
             /** Post Id */
             post_id: number;
         };
+        /**
+         * EntryContentUpdate
+         * @description Provider-owned content edit (AC29). All fields optional; only provided ones change.
+         */
+        EntryContentUpdate: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: unknown;
+            } | null;
+            /** Custom Sections */
+            custom_sections?: components["schemas"]["CustomSection"][] | null;
+            /** Description */
+            description?: string | null;
+            /** Destination */
+            destination?: string | null;
+            /** Highlights */
+            highlights?: string[] | null;
+            /** Market Tags */
+            market_tags?: string[] | null;
+            /** Title */
+            title?: string | null;
+        };
         /** EntryCreate */
         EntryCreate: {
+            /** Attributes */
+            attributes?: {
+                [key: string]: unknown;
+            };
+            /** Custom Sections */
+            custom_sections?: components["schemas"]["CustomSection"][];
             /**
              * Description
              * @default
@@ -438,6 +580,8 @@ export interface components {
             description: string;
             /** Destination */
             destination: string;
+            /** Highlights */
+            highlights?: string[];
             /** Market Tags */
             market_tags?: string[];
             /** Title */
@@ -451,12 +595,29 @@ export interface components {
              * @default []
              */
             asset_keys: string[];
+            /**
+             * Attributes
+             * @default {}
+             */
+            attributes: {
+                [key: string]: unknown;
+            };
             /** Brand Safe */
             brand_safe: boolean;
+            /**
+             * Custom Sections
+             * @default []
+             */
+            custom_sections: components["schemas"]["CustomSection"][];
             /** Description */
             description: string;
             /** Destination */
             destination: string;
+            /**
+             * Highlights
+             * @default []
+             */
+            highlights: string[];
             /** Id */
             id: number;
             /** Market Tags */
@@ -484,6 +645,17 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MediaItem */
+        MediaItem: {
+            /** Content Type */
+            content_type: string;
+            /** Entry Id */
+            entry_id: number;
+            /** Entry Title */
+            entry_title: string;
+            /** Object Key */
+            object_key: string;
         };
         /** OrganizationOut */
         OrganizationOut: {
@@ -513,6 +685,26 @@ export interface components {
             markets?: string[] | null;
             /** Name */
             name?: string | null;
+        };
+        /** PerformanceOut */
+        PerformanceOut: {
+            /** Rows */
+            rows: components["schemas"]["PerformanceRow"][];
+            /** Total Reach */
+            total_reach: number;
+            /** Total Uses */
+            total_uses: number;
+        };
+        /** PerformanceRow */
+        PerformanceRow: {
+            /** Entry Id */
+            entry_id: number;
+            /** Reach */
+            reach: number;
+            /** Title */
+            title: string;
+            /** Uses */
+            uses: number;
         };
         /** PostOut */
         PostOut: {
@@ -602,6 +794,40 @@ export interface components {
             composition_id: number;
             /** Scheduled At */
             scheduled_at?: string | null;
+        };
+        /** TeamInvite */
+        TeamInvite: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /** TeamMember */
+        TeamMember: {
+            /** Approved */
+            approved: boolean;
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string;
+            /** Id */
+            id: number;
+        };
+        /** TemplateField */
+        TemplateField: {
+            /**
+             * Help
+             * @default
+             */
+            help: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Type */
+            type: string;
         };
         /** TokenResponse */
         TokenResponse: {
@@ -1050,6 +1276,26 @@ export interface operations {
             };
         };
     };
+    content_templates_catalog_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentTemplates"];
+                };
+            };
+        };
+    };
     get_for_agent_catalog__entry_id__get: {
         parameters: {
             query?: never;
@@ -1060,6 +1306,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_content_catalog__entry_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryContentUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1224,6 +1505,26 @@ export interface operations {
             };
         };
     };
+    media_library_me_media_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaItem"][];
+                };
+            };
+        };
+    };
     get_organization_me_organization_get: {
         parameters: {
             query?: never;
@@ -1264,6 +1565,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrganizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    content_performance_me_performance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceOut"];
+                };
+            };
+        };
+    };
+    team_members_me_team_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"][];
+                };
+            };
+        };
+    };
+    invite_member_me_team_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamInvite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
                 };
             };
             /** @description Validation Error */

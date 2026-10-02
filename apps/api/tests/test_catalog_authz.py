@@ -5,6 +5,7 @@ guard ``entry is None or entry.provider_id != provider.id`` -> 404 (never 403: a
 entry is indistinguishable from missing). These tests add a SECOND synthetic provider and assert
 it cannot touch the first provider's entry, nor a nonexistent one.
 """
+
 from __future__ import annotations
 
 from app.models.user import Role, User
@@ -76,9 +77,5 @@ def test_upload_image_to_foreign_or_missing_entry_is_404(client, app, provider_h
     other = _second_provider_headers(client, app)
     files = {"file": ("pic.png", PNG_1X1, "image/png")}
 
-    assert (
-        client.post(f"/catalog/{entry_id}/image", headers=other, files=files).status_code == 404
-    )
-    assert (
-        client.post(f"/catalog/{_BOGUS_ID}/image", headers=other, files=files).status_code == 404
-    )
+    assert client.post(f"/catalog/{entry_id}/image", headers=other, files=files).status_code == 404
+    assert client.post(f"/catalog/{_BOGUS_ID}/image", headers=other, files=files).status_code == 404

@@ -1,4 +1,5 @@
 """AC5 — Mark brand-safe + set access scope; visibility reflects the scope."""
+
 from __future__ import annotations
 
 
