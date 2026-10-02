@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import { me, type User } from "../../lib/api";
 import type { Role } from "../../lib/rbac";
 import { clear } from "../../lib/session";
@@ -142,12 +142,18 @@ function SidebarInner({
   items,
   pathname,
   role,
+  displayName,
+  avatarColor,
+  initials,
   onNavigate,
   signOut,
 }: {
   items: readonly NavItem[];
   pathname: string;
   role: Role;
+  displayName: string;
+  avatarColor: string;
+  initials: string;
   onNavigate?: () => void;
   signOut: () => void;
 }) {
@@ -177,12 +183,33 @@ function SidebarInner({
           );
         })}
       </nav>
-      <div className="flex-none border-t border-white/10 px-4 py-4">
-        <p className="mb-3 px-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">{ROLE_LABEL[role]}</p>
+
+      {/* Profile section */}
+      <div className="flex-none border-t border-white/10 p-3">
+        <div className="mb-2 flex items-center gap-3 px-2 py-1.5">
+          <span
+            aria-hidden
+            className="grid h-9 w-9 flex-none place-items-center rounded-full text-[13px] font-bold text-white"
+            style={{ backgroundColor: avatarColor }}
+          >
+            {initials}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-small font-semibold text-white">{displayName}</span>
+            <span className="block text-[11px] text-white/45">{ROLE_LABEL[role]}</span>
+          </span>
+        </div>
+        <Link
+          href={`${ROLE_BASE[role]}/profile`}
+          onClick={onNavigate}
+          className="block rounded-md px-3 py-2 text-[13.5px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          Profile &amp; settings
+        </Link>
         <button
           type="button"
           onClick={signOut}
-          className="w-full rounded-md border border-white/20 px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/10"
+          className="block w-full rounded-md px-3 py-2 text-left text-[13.5px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
         >
           Sign out
         </button>
@@ -193,11 +220,8 @@ function SidebarInner({
 
 export default function AppShell({ role, children }: { role: Role; children: ReactNode }) {
   const pathname = usePathname() ?? "";
-  const router = useRouter();
   const [open, setOpen] = useState(false); // mobile drawer
-  const [menuOpen, setMenuOpen] = useState(false); // profile menu
   const [profile, setProfile] = useState<User | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const items = NAV[role];
 
   useEffect(() => {
@@ -210,18 +234,10 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
     };
   }, []);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [menuOpen]);
-
   function signOut() {
     clear();
-    router.replace("/login");
+    // Hard navigation so all in-memory session state is dropped and the role cookie clear is applied.
+    window.location.assign("/login");
   }
 
   const displayName = profile?.display_name || profile?.email || "";
@@ -232,7 +248,15 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
     <div className="flex h-screen overflow-hidden bg-walshe-mist">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 flex-none flex-col border-r border-white/10 bg-walshe-deep lg:flex">
-        <SidebarInner items={items} pathname={pathname} role={role} signOut={signOut} />
+        <SidebarInner
+          items={items}
+          pathname={pathname}
+          role={role}
+          displayName={displayName}
+          avatarColor={avatarColor}
+          initials={initials}
+          signOut={signOut}
+        />
       </aside>
 
       {/* Main column */}
@@ -255,58 +279,6 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
             <Logo className="logo-mark h-7 w-[50px]" />
           </span>
           <Breadcrumbs pathname={pathname} />
-
-          {/* Profile menu */}
-          <div ref={menuRef} className="relative ml-auto flex-none">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              className="flex items-center gap-2.5 rounded-pill border border-white/10 py-1 pl-1 pr-3 transition-colors hover:bg-white/10"
-            >
-              <span
-                aria-hidden
-                className="grid h-8 w-8 flex-none place-items-center rounded-full text-[12px] font-bold text-white"
-                style={{ backgroundColor: avatarColor }}
-              >
-                {initials}
-              </span>
-              <span className="hidden max-w-[12ch] truncate text-small font-medium text-white sm:block">
-                {displayName}
-              </span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" className="hidden text-white/60 sm:block" aria-hidden>
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </button>
-            {menuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 overflow-hidden rounded-md border border-white/10 bg-walshe-deep shadow-[0_18px_40px_-18px_rgba(0,0,0,0.7)]"
-              >
-                <div className="border-b border-white/10 px-4 py-3">
-                  <p className="truncate text-small font-semibold text-walshe-ink">{displayName}</p>
-                  <p className="truncate text-[12px] text-walshe-grey">{ROLE_LABEL[role]}</p>
-                </div>
-                <Link
-                  href={`${ROLE_BASE[role]}/profile`}
-                  role="menuitem"
-                  onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-2.5 text-small font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-                >
-                  Profile &amp; settings
-                </Link>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={signOut}
-                  className="block w-full px-4 py-2.5 text-left text-small font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
         </header>
 
         {/* Content region — bounded scroll (AC26: the document never scrolls) */}
@@ -325,7 +297,16 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
             id="app-drawer"
             className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/10 bg-walshe-deep"
           >
-            <SidebarInner items={items} pathname={pathname} role={role} onNavigate={() => setOpen(false)} signOut={signOut} />
+            <SidebarInner
+              items={items}
+              pathname={pathname}
+              role={role}
+              displayName={displayName}
+              avatarColor={avatarColor}
+              initials={initials}
+              onNavigate={() => setOpen(false)}
+              signOut={signOut}
+            />
           </aside>
         </div>
       )}

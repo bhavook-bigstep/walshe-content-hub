@@ -106,7 +106,7 @@ export default function Landing() {
       </header>
 
       {/* ======================= VERIFIED CATALOG (retreats-style, dark) ======================= */}
-      <section className="bg-walshe-mist py-24">
+      <section id="catalog" className="scroll-mt-24 bg-walshe-mist py-24">
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="Verified catalog" title="Content the trade can trust, in more than six markets." />
           <div className="mt-16 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
@@ -147,7 +147,7 @@ export default function Landing() {
       </section>
 
       {/* ======================= ABOUT (editorial split) ======================= */}
-      <section className="py-24">
+      <section id="the-hub" className="scroll-mt-24 py-24">
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="The hub" title="Not just a library — a way of working, for the whole trade." />
           <div className="mt-16 grid items-start gap-12 lg:grid-cols-2">
@@ -173,7 +173,7 @@ export default function Landing() {
       </section>
 
       {/* ======================= STEPS (dark) ======================= */}
-      <section className="border-t border-walshe-line py-24">
+      <section id="how-it-works" className="scroll-mt-24 border-t border-walshe-line py-24">
         <div className="mx-auto max-w-content px-7">
           <SectionHead eyebrow="How it works" title="From verified content to published campaign." />
           <div className="mt-16 grid gap-x-10 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">

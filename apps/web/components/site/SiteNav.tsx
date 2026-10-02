@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-// Landing nav: a framed bar — logo bay · links · Sign in bay · Explore bay — whose hairline borders
-// DRAW themselves in on load, with the bar's contents dropping in (load-stagger). Transparent over
-// the hero; on scroll it becomes a deep-teal "liquid glass" bar (translucent + backdrop blur).
-// White text throughout; the logo turns gold on hover.
+// Landing nav: a framed bar — logo bay · section links · Sign in bay — whose hairline borders DRAW
+// themselves in on load, with the bar's contents dropping in (load-stagger). Transparent over the
+// hero; on scroll it becomes a deep-teal "liquid glass" bar. White text; the logo turns gold on hover.
+const NAV_LINKS = [
+  { label: "For the trade", href: "#the-hub" },
+  { label: "Destinations", href: "#catalog" },
+  { label: "How it works", href: "#how-it-works" },
+];
+
 export default function SiteNav() {
   const [solid, setSolid] = useState(false);
   useEffect(() => {
@@ -32,18 +37,16 @@ export default function SiteNav() {
       </Link>
 
       <div className="hidden flex-1 items-center justify-end gap-9 px-8 lg:flex">
-        {["For the trade", "Destinations", "How it works"].map((l) => (
-          <span key={l} className="cursor-default font-medium text-white/85 transition-colors hover:text-white">{l}</span>
+        {NAV_LINKS.map((l) => (
+          <a key={l.label} href={l.href} className="font-medium text-white/85 transition-colors hover:text-white">
+            {l.label}
+          </a>
         ))}
       </div>
 
-      <Link href="/login" className="relative ml-auto flex items-center px-7 font-semibold lg:ml-0">
+      <Link href="/login" className="relative ml-auto flex items-center px-7 font-semibold transition-colors hover:bg-white/10 lg:ml-0">
         <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
         Sign in
-      </Link>
-      <Link href="/login" className="relative hidden items-center px-7 font-semibold transition-colors hover:bg-white/10 lg:flex">
-        <span aria-hidden className="draw-y absolute left-0 top-0 h-full w-px bg-white/25" />
-        Explore
       </Link>
     </header>
   );
