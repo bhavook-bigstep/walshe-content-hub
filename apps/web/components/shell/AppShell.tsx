@@ -31,10 +31,14 @@ const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
     { href: "/provider/catalog/new", label: "New entry" },
     { href: "/provider/media", label: "Media library" },
     { href: "/provider/performance", label: "Performance" },
+    { href: "/provider/blocklist", label: "Off-limits" },
     { href: "/provider/team", label: "Team" },
     { href: "/provider/organization", label: "Organization" },
   ],
-  super_admin: [{ href: "/admin", label: "Users" }],
+  super_admin: [
+    { href: "/admin", label: "Users" },
+    { href: "/admin/audit", label: "Audit log" },
+  ],
 };
 
 const ROLE_LABEL: Readonly<Record<Role, string>> = {
@@ -65,6 +69,8 @@ const CRUMB_LABELS: Readonly<Record<string, string>> = {
   collections: "Collections",
   templates: "Templates",
   "brand-kit": "Brand kit",
+  blocklist: "Off-limits",
+  audit: "Audit log",
 };
 
 function isActive(pathname: string, href: string): boolean {

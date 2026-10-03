@@ -23,6 +23,11 @@ export type BrandKit = Schemas["BrandKitOut"];
 export type BrandKitUpdate = Schemas["BrandKitUpdate"];
 export type DesignTemplate = Schemas["DesignTemplate"];
 export type AccessUpdate = Schemas["AccessUpdate"];
+export type SendBackRequest = Schemas["SendBackRequest"];
+export type Preflight = Schemas["PreflightOut"];
+export type PreflightIssue = Schemas["PreflightIssueOut"];
+export type BlocklistTerm = Schemas["BlocklistOut"];
+export type AuditEntry = Schemas["AuditOut"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
 export type RegisterProviderInput = Schemas["RegisterProviderRequest"];
@@ -227,6 +232,31 @@ export async function listDesignTemplates(): Promise<DesignTemplate[]> {
   return (await (await send("/me/design-templates")).json()) as DesignTemplate[];
 }
 
+/** Reviewer returns an entry to its owner with a reason (AC35); entry drops to draft. */
+export async function sendBackEntry(id: number, reason: string): Promise<Entry> {
+  return (await (await send(`/catalog/${id}/send-back`, json({ reason }))).json()) as Entry;
+}
+
+// --- Off-limits blocklist (AC36) ---
+export async function listBlocklist(): Promise<BlocklistTerm[]> {
+  return (await (await send("/blocklist")).json()) as BlocklistTerm[];
+}
+export async function addBlocklistTerm(term: string): Promise<BlocklistTerm> {
+  return (await (await send("/blocklist", json({ term }))).json()) as BlocklistTerm;
+}
+export async function removeBlocklistTerm(id: number): Promise<void> {
+  await send(`/blocklist/${id}`, { method: "DELETE" });
+}
+
+// --- Audit log (AC37) ---
+export async function listAudit(): Promise<AuditEntry[]> {
+  return (await (await send("/audit")).json()) as AuditEntry[];
+}
+/** The audit log as a CSV blob (FR-16 export); the caller turns it into a download. */
+export async function fetchAuditCsv(): Promise<Blob> {
+  return (await send("/audit/export")).blob();
+}
+
 export async function setAccess(id: number, body: AccessUpdate): Promise<Entry> {
   const init = { ...json(body), method: "PATCH" };
   return (await (await send(`/catalog/${id}`, init)).json()) as Entry;
@@ -273,6 +303,12 @@ export async function builderDesign(body: DesignRequest): Promise<Record<string,
 /** Renders items to an MP4 blob (server never accepts client file paths). */
 export async function renderVideo(body: VideoRequest): Promise<Blob> {
   return (await send("/render/video", json(body))).blob();
+}
+
+/** Dry-run the pre-send checks (AC34) so the agent sees issues before trying to send. */
+export async function preflightSend(compositionId: number, channel: string): Promise<Preflight> {
+  const body = { composition_id: compositionId, channel };
+  return (await (await send("/social/preflight", json(body))).json()) as Preflight;
 }
 
 export async function scheduleSocialPost(body: ScheduleRequest): Promise<Post> {

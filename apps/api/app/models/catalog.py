@@ -65,6 +65,8 @@ class CatalogEntry(Base):
 
     status: Mapped[EntryStatus] = mapped_column(Enum(EntryStatus), default=EntryStatus.draft)
     brand_safe: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Reviewer's reason when an item is sent back to its owner (AC35); cleared on re-approval.
+    review_reason: Mapped[str] = mapped_column(Text, default="")
     # Validity window (AC32) — both nullable; display status derives from `expires_at` vs. clock.
     valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

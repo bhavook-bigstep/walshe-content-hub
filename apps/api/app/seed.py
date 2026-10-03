@@ -136,6 +136,24 @@ def _upsert_entry(
     return entry
 
 
+def _upsert_composition(db: Session, agent_id: int, name: str, item_ids: list[int]) -> Composition:
+    """Upsert a saved composition by (agent, name) so the seed stays idempotent (AC17)."""
+    comp = db.execute(
+        select(Composition).where(Composition.agent_id == agent_id, Composition.name == name)
+    ).scalar_one_or_none()
+    if comp is None:
+        comp = Composition(
+            agent_id=agent_id,
+            name=name,
+            format="social",
+            item_ids=item_ids,
+            design={"nodes": []},
+        )
+        db.add(comp)
+        db.flush()
+    return comp
+
+
 _SEED_CHANNEL = "facebook"
 _SEED_PUBLISHED_AT = datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)  # fixed => deterministic
 _SEED_METRICS = {"impressions": 1200, "clicks": 84, "engagement": 150}  # synthetic
@@ -206,21 +224,14 @@ def seed(db: Session) -> dict[str, int]:
         for type_, title, dest in _SEED_ENTRIES
     ]
 
-    existing_comp = db.execute(
-        select(Composition).where(Composition.agent_id == agent.id)
-    ).scalar_one_or_none()
-    if existing_comp is None:
-        existing_comp = Composition(
-            agent_id=agent.id,
-            name="Galway launch post",
-            format="social",
-            item_ids=[entries[0].id, entries[1].id],
-            design={"nodes": []},
-        )
-        db.add(existing_comp)
-        db.flush()
+    # A healthy composition (current items) and one that will fail preflight (holds the expired
+    # "Trade Showcase") so the pre-send check (AC34) has something to catch in the demo.
+    launch_comp = _upsert_composition(
+        db, agent.id, "Galway launch post", [entries[0].id, entries[1].id]
+    )
+    _upsert_composition(db, agent.id, "Trade Showcase teaser", [entries[2].id])
 
-    _upsert_post_with_engagement(db, existing_comp.id)
+    _upsert_post_with_engagement(db, launch_comp.id)
 
     db.commit()
 

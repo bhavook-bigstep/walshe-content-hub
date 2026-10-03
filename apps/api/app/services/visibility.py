@@ -13,19 +13,59 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import lifecycle
+from app.models.blocklist import BlocklistTerm
 from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
 from app.models.user import Role, User
 
 
-def is_visible_to_agent(entry: CatalogEntry, agent: User, *, now: datetime) -> bool:
-    """True iff ``entry`` is approved, brand-safe, unexpired, and in ``agent``'s access scope.
+def active_blocked_terms(db: Session) -> frozenset[str]:
+    """All off-limits terms (lower-cased), loaded once per request (AC36)."""
+    return frozenset(db.execute(select(BlocklistTerm.term)).scalars().all())
 
-    ``now`` is required (no default) so any un-updated call site fails loudly — expiry is derived
-    here at read time (AC33), never swept, and never scattered across routers.
+
+def _entry_text(entry: CatalogEntry) -> str:
+    """All searchable text on an entry, lower-cased — including the structured fields (AC29) so an
+    off-limits subject cannot hide in a highlight, attribute or custom section (AC36)."""
+    parts = [
+        entry.title,
+        entry.destination,
+        entry.description,
+        *entry.market_tags,
+        *entry.highlights,
+    ]
+    for section in entry.custom_sections or []:
+        parts.append(str(section.get("title", "")))
+        parts.append(str(section.get("body", "")))
+    parts.extend(str(v) for v in (entry.attributes or {}).values())
+    return " ".join(parts).lower()
+
+
+def is_blocked(entry: CatalogEntry, blocked_terms: frozenset[str]) -> bool:
+    """True iff an off-limits term appears anywhere in the entry's text (AC36 / FR-08).
+
+    Substring, case-insensitive — a term flags a *subject* wherever it surfaces, structured fields
+    included, so it cannot reach an agent through the Builder or a custom section.
+    """
+    if not blocked_terms:
+        return False
+    haystack = _entry_text(entry)
+    return any(term in haystack for term in blocked_terms)
+
+
+def is_visible_to_agent(
+    entry: CatalogEntry, agent: User, *, now: datetime, blocked_terms: frozenset[str]
+) -> bool:
+    """True iff ``entry`` is approved, brand-safe, unexpired, not off-limits, and in agent scope.
+
+    ``now`` and ``blocked_terms`` are both required (no default) so an un-updated agent-facing
+    caller fails loudly rather than silently skipping expiry (AC33) or the off-limits list (AC36).
+    Pass ``frozenset()`` only when the off-limits list genuinely does not apply.
     """
     if entry.status != EntryStatus.approved or not entry.brand_safe:
         return False
     if lifecycle.is_expired(entry.expires_at, now):
+        return False
+    if is_blocked(entry, blocked_terms):
         return False
     tenants = entry.allowed_tenant_ids or []
     agents = entry.allowed_agent_ids or []
@@ -57,10 +97,11 @@ def agent_visible_entries(
 
     rows = db.execute(stmt.order_by(CatalogEntry.id)).scalars().all()
 
+    blocked = active_blocked_terms(db)
     needle = (q or "").strip().lower()
     result: list[CatalogEntry] = []
     for entry in rows:
-        if not is_visible_to_agent(entry, agent, now=now):
+        if not is_visible_to_agent(entry, agent, now=now, blocked_terms=blocked):
             continue  # access-scope filter (JSON membership) done in Python for portability
         if needle and needle not in entry.title.lower() and needle not in entry.description.lower():
             continue
@@ -75,6 +116,7 @@ def agent_visible_entries_by_ids(
 
     Visibility is decided solely by ``is_visible_to_agent`` — no additional access rule.
     """
+    blocked = active_blocked_terms(db)
     result: list[CatalogEntry] = []
     seen: set[int] = set()
     for entry_id in ids:
@@ -82,7 +124,7 @@ def agent_visible_entries_by_ids(
             continue
         seen.add(entry_id)
         entry = db.get(CatalogEntry, entry_id)
-        if entry is not None and is_visible_to_agent(entry, agent, now=now):
+        if entry is not None and is_visible_to_agent(entry, agent, now=now, blocked_terms=blocked):
             result.append(entry)
     return result
 
@@ -107,5 +149,6 @@ def visible_asset_or_none(
     if user.role == Role.content_provider:
         return asset if entry.provider_id == user.id else None
     if user.role == Role.tourism_agent:
-        return asset if is_visible_to_agent(entry, user, now=now) else None
+        blocked = active_blocked_terms(db)
+        return asset if is_visible_to_agent(entry, user, now=now, blocked_terms=blocked) else None
     return None

@@ -61,6 +61,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit */
+        get: operations["list_audit_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Audit
+         * @description The same rows as a downloadable CSV (FR-16: records can be exported).
+         */
+        get: operations["export_audit_audit_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -137,6 +174,41 @@ export interface paths {
          */
         post: operations["register_provider_auth_register_provider_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Terms */
+        get: operations["list_terms_blocklist_get"];
+        put?: never;
+        /** Add Term */
+        post: operations["add_term_blocklist_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/blocklist/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Term */
+        delete: operations["remove_term_blocklist__term_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -232,6 +304,29 @@ export interface paths {
         put?: never;
         /** Upload Image */
         post: operations["upload_image_catalog__entry_id__image_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/send-back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Back
+         * @description Return an entry to its owner with a reason (AC35 / FR-14).
+         *
+         *     A provider may send back only their own entry; a super admin may send back any. The entry drops
+         *     to ``draft`` with the reason recorded (shown to the owner) and re-enters review on resubmit.
+         */
+        post: operations["send_back_catalog__entry_id__send_back_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -540,6 +635,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/social/preflight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preflight Check
+         * @description Dry-run the pre-send check (AC34) so the agent sees issues before trying to send.
+         */
+        post: operations["preflight_check_social_preflight_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/social/publish": {
         parameters: {
             query?: never;
@@ -624,6 +739,43 @@ export interface components {
             /** Password */
             password: string;
             role: components["schemas"]["Role"];
+        };
+        /** AuditOut */
+        AuditOut: {
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Target Id */
+            target_id: number;
+            /** Target Type */
+            target_type: string;
+        };
+        /** BlocklistCreate */
+        BlocklistCreate: {
+            /** Term */
+            term: string;
+        };
+        /** BlocklistOut */
+        BlocklistOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: number;
+            /** Id */
+            id: number;
+            /** Term */
+            term: string;
         };
         /** Body_upload_image_catalog__entry_id__image_post */
         Body_upload_image_catalog__entry_id__image_post: {
@@ -834,6 +986,11 @@ export interface components {
             market_tags: string[];
             /** Provider Id */
             provider_id: number;
+            /**
+             * Review Reason
+             * @default
+             */
+            review_reason: string;
             status: components["schemas"]["EntryStatus"];
             /** Title */
             title: string;
@@ -939,6 +1096,22 @@ export interface components {
          * @enum {string}
          */
         PostStatus: "scheduled" | "published";
+        /** PreflightIssueOut */
+        PreflightIssueOut: {
+            /** Code */
+            code: string;
+            /** Fix */
+            fix: string;
+            /** Message */
+            message: string;
+        };
+        /** PreflightOut */
+        PreflightOut: {
+            /** Issues */
+            issues: components["schemas"]["PreflightIssueOut"][];
+            /** Ok */
+            ok: boolean;
+        };
         /**
          * ProfileUpdate
          * @description Self-service profile edit (AC27). All fields optional; only provided ones change.
@@ -1072,6 +1245,14 @@ export interface components {
             composition_id: number;
             /** Scheduled At */
             scheduled_at?: string | null;
+        };
+        /**
+         * SendBackRequest
+         * @description Reviewer returns an entry to its owner with a reason (AC35 / FR-14).
+         */
+        SendBackRequest: {
+            /** Reason */
+            reason: string;
         };
         /** TeamInvite */
         TeamInvite: {
@@ -1301,6 +1482,46 @@ export interface operations {
             };
         };
     };
+    list_audit_audit_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditOut"][];
+                };
+            };
+        };
+    };
+    export_audit_audit_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     login_auth_login_post: {
         parameters: {
             query?: never;
@@ -1441,6 +1662,88 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TokenResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_terms_blocklist_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistOut"][];
+                };
+            };
+        };
+    };
+    add_term_blocklist_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlocklistCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_term_blocklist__term_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -1728,6 +2031,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_back_catalog__entry_id__send_back_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendBackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryOut"];
                 };
             };
             /** @description Validation Error */
@@ -2386,6 +2724,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preflight_check_social_preflight_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreflightOut"];
                 };
             };
             /** @description Validation Error */

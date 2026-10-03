@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.5.0 |
+| **Version** | 2.6.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -194,9 +194,34 @@ Increment 1 — **Content lifecycle & validity**:
   an expired item is absent from the agent catalog + search and is dropped from a saved project's
   items / scheduled posts.
 
-**Priority tiers** (build order; acceptance reports honestly against all 33):
+Increment 2 — **Trust, approval & audit**:
+
+- **AC34** — **Preflight check before send**: before an agent publishes or schedules, a deterministic
+  check runs over the composition — every referenced item must be currently visible+valid (approved,
+  brand-safe, in scope, not expired, not off-limits), the channel must be supported, and stale
+  (master-edited) items are flagged. On failure it returns the **specific fixes in plain words** and
+  the send is blocked (FR-42). Proof: pytest asserts a composition with an expired item fails
+  preflight and publish is blocked until clean; Playwright shows the preflight message in the UI.
+- **AC35** — **Send-back-with-reason**: a reviewer returns an entry to its owner with a reason; the
+  entry drops to `draft` with the reason recorded and shown, and re-enters review on resubmit
+  (FR-14). Proof: pytest asserts send-back sets draft + stores the reason + writes an audit row, and
+  resubmit returns it to review; Playwright shows a provider sending back and the reason surfacing.
+- **AC36** — **Off-limits blocklist**: a board flags a subject/place off-limits; any matching entry
+  (across its title, destination, description, tags **and** structured fields) then never appears in
+  the agent catalog, search or drafting — enforced at the single visibility choke-point (FR-08).
+  Terms are ≥3 characters; only the term's creator or a super admin may remove it. *PoC scope: the
+  blocklist is platform-wide (the one-destination PoC has a single board); per-tenant scoping is a
+  backlog item.* Proof: pytest asserts a blocked term (including one hidden in a highlight) hides a
+  matching entry from the agent catalog + search; Playwright shows adding a term removes it from the
+  agent's view.
+- **AC37** — **Audit log**: every upload, edit, approval, release, send-back and withdrawal is
+  recorded (actor, action, target, time) and is readable + exportable (CSV) by authorised roles
+  (FR-16, Contract 3). Proof: pytest asserts the key actions are recorded and the CSV export returns
+  them; Playwright shows the admin audit view.
+
+**Priority tiers** (build order; acceptance reports honestly against all 37):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 · framework = AC32,33
+design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 · framework = AC32,33,34,35,36,37
 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
@@ -229,3 +254,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.3.0 | 2026-10-02 | **Theming & usability** (charter `docs/plans/2026-10-02-theming-usability-charter.md`): added **AC30** — token-driven light & dark themes across the whole app (OS default, remembered toggle, no flash); the design tokens became CSS variables. Workspace-usability wiring + polish staged for the same cycle. All prior ACs stay green. | user + Claude |
 | 2.4.0 | 2026-10-02 | **Workspace usability wired** (same charter): promoted the staged item to **AC31** — agent features connected end-to-end (catalog→collection save, Projects/Templates→Studio open via `?project=`/`?template=`, Studio→Projects save, brand kit pre-fills Personalise) with handled empty/loading/confirmation states. All prior ACs stay green. | user + Claude |
 | 2.5.0 | 2026-10-03 | **Product-framework features, increment 1** (charter `docs/plans/2026-10-03-product-framework-charter.md`, from the Product Framework doc's FR-01…FR-72): added **AC32–AC33** — content **validity & status lifecycle** (validity window + draft→in_review→approved→expiring_soon→expired→withdrawn, derived from an injectable clock) and **auto-withdraw & propagation** (expired/withdrawn items leave catalog, search, saved projects and schedules on their own; master edits flag in-use copies). Sets 2–4 (trust/approval, AI assistant via LangGraph, planning/resilience) follow as later increments. All prior ACs stay green. | user + Claude |
+| 2.6.0 | 2026-10-03 | **Product-framework features, increment 2** (same charter): added **AC34–AC37** — **preflight check** before an agent sends (brand-safe/valid/in-scope/channel, blocks with plain-word fixes), **send-back-with-reason** approval step, **off-limits blocklist** enforced at the visibility choke-point, and a readable + CSV-exportable **audit log**. Resolves the control-vs-speed tension and Contract 3. All prior ACs stay green. | user + Claude |

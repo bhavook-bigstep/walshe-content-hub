@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,7 +15,7 @@ from app.deps import get_db, require_role
 from app.models.composition import Composition
 from app.models.post import Post, PostStatus
 from app.models.user import Role, User
-from app.services import social_sim
+from app.services import preflight, social_sim
 
 router = APIRouter(prefix="/social", tags=["social"])
 
@@ -43,11 +44,35 @@ class PostOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PreflightIssueOut(BaseModel):
+    code: str
+    message: str
+    fix: str
+
+
+class PreflightOut(BaseModel):
+    ok: bool
+    issues: list[PreflightIssueOut]
+
+
 def _owned_composition(db: Session, composition_id: int, user: User) -> Composition:
     comp = db.get(Composition, composition_id)
     if comp is None or comp.agent_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
     return comp
+
+
+def _preflight(db: Session, user: User, comp: Composition, channel: str, now: datetime) -> None:
+    """Run the preflight check and block the send (422) with plain-word fixes if it fails (AC34)."""
+    result = preflight.run_preflight(db, user, comp, channel, now=now)
+    if not result.ok:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "preflight_failed",
+                "issues": [asdict(i) for i in result.issues],
+            },
+        )
 
 
 def _channel(channel: str) -> str:
@@ -65,6 +90,21 @@ def _find(db: Session, composition_id: int, channel: str) -> Post | None:
     ).first()
 
 
+@router.post("/preflight", response_model=PreflightOut)
+def preflight_check(
+    body: PublishRequest,
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    now: datetime = Depends(clock.now),
+) -> PreflightOut:
+    """Dry-run the pre-send check (AC34) so the agent sees issues before trying to send."""
+    comp = _owned_composition(db, body.composition_id, user)
+    result = preflight.run_preflight(db, user, comp, body.channel, now=now)
+    return PreflightOut(
+        ok=result.ok, issues=[PreflightIssueOut(**asdict(i)) for i in result.issues]
+    )
+
+
 @router.post("/schedule", response_model=PostOut, status_code=status.HTTP_201_CREATED)
 def schedule(
     body: ScheduleRequest,
@@ -72,7 +112,8 @@ def schedule(
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
 ) -> Post:
-    _owned_composition(db, body.composition_id, user)
+    comp = _owned_composition(db, body.composition_id, user)
+    _preflight(db, user, comp, body.channel, now)  # AC34: blocked unless checks pass
     channel = _channel(body.channel)
     post = Post(
         composition_id=body.composition_id,
@@ -93,7 +134,8 @@ def publish(
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
 ) -> Post:
-    _owned_composition(db, body.composition_id, user)
+    comp = _owned_composition(db, body.composition_id, user)
+    _preflight(db, user, comp, body.channel, now)  # AC34: blocked unless checks pass
     channel = _channel(body.channel)
     post = _find(db, body.composition_id, channel)
     if post is not None and post.status == PostStatus.published:

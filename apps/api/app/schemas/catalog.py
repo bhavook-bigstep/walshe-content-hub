@@ -72,6 +72,12 @@ class AccessUpdate(BaseModel):
         return self
 
 
+class SendBackRequest(BaseModel):
+    """Reviewer returns an entry to its owner with a reason (AC35 / FR-14)."""
+
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class EntryOut(BaseModel):
     id: int
     type: CatalogType
@@ -90,6 +96,9 @@ class EntryOut(BaseModel):
     valid_from: datetime | None = None
     expires_at: datetime | None = None
     display_status: DisplayStatus
+    review_reason: str = (
+        ""  # reviewer's send-back reason, shown while the item sits in draft (AC35)
+    )
 
     model_config = {"from_attributes": True}
 
@@ -113,6 +122,7 @@ class EntryOut(BaseModel):
             valid_from=entry.valid_from,
             expires_at=entry.expires_at,
             display_status=display_status(entry.status, entry.expires_at, now),
+            review_reason=entry.review_reason,
         )
 
 

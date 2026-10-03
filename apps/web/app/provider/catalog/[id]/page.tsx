@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import PageHeader from "../../../../components/ui/PageHeader";
-import { ApiError, setAccess, type Entry } from "../../../../lib/api";
+import { ApiError, sendBackEntry, setAccess, type Entry } from "../../../../lib/api";
 import { getEntry, upsertEntry } from "../../../../lib/provider-store";
 
 /** Parse "1, 2, 3" into unique positive integers; null when any token is invalid. */
@@ -31,12 +31,33 @@ export default function ProviderEntryPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [reason, setReason] = useState("");
+  const [sendingBack, setSendingBack] = useState(false);
 
   useEffect(() => {
     const found = getEntry(id);
     setEntry(found);
     if (found) setBrandSafe(found.brand_safe);
   }, [id]);
+
+  async function onSendBack() {
+    if (!reason.trim()) {
+      setError("Add a reason so the owner knows what to fix.");
+      return;
+    }
+    setError(null);
+    setSendingBack(true);
+    try {
+      const updated = await sendBackEntry(id, reason.trim());
+      upsertEntry(updated);
+      setEntry(updated);
+      setReason("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not send the entry back.");
+    } finally {
+      setSendingBack(false);
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -88,6 +109,47 @@ export default function ProviderEntryPage() {
           Entry not found in your catalog on this device.
         </div>
       )}
+      {entry && (
+        <section aria-label="Review status" className="card mb-6 space-y-4 p-7">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-h3 text-[1.0625rem] text-walshe-ink">Review status</h2>
+            <span
+              data-testid="entry-status"
+              className={entry.status === "approved" ? "chip-verified capitalize" : "chip-draft capitalize"}
+            >
+              {entry.display_status.replaceAll("_", " ")}
+            </span>
+          </div>
+          {entry.review_reason ? (
+            <div
+              data-testid="review-reason"
+              className="rounded-md border border-walshe-warn/50 bg-walshe-warn/10 p-4 text-small"
+            >
+              <p className="font-semibold text-walshe-ink">Sent back for changes</p>
+              <p className="mt-1 text-walshe-grey">{entry.review_reason}</p>
+            </div>
+          ) : (
+            <p className="text-small text-walshe-grey">
+              Not ready to approve? Send it back to draft with a note on what to fix.
+            </p>
+          )}
+          <label className="block">
+            <span className="label">Reason to send back</span>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              className="field-area text-small"
+              placeholder="e.g. Add captions to the hero image."
+              aria-label="Reason to send back"
+            />
+          </label>
+          <button type="button" onClick={() => void onSendBack()} disabled={sendingBack} className="btn-secondary">
+            {sendingBack ? "Sending back…" : "Send back for changes"}
+          </button>
+        </section>
+      )}
+
       {entry && (
         <form onSubmit={onSubmit} className="card space-y-5 p-7">
           <label className="flex items-start gap-3 rounded-md border border-walshe-line bg-walshe-mist/50 p-4 text-body">

@@ -22,13 +22,19 @@ from app.schemas.catalog import (
     EntryContentUpdate,
     EntryCreate,
     EntryOut,
+    SendBackRequest,
 )
-from app.services.visibility import agent_visible_entries, is_visible_to_agent
+from app.services.visibility import (
+    active_blocked_terms,
+    agent_visible_entries,
+    is_visible_to_agent,
+)
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 
 _provider_only = require_role(Role.content_provider)
 _agent_only = require_role(Role.tourism_agent)
+_reviewer = require_role(Role.content_provider, Role.super_admin)
 
 
 @router.get("/templates", response_model=ContentTemplates)
@@ -112,6 +118,9 @@ def set_access(
         entry.brand_safe = body.brand_safe
     if body.status is not None:
         entry.status = body.status
+        # Resubmitting (back into review) or re-approving clears the send-back reason (AC35).
+        if body.status in (EntryStatus.in_review, EntryStatus.approved):
+            entry.review_reason = ""
     if body.allowed_tenant_ids is not None:
         entry.allowed_tenant_ids = body.allowed_tenant_ids
     if body.allowed_agent_ids is not None:
@@ -141,6 +150,41 @@ def set_access(
             target_type="catalog_entry",
             target_id=entry_id,
         )
+    db.commit()
+    db.refresh(entry)
+    return EntryOut.from_entry(entry, now=now)
+
+
+@router.post("/{entry_id}/send-back", response_model=EntryOut)
+def send_back(
+    entry_id: int,
+    body: SendBackRequest,
+    db: Session = Depends(get_db),
+    reviewer: User = Depends(_reviewer),
+    now: datetime = Depends(clock.now),
+) -> EntryOut:
+    """Return an entry to its owner with a reason (AC35 / FR-14).
+
+    A provider may send back only their own entry; a super admin may send back any. The entry drops
+    to ``draft`` with the reason recorded (shown to the owner) and re-enters review on resubmit.
+    """
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A reason is required")
+    entry = db.get(CatalogEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    if reviewer.role == Role.content_provider and entry.provider_id != reviewer.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    entry.status = EntryStatus.draft
+    entry.review_reason = reason
+    audit.record(
+        db,
+        actor_id=reviewer.id,
+        action="send_back",
+        target_type="catalog_entry",
+        target_id=entry_id,
+    )
     db.commit()
     db.refresh(entry)
     return EntryOut.from_entry(entry, now=now)
@@ -183,7 +227,8 @@ def get_for_agent(
     now: datetime = Depends(clock.now),
 ) -> EntryOut:
     entry = db.get(CatalogEntry, entry_id)
-    if entry is None or not is_visible_to_agent(entry, agent, now=now):
-        # Unapproved/unsafe/out-of-scope/expired entries are indistinguishable from missing (C1).
+    blocked = active_blocked_terms(db)
+    if entry is None or not is_visible_to_agent(entry, agent, now=now, blocked_terms=blocked):
+        # Unapproved/unsafe/out-of-scope/expired/off-limits entries look like missing (C1/AC36).
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
     return EntryOut.from_entry(entry, now=now)

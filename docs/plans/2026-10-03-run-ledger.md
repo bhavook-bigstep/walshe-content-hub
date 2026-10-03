@@ -26,7 +26,11 @@ Every phase reads this first and appends when done. Content-free: status + decis
 ## Increment plan (top-priority first, check in after each set)
 
 1. **Set 1 — Content lifecycle & validity (AC32–33)** ✅ done (`make verify` green)
-2. Set 2 — Trust, approval & audit (AC34–37)
+2. **Set 2 — Trust, approval & audit (AC34–37)** ✅ done (built directly; `make verify` 37/37 green;
+   4 parallel reviewers — no P1; P2/P3 fixes applied: blocklist matches structured fields + fail-closed
+   `blocked_terms` + ≥3-char terms + creator/admin-only delete; preflight stale over visible entries
+   (no N+1/double-count); send-back rejects blank reason; audit copy aligned; e2e cleanup failure-safe;
+   +12 negative/authz tests)
 3. Set 3 — AI assistant & discovery, LangGraph (AC38–40)
 4. Set 4 — Planning & resilience (AC41–44)
 

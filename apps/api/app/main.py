@@ -15,7 +15,9 @@ from app.routers import (
     admin,
     agent,
     assets,
+    audit_log,
     auth,
+    blocklist,
     builder,
     catalog,
     engagement,
@@ -76,6 +78,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(org.router)
     app.include_router(provider.router)
     app.include_router(agent.router)
+    app.include_router(blocklist.router)
+    app.include_router(audit_log.router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:

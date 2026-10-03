@@ -117,6 +117,89 @@
         "title": "AdminCreateUserRequest",
         "type": "object"
       },
+      "AuditOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "integer"
+          },
+          "target_type": {
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "actor_id",
+          "action",
+          "target_type",
+          "target_id",
+          "created_at"
+        ],
+        "title": "AuditOut",
+        "type": "object"
+      },
+      "BlocklistCreate": {
+        "properties": {
+          "term": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Term",
+            "type": "string"
+          }
+        },
+        "required": [
+          "term"
+        ],
+        "title": "BlocklistCreate",
+        "type": "object"
+      },
+      "BlocklistOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "term": {
+            "title": "Term",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "term",
+          "created_by",
+          "created_at"
+        ],
+        "title": "BlocklistOut",
+        "type": "object"
+      },
       "Body_upload_image_catalog__entry_id__image_post": {
         "properties": {
           "file": {
@@ -756,6 +839,11 @@
             "title": "Provider Id",
             "type": "integer"
           },
+          "review_reason": {
+            "default": "",
+            "title": "Review Reason",
+            "type": "string"
+          },
           "status": {
             "$ref": "#/components/schemas/EntryStatus"
           },
@@ -1091,6 +1179,50 @@
         ],
         "title": "PostStatus",
         "type": "string"
+      },
+      "PreflightIssueOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "fix": {
+            "title": "Fix",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "fix"
+        ],
+        "title": "PreflightIssueOut",
+        "type": "object"
+      },
+      "PreflightOut": {
+        "properties": {
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/PreflightIssueOut"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "issues"
+        ],
+        "title": "PreflightOut",
+        "type": "object"
       },
       "ProfileUpdate": {
         "description": "Self-service profile edit (AC27). All fields optional; only provided ones change.",
@@ -1447,6 +1579,22 @@
           "channel"
         ],
         "title": "ScheduleRequest",
+        "type": "object"
+      },
+      "SendBackRequest": {
+        "description": "Reviewer returns an entry to its owner with a reason (AC35 / FR-14).",
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "SendBackRequest",
         "type": "object"
       },
       "TeamInvite": {
@@ -1908,6 +2056,61 @@
         ]
       }
     },
+    "/audit": {
+      "get": {
+        "operationId": "list_audit_audit_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditOut"
+                  },
+                  "title": "Response List Audit Audit Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/audit/export": {
+      "get": {
+        "description": "The same rows as a downloadable CSV (FR-16: records can be exported).",
+        "operationId": "export_audit_audit_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Export Audit",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "operationId": "login_auth_login_post",
@@ -2101,6 +2304,120 @@
         "summary": "Register Provider",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/blocklist": {
+      "get": {
+        "operationId": "list_terms_blocklist_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BlocklistOut"
+                  },
+                  "title": "Response List Terms Blocklist Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Terms",
+        "tags": [
+          "blocklist"
+        ]
+      },
+      "post": {
+        "operationId": "add_term_blocklist_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlocklistCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlocklistOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Term",
+        "tags": [
+          "blocklist"
+        ]
+      }
+    },
+    "/blocklist/{term_id}": {
+      "delete": {
+        "operationId": "remove_term_blocklist__term_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "term_id",
+            "required": true,
+            "schema": {
+              "title": "Term Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove Term",
+        "tags": [
+          "blocklist"
         ]
       }
     },
@@ -2562,6 +2879,64 @@
         "summary": "Upload Image",
         "tags": [
           "assets"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/send-back": {
+      "post": {
+        "description": "Return an entry to its owner with a reason (AC35 / FR-14).\n\nA provider may send back only their own entry; a super admin may send back any. The entry drops\nto ``draft`` with the reason recorded (shown to the owner) and re-enters review on resubmit.",
+        "operationId": "send_back_catalog__entry_id__send_back_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Send Back",
+        "tags": [
+          "catalog"
         ]
       }
     },
@@ -3491,6 +3866,53 @@
         "summary": "Render Video",
         "tags": [
           "render"
+        ]
+      }
+    },
+    "/social/preflight": {
+      "post": {
+        "description": "Dry-run the pre-send check (AC34) so the agent sees issues before trying to send.",
+        "operationId": "preflight_check_social_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreflightOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preflight Check",
+        "tags": [
+          "social"
         ]
       }
     },

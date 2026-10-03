@@ -188,3 +188,33 @@ acceptance:
       - "apps/api/tests/test_lifecycle.py::test_expired_absent_from_agent_catalog_and_search"
       - "apps/api/tests/test_lifecycle.py::test_expired_dropped_from_projects_and_schedule"
       - "apps/api/tests/test_lifecycle.py::test_master_edit_flags_in_use_copies"
+  # --- v2.6.0 Product-framework increment 2: trust, approval & audit ---
+  AC34:
+    tier: P2
+    api:
+      - "apps/api/tests/test_preflight.py::test_preflight_passes_clean_composition"
+      - "apps/api/tests/test_preflight.py::test_preflight_flags_expired_item"
+      - "apps/api/tests/test_preflight.py::test_publish_blocked_until_preflight_clean"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::agent sees a preflight issue before sending"
+  AC35:
+    tier: P2
+    api:
+      - "apps/api/tests/test_approval.py::test_send_back_sets_draft_with_reason"
+      - "apps/api/tests/test_approval.py::test_send_back_audited_and_resubmit_returns_to_review"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::provider sends an entry back with a reason"
+  AC36:
+    tier: P2
+    api:
+      - "apps/api/tests/test_blocklist.py::test_blocked_term_hides_entry_from_agent_catalog_and_search"
+      - "apps/api/tests/test_blocklist.py::test_blocklist_crud_is_board_scoped_and_audited"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::off-limits term removes an item from the agent catalog"
+  AC37:
+    tier: P2
+    api:
+      - "apps/api/tests/test_audit_log.py::test_audit_records_key_actions"
+      - "apps/api/tests/test_audit_log.py::test_audit_export_csv_for_authorised_roles"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::admin views the audit log"

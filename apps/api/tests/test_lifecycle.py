@@ -129,8 +129,7 @@ def test_expired_absent_from_agent_catalog_and_search(client, provider_headers, 
     # Before expiry: visible in list, search, and direct GET.
     assert any(e["id"] == entry_id for e in client.get("/catalog", headers=agent_headers).json())
     assert any(
-        e["id"] == entry_id
-        for e in client.get("/catalog?q=Harbour", headers=agent_headers).json()
+        e["id"] == entry_id for e in client.get("/catalog?q=Harbour", headers=agent_headers).json()
     )
     assert client.get(f"/catalog/{entry_id}", headers=agent_headers).status_code == 200
 
@@ -138,15 +137,12 @@ def test_expired_absent_from_agent_catalog_and_search(client, provider_headers, 
     _fix_clock(app, T0 + timedelta(days=2))
     assert all(e["id"] != entry_id for e in client.get("/catalog", headers=agent_headers).json())
     assert all(
-        e["id"] != entry_id
-        for e in client.get("/catalog?q=Harbour", headers=agent_headers).json()
+        e["id"] != entry_id for e in client.get("/catalog?q=Harbour", headers=agent_headers).json()
     )
     assert client.get(f"/catalog/{entry_id}", headers=agent_headers).status_code == 404
 
 
-def test_expired_dropped_from_projects_and_schedule(
-    client, provider_headers, agent_headers, app
-):
+def test_expired_dropped_from_projects_and_schedule(client, provider_headers, agent_headers, app):
     """An expired item drops from a saved project's resolved items and the builder/render path."""
     expires = T0 + timedelta(days=1)
     _fix_clock(app, T0)
@@ -244,9 +240,7 @@ def test_withdrawn_hidden_from_agent(client, provider_headers, agent_headers, ap
     entry_id = _create_approved_entry(client, provider_headers)
     assert any(e["id"] == entry_id for e in client.get("/catalog", headers=agent_headers).json())
 
-    r = client.patch(
-        f"/catalog/{entry_id}", headers=provider_headers, json={"status": "withdrawn"}
-    )
+    r = client.patch(f"/catalog/{entry_id}", headers=provider_headers, json={"status": "withdrawn"})
     assert r.status_code == 200
     assert r.json()["display_status"] == "withdrawn"
     assert all(e["id"] != entry_id for e in client.get("/catalog", headers=agent_headers).json())

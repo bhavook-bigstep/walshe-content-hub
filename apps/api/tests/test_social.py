@@ -27,6 +27,7 @@ def sclient(settings):
     application.include_router(social.router)
     application.dependency_overrides[clock.now] = lambda: FIXED
     with application.state.sessionmaker() as db:
+        from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
         from app.models.user import User as U
         from app.security import hash_password
         from tests.conftest import USERS
@@ -43,7 +44,19 @@ def sclient(settings):
             )
         db.commit()
         agent = db.scalars(select(U).where(U.role == Role.tourism_agent)).one()
-        db.add(Composition(agent_id=agent.id, format="social", item_ids=[1]))
+        provider = db.scalars(select(U).where(U.role == Role.content_provider)).one()
+        # An approved, brand-safe, unexpired entry so the composition passes preflight (AC34).
+        entry = CatalogEntry(
+            type=CatalogType.place,
+            title="Cliffs",
+            destination="Clare",
+            status=EntryStatus.approved,
+            brand_safe=True,
+            provider_id=provider.id,
+        )
+        db.add(entry)
+        db.flush()
+        db.add(Composition(agent_id=agent.id, format="social", item_ids=[entry.id]))
         db.commit()
     with TestClient(application) as c:
         c.app_ = application
