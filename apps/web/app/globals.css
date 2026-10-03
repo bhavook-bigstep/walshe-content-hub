@@ -32,6 +32,9 @@
   --chrome-bg: 1 11 8;
   --chrome-fg: 255 255 255;
 
+  /* Page-transition cover panel — flips with the theme (near-black in dark). */
+  --transition-cover: 1 11 8;
+
   /* Component surfaces (cards, inputs, buttons) — see light overrides below. */
   --c-surface: 12 33 28;        /* card bg */
   --c-surface-2: 20 46 40;      /* hover / raised */
@@ -62,6 +65,9 @@
 
   --chrome-bg: 255 255 255;
   --chrome-fg: 16 42 38;
+
+  /* Light theme: a soft off-white cover (paired with a subtle shadow on the panel). */
+  --transition-cover: 236 240 239;
 
   --c-surface: 255 255 255;
   --c-surface-2: 240 244 243;
@@ -219,13 +225,17 @@
   .menu-slide-up { animation: menu-slide-up 0.18s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 }
 
-/* Page transition overlay — a near-black panel fades in moving down to cover, then slides down to
-   reveal the new page (modelled on travelproductions.film). Driven by PageTransition.tsx. */
+/* Page transition overlay — a theme-aware panel (near-black in dark, soft off-white in light) fades
+   in moving down to cover, then slides down to reveal the new page (modelled on
+   travelproductions.film). Colour = --transition-cover, so it tracks the active theme. */
 .page-transition {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background-color: #0a0a0a;
+  background-color: rgb(var(--transition-cover));
+  /* Soft leading-edge shadow so the panel's slide reads even when it's the same tone as the page
+     (light theme); it's imperceptible against the dark cover in dark theme. */
+  box-shadow: 0 24px 60px -10px rgb(0 0 0 / 0.18);
   will-change: transform, opacity;
 }
 .page-transition--cover {

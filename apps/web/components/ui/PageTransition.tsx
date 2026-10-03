@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-// Page transition modelled on travelproductions.film (Elementor's page transition): a near-black
-// panel FADES IN while moving down to cover the screen, the route changes behind it, then the panel
+// Page transition modelled on travelproductions.film (Elementor's page transition): a theme-aware
+// panel (--transition-cover: near-black in dark, soft off-white in light) FADES IN while moving down
+// to cover the screen, the route changes behind it, then the panel
 // SLIDES DOWN off-screen to reveal the new page. Pure CSS animation (no GSAP) — light enough for
 // every page. Internal link clicks are intercepted so the cover plays before navigation; external
 // links, new-tab, hash, mailto/tel and modified clicks pass through untouched. Reduced-motion
