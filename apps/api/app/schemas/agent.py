@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.schemas.catalog import EntryOut
+
 
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
@@ -25,8 +27,23 @@ class ProjectOut(BaseModel):
     format: str
     item_ids: list[int]
     design: dict
+    # Captured master version per item at save time (AC33); keyed by str(entry_id).
+    item_versions: dict = Field(default_factory=dict)
 
     model_config = {"from_attributes": True}
+
+
+class ProjectResolved(BaseModel):
+    """A saved project resolved against the live catalog at read time (AC33).
+
+    ``items`` holds only the items still visible (approved, brand-safe, unexpired, in scope);
+    ``dropped_item_ids`` are those auto-withdrawn (expired/withdrawn/removed); ``flagged_item_ids``
+    are in-use copies whose master was edited since the project captured them.
+    """
+
+    items: list[EntryOut]
+    dropped_item_ids: list[int]
+    flagged_item_ids: list[int]
 
 
 class CollectionCreate(BaseModel):

@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import audit
+from app import audit, clock
 from app.deps import get_db, require_role
 from app.models.composition import Composition
 from app.models.post import Post, PostStatus
@@ -20,11 +19,6 @@ from app.services import social_sim
 router = APIRouter(prefix="/social", tags=["social"])
 
 _agent_only = require_role(Role.tourism_agent)
-
-
-def get_clock() -> Callable[[], datetime]:
-    """Injected clock; tests override this dependency for deterministic timestamps."""
-    return lambda: datetime.now(timezone.utc)
 
 
 class ScheduleRequest(BaseModel):
@@ -76,7 +70,7 @@ def schedule(
     body: ScheduleRequest,
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
-    clock: Callable[[], datetime] = Depends(get_clock),
+    now: datetime = Depends(clock.now),
 ) -> Post:
     _owned_composition(db, body.composition_id, user)
     channel = _channel(body.channel)
@@ -84,7 +78,7 @@ def schedule(
         composition_id=body.composition_id,
         channel=channel,
         status=PostStatus.scheduled,
-        scheduled_at=body.scheduled_at or clock(),
+        scheduled_at=body.scheduled_at or now,
     )
     db.add(post)
     db.commit()
@@ -97,14 +91,13 @@ def publish(
     body: PublishRequest,
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
-    clock: Callable[[], datetime] = Depends(get_clock),
+    now: datetime = Depends(clock.now),
 ) -> Post:
     _owned_composition(db, body.composition_id, user)
     channel = _channel(body.channel)
     post = _find(db, body.composition_id, channel)
     if post is not None and post.status == PostStatus.published:
         raise HTTPException(status.HTTP_409_CONFLICT, "Already published")
-    now = clock()
     receipt = social_sim.publish(channel=channel, composition_id=body.composition_id, now=now)
     if post is None:
         post = Post(composition_id=body.composition_id, channel=channel)

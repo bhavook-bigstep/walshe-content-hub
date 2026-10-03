@@ -63,11 +63,14 @@ def test_agent_cannot_fetch_hidden_asset(client, provider_headers, agent_headers
 
 
 def test_asset_path_traversal_rejected(client, app, provider_headers):
+    from datetime import datetime, timezone
+
     from sqlalchemy import select
 
     from app.models.user import User
     from app.services.visibility import visible_asset_or_none
 
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     _, key = _upload(client, provider_headers)
     # Over HTTP (the client may normalise raw dot-segments, so use encoded forms).
     for bad in ("%2e%2e/secret", "..%5csecret", "entries/%2e%2e/1/pic.png"):
@@ -76,9 +79,9 @@ def test_asset_path_traversal_rejected(client, app, provider_headers):
     # Direct choke-point check: traversal is refused even if the key would otherwise resolve.
     with app.state.sessionmaker() as db:
         owner = db.execute(select(User).where(User.email == "provider@test.local")).scalar_one()
-        assert visible_asset_or_none(db, owner, key) is not None
+        assert visible_asset_or_none(db, owner, key, now=now) is not None
         for bad in ("entries/../" + key, "/" + key, key.replace("/", "\\")):
-            assert visible_asset_or_none(db, owner, bad) is None
+            assert visible_asset_or_none(db, owner, bad, now=now) is None
 
 
 def test_agent_fetches_visible_asset(client, provider_headers, agent_headers):

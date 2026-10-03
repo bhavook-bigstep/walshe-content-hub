@@ -18,6 +18,24 @@ import {
 
 const TYPES: readonly CatalogType[] = ["event", "place", "opportunity", "offer", "itinerary"];
 
+// Human labels for the derived lifecycle status (AC32). Only approved/expiring_soon items ever
+// reach the agent catalog, but the badge renders whatever status the API serialises.
+const STATUS_LABELS: Record<string, string> = {
+  approved: "Available",
+  expiring_soon: "Expiring soon",
+  expired: "Expired",
+  draft: "Draft",
+  in_review: "In review",
+  withdrawn: "Withdrawn",
+};
+
+function formatExpiry(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
 // The API may expose a thumbnail object key on an entry; absent keys fall back to a placeholder.
 type EntryWithImage = Entry & { image_key?: string | null };
 
@@ -172,9 +190,26 @@ export default function AgentCatalogPage() {
                   </span>
                 </div>
                 <div className="flex flex-1 flex-col gap-2 p-5">
-                  <div className="eyebrow text-[11px] capitalize">
-                    {e.type} · {e.destination}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="eyebrow text-[11px] capitalize">
+                      {e.type} · {e.destination}
+                    </div>
+                    <span
+                      data-testid="entry-status"
+                      className={`rounded-pill px-2.5 py-0.5 text-[11px] font-semibold ${
+                        e.display_status === "expiring_soon"
+                          ? "bg-walshe-warn/15 text-walshe-warn"
+                          : "bg-walshe-stone text-walshe-grey"
+                      }`}
+                    >
+                      {STATUS_LABELS[e.display_status] ?? e.display_status}
+                    </span>
                   </div>
+                  {e.expires_at && (
+                    <p data-testid="entry-validity" className="text-[11px] text-walshe-grey">
+                      Expires {formatExpiry(e.expires_at)}
+                    </p>
+                  )}
                   <h3 className="text-h3 text-walshe-ink">{e.title}</h3>
                   <p className="line-clamp-3 text-small text-walshe-grey">{e.description}</p>
                   <div className="mt-auto flex flex-col gap-2 pt-2">

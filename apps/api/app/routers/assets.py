@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app import clock
 from app.deps import get_current_user, get_db, require_role
 from app.models.catalog import Asset, CatalogEntry
 from app.models.user import Role, User
@@ -61,9 +64,10 @@ def fetch_asset(
     storage: Storage = Depends(get_storage),
     current: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    now: datetime = Depends(clock.now),
 ) -> Response:
     # 404 (not 403) for hidden and unknown keys alike, so keys cannot be probed.
-    if visible_asset_or_none(db, current, object_key) is None:
+    if visible_asset_or_none(db, current, object_key, now=now) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Asset not found")
     try:
         data, content_type = storage.get_object(object_key)

@@ -209,7 +209,7 @@ export interface paths {
         /**
          * Update Content
          * @description Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on
-         *     the PATCH endpoint.
+         *     the PATCH endpoint. Any content change bumps ``content_version`` so copies flag (AC33).
          */
         put: operations["update_content_catalog__entry_id__put"];
         post?: never;
@@ -439,6 +439,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/projects/{project_id}/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Project
+         * @description Resolve a saved project against the live catalog (AC33): expired/withdrawn items drop on
+         *     their own and master-edited items are flagged, with no mutation of the stored project.
+         */
+        get: operations["resolve_project_me_projects__project_id__resolved_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/team": {
         parameters: {
             query?: never;
@@ -585,7 +606,11 @@ export interface components {
             allowed_tenant_ids?: number[] | null;
             /** Brand Safe */
             brand_safe?: boolean | null;
+            /** Expires At */
+            expires_at?: string | null;
             status?: components["schemas"]["EntryStatus"] | null;
+            /** Valid From */
+            valid_from?: string | null;
         };
         /**
          * AdminCreateUserRequest
@@ -704,6 +729,12 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * DisplayStatus
+         * @description Status actually shown to users (AC32): the stored values plus the two derived ones.
+         * @enum {string}
+         */
+        DisplayStatus: "draft" | "in_review" | "approved" | "expiring_soon" | "expired" | "withdrawn";
         /** EngagementOut */
         EngagementOut: {
             /** Clicks */
@@ -752,6 +783,8 @@ export interface components {
             description: string;
             /** Destination */
             destination: string;
+            /** Expires At */
+            expires_at?: string | null;
             /** Highlights */
             highlights?: string[];
             /** Market Tags */
@@ -759,6 +792,8 @@ export interface components {
             /** Title */
             title: string;
             type: components["schemas"]["CatalogType"];
+            /** Valid From */
+            valid_from?: string | null;
         };
         /** EntryOut */
         EntryOut: {
@@ -785,6 +820,9 @@ export interface components {
             description: string;
             /** Destination */
             destination: string;
+            display_status: components["schemas"]["DisplayStatus"];
+            /** Expires At */
+            expires_at?: string | null;
             /**
              * Highlights
              * @default []
@@ -800,12 +838,16 @@ export interface components {
             /** Title */
             title: string;
             type: components["schemas"]["CatalogType"];
+            /** Valid From */
+            valid_from?: string | null;
         };
         /**
          * EntryStatus
+         * @description Stored lifecycle status (AC32). ``expiring_soon`` / ``expired`` are never stored — they are
+         *     derived at read time (see ``app.lifecycle``).
          * @enum {string}
          */
-        EntryStatus: "draft" | "approved";
+        EntryStatus: "draft" | "in_review" | "approved" | "withdrawn";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -941,8 +983,28 @@ export interface components {
             id: number;
             /** Item Ids */
             item_ids: number[];
+            /** Item Versions */
+            item_versions?: {
+                [key: string]: unknown;
+            };
             /** Name */
             name: string;
+        };
+        /**
+         * ProjectResolved
+         * @description A saved project resolved against the live catalog at read time (AC33).
+         *
+         *     ``items`` holds only the items still visible (approved, brand-safe, unexpired, in scope);
+         *     ``dropped_item_ids`` are those auto-withdrawn (expired/withdrawn/removed); ``flagged_item_ids``
+         *     are in-use copies whose master was edited since the project captured them.
+         */
+        ProjectResolved: {
+            /** Dropped Item Ids */
+            dropped_item_ids: number[];
+            /** Flagged Item Ids */
+            flagged_item_ids: number[];
+            /** Items */
+            items: components["schemas"]["EntryOut"][];
         };
         /** ProjectUpdate */
         ProjectUpdate: {
@@ -2140,6 +2202,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_project_me_projects__project_id__resolved_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResolved"];
+                };
             };
             /** @description Validation Error */
             422: {

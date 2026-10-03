@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
 from app.models.user import Role, User
 from app.schemas.catalog import EntryOut
 from app.services.visibility import agent_visible_entries_by_ids
+
+_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def _entry(db, title, *, approved=True, safe=True, tenants=None, agents=None) -> CatalogEntry:
@@ -35,9 +39,9 @@ def test_by_ids_order_dedupe_and_hidden_dropped(app):
         scoped = _entry(db, "Scoped", tenants=[999], agents=[999])
 
         ids = [b.id, a.id, b.id, draft.id, unsafe.id, scoped.id, 987654]
-        got = agent_visible_entries_by_ids(db, agent, ids)
+        got = agent_visible_entries_by_ids(db, agent, ids, now=_NOW)
         assert [e.id for e in got] == [b.id, a.id]
-        assert agent_visible_entries_by_ids(db, agent, []) == []
+        assert agent_visible_entries_by_ids(db, agent, [], now=_NOW) == []
 
 
 def test_asset_keys_property_and_schema(app):
@@ -49,4 +53,4 @@ def test_asset_keys_property_and_schema(app):
         db.commit()
         db.refresh(e)
         assert sorted(e.asset_keys) == ["k/1.png", "k/2.png"]
-        assert sorted(EntryOut.model_validate(e).asset_keys) == ["k/1.png", "k/2.png"]
+        assert sorted(EntryOut.from_entry(e, now=_NOW).asset_keys) == ["k/1.png", "k/2.png"]

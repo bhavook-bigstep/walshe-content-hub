@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.4.0 |
+| **Version** | 2.5.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -175,9 +175,29 @@ Charter: `docs/plans/2026-10-02-theming-usability-charter.md`.
   Playwright adds a catalog item to a brand-new collection (confirmation + the collection holds it),
   and saves a Studio design then re-opens it from Projects (asserting the `?project=` route loads it).
 
-**Priority tiers** (build order; acceptance reports honestly against all 31):
+### Product-framework features (v2.5.0) `[explicit – feedback]`
+
+Charter: `docs/plans/2026-10-03-product-framework-charter.md` (full four-set plan; built in
+increments). Source: `docs/requirements/Destination_Content_Hub_Product_Framework.docx`.
+Increment 1 — **Content lifecycle & validity**:
+
+- **AC32** — **Validity & status lifecycle**: every catalog item carries a validity window
+  (`valid_from` / `expires_at`) and a status in `draft → in_review → approved → expiring_soon →
+  expired → withdrawn`, where `expiring_soon` and `expired` are **derived** from an injectable
+  clock (not stored). The validity + derived display status serialise on the item for every role
+  (FR-07/15/27/51). Proof: pytest asserts the derivation at the clock boundaries (approved →
+  expiring_soon → expired) and that validity + status serialise; Playwright shows status/validity
+  on a catalog item.
+- **AC33** — **Auto-withdraw & propagation**: an expired or withdrawn item disappears on its own from
+  the agent catalog, from search, from saved projects and from anything scheduled — without anyone
+  acting — and editing a master item flags every in-use copy (FR-52/53/56). Proof: pytest asserts
+  an expired item is absent from the agent catalog + search and is dropped from a saved project's
+  items / scheduled posts.
+
+**Priority tiers** (build order; acceptance reports honestly against all 33):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 (all prior ACs stay green).
+design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 · framework = AC32,33
+(all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -208,3 +228,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.2.0 | 2026-10-02 | **Profiles & dual workspaces** (charter `docs/plans/2026-10-02-requirements-charter.md`): added **AC25–AC29** — role-based registration + provider queue/holding; fixed-viewport workspace; rich profiles + provider org page; agent features (saved projects, collections, brand kit, templates); provider structured AI-crawlable inventory (custom sections, media library, team, performance). Built in phases; all prior ACs stay green. | user + Claude |
 | 2.3.0 | 2026-10-02 | **Theming & usability** (charter `docs/plans/2026-10-02-theming-usability-charter.md`): added **AC30** — token-driven light & dark themes across the whole app (OS default, remembered toggle, no flash); the design tokens became CSS variables. Workspace-usability wiring + polish staged for the same cycle. All prior ACs stay green. | user + Claude |
 | 2.4.0 | 2026-10-02 | **Workspace usability wired** (same charter): promoted the staged item to **AC31** — agent features connected end-to-end (catalog→collection save, Projects/Templates→Studio open via `?project=`/`?template=`, Studio→Projects save, brand kit pre-fills Personalise) with handled empty/loading/confirmation states. All prior ACs stay green. | user + Claude |
+| 2.5.0 | 2026-10-03 | **Product-framework features, increment 1** (charter `docs/plans/2026-10-03-product-framework-charter.md`, from the Product Framework doc's FR-01…FR-72): added **AC32–AC33** — content **validity & status lifecycle** (validity window + draft→in_review→approved→expiring_soon→expired→withdrawn, derived from an injectable clock) and **auto-withdraw & propagation** (expired/withdrawn items leave catalog, search, saved projects and schedules on their own; master edits flag in-use copies). Sets 2–4 (trust/approval, AI assistant via LangGraph, planning/resilience) follow as later increments. All prior ACs stay green. | user + Claude |

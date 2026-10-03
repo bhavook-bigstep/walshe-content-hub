@@ -1,8 +1,21 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import TYPE_CHECKING
 
-from app.models.catalog import CatalogType, EntryStatus
+from pydantic import BaseModel, Field, model_validator
+
+from app.lifecycle import display_status
+from app.models.catalog import CatalogType, DisplayStatus, EntryStatus
+
+if TYPE_CHECKING:
+    from app.models.catalog import CatalogEntry
+
+
+def _check_validity_window(valid_from: datetime | None, expires_at: datetime | None) -> None:
+    """Reject an inverted validity window at the boundary (security.md: validate at the edge)."""
+    if valid_from is not None and expires_at is not None and valid_from >= expires_at:
+        raise ValueError("valid_from must be before expires_at")
 
 
 class CustomSection(BaseModel):
@@ -22,6 +35,14 @@ class EntryCreate(BaseModel):
     attributes: dict = Field(default_factory=dict)
     highlights: list[str] = Field(default_factory=list)
     custom_sections: list[CustomSection] = Field(default_factory=list)
+    # Validity window (AC32) — optional; both nullable.
+    valid_from: datetime | None = None
+    expires_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _validity_ordered(self) -> "EntryCreate":
+        _check_validity_window(self.valid_from, self.expires_at)
+        return self
 
 
 class EntryContentUpdate(BaseModel):
@@ -41,6 +62,14 @@ class AccessUpdate(BaseModel):
     status: EntryStatus | None = None
     allowed_tenant_ids: list[int] | None = None
     allowed_agent_ids: list[int] | None = None
+    # Provider may set/adjust the validity window via the existing PATCH (AC32).
+    valid_from: datetime | None = None
+    expires_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _validity_ordered(self) -> "AccessUpdate":
+        _check_validity_window(self.valid_from, self.expires_at)
+        return self
 
 
 class EntryOut(BaseModel):
@@ -57,8 +86,34 @@ class EntryOut(BaseModel):
     highlights: list[str] = []
     custom_sections: list[CustomSection] = []
     asset_keys: list[str] = []
+    # Validity + derived display status serialise on every item, for every role (AC32).
+    valid_from: datetime | None = None
+    expires_at: datetime | None = None
+    display_status: DisplayStatus
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_entry(cls, entry: "CatalogEntry", *, now: datetime) -> "EntryOut":
+        """Serialise an entry, deriving ``display_status`` from its validity window + clock."""
+        return cls(
+            id=entry.id,
+            type=entry.type,
+            title=entry.title,
+            description=entry.description,
+            destination=entry.destination,
+            market_tags=entry.market_tags,
+            status=entry.status,
+            brand_safe=entry.brand_safe,
+            provider_id=entry.provider_id,
+            attributes=entry.attributes,
+            highlights=entry.highlights,
+            custom_sections=entry.custom_sections,
+            asset_keys=entry.asset_keys,
+            valid_from=entry.valid_from,
+            expires_at=entry.expires_at,
+            display_status=display_status(entry.status, entry.expires_at, now),
+        )
 
 
 class TemplateField(BaseModel):

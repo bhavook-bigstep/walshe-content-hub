@@ -42,6 +42,18 @@
             ],
             "title": "Brand Safe"
           },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "status": {
             "anyOf": [
               {
@@ -51,6 +63,18 @@
                 "type": "null"
               }
             ]
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
           }
         },
         "title": "AccessUpdate",
@@ -438,6 +462,19 @@
         "title": "DesignTemplate",
         "type": "object"
       },
+      "DisplayStatus": {
+        "description": "Status actually shown to users (AC32): the stored values plus the two derived ones.",
+        "enum": [
+          "draft",
+          "in_review",
+          "approved",
+          "expiring_soon",
+          "expired",
+          "withdrawn"
+        ],
+        "title": "DisplayStatus",
+        "type": "string"
+      },
       "EngagementOut": {
         "properties": {
           "clicks": {
@@ -589,6 +626,18 @@
             "title": "Destination",
             "type": "string"
           },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "highlights": {
             "items": {
               "type": "string"
@@ -611,6 +660,18 @@
           },
           "type": {
             "$ref": "#/components/schemas/CatalogType"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
           }
         },
         "required": [
@@ -657,6 +718,21 @@
             "title": "Destination",
             "type": "string"
           },
+          "display_status": {
+            "$ref": "#/components/schemas/DisplayStatus"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "highlights": {
             "default": [],
             "items": {
@@ -689,6 +765,18 @@
           },
           "type": {
             "$ref": "#/components/schemas/CatalogType"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
           }
         },
         "required": [
@@ -700,15 +788,19 @@
           "market_tags",
           "status",
           "brand_safe",
-          "provider_id"
+          "provider_id",
+          "display_status"
         ],
         "title": "EntryOut",
         "type": "object"
       },
       "EntryStatus": {
+        "description": "Stored lifecycle status (AC32). ``expiring_soon`` / ``expired`` are never stored — they are\nderived at read time (see ``app.lifecycle``).",
         "enum": [
           "draft",
-          "approved"
+          "in_review",
+          "approved",
+          "withdrawn"
         ],
         "title": "EntryStatus",
         "type": "string"
@@ -1109,6 +1201,11 @@
             "title": "Item Ids",
             "type": "array"
           },
+          "item_versions": {
+            "additionalProperties": true,
+            "title": "Item Versions",
+            "type": "object"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1122,6 +1219,39 @@
           "design"
         ],
         "title": "ProjectOut",
+        "type": "object"
+      },
+      "ProjectResolved": {
+        "description": "A saved project resolved against the live catalog at read time (AC33).\n\n``items`` holds only the items still visible (approved, brand-safe, unexpired, in scope);\n``dropped_item_ids`` are those auto-withdrawn (expired/withdrawn/removed); ``flagged_item_ids``\nare in-use copies whose master was edited since the project captured them.",
+        "properties": {
+          "dropped_item_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Dropped Item Ids",
+            "type": "array"
+          },
+          "flagged_item_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Flagged Item Ids",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EntryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "dropped_item_ids",
+          "flagged_item_ids"
+        ],
+        "title": "ProjectResolved",
         "type": "object"
       },
       "ProjectUpdate": {
@@ -2318,7 +2448,7 @@
         ]
       },
       "put": {
-        "description": "Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on\nthe PATCH endpoint.",
+        "description": "Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on\nthe PATCH endpoint. Any content change bumps ``content_version`` so copies flag (AC33).",
         "operationId": "update_content_catalog__entry_id__put",
         "parameters": [
           {
@@ -3096,6 +3226,54 @@
           }
         ],
         "summary": "Update Project",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/me/projects/{project_id}/resolved": {
+      "get": {
+        "description": "Resolve a saved project against the live catalog (AC33): expired/withdrawn items drop on\ntheir own and master-edited items are flagged, with no mutation of the stored project.",
+        "operationId": "resolve_project_me_projects__project_id__resolved_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResolved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve Project",
         "tags": [
           "agent"
         ]

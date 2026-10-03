@@ -174,3 +174,17 @@ acceptance:
     e2e:
       - "apps/web/e2e/agent-usability-smoke.spec.ts::agent adds a catalog item to a collection"
       - "apps/web/e2e/agent-usability-smoke.spec.ts::agent opens a saved project in the studio"
+  # --- v2.5.0 Product-framework increment 1: content lifecycle & validity ---
+  AC32:
+    tier: P2
+    api:
+      - "apps/api/tests/test_lifecycle.py::test_display_status_derived_from_clock"
+      - "apps/api/tests/test_lifecycle.py::test_validity_and_status_serialise_on_entry"
+    e2e:
+      - "apps/web/e2e/lifecycle-smoke.spec.ts::catalog item shows its status and validity"
+  AC33:
+    tier: P2
+    api:
+      - "apps/api/tests/test_lifecycle.py::test_expired_absent_from_agent_catalog_and_search"
+      - "apps/api/tests/test_lifecycle.py::test_expired_dropped_from_projects_and_schedule"
+      - "apps/api/tests/test_lifecycle.py::test_master_edit_flags_in_use_copies"

@@ -6,11 +6,12 @@ same row counts — safe to re-run against the dev stack. Uses only synthetic, n
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.clock import now as clock_now
 from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
 from app.models.composition import Composition
 from app.models.engagement import Engagement
@@ -92,7 +93,14 @@ def _upsert_user(db: Session, email: str, role: Role, tenant_id: int | None) -> 
 
 
 def _upsert_entry(
-    db: Session, provider_id: int, type_: CatalogType, title: str, destination: str
+    db: Session,
+    provider_id: int,
+    type_: CatalogType,
+    title: str,
+    destination: str,
+    *,
+    valid_from: datetime | None,
+    expires_at: datetime | None,
 ) -> CatalogEntry:
     entry = db.execute(
         select(CatalogEntry).where(
@@ -108,6 +116,8 @@ def _upsert_entry(
             market_tags=["leisure"],
             status=EntryStatus.approved,
             brand_safe=True,
+            valid_from=valid_from,
+            expires_at=expires_at,
             provider_id=provider_id,
             attributes=_SEED_ATTRIBUTES.get(type_, {}),
             highlights=[
@@ -175,8 +185,25 @@ def seed(db: Session) -> dict[str, int]:
     provider = users[Role.content_provider]
     agent = users[Role.tourism_agent]
 
+    # Demo-legible validity windows (AC32/AC33) derived from a single clock source. "Harbour
+    # Festival" expires soon; "Trade Showcase" is already expired (auto-withdrawn on its own); the
+    # rest are open-ended current content.
+    t = clock_now()
+    _SEED_VALIDITY: dict[str, tuple[datetime | None, datetime | None]] = {
+        "Harbour Festival": (t - timedelta(days=30), t + timedelta(days=5)),
+        "Trade Showcase": (t - timedelta(days=40), t - timedelta(days=10)),
+    }
     entries = [
-        _upsert_entry(db, provider.id, type_, title, dest) for type_, title, dest in _SEED_ENTRIES
+        _upsert_entry(
+            db,
+            provider.id,
+            type_,
+            title,
+            dest,
+            valid_from=_SEED_VALIDITY.get(title, (t - timedelta(days=30), None))[0],
+            expires_at=_SEED_VALIDITY.get(title, (t - timedelta(days=30), None))[1],
+        )
+        for type_, title, dest in _SEED_ENTRIES
     ]
 
     existing_comp = db.execute(

@@ -7,8 +7,9 @@ are the data behind Contract 1 — enforced in one place by ``app.services.visib
 from __future__ import annotations
 
 import enum
+from datetime import datetime
 
-from sqlalchemy import Boolean, Enum, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
@@ -24,8 +25,24 @@ class CatalogType(str, enum.Enum):
 
 
 class EntryStatus(str, enum.Enum):
+    """Stored lifecycle status (AC32). ``expiring_soon`` / ``expired`` are never stored — they are
+    derived at read time (see ``app.lifecycle``)."""
+
     draft = "draft"
+    in_review = "in_review"
     approved = "approved"
+    withdrawn = "withdrawn"
+
+
+class DisplayStatus(str, enum.Enum):
+    """Status actually shown to users (AC32): the stored values plus the two derived ones."""
+
+    draft = "draft"
+    in_review = "in_review"
+    approved = "approved"
+    expiring_soon = "expiring_soon"
+    expired = "expired"
+    withdrawn = "withdrawn"
 
 
 class CatalogEntry(Base):
@@ -48,6 +65,11 @@ class CatalogEntry(Base):
 
     status: Mapped[EntryStatus] = mapped_column(Enum(EntryStatus), default=EntryStatus.draft)
     brand_safe: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Validity window (AC32) — both nullable; display status derives from `expires_at` vs. clock.
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Bumped on every master content edit (AC33) so in-use copies can be flagged as stale.
+    content_version: Mapped[int] = mapped_column(default=1)
     # Empty lists == open to all approved+brand-safe viewers; non-empty == restricted scope.
     allowed_tenant_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
     allowed_agent_ids: Mapped[list[int]] = mapped_column(JSON, default=list)

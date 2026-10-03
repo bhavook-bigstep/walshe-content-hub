@@ -5,12 +5,16 @@ All agent-owned and scoped to the signed-in agent.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import clock
 from app.deps import get_db, require_role
 from app.models.agent_features import BrandKit, Collection
+from app.models.catalog import CatalogEntry
 from app.models.composition import Composition
 from app.models.user import Role, User
 from app.schemas.agent import (
@@ -22,8 +26,11 @@ from app.schemas.agent import (
     DesignTemplate,
     ProjectCreate,
     ProjectOut,
+    ProjectResolved,
     ProjectUpdate,
 )
+from app.schemas.catalog import EntryOut
+from app.services.visibility import agent_visible_entries_by_ids
 
 router = APIRouter(prefix="/me", tags=["agent"])
 
@@ -74,6 +81,16 @@ def list_projects(
     )
 
 
+def _snapshot_item_versions(db: Session, item_ids: list[int]) -> dict[str, int]:
+    """Capture each resolvable entry's current ``content_version`` (AC33), keyed by str(id)."""
+    snapshot: dict[str, int] = {}
+    for entry_id in item_ids:
+        entry = db.get(CatalogEntry, entry_id)
+        if entry is not None:
+            snapshot[str(entry_id)] = entry.content_version
+    return snapshot
+
+
 @router.post("/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(
     body: ProjectCreate, db: Session = Depends(get_db), agent: User = Depends(_agent_only)
@@ -84,6 +101,7 @@ def create_project(
         format=body.format,
         item_ids=body.item_ids,
         design=body.design,
+        item_versions=_snapshot_item_versions(db, body.item_ids),
     )
     db.add(project)
     db.commit()
@@ -105,6 +123,31 @@ def get_project(
     return _owned_project(db, project_id, agent)
 
 
+@router.get("/projects/{project_id}/resolved", response_model=ProjectResolved)
+def resolve_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
+) -> ProjectResolved:
+    """Resolve a saved project against the live catalog (AC33): expired/withdrawn items drop on
+    their own and master-edited items are flagged, with no mutation of the stored project."""
+    project = _owned_project(db, project_id, agent)
+    visible = agent_visible_entries_by_ids(db, agent, project.item_ids, now=now)
+    visible_ids = {e.id for e in visible}
+    dropped = [i for i in project.item_ids if i not in visible_ids]
+    flagged = [
+        e.id
+        for e in visible
+        if project.item_versions.get(str(e.id)) not in (None, e.content_version)
+    ]
+    return ProjectResolved(
+        items=[EntryOut.from_entry(e, now=now) for e in visible],
+        dropped_item_ids=dropped,
+        flagged_item_ids=flagged,
+    )
+
+
 @router.put("/projects/{project_id}", response_model=ProjectOut)
 def update_project(
     project_id: int,
@@ -117,6 +160,9 @@ def update_project(
     for field in ("name", "format", "item_ids", "design"):
         if field in data and data[field] is not None:
             setattr(project, field, data[field])
+    # Re-snapshot captured versions whenever the item set changes (AC33).
+    if "item_ids" in data and data["item_ids"] is not None:
+        project.item_versions = _snapshot_item_versions(db, data["item_ids"])
     db.commit()
     db.refresh(project)
     return project

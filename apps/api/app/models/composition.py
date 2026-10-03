@@ -19,3 +19,6 @@ class Composition(Base):
     # Saved projects (AC28): a name + the Studio canvas design so it can be reopened.
     name: Mapped[str] = mapped_column(String(200), default="")
     design: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Per-item captured master version at save time (AC33): {str(entry_id): content_version}.
+    # A later master edit bumps the entry's content_version, so a mismatch flags the in-use copy.
+    item_versions: Mapped[dict] = mapped_column(JSON, default=dict)

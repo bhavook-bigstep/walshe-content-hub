@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 import app.models.post  # noqa: F401  (register table before create_app/create_all)
+from app import clock
 from app.main import create_app
 from app.models.audit import AuditLog
 from app.models.composition import Composition
@@ -24,7 +25,7 @@ FIXED = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 def sclient(settings):
     application = create_app(settings)
     application.include_router(social.router)
-    application.dependency_overrides[social.get_clock] = lambda: lambda: FIXED
+    application.dependency_overrides[clock.now] = lambda: FIXED
     with application.state.sessionmaker() as db:
         from app.models.user import User as U
         from app.security import hash_password

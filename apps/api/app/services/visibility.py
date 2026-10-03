@@ -7,16 +7,25 @@ their **access scope**. No router issues an ad-hoc agent query.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import lifecycle
 from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
 from app.models.user import Role, User
 
 
-def is_visible_to_agent(entry: CatalogEntry, agent: User) -> bool:
-    """True iff ``entry`` is approved, brand-safe, and in ``agent``'s access scope."""
+def is_visible_to_agent(entry: CatalogEntry, agent: User, *, now: datetime) -> bool:
+    """True iff ``entry`` is approved, brand-safe, unexpired, and in ``agent``'s access scope.
+
+    ``now`` is required (no default) so any un-updated call site fails loudly — expiry is derived
+    here at read time (AC33), never swept, and never scattered across routers.
+    """
     if entry.status != EntryStatus.approved or not entry.brand_safe:
+        return False
+    if lifecycle.is_expired(entry.expires_at, now):
         return False
     tenants = entry.allowed_tenant_ids or []
     agents = entry.allowed_agent_ids or []
@@ -31,6 +40,7 @@ def agent_visible_entries(
     db: Session,
     agent: User,
     *,
+    now: datetime,
     destination: str | None = None,
     type_: CatalogType | None = None,
     q: str | None = None,
@@ -50,7 +60,7 @@ def agent_visible_entries(
     needle = (q or "").strip().lower()
     result: list[CatalogEntry] = []
     for entry in rows:
-        if not is_visible_to_agent(entry, agent):
+        if not is_visible_to_agent(entry, agent, now=now):
             continue  # access-scope filter (JSON membership) done in Python for portability
         if needle and needle not in entry.title.lower() and needle not in entry.description.lower():
             continue
@@ -58,7 +68,9 @@ def agent_visible_entries(
     return result
 
 
-def agent_visible_entries_by_ids(db: Session, agent: User, ids: list[int]) -> list[CatalogEntry]:
+def agent_visible_entries_by_ids(
+    db: Session, agent: User, ids: list[int], *, now: datetime
+) -> list[CatalogEntry]:
     """Resolve ``ids`` in request order (de-duped), dropping unknown or hidden entries.
 
     Visibility is decided solely by ``is_visible_to_agent`` — no additional access rule.
@@ -70,12 +82,14 @@ def agent_visible_entries_by_ids(db: Session, agent: User, ids: list[int]) -> li
             continue
         seen.add(entry_id)
         entry = db.get(CatalogEntry, entry_id)
-        if entry is not None and is_visible_to_agent(entry, agent):
+        if entry is not None and is_visible_to_agent(entry, agent, now=now):
             result.append(entry)
     return result
 
 
-def visible_asset_or_none(db: Session, user: User, object_key: str) -> Asset | None:
+def visible_asset_or_none(
+    db: Session, user: User, object_key: str, *, now: datetime
+) -> Asset | None:
     """Return the Asset for ``object_key`` iff ``user`` may read it, else None (Contract 1/2).
 
     Unknown keys, hidden entries and traversal attempts are all indistinguishable (None).
@@ -93,5 +107,5 @@ def visible_asset_or_none(db: Session, user: User, object_key: str) -> Asset | N
     if user.role == Role.content_provider:
         return asset if entry.provider_id == user.id else None
     if user.role == Role.tourism_agent:
-        return asset if is_visible_to_agent(entry, user) else None
+        return asset if is_visible_to_agent(entry, user, now=now) else None
     return None

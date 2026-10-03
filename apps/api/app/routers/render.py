@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import tempfile
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app import clock
 from app.deps import get_db, require_role
 from app.media.html_export import design_to_email_html
 from app.media.pdf import design_to_pdf
@@ -60,11 +62,11 @@ _IMAGE_EXT = {
 
 
 def _scene_image_paths(
-    db: Session, agent: User, storage: Storage, scenes: list[VideoScene], tmp: str
+    db: Session, agent: User, storage: Storage, scenes: list[VideoScene], tmp: str, *, now: datetime
 ) -> list[str | None]:
-    """Per-scene image path (aligned by index); None for hidden/unknown/image-less entries."""
+    """Per-scene image path (by index); None for hidden/unknown/expired/image-less entries."""
     ids = [s.item_id for s in scenes if s.item_id is not None]
-    visible = {e.id: e for e in agent_visible_entries_by_ids(db, agent, ids)}
+    visible = {e.id: e for e in agent_visible_entries_by_ids(db, agent, ids, now=now)}
     images: list[str | None] = []
     for i, scene in enumerate(scenes):
         entry = visible.get(scene.item_id) if scene.item_id is not None else None
@@ -89,12 +91,13 @@ def render_video(
     agent: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     storage: Storage = Depends(get_storage),
+    now: datetime = Depends(clock.now),
 ) -> Response:
     """Render scenes to a rudimentary MP4. Images come only from visible catalog entries
     resolved server-side (no client-supplied file paths are ever used)."""
     try:
         with tempfile.TemporaryDirectory() as tmp:
-            images = _scene_image_paths(db, agent, storage, body.scenes, tmp)
+            images = _scene_image_paths(db, agent, storage, body.scenes, tmp, now=now)
             scenes = build_scene_script(
                 [{"title": s.title, "description": s.caption} for s in body.scenes]
             )
