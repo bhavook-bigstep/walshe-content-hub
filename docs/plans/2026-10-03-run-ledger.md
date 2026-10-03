@@ -6,8 +6,15 @@ Every phase reads this first and appends when done. Content-free: status + decis
 - **Charter (full):** `docs/plans/2026-10-03-product-framework-charter.md`
 - **Active increment charter:** `docs/plans/2026-10-03-increment1-lifecycle-charter.md`
 - **Branch:** `feat/content-hub-poc`
-- **Current phase:** `C` (implement complete — Increment 1: lifecycle; `make verify` green, ready for review/human verify gate)
-- **Outer loop:** `1/3` · **Inner loop:** `2/2`
+- **Current phase:** `⏸ G` (Increment 1 complete & independently verified; awaiting human check-in before Set 2)
+- **Outer loop:** `3/3` · **Inner loop:** `2/2`
+
+> **Note on the engine result:** the build-loop workflow returned `status:stuck, stage:budget`
+> (outer budget exhausted, `gaps:null`). This was a **false negative**: reviewers kept setting
+> `needsDesignChange=true` on already-complete work, so every outer loop re-planned (E→C) and never
+> reached a clean Acceptance phase. Independent `make verify` run by the orchestrator: **33/33 ACs
+> met (AC32 3/3, AC33 3/3), sync OK, tree clean** — Increment 1 is genuinely done. For later
+> increments, consider raising `maxOuter` or softening the reviewers' re-plan trigger.
 
 ## Requirement status (acceptance checklist — increment 1)
 
