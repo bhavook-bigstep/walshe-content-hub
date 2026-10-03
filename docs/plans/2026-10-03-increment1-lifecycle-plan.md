@@ -42,10 +42,16 @@ def now() -> datetime:
 ### 1.2 `apps/api/app/lifecycle.py` (new)
 Pure derivation helper — no DB, no clock import; `now` is passed in.
 ```python
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.models.catalog import DisplayStatus, EntryStatus
 
 EXPIRING_SOON_WINDOW = timedelta(days=14)
+
+def _aware(value: datetime) -> datetime:
+    """Treat a naive datetime as UTC. SQLite (and some drivers) return tz-naive values even for a
+    DateTime(timezone=True) column; coercing keeps comparisons with the aware clock safe and the
+    boundary rule identical on Postgres and SQLite."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 def display_status(stored: EntryStatus, expires_at: datetime | None, now: datetime,
                    *, soon_window: timedelta = EXPIRING_SOON_WINDOW) -> DisplayStatus:
@@ -54,17 +60,21 @@ def display_status(stored: EntryStatus, expires_at: datetime | None, now: dateti
     if stored != EntryStatus.approved:
         return DisplayStatus(stored.value)          # draft / in_review pass through
     if expires_at is not None:
-        if now >= expires_at:
+        expiry = _aware(expires_at)
+        if _aware(now) >= expiry:
             return DisplayStatus.expired
-        if now >= expires_at - soon_window:
+        if _aware(now) >= expiry - soon_window:
             return DisplayStatus.expiring_soon
     return DisplayStatus.approved
 
 def is_expired(expires_at: datetime | None, now: datetime) -> bool:
-    return expires_at is not None and now >= expires_at
+    return expires_at is not None and _aware(now) >= _aware(expires_at)
 ```
 - `is_expired` is the one predicate `visibility.py` calls, so the boundary rule lives once.
 - Boundary semantics: `now == expires_at` ⇒ **expired** (half-open window `[valid, expires)`).
+- **`_aware` coercion is load-bearing:** `DateTime(timezone=True)` columns come back tz-naive under
+  SQLite (the `make verify` DB), so every comparison coerces both operands to UTC — without it the
+  boundary assertions raise `TypeError: can't compare offset-naive and offset-aware datetimes`.
 
 ---
 
