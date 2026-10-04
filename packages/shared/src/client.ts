@@ -30,6 +30,7 @@ export type BlocklistTerm = Schemas["BlocklistOut"];
 export type AuditEntry = Schemas["AuditOut"];
 export type AssistantReply = Schemas["AssistantOut"];
 export type AssistantItem = Schemas["ItemCardOut"];
+export type CreativePlan = Schemas["CreativePlanOut"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
 export type RegisterProviderInput = Schemas["RegisterProviderRequest"];
@@ -260,6 +261,15 @@ export async function addBlocklistTerm(term: string): Promise<BlocklistTerm> {
 }
 export async function removeBlocklistTerm(id: number): Promise<void> {
   await send(`/blocklist/${id}`, { method: "DELETE" });
+}
+
+// --- Creative Plan IR (AC41/42) ---
+export async function buildCreativePlan(
+  itemIds: number[],
+  opts: { objective?: string; format?: string; audience?: string } = {},
+): Promise<CreativePlan> {
+  const body = { item_ids: itemIds, ...opts };
+  return (await (await send("/builder/plan", json(body))).json()) as CreativePlan;
 }
 
 // --- Assistant & discovery (AC38-40) ---

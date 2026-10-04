@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.7.0 |
+| **Version** | 2.8.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -239,10 +239,29 @@ Increment 3 — **AI assistant & discovery** (built on **LangGraph**):
 > agent's own accounts, live posting, email/messaging delivery — FR-43/45/46). Sending stays
 > *simulated* as today; the product is perfected up to that boundary first.
 
-**Priority tiers** (build order; acceptance reports honestly against all 40):
+### Sound agentic architecture (v2.8.0) `[explicit – feedback]`
+
+Charter: `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`. Evolves the assistant toward
+a layered agent/tools/knowledge/validation architecture (LLM is the planner, never the source of
+truth). Increment 1 — **Creative Plan IR + validation**:
+
+- **AC41** — **Creative Plan intermediate representation**: the creative pipeline runs **Brief → Plan
+  → Copy → Visual (asset selection) → Validate**, with a structured `CreativePlan` (brief, message,
+  creative, copy, sources) as the contract between the agent, the generators and the validators. The
+  plan is built only from the agent's selected, **visible + approved** items (tenant/permission-scoped
+  via the choke-point) and composed from the approved asset library — **no generative imagery**.
+  Proof: pytest asserts a plan is built from visible items + serialises the IR, and that a
+  hidden/out-of-scope item is refused.
+- **AC42** — **Claim-grounding validation**: every factual claim in the plan's copy must trace to an
+  approved source field of a selected item; ungrounded claims are flagged (evidence gap named) and
+  the plan is marked not ready — the validator, not the prompt, enforces it. Proof: pytest asserts an
+  ungrounded claim (injected via a fake provider) is flagged while a grounded plan passes, with
+  evidence links to the source item/field.
+
+**Priority tiers** (build order; acceptance reports honestly against all 42):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
-framework = AC32,33,34,35,36,37,38,39,40 (all prior ACs stay green).
+framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -276,3 +295,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.5.0 | 2026-10-03 | **Product-framework features, increment 1** (charter `docs/plans/2026-10-03-product-framework-charter.md`, from the Product Framework doc's FR-01…FR-72): added **AC32–AC33** — content **validity & status lifecycle** (validity window + draft→in_review→approved→expiring_soon→expired→withdrawn, derived from an injectable clock) and **auto-withdraw & propagation** (expired/withdrawn items leave catalog, search, saved projects and schedules on their own; master edits flag in-use copies). Sets 2–4 (trust/approval, AI assistant via LangGraph, planning/resilience) follow as later increments. All prior ACs stay green. | user + Claude |
 | 2.6.0 | 2026-10-03 | **Product-framework features, increment 2** (same charter): added **AC34–AC37** — **preflight check** before an agent sends (brand-safe/valid/in-scope/channel, blocks with plain-word fixes), **send-back-with-reason** approval step, **off-limits blocklist** enforced at the visibility choke-point, and a readable + CSV-exportable **audit log**. Resolves the control-vs-speed tension and Contract 3. All prior ACs stay green. | user + Claude |
 | 2.7.0 | 2026-10-04 | **Product-framework features, increment 3** (same charter): added **AC38–AC40** — a **LangGraph** Content Assistant (grounded, permission-scoped: route→tool→respond), **natural-language search**, and **suggested next posts**, all via the AC16 provider abstraction (real model with a key, deterministic stub offline). Real **reach/social-media integration** explicitly deferred to future (sending stays simulated). Also added a **demo seed** (`make seed-demo`: 1 provider + 2 agents + populated workspaces). All prior ACs stay green. | user + Claude |
+| 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |

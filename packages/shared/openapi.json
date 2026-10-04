@@ -422,6 +422,46 @@
         "title": "CatalogType",
         "type": "string"
       },
+      "ClaimSourceOut": {
+        "properties": {
+          "claim": {
+            "title": "Claim",
+            "type": "string"
+          },
+          "evidence_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Field"
+          },
+          "evidence_item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Item Id"
+          },
+          "grounded": {
+            "title": "Grounded",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "claim",
+          "grounded"
+        ],
+        "title": "ClaimSourceOut",
+        "type": "object"
+      },
       "CollectionCreate": {
         "properties": {
           "item_ids": {
@@ -521,6 +561,91 @@
           "templates"
         ],
         "title": "ContentTemplates",
+        "type": "object"
+      },
+      "CreativeCopyOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "cta": {
+            "title": "Cta",
+            "type": "string"
+          },
+          "headline": {
+            "title": "Headline",
+            "type": "string"
+          }
+        },
+        "required": [
+          "headline",
+          "body",
+          "cta"
+        ],
+        "title": "CreativeCopyOut",
+        "type": "object"
+      },
+      "CreativePlanOut": {
+        "properties": {
+          "ad_copy": {
+            "$ref": "#/components/schemas/CreativeCopyOut"
+          },
+          "issues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "item_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "message_primary": {
+            "title": "Message Primary",
+            "type": "string"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimSourceOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "supporting_points": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supporting Points",
+            "type": "array"
+          },
+          "visual_asset_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Visual Asset Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "item_ids",
+          "message_primary",
+          "supporting_points",
+          "visual_asset_keys",
+          "ad_copy",
+          "sources",
+          "ready",
+          "issues"
+        ],
+        "title": "CreativePlanOut",
         "type": "object"
       },
       "CustomSection": {
@@ -1208,6 +1333,42 @@
           "reach"
         ],
         "title": "PerformanceRow",
+        "type": "object"
+      },
+      "PlanRequest": {
+        "properties": {
+          "audience": {
+            "default": "",
+            "maxLength": 160,
+            "title": "Audience",
+            "type": "string"
+          },
+          "format": {
+            "default": "social",
+            "maxLength": 60,
+            "title": "Format",
+            "type": "string"
+          },
+          "item_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "objective": {
+            "default": "awareness",
+            "maxLength": 120,
+            "title": "Objective",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_ids"
+        ],
+        "title": "PlanRequest",
         "type": "object"
       },
       "PostOut": {
@@ -2618,6 +2779,53 @@
           }
         ],
         "summary": "Design",
+        "tags": [
+          "builder"
+        ]
+      }
+    },
+    "/builder/plan": {
+      "post": {
+        "description": "Build a grounded Creative Plan IR from selected items (AC41/AC42).\n\nItems are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped\n(Contract 1). The plan's claims are validated against the approved source fields.",
+        "operationId": "plan_builder_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Plan",
         "tags": [
           "builder"
         ]

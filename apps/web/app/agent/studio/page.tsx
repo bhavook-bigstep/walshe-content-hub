@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Canvas } from "fabric";
 import BuilderPanel, { type BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
+import CreativePlanPanel from "../../../components/studio/CreativePlanPanel";
 import ExportMenu from "../../../components/studio/ExportMenu";
 import FormatPicker from "../../../components/studio/FormatPicker";
 import PersonalizePanel from "../../../components/studio/PersonalizePanel";
@@ -212,6 +213,10 @@ function StudioEditor() {
             ) : (
               <BuilderPanel design={design} pageIndex={pageIndex} items={panelItems} onChange={setDesign} />
             )}
+          </RailCard>
+
+          <RailCard eyebrow="Plan" title="Creative plan" icon={ICON.sparkle}>
+            <CreativePlanPanel itemIds={(panelItems ?? []).map((i) => Number(i.id))} />
           </RailCard>
 
           <RailCard eyebrow="Branding" title="Personalise" icon={ICON.user}>

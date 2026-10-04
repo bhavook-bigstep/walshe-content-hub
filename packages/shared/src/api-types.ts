@@ -251,6 +251,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/builder/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan
+         * @description Build a grounded Creative Plan IR from selected items (AC41/AC42).
+         *
+         *     Items are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped
+         *     (Contract 1). The plan's claims are validated against the approved source fields.
+         */
+        post: operations["plan_builder_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog": {
         parameters: {
             query?: never;
@@ -875,6 +898,17 @@ export interface components {
          * @enum {string}
          */
         CatalogType: "event" | "place" | "opportunity" | "offer" | "itinerary";
+        /** ClaimSourceOut */
+        ClaimSourceOut: {
+            /** Claim */
+            claim: string;
+            /** Evidence Field */
+            evidence_field?: string | null;
+            /** Evidence Item Id */
+            evidence_item_id?: number | null;
+            /** Grounded */
+            grounded: boolean;
+        };
         /** CollectionCreate */
         CollectionCreate: {
             /** Item Ids */
@@ -907,6 +941,33 @@ export interface components {
             templates: {
                 [key: string]: components["schemas"]["TemplateField"][];
             };
+        };
+        /** CreativeCopyOut */
+        CreativeCopyOut: {
+            /** Body */
+            body: string;
+            /** Cta */
+            cta: string;
+            /** Headline */
+            headline: string;
+        };
+        /** CreativePlanOut */
+        CreativePlanOut: {
+            ad_copy: components["schemas"]["CreativeCopyOut"];
+            /** Issues */
+            issues: string[];
+            /** Item Ids */
+            item_ids: number[];
+            /** Message Primary */
+            message_primary: string;
+            /** Ready */
+            ready: boolean;
+            /** Sources */
+            sources: components["schemas"]["ClaimSourceOut"][];
+            /** Supporting Points */
+            supporting_points: string[];
+            /** Visual Asset Keys */
+            visual_asset_keys: string[];
         };
         /**
          * CustomSection
@@ -1152,6 +1213,26 @@ export interface components {
             title: string;
             /** Uses */
             uses: number;
+        };
+        /** PlanRequest */
+        PlanRequest: {
+            /**
+             * Audience
+             * @default
+             */
+            audience: string;
+            /**
+             * Format
+             * @default social
+             */
+            format: string;
+            /** Item Ids */
+            item_ids: number[];
+            /**
+             * Objective
+             * @default awareness
+             */
+            objective: string;
         };
         /** PostOut */
         PostOut: {
@@ -1892,6 +1973,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_builder_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativePlanOut"];
                 };
             };
             /** @description Validation Error */
