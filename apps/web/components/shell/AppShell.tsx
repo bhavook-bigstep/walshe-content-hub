@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { me, type User } from "../../lib/api";
 import type { Role } from "../../lib/rbac";
-import { clear } from "../../lib/session";
+import { clear, hasValidSession, msUntilExpiry } from "../../lib/session";
 import ThemeToggle from "../ui/ThemeToggle";
 
 interface NavItem {
@@ -306,6 +306,26 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
   const [profile, setProfile] = useState<User | null>(null);
   const items = NAV[role];
 
+  function signOut() {
+    clear();
+    // Hard navigation so all in-memory session state is dropped and the role cookie clear is applied.
+    window.location.assign("/login");
+  }
+
+  // Session guard: never render workspace content on an expired/absent token. Runs on mount and on
+  // every client navigation, and schedules a logout for the moment the token expires while open —
+  // so the user is sent to /login *before* an API call can fail with "invalid token".
+  useEffect(() => {
+    if (!hasValidSession()) {
+      signOut();
+      return;
+    }
+    const ms = msUntilExpiry();
+    if (ms === null) return;
+    const timer = window.setTimeout(signOut, ms);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
+
   useEffect(() => {
     let alive = true;
     me()
@@ -315,12 +335,6 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
       alive = false;
     };
   }, []);
-
-  function signOut() {
-    clear();
-    // Hard navigation so all in-memory session state is dropped and the role cookie clear is applied.
-    window.location.assign("/login");
-  }
 
   const displayName = profile?.display_name || profile?.email || "";
   const avatarColor = profile?.avatar_color || "#005653";

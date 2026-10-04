@@ -7,8 +7,19 @@
 // code, so the external package cannot resolve it in the browser. configureClient carries it into
 // the shared client.
 import { configureClient } from "@walsh/shared";
-import { getToken } from "./session";
+import { clear, getToken } from "./session";
 
-configureClient({ getToken, apiUrl: process.env.NEXT_PUBLIC_API_URL });
+configureClient({
+  getToken,
+  apiUrl: process.env.NEXT_PUBLIC_API_URL,
+  // An authenticated 401 (expired/invalid token) ends the session and routes to sign-in, instead of
+  // leaving the user on a workspace page staring at a raw "invalid token" error.
+  onUnauthorized: () => {
+    if (typeof window === "undefined") return;
+    clear();
+    const { pathname } = window.location;
+    if (pathname !== "/login" && pathname !== "/register") window.location.assign("/login");
+  },
+});
 
 export * from "@walsh/shared";

@@ -22,6 +22,8 @@ acceptance:
     tier: P1
     api:
       - "apps/api/tests/test_auth_rbac.py::test_role_guard_blocks_wrong_role"
+    e2e:
+      - "apps/web/e2e/rbac-smoke.spec.ts::an expired session is bounced to login before the workspace renders"
   AC2:
     tier: P3
     api:

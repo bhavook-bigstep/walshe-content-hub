@@ -1,7 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allowed, redirectFor, requiredRole } from "../lib/rbac";
-import { clear, getRole, getToken, setSession } from "../lib/session";
-import { ApiError, buildCatalogQuery, fetchAssetObjectUrl, listAgentCatalog, login } from "../lib/api";
+import {
+  clear,
+  getRole,
+  getToken,
+  hasValidSession,
+  isExpired,
+  msUntilExpiry,
+  setSession,
+} from "../lib/session";
+import {
+  ApiError,
+  buildCatalogQuery,
+  configureClient,
+  fetchAssetObjectUrl,
+  listAgentCatalog,
+  login,
+} from "../lib/api";
+
+// A syntactically valid JWT (header.payload.signature) carrying only the fields we read.
+function fakeJwt(payload: Record<string, unknown>): string {
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  return `${b64({ alg: "HS256", typ: "JWT" })}.${b64(payload)}.sig`;
+}
+const FUTURE = Math.floor(Date.now() / 1000) + 3600;
+const PAST = Math.floor(Date.now() / 1000) - 3600;
 
 function stubStorage(throwing = false) {
   const m = new Map<string, string>();
@@ -65,6 +88,26 @@ describe("session", () => {
   });
 });
 
+describe("session expiry (auth guard)", () => {
+  it("isExpired reads the JWT exp; missing/garbage exp is treated as not-expired", () => {
+    expect(isExpired(fakeJwt({ exp: PAST }))).toBe(true);
+    expect(isExpired(fakeJwt({ exp: FUTURE }))).toBe(false);
+    expect(isExpired(fakeJwt({ sub: 1 }))).toBe(false); // no exp claim
+    expect(isExpired("not-a-jwt")).toBe(false);
+  });
+
+  it("hasValidSession requires a present, unexpired token AND a role", () => {
+    stubStorage();
+    expect(hasValidSession()).toBe(false); // nothing stored
+    setSession(fakeJwt({ exp: FUTURE }), "tourism_agent");
+    expect(hasValidSession()).toBe(true);
+    expect(msUntilExpiry()).toBeGreaterThan(0);
+    // An expired token is not a valid session even though a role is stored.
+    setSession(fakeJwt({ exp: PAST }), "tourism_agent");
+    expect(hasValidSession()).toBe(false);
+  });
+});
+
 describe("api client", () => {
   beforeEach(() => stubStorage());
 
@@ -102,6 +145,20 @@ describe("api client", () => {
     const net = await login("a", "b").catch((e) => e);
     expect(net.status).toBe(0);
   });
+  it("calls onUnauthorized on an authenticated 401, but not on an unauthed login 401", async () => {
+    setSession(fakeJwt({ exp: FUTURE }), "tourism_agent");
+    const onUnauthorized = vi.fn();
+    configureClient({ onUnauthorized });
+
+    vi.stubGlobal("fetch", async () => new Response('{"detail":"Invalid or expired token"}', { status: 401 }));
+    await listAgentCatalog({}).catch(() => {}); // authenticated call → should end the session
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+
+    onUnauthorized.mockClear();
+    await login("a", "b").catch(() => {}); // login is unauthenticated → must not redirect
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
   it("fetchAssetObjectUrl: authed fetch -> blob -> object URL", async () => {
     setSession("tok-fake", "tourism_agent");
     const fetchMock = vi.fn(async () => new Response(new Blob(["x"]), { status: 200 }));

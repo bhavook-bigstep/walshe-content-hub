@@ -48,11 +48,19 @@ export let API_URL: string =
     ?.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 let tokenProvider: () => string | null = () => null;
+let onUnauthorized: (() => void) | null = null;
 
-/** The host app injects where the bearer token lives and (optionally) the API base URL. */
-export function configureClient(opts: { getToken?: () => string | null; apiUrl?: string }): void {
+/** The host app injects where the bearer token lives, the API base URL, and an optional handler
+ *  invoked when an *authenticated* request is rejected 401 (token missing/expired/invalid) so the
+ *  app can end the session and route to sign-in rather than surface a raw "invalid token". */
+export function configureClient(opts: {
+  getToken?: () => string | null;
+  apiUrl?: string;
+  onUnauthorized?: () => void;
+}): void {
   if (opts.getToken) tokenProvider = opts.getToken;
   if (opts.apiUrl) API_URL = opts.apiUrl;
+  if (opts.onUnauthorized) onUnauthorized = opts.onUnauthorized;
 }
 
 export interface CatalogQuery {
@@ -92,7 +100,11 @@ async function send(path: string, init: RequestInit = {}, auth = true): Promise<
   } catch {
     throw new ApiError(0, "Network error: could not reach the API");
   }
-  if (!res.ok) throw new ApiError(res.status, await detailOf(res));
+  if (!res.ok) {
+    // An authenticated call rejected 401 means the session is no longer valid — let the host end it.
+    if (res.status === 401 && auth && onUnauthorized) onUnauthorized();
+    throw new ApiError(res.status, await detailOf(res));
+  }
   return res;
 }
 

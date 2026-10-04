@@ -112,7 +112,7 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 
 | # | Tier | Status | Proofs passing |
 |---|------|--------|----------------|
-| AC1 | P1 | met | 1/1 |
+| AC1 | P1 | met | 2/2 |
 | AC2 | P3 | met | 1/1 |
 | AC3 | P1 | met | 1/1 |
 | AC4 | P1 | met | 1/1 |
