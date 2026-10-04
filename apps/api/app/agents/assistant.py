@@ -110,7 +110,9 @@ def run_assistant(
 
     def search_node(limit: int):
         def node(state: AssistantState) -> AssistantState:
-            rows = tools.search_catalog(db, agent, state["message"], now=now, limit=limit)
+            rows = tools.search_catalog(
+                db, agent, state["message"], now=now, limit=limit, provider=provider
+            )
             return {"items": [ItemCard.of(e, now) for e in rows]}
 
         return node

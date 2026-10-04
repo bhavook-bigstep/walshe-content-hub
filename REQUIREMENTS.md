@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.8.0 |
+| **Version** | 2.9.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -258,10 +258,26 @@ truth). Increment 1 — **Creative Plan IR + validation**:
   ungrounded claim (injected via a fake provider) is flagged while a grounded plan passes, with
   evidence links to the source item/field.
 
-**Priority tiers** (build order; acceptance reports honestly against all 42):
+Increment 2 — **Knowledge domains + pgvector hybrid retrieval**:
+
+- **AC43** — **Knowledge domains + query classifier**: retrieval routes a plain-language query to a
+  knowledge domain — **product**/**asset** (the approved catalog, via the visibility choke-point),
+  **brand** (the agent's own brand kit + their board), **marketing** (the agent's own activity) — a
+  controlled, tenant/permission-scoped layer; auth is enforced in code, never by the model. Exposed
+  at `GET /knowledge`. Proof: pytest asserts the classifier routes correctly and the product domain
+  is scoped (a hidden draft never surfaces) + agent-only.
+- **AC44** — **Hybrid semantic retrieval + rerank**: candidate (already-visible) items are ranked by
+  a **vector + keyword blend** behind one `RetrievalBackend` interface — **pgvector** on PostgreSQL
+  (real `embedding <=> query` ANN, reranked) and a **deterministic in-Python cosine** fallback on
+  SQLite / in hermetic tests. Embeddings come through the AC16 gateway (deterministic offline, real
+  with a model). Proof: pytest asserts the hybrid rank puts the relevant item first + embeddings are
+  deterministic + the cosine backend is selected on SQLite; a Postgres-gated integration test
+  exercises the real pgvector path.
+
+**Priority tiers** (build order; acceptance reports honestly against all 44):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
-framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42 (all prior ACs stay green).
+framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -296,3 +312,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.6.0 | 2026-10-03 | **Product-framework features, increment 2** (same charter): added **AC34–AC37** — **preflight check** before an agent sends (brand-safe/valid/in-scope/channel, blocks with plain-word fixes), **send-back-with-reason** approval step, **off-limits blocklist** enforced at the visibility choke-point, and a readable + CSV-exportable **audit log**. Resolves the control-vs-speed tension and Contract 3. All prior ACs stay green. | user + Claude |
 | 2.7.0 | 2026-10-04 | **Product-framework features, increment 3** (same charter): added **AC38–AC40** — a **LangGraph** Content Assistant (grounded, permission-scoped: route→tool→respond), **natural-language search**, and **suggested next posts**, all via the AC16 provider abstraction (real model with a key, deterministic stub offline). Real **reach/social-media integration** explicitly deferred to future (sending stays simulated). Also added a **demo seed** (`make seed-demo`: 1 provider + 2 agents + populated workspaces). All prior ACs stay green. | user + Claude |
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
+| 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |

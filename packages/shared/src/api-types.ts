@@ -410,6 +410,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Knowledge Search
+         * @description Route a query to its knowledge domain; return scoped, hybrid-ranked results (AC43/AC44).
+         */
+        get: operations["knowledge_search_knowledge_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/brand-kit": {
         parameters: {
             query?: never;
@@ -1146,6 +1166,15 @@ export interface components {
             title: string;
             /** Type */
             type: string;
+        };
+        /** KnowledgeOut */
+        KnowledgeOut: {
+            /** Domain */
+            domain: string;
+            /** Items */
+            items: components["schemas"]["ItemCardOut"][];
+            /** Note */
+            note: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -2345,6 +2374,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    knowledge_search_knowledge_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

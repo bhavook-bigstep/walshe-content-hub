@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import clock
-from app.agents import tools
+from app.agents import knowledge, tools
 from app.agents.assistant import run_assistant
 from app.agents.tools import ItemCard
 from app.ai.factory import get_provider
@@ -47,6 +47,12 @@ class SuggestionsOut(BaseModel):
     items: list[ItemCardOut]
 
 
+class KnowledgeOut(BaseModel):
+    domain: str
+    items: list[ItemCardOut]
+    note: str
+
+
 def _cards(items: list[ItemCard]) -> list[ItemCardOut]:
     return [ItemCardOut(**asdict(i)) for i in items]
 
@@ -78,3 +84,20 @@ def suggestions(
     """Suggested next posts (AC40): current, in-scope content the agent hasn't used yet."""
     pairs = tools.suggest_items(db, agent, now=now)
     return SuggestionsOut(items=_cards([ItemCard.of(e, now, reason=r) for e, r in pairs]))
+
+
+@router.get("/knowledge", response_model=KnowledgeOut)
+def knowledge_search(
+    q: str = Query(min_length=1, max_length=500),
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    settings: Settings = Depends(get_settings),
+    now: datetime = Depends(clock.now),
+) -> KnowledgeOut:
+    """Route a query to its knowledge domain; return scoped, hybrid-ranked results (AC43/AC44)."""
+    result = knowledge.retrieve(db, agent, q, get_provider(settings), now=now)
+    return KnowledgeOut(
+        domain=result.domain,
+        items=_cards([ItemCard.of(e, now) for e in result.entries]),
+        note=result.note,
+    )

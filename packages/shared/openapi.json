@@ -1122,6 +1122,32 @@
         "title": "ItemCardOut",
         "type": "object"
       },
+      "KnowledgeOut": {
+        "properties": {
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ItemCardOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain",
+          "items",
+          "note"
+        ],
+        "title": "KnowledgeOut",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -3354,6 +3380,56 @@
         "summary": "Health",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/knowledge": {
+      "get": {
+        "description": "Route a query to its knowledge domain; return scoped, hybrid-ranked results (AC43/AC44).",
+        "operationId": "knowledge_search_knowledge_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 500,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Knowledge Search",
+        "tags": [
+          "assistant"
         ]
       }
     },

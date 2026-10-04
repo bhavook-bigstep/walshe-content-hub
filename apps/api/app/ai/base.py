@@ -5,6 +5,8 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass
 
+from app.ai.embedding import deterministic_embedding
+
 
 @dataclass(frozen=True)
 class AIResponse:
@@ -14,7 +16,7 @@ class AIResponse:
 
 
 class AIProvider(abc.ABC):
-    """One interface, selected by config. Builder (AC10) talks only to this type."""
+    """One interface, selected by config. Builder (AC10) + retrieval (AC44) use only this type."""
 
     name: str = "base"
 
@@ -25,3 +27,11 @@ class AIProvider(abc.ABC):
     def complete(self, prompt: str, *, max_tokens: int = 512) -> AIResponse:
         """Return a completion for ``prompt``."""
         raise NotImplementedError
+
+    def embed(self, text: str) -> list[float]:
+        """Return an embedding vector for ``text`` (AC44).
+
+        Default = the deterministic offline embedding, so every provider has a working, reproducible
+        embedding with no key. A provider with a real embedding model may override this.
+        """
+        return deterministic_embedding(text)

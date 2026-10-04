@@ -13,11 +13,12 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.base import AIProvider
 from app.lifecycle import display_status
 from app.models.catalog import CatalogEntry
 from app.models.composition import Composition
 from app.models.user import User
-from app.services import visibility
+from app.services import retrieval, visibility
 
 # Type hints pulled out of a plain-language query (singular + common plural) to narrow a search.
 _TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -78,11 +79,17 @@ class ItemCard:
 
 
 def search_catalog(
-    db: Session, agent: User, query: str, *, now: datetime, limit: int = 8
+    db: Session,
+    agent: User,
+    query: str,
+    *,
+    now: datetime,
+    limit: int = 8,
+    provider: AIProvider | None = None,
 ) -> list[CatalogEntry]:
-    """Plain-language catalog search (AC39). Resolve the *visible* set first (the choke-point covers
-    approved/current/in-scope/off-limits), then narrow in Python by a type/destination hint and,
-    failing those, by keyword tokens — so destinations are never read from hidden content."""
+    """Plain-language catalog search (AC39/AC44). Resolve the *visible* set first (the choke-point
+    covers approved/current/in-scope/off-limits), narrow by a type/destination hint (or keyword
+    tokens), then **hybrid-rank** the result (vector + keyword) when a provider is given."""
     low = (query or "").strip().lower()
     visible = visibility.agent_visible_entries(db, agent, now=now)
 
@@ -105,6 +112,8 @@ def search_catalog(
                     tok in f"{r.title} {r.description} {r.destination}".lower() for tok in tokens
                 )
             ]
+    if provider is not None and low and rows:
+        return retrieval.rank_entries(db, query, rows, provider, limit=limit)
     return rows[:limit]
 
 

@@ -254,3 +254,16 @@ acceptance:
     api:
       - "apps/api/tests/test_creative_plan.py::test_ungrounded_claim_is_flagged_with_evidence_gap"
       - "apps/api/tests/test_creative_plan.py::test_grounded_plan_passes_with_evidence_links"
+  # --- v2.9.0 Sound agentic architecture, increment 2: knowledge domains + pgvector hybrid RAG ---
+  AC43:
+    tier: P2
+    api:
+      - "apps/api/tests/test_knowledge.py::test_product_domain_is_scoped_and_ranked"
+      - "apps/api/tests/test_knowledge.py::test_brand_domain_returns_scoped_note"
+      - "apps/api/tests/test_knowledge.py::test_knowledge_is_agent_only"
+  AC44:
+    tier: P2
+    api:
+      - "apps/api/tests/test_retrieval.py::test_hybrid_rank_puts_the_relevant_item_first"
+      - "apps/api/tests/test_retrieval.py::test_embedding_is_deterministic_and_cosine_reflects_overlap"
+      - "apps/api/tests/test_retrieval.py::test_backend_selection_is_cosine_on_sqlite"
