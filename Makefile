@@ -11,10 +11,14 @@ WEB_REPORT := $(ROOT)/$(WEB_DIR)/.vitest.json
 E2E_REPORT := $(ROOT)/$(WEB_DIR)/.e2e.json
 LEDGER := docs/plans/2026-10-01-run-ledger.md
 
-.PHONY: verify lint api-test api-types-sync web-typecheck web-test e2e matrix sync compose-config
+.PHONY: verify lint api-test api-types-sync web-typecheck web-test e2e matrix sync compose-config seed-demo
 
 verify: lint api-test api-types-sync web-typecheck web-test e2e matrix sync compose-config
 	@echo "verify: all gates passed"
+
+# Populate a demo-ready dataset (1 provider + 2 agents, rich catalog + workspaces) in the dev DB.
+seed-demo:
+	cd $(API_DIR) && uv run python -m app.seed_demo
 
 lint:
 	cd $(API_DIR) && uv run ruff check .

@@ -6,7 +6,15 @@ import EngagementChart, { type EngagementPoint } from "../../components/charts/E
 import CatalogThumb from "../../components/catalog/CatalogThumb";
 import PageHeader from "../../components/ui/PageHeader";
 import StatTile from "../../components/ui/StatTile";
-import { ApiError, listAgentCatalog, listEngagement, type Engagement, type Entry } from "../../lib/api";
+import {
+  ApiError,
+  listAgentCatalog,
+  listEngagement,
+  listSuggestions,
+  type AssistantItem,
+  type Engagement,
+  type Entry,
+} from "../../lib/api";
 
 type EntryWithImage = Entry & { image_key?: string | null };
 
@@ -24,6 +32,7 @@ function sum(rows: Engagement[], key: "impressions" | "clicks" | "engagement"): 
 export default function AgentHomePage() {
   const [catalog, setCatalog] = useState<EntryWithImage[] | null>(null);
   const [engagement, setEngagement] = useState<Engagement[] | null>(null);
+  const [suggestions, setSuggestions] = useState<AssistantItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,6 +44,9 @@ export default function AgentHomePage() {
         setEngagement([...e].sort((a, b) => a.post_id - b.post_id));
       })
       .catch((e) => alive && setError(e instanceof ApiError ? e.message : "Could not load your dashboard."));
+    listSuggestions()
+      .then((s) => alive && setSuggestions(s))
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -89,6 +101,34 @@ export default function AgentHomePage() {
       </section>
       {!loading && (
         <p className="-mt-6 mb-8 text-small text-walshe-grey">Figures shown are seeded sample data.</p>
+      )}
+
+      {/* Suggested next posts (AC40) — content worth sending, so the agent never starts from blank. */}
+      {suggestions.length > 0 && (
+        <section className="mb-10" aria-labelledby="suggested-title">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="eyebrow">Suggested for you</p>
+              <h2 id="suggested-title" className="mt-2 text-h3 font-bold text-walshe-ink">
+                Worth sending next
+              </h2>
+            </div>
+            <Link href="/agent/assistant" className="btn-ghost">
+              Ask the assistant
+            </Link>
+          </div>
+          <ul data-testid="suggestions" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {suggestions.slice(0, 3).map((s) => (
+              <li key={s.id} className="card card-hover p-5">
+                <div className="eyebrow text-[11px] capitalize">
+                  {s.type} · {s.destination}
+                </div>
+                <h3 className="mt-2 text-h3 text-[1.0625rem] text-walshe-ink">{s.title}</h3>
+                <p className="mt-1 text-small text-walshe-mint">{s.reason}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">

@@ -220,3 +220,24 @@ acceptance:
       - "apps/api/tests/test_audit_log.py::test_audit_export_csv_for_authorised_roles"
     e2e:
       - "apps/web/e2e/trust-smoke.spec.ts::admin views the audit log"
+  # --- v2.7.0 Product-framework increment 3: AI assistant & discovery (LangGraph) ---
+  AC38:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_assistant_grounds_reply_in_visible_items"
+      - "apps/api/tests/test_assistant.py::test_assistant_never_surfaces_hidden_content"
+      - "apps/api/tests/test_assistant.py::test_assistant_is_agent_only"
+      - "apps/api/tests/test_assistant.py::test_real_provider_reply_must_stay_grounded"
+    e2e:
+      - "apps/web/e2e/assistant-smoke.spec.ts::agent asks the assistant and gets a grounded reply"
+  AC39:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_natural_language_search_matches_type_and_destination"
+  AC40:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_suggestions_exclude_used_and_hidden"
+      - "apps/api/tests/test_assistant.py::test_suggestions_are_agent_only"
+    e2e:
+      - "apps/web/e2e/assistant-smoke.spec.ts::agent overview shows suggested next posts"

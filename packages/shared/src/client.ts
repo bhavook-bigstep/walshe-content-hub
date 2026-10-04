@@ -28,6 +28,8 @@ export type Preflight = Schemas["PreflightOut"];
 export type PreflightIssue = Schemas["PreflightIssueOut"];
 export type BlocklistTerm = Schemas["BlocklistOut"];
 export type AuditEntry = Schemas["AuditOut"];
+export type AssistantReply = Schemas["AssistantOut"];
+export type AssistantItem = Schemas["ItemCardOut"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
 export type RegisterProviderInput = Schemas["RegisterProviderRequest"];
@@ -258,6 +260,15 @@ export async function addBlocklistTerm(term: string): Promise<BlocklistTerm> {
 }
 export async function removeBlocklistTerm(id: number): Promise<void> {
   await send(`/blocklist/${id}`, { method: "DELETE" });
+}
+
+// --- Assistant & discovery (AC38-40) ---
+export async function askAssistant(message: string): Promise<AssistantReply> {
+  return (await (await send("/assistant", json({ message }))).json()) as AssistantReply;
+}
+export async function listSuggestions(): Promise<AssistantItem[]> {
+  const out = (await (await send("/me/suggestions")).json()) as { items: AssistantItem[] };
+  return out.items;
 }
 
 // --- Audit log (AC37) ---

@@ -16,6 +16,7 @@ interface NavItem {
 const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
   tourism_agent: [
     { href: "/agent", label: "Overview" },
+    { href: "/agent/assistant", label: "Assistant" },
     { href: "/agent/catalog", label: "Catalog" },
     { href: "/agent/studio", label: "Design Studio" },
     { href: "/agent/projects", label: "Projects" },
@@ -71,6 +72,8 @@ const CRUMB_LABELS: Readonly<Record<string, string>> = {
   "brand-kit": "Brand kit",
   blocklist: "Off-limits",
   audit: "Audit log",
+  assistant: "Assistant",
+  suggestions: "Suggestions",
 };
 
 function isActive(pathname: string, href: string): boolean {

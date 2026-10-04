@@ -31,8 +31,13 @@ Every phase reads this first and appends when done. Content-free: status + decis
    `blocked_terms` + ≥3-char terms + creator/admin-only delete; preflight stale over visible entries
    (no N+1/double-count); send-back rejects blank reason; audit copy aligned; e2e cleanup failure-safe;
    +12 negative/authz tests)
-3. Set 3 — AI assistant & discovery, LangGraph (AC38–40)
-4. Set 4 — Planning & resilience (AC41–44)
+3. **Set 3 — AI assistant & discovery, LangGraph (AC38–40)** ✅ built directly. LangGraph state
+   machine (route→tool→respond) over grounded, permission-scoped tools; runs via the AC16 provider
+   abstraction — **deterministic stub offline/in tests** (supersedes the GenericFakeChatModel plan;
+   demo works with no key), real model with a key. NL search + suggested-next-posts endpoints + web
+   assistant page + overview suggestions. **Reach/social-media integration deferred to future**
+   (sending stays simulated). Added **demo seed** (`make seed-demo`: 1 provider + 2 agents + items).
+4. Set 4 — Planning & resilience (AC41–44) — *note: social/reach pieces deferred per user.*
 
 ## Iteration log
 

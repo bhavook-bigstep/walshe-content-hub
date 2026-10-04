@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.6.0 |
+| **Version** | 2.7.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -219,10 +219,30 @@ Increment 2 — **Trust, approval & audit**:
   (FR-16, Contract 3). Proof: pytest asserts the key actions are recorded and the CSV export returns
   them; Playwright shows the admin audit view.
 
-**Priority tiers** (build order; acceptance reports honestly against all 37):
+Increment 3 — **AI assistant & discovery** (built on **LangGraph**):
+
+- **AC38** — **Content Assistant**: a grounded, permission-scoped assistant (a LangGraph state
+  machine: route → tool → respond) that answers in plain language and only ever speaks about catalog
+  content the agent may see — it cannot surface or invent anything outside the approved, current,
+  in-scope library (FR-24/36). Runs via the AC16 provider abstraction: a real model when a key is
+  set, the deterministic stub otherwise, so it works offline for the demo and is reproducible in
+  tests. Proof: pytest asserts the reply is grounded in a visible item and never surfaces
+  draft/off-limits content; Playwright shows an agent asking and getting a grounded answer.
+- **AC39** — **Natural-language search**: a plain-language query resolves (type/destination hints +
+  keywords) to approved, visible items through the same choke-point (FR-23). Proof: pytest asserts a
+  plain query returns the right item and excludes a non-matching one.
+- **AC40** — **Suggested next posts**: `GET /me/suggestions` returns current, in-scope items the
+  agent hasn't used yet, timely ones first, each with a reason — no blank screen (FR-33). Proof:
+  pytest asserts suggestions exclude used + hidden items; Playwright shows them on the overview.
+
+> **Deferred to future (explicit):** real **reach / social-media integration** (connecting an
+> agent's own accounts, live posting, email/messaging delivery — FR-43/45/46). Sending stays
+> *simulated* as today; the product is perfected up to that boundary first.
+
+**Priority tiers** (build order; acceptance reports honestly against all 40):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
-design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 · framework = AC32,33,34,35,36,37
-(all prior ACs stay green).
+design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
+framework = AC32,33,34,35,36,37,38,39,40 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -255,3 +275,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.4.0 | 2026-10-02 | **Workspace usability wired** (same charter): promoted the staged item to **AC31** — agent features connected end-to-end (catalog→collection save, Projects/Templates→Studio open via `?project=`/`?template=`, Studio→Projects save, brand kit pre-fills Personalise) with handled empty/loading/confirmation states. All prior ACs stay green. | user + Claude |
 | 2.5.0 | 2026-10-03 | **Product-framework features, increment 1** (charter `docs/plans/2026-10-03-product-framework-charter.md`, from the Product Framework doc's FR-01…FR-72): added **AC32–AC33** — content **validity & status lifecycle** (validity window + draft→in_review→approved→expiring_soon→expired→withdrawn, derived from an injectable clock) and **auto-withdraw & propagation** (expired/withdrawn items leave catalog, search, saved projects and schedules on their own; master edits flag in-use copies). Sets 2–4 (trust/approval, AI assistant via LangGraph, planning/resilience) follow as later increments. All prior ACs stay green. | user + Claude |
 | 2.6.0 | 2026-10-03 | **Product-framework features, increment 2** (same charter): added **AC34–AC37** — **preflight check** before an agent sends (brand-safe/valid/in-scope/channel, blocks with plain-word fixes), **send-back-with-reason** approval step, **off-limits blocklist** enforced at the visibility choke-point, and a readable + CSV-exportable **audit log**. Resolves the control-vs-speed tension and Contract 3. All prior ACs stay green. | user + Claude |
+| 2.7.0 | 2026-10-04 | **Product-framework features, increment 3** (same charter): added **AC38–AC40** — a **LangGraph** Content Assistant (grounded, permission-scoped: route→tool→respond), **natural-language search**, and **suggested next posts**, all via the AC16 provider abstraction (real model with a key, deterministic stub offline). Real **reach/social-media integration** explicitly deferred to future (sending stays simulated). Also added a **demo seed** (`make seed-demo`: 1 provider + 2 agents + populated workspaces). All prior ACs stay green. | user + Claude |

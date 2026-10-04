@@ -61,6 +61,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assistant
+         * @description Ask the grounded Content Assistant (AC38/AC39). It only ever speaks about visible content.
+         */
+        post: operations["assistant_assistant_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit": {
         parameters: {
             query?: never;
@@ -555,6 +575,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggestions
+         * @description Suggested next posts (AC40): current, in-scope content the agent hasn't used yet.
+         */
+        get: operations["suggestions_me_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/team": {
         parameters: {
             query?: never;
@@ -739,6 +779,24 @@ export interface components {
             /** Password */
             password: string;
             role: components["schemas"]["Role"];
+        };
+        /** AssistantOut */
+        AssistantOut: {
+            /** Intent */
+            intent: string;
+            /** Items */
+            items: components["schemas"]["ItemCardOut"][];
+            /** Reply */
+            reply: string;
+            /** Suggestion */
+            suggestion?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** AssistantRequest */
+        AssistantRequest: {
+            /** Message */
+            message: string;
         };
         /** AuditOut */
         AuditOut: {
@@ -1010,6 +1068,24 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** ItemCardOut */
+        ItemCardOut: {
+            /** Destination */
+            destination: string;
+            /** Display Status */
+            display_status: string;
+            /** Id */
+            id: number;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Email */
@@ -1254,6 +1330,11 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** SuggestionsOut */
+        SuggestionsOut: {
+            /** Items */
+            items: components["schemas"]["ItemCardOut"][];
+        };
         /** TeamInvite */
         TeamInvite: {
             /** Display Name */
@@ -1469,6 +1550,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assistant_assistant_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantOut"];
                 };
             };
             /** @description Validation Error */
@@ -2579,6 +2693,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suggestions_me_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionsOut"];
                 };
             };
         };
