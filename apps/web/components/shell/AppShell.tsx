@@ -431,22 +431,21 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
       </aside>
 
       {/* Main column */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {/* Sidebar collapse toggle — a subtle round button on the sidebar's right edge (desktop). */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="absolute left-0 top-8 z-40 hidden h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-chrome-fg/15 bg-chrome-bg text-chrome-fg/70 shadow-md transition-colors hover:bg-chrome-fg/10 hover:text-chrome-fg lg:grid"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${collapsed ? "rotate-180" : ""}`} aria-hidden>
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+        </button>
         {/* Top bar — breadcrumbs + profile menu (liquid glass) */}
         <header className="relative z-30 flex h-16 flex-none items-center gap-3 border-b border-chrome-fg/10 bg-chrome-bg/70 px-5 backdrop-blur-md backdrop-saturate-[1.6] sm:px-7">
-          {/* Sidebar collapse toggle — sits in the navbar, next to the sidebar logo (desktop only). */}
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="-ml-1 hidden items-center rounded-md p-1.5 text-chrome-fg/70 transition-colors hover:bg-chrome-fg/10 hover:text-chrome-fg lg:flex"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <path d="M9 4v16" />
-            </svg>
-          </button>
           <button
             type="button"
             onClick={() => setOpen(true)}
