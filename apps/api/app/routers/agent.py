@@ -21,7 +21,9 @@ from app.schemas.agent import (
     BrandKitOut,
     BrandKitUpdate,
     CollectionCreate,
+    CollectionItemAdd,
     CollectionOut,
+    CollectionResolved,
     CollectionUpdate,
     DesignTemplate,
     ProjectCreate,
@@ -190,11 +192,22 @@ def list_collections(
     )
 
 
+def _visible_ids(db: Session, agent: User, ids: list[int], now: datetime) -> list[int]:
+    """Keep only the entry ids currently visible to the agent, in order (AC60) — collections
+    store references, so a saved id that is expired/hidden/deleted is dropped."""
+    return [e.id for e in agent_visible_entries_by_ids(db, agent, ids, now=now)]
+
+
 @router.post("/collections", response_model=CollectionOut, status_code=status.HTTP_201_CREATED)
 def create_collection(
-    body: CollectionCreate, db: Session = Depends(get_db), agent: User = Depends(_agent_only)
+    body: CollectionCreate,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
 ) -> Collection:
-    collection = Collection(agent_id=agent.id, name=body.name, item_ids=body.item_ids)
+    collection = Collection(
+        agent_id=agent.id, name=body.name, item_ids=_visible_ids(db, agent, body.item_ids, now)
+    )
     db.add(collection)
     db.commit()
     db.refresh(collection)
@@ -214,12 +227,66 @@ def update_collection(
     body: CollectionUpdate,
     db: Session = Depends(get_db),
     agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
 ) -> Collection:
     collection = _owned_collection(db, collection_id, agent)
-    data = body.model_dump(exclude_unset=True)
-    for field in ("name", "item_ids"):
-        if field in data and data[field] is not None:
-            setattr(collection, field, data[field])
+    if body.name is not None:
+        collection.name = body.name
+    if body.item_ids is not None:
+        collection.item_ids = _visible_ids(db, agent, body.item_ids, now)
+    db.commit()
+    db.refresh(collection)
+    return collection
+
+
+@router.get("/collections/{collection_id}/resolved", response_model=CollectionResolved)
+def resolve_collection(
+    collection_id: int,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
+) -> CollectionResolved:
+    """A collection's items (AC60): resolved against the live catalog, with stale refs dropped."""
+    collection = _owned_collection(db, collection_id, agent)
+    entries = agent_visible_entries_by_ids(db, agent, collection.item_ids, now=now)
+    visible = {e.id for e in entries}
+    return CollectionResolved(
+        id=collection.id,
+        name=collection.name,
+        items=[EntryOut.from_entry(e, now=now) for e in entries],
+        dropped_item_ids=[i for i in collection.item_ids if i not in visible],
+    )
+
+
+@router.post("/collections/{collection_id}/items", response_model=CollectionOut)
+def add_collection_item(
+    collection_id: int,
+    body: CollectionItemAdd,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
+) -> Collection:
+    """Save an entry reference into a collection (AC59). Rejects entries not visible to you."""
+    collection = _owned_collection(db, collection_id, agent)
+    if not agent_visible_entries_by_ids(db, agent, [body.entry_id], now=now):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not available")
+    if body.entry_id not in collection.item_ids:
+        collection.item_ids = [*collection.item_ids, body.entry_id]
+        db.commit()
+        db.refresh(collection)
+    return collection
+
+
+@router.delete("/collections/{collection_id}/items/{entry_id}", response_model=CollectionOut)
+def remove_collection_item(
+    collection_id: int,
+    entry_id: int,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+) -> Collection:
+    """Remove a saved entry reference from a collection (AC59)."""
+    collection = _owned_collection(db, collection_id, agent)
+    collection.item_ids = [i for i in collection.item_ids if i != entry_id]
     db.commit()
     db.refresh(collection)
     return collection

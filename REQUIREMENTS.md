@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.20.0 |
+| **Version** | 2.21.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -411,11 +411,31 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   org page shows the uploaded logo. Proof: pytest (upload sets a served `logo_url`; SVG refused;
   agents can't upload).
 
-**Priority tiers** (build order; acceptance reports honestly against all 58):
+- **AC59** — **Catalog is a search/query library; save references to collections.** The agent catalog
+  is browse/search-first (keyword + location + season + type); each card's primary action is **Save
+  to collection**, which stores a **validated entry reference** (the API rejects an entry not visible
+  to the agent — expired/hidden/deleted). The old dead-ended "Add to composition" is removed.
+  (redesigned UI.) Proof: pytest (save/add/remove + reject invalid) + a save-to-collection e2e.
+- **AC60** — **Collections resolve + manage.** A collection stores references and **resolves against
+  the live catalog** (stale/expired refs dropped; counts reflect resolved items). A **detail view**
+  shows the saved entries' media, lets the agent **remove** items and **rename**, and **Open in
+  Design Studio** (starts a project). (redesigned UI.) Proof: pytest (resolve drops an expired ref) +
+  a collection-detail e2e.
+- **AC61** — **Entry detail modal.** Clicking an entry — in the Catalog or inside a Collection —
+  opens a read-only modal of its items (text/image/video). Proof: e2e.
+- **AC62** — **Templates: Preview + Use on hover.** A template card reveals **Preview** (opens a
+  preview) and **Use** (opens it in the studio) on hover, instead of opening on click. Proof: e2e.
+- **AC63** — **Studio project from a collection; scoped media.** A **new project is started from a
+  collection** (from the collection detail); the studio's usable media is the **project's collection
+  items + the agent's Local uploads + AI-generated** media (via `/me/library`) — the whole catalog is
+  no longer loaded. Proof: e2e (collection → Open in Design Studio → `?project=`).
+
+**Priority tiers** (build order; acceptance reports honestly against all 63):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
-studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 (all prior stay green).
+studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
+agent-workspace = AC59,60,61,62,63 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -454,6 +474,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.21.0 | 2026-10-06 | **Agent workspace: Catalog + Collections (accurate + redesigned)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-agent-workspace-charter.md`): added **AC59** (catalog = search/query library; primary action **Save to collection** as a validated reference; removed the dead "Add to composition"), **AC60** (collections **resolve** against the live catalog + a detail view: see items, remove, rename, Open in Design Studio), **AC61** (clicking an entry opens an item-detail modal, in catalog + collections), **AC62** (templates **Preview + Use on hover**), **AC63** (a studio **project starts from a collection**; usable media = collection items + Local uploads + AI library, not the whole catalog). Reordered the agent sidebar. Redesigned both pages within the design system. All prior ACs stay green. | user + Claude |
 | 2.20.0 | 2026-10-06 | **Provider assistant + org logo upload + UX cleanup** (⏸G feedback): added **AC57** — the grounded chat assistant now serves **providers** (grounded in their own catalog via `entries_for_actor`); and **AC58** — **org logo upload** (jpg/jpeg/png) replacing the URL field, served through the asset gate. Also: the entry **Edit** now uses the same form as create (edits everything — type/visibility/location/season/attributes/expiry) via a shared `EntryForm`; form sections (location/details/cover/expiry) **collapse by default** for a cleaner form; **Team** + **Invite agents** moved into the **Organization** page (removed Team from the sidebar and Invite from the Catalog); **Off-limits** removed from the provider sidebar (backend + route retained for now). All prior ACs stay green. | user + Claude |
 | 2.19.0 | 2026-10-06 | **Expiry-only lifecycle (greyed, not hidden) + entry provenance** (⏸G feedback): added **AC55** — an entry's only lifecycle control is its expiry date (New-entry UX: "Never expires", or a date, or one-click "use event end date"; dropped the separate valid-from field). Expired entries now show **greyed** in both provider + agent catalogs but are **not usable** (can't add to a composition; dropped from build/schedule/suggestions; pre-send still blocks). This amends AC32/33 (expired surfaced-but-greyed instead of hidden); `display_status` now derives expiry for any non-withdrawn status. Added **AC56** — each entry snapshots its creator (`created_by_email`) + org (`org_name`, empty when none), shown on the entry page. All prior ACs stay green. | user + Claude |
 | 2.18.2 | 2026-10-05 | **Entry edit/delete + invite-in-a-dialog** (⏸G feedback): the entry page gained **Edit** (title + cascading location + season via `PUT /catalog/{id}`) and **Delete** (confirm dialog → audited `DELETE /catalog/{id}` → back to the catalog) controls; a new self-contained edit/delete e2e (AC29). The invite-agents UI moved from an inline card into a **dialog** opened by an "Invite agents" button on the catalog page. No contract change. | user + Claude |

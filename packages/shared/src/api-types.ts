@@ -819,6 +819,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/collections/{collection_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Collection Item
+         * @description Save an entry reference into a collection (AC59). Rejects entries not visible to you.
+         */
+        post: operations["add_collection_item_me_collections__collection_id__items_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/collections/{collection_id}/items/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Collection Item
+         * @description Remove a saved entry reference from a collection (AC59).
+         */
+        delete: operations["remove_collection_item_me_collections__collection_id__items__entry_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/collections/{collection_id}/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Collection
+         * @description A collection's items (AC60): resolved against the live catalog, with stale refs dropped.
+         */
+        get: operations["resolve_collection_me_collections__collection_id__resolved_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/design-templates": {
         parameters: {
             query?: never;
@@ -1538,12 +1598,37 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * CollectionItemAdd
+         * @description Save an entry reference into a collection (AC59).
+         */
+        CollectionItemAdd: {
+            /** Entry Id */
+            entry_id: number;
+        };
         /** CollectionOut */
         CollectionOut: {
             /** Id */
             id: number;
             /** Item Ids */
             item_ids: number[];
+            /** Name */
+            name: string;
+        };
+        /**
+         * CollectionResolved
+         * @description A collection resolved against the live catalog (AC60): current, visible entries only.
+         *
+         *     ``dropped_item_ids`` are stored references no longer visible to the agent (expired/withdrawn/
+         *     deleted/out-of-scope) — the UI greys/omits them and the count reflects ``items``.
+         */
+        CollectionResolved: {
+            /** Dropped Item Ids */
+            dropped_item_ids: number[];
+            /** Id */
+            id: number;
+            /** Items */
+            items: components["schemas"]["EntryOut"][];
             /** Name */
             name: string;
         };
@@ -4002,6 +4087,104 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_collection_item_me_collections__collection_id__items_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionItemAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_collection_item_me_collections__collection_id__items__entry_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_collection_me_collections__collection_id__resolved_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionResolved"];
+                };
             };
             /** @description Validation Error */
             422: {

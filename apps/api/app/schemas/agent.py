@@ -64,6 +64,25 @@ class CollectionOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CollectionItemAdd(BaseModel):
+    """Save an entry reference into a collection (AC59)."""
+
+    entry_id: int
+
+
+class CollectionResolved(BaseModel):
+    """A collection resolved against the live catalog (AC60): current, visible entries only.
+
+    ``dropped_item_ids`` are stored references no longer visible to the agent (expired/withdrawn/
+    deleted/out-of-scope) — the UI greys/omits them and the count reflects ``items``.
+    """
+
+    id: int
+    name: str
+    items: list[EntryOut]
+    dropped_item_ids: list[int]
+
+
 class BrandKitUpdate(BaseModel):
     logo_url: str | None = Field(default=None, max_length=512)
     primary_color: str | None = Field(default=None, max_length=9)

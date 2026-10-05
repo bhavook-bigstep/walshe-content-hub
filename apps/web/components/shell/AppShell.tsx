@@ -38,10 +38,10 @@ const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
   tourism_agent: [
     { href: "/agent", label: "Overview", icon: I.home },
     { href: "/agent/catalog", label: "Catalog", icon: I.catalog },
-    { href: "/agent/studio", label: "Design Studio", icon: I.studio },
-    { href: "/agent/projects", label: "Projects", icon: I.folder },
     { href: "/agent/collections", label: "Collections", icon: I.collections },
     { href: "/agent/templates", label: "Templates", icon: I.template },
+    { href: "/agent/studio", label: "Design Studio", icon: I.studio },
+    { href: "/agent/projects", label: "Projects", icon: I.folder },
     { href: "/agent/brand-kit", label: "Brand kit", icon: I.brush },
     { href: "/agent/social", label: "Social", icon: I.share },
     { href: "/agent/engagement", label: "Engagement", icon: I.chart },

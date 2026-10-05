@@ -11,16 +11,16 @@ test("agent adds a catalog item to a collection", async ({ page }) => {
   await page.goto("/agent/catalog");
 
   // Open the collection picker on the first approved card.
-  const collectButton = page.getByRole("button", { name: /add to collection|saved · in/i }).first();
+  const collectButton = page.getByRole("button", { name: /save to collection|saved · in/i }).first();
   await expect(collectButton).toBeVisible();
   await collectButton.click();
 
-  const dialog = page.getByRole("dialog", { name: /add .* to a collection/i });
+  const dialog = page.getByRole("dialog", { name: /save .* to a collection/i });
   await expect(dialog).toBeVisible();
 
   const name = `Trip ideas ${Date.now()}`;
   await dialog.getByLabel("New collection name").fill(name);
-  await dialog.getByRole("button", { name: /^create$/i }).click();
+  await dialog.getByRole("button", { name: /create & save/i }).click();
 
   // A confirmation toast proves the save round-tripped through the API.
   await expect(page.getByRole("status").filter({ hasText: /saved/i })).toBeVisible();

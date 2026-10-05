@@ -10,14 +10,18 @@ import SceneControls from "../../../components/studio/SceneControls";
 import StudioBottomDock from "../../../components/studio/StudioBottomDock";
 import StudioRightRail from "../../../components/studio/StudioRightRail";
 import type { CatalogImageOption } from "../../../components/studio/Toolbar";
+import Link from "next/link";
 import {
   createProject,
   fetchAssetObjectUrl,
+  generateLibraryMedia,
   getProject,
-  listAgentCatalog,
+  getProjectResolved,
   listDesignTemplates,
+  listMyLibrary,
   renderVideo,
   updateProject,
+  uploadLibraryMedia,
   type Entry,
 } from "../../../lib/api";
 import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
@@ -81,6 +85,11 @@ function StudioEditor() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
   const [sceneIndex, setSceneIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
+  // AC63 — the studio's usable media = the project's collection items + local uploads + AI media,
+  // never the whole catalog. `mediaReload` bumps to re-pull after an upload/generate.
+  const [catalogImages, setCatalogImages] = useState<CatalogImageOption[]>([...CATALOG_IMAGES]);
+  const [mediaReload, setMediaReload] = useState(0);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [project, setProject] = useState<{ id: number; name: string } | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -88,24 +97,62 @@ function StudioEditor() {
   const [rendering, setRendering] = useState(false);
   const [storyboardOpen, setStoryboardOpen] = useState(false);
   const params = useSearchParams();
+  const hasProject = Boolean(params.get("project"));
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
+
+  // Load the usable media: the project's collection items (builder grounding + placeable images) +
+  // the agent's own Local/AI library. The whole catalog is intentionally NOT loaded here (AC63).
   useEffect(() => {
     let cancelled = false;
     const urls: string[] = [];
-    listAgentCatalog()
-      .then((entries) => Promise.all(entries.map(toPanelItem)))
-      .then((items) => {
-        items.forEach((i) => i.imageSrc && urls.push(i.imageSrc));
-        if (cancelled) urls.forEach((u) => URL.revokeObjectURL(u));
-        else setPanelItems(items);
-      })
-      .catch(() => !cancelled && setPanelItems([]));
+    const pid = params.get("project");
+    async function load() {
+      const imgs: CatalogImageOption[] = [];
+      let items: BuilderCatalogItem[] = [];
+      if (pid) {
+        try {
+          const resolved = await getProjectResolved(Number(pid));
+          items = await Promise.all(resolved.items.map(toPanelItem));
+          for (const i of items) {
+            if (i.imageSrc) {
+              urls.push(i.imageSrc);
+              imgs.push({ catalogItemId: `entry-${i.id}`, label: i.title, src: i.imageSrc });
+            }
+          }
+        } catch {
+          /* project items optional */
+        }
+      }
+      try {
+        for (const a of await listMyLibrary()) {
+          if (a.kind === "image" && a.object_key) {
+            try {
+              const src = await fetchAssetObjectUrl(a.object_key);
+              urls.push(src);
+              imgs.push({ catalogItemId: `lib-${a.id}`, label: a.title || a.source, src });
+            } catch {
+              /* skip */
+            }
+          }
+        }
+      } catch {
+        /* library optional */
+      }
+      if (cancelled) {
+        urls.forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
+      setPanelItems(items);
+      setCatalogImages(imgs.length ? imgs : [...CATALOG_IMAGES]);
+    }
+    void load();
     return () => {
       cancelled = true;
       urls.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaReload]);
   const onReady = useCallback((c: Canvas | null) => {
     canvasRef.current = c;
   }, []);
@@ -277,6 +324,9 @@ function StudioEditor() {
           </button>
           <div className="ml-auto flex items-center gap-2">
             {videoMsg && <span className="hidden text-small font-medium text-walshe-grey sm:inline">{videoMsg}</span>}
+            <button type="button" onClick={() => setMediaOpen(true)} className="btn-secondary">
+              Add media
+            </button>
             <button
               type="button"
               onClick={() => void generateVideo()}
@@ -316,7 +366,7 @@ function StudioEditor() {
           sceneIndex={sceneIndex}
           onChange={setDesign}
           onPickFormat={pickFormat}
-          catalogImages={CATALOG_IMAGES}
+          catalogImages={catalogImages}
         />
 
         {/* Zoom / fit — bottom-right, shifted left to clear the Q/A assistant button. */}
@@ -333,6 +383,73 @@ function StudioEditor() {
           onChange={setDesign}
           items={panelItems}
         />
+
+        {/* AC63 — a new project starts from a collection; prompt when opened without one. */}
+        {!hasProject && (
+          <div className="pointer-events-auto absolute left-1/2 top-[5rem] -translate-x-1/2 rounded-lg border border-walshe-line/70 bg-chrome-bg/95 px-4 py-2 text-small text-walshe-ink shadow-xl backdrop-blur-md">
+            Start a project from a{" "}
+            <Link href="/agent/collections" className="font-semibold text-walshe-mint underline">
+              collection
+            </Link>{" "}
+            to use its media.
+          </div>
+        )}
+      </div>
+
+      {mediaOpen && (
+        <MediaDialog onClose={() => setMediaOpen(false)} onAdded={() => setMediaReload((n) => n + 1)} />
+      )}
+    </div>
+  );
+}
+
+// AC63 — add Local (upload) or AI-generated media to the studio's usable media (the agent library).
+function MediaDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function run(fn: () => Promise<unknown>, done: string) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await fn();
+      setMsg(done);
+      onAdded();
+    } catch {
+      setMsg("Could not add that media.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-walshe-deep/50 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Add media"
+        className="w-full max-w-md rounded-lg border border-walshe-line bg-walshe-base p-5 shadow-lift"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-h3 text-walshe-ink">Add media</h2>
+          <button type="button" aria-label="Close dialog" onClick={onClose} className="text-walshe-grey hover:text-walshe-ink">✕</button>
+        </div>
+        <label className="block">
+          <span className="label">Upload an image (local)</span>
+          <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" disabled={busy}
+            aria-label="Upload media file"
+            className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => uploadLibraryMedia(f), "Uploaded."); }} />
+        </label>
+        <div className="mt-4 flex items-end gap-2 border-t border-walshe-line pt-4">
+          <label className="block flex-1">
+            <span className="label">Or generate one (AI)</span>
+            <input className="field h-11" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="e.g. sunset over the cliffs" aria-label="Image prompt" />
+          </label>
+          <button type="button" className="btn-secondary h-11" disabled={busy || !prompt.trim()}
+            onClick={() => void run(() => generateLibraryMedia(prompt.trim()), "Generated.")}>
+            Generate
+          </button>
+        </div>
+        {msg && <p role="status" className="mt-2 text-small text-walshe-green">{msg}</p>}
       </div>
     </div>
   );

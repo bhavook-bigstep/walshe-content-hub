@@ -6,15 +6,15 @@ Authoritative state of the build. Outer/inner iterations, what was tried, accept
 ## Acceptance items (from the charter)
 | # | Item | Status |
 |---|---|---|
-| A1 | Catalog is search/query library; primary action = Save to collection; "Add to composition" removed | pending |
-| A2 | Save = validated entry reference (reject non-visible/expired) | pending |
-| A3 | Collection detail view: see saved entries' media, remove item, rename | pending |
-| A4 | Collections resolve live (drop/flag expired/deleted; accurate counts) | pending |
-| A5 | Studio: new project from a collection; media = collection + local + AI only | pending |
-| A6 | Templates hover → Preview + Use (no open-on-click) | pending |
-| A7 | Sidebar order: Overview·Catalog·Collections·Templates·Design Studio·Projects·Brand kit·Social·Engagement | pending |
-| A8 | Catalog + Collections redesigned; make verify green | pending |
-| A9 | Clicking an entry (catalog or collection) opens an item-detail modal | pending |
+| A1 | Catalog is search/query library; primary action = Save to collection; "Add to composition" removed | met (AC59) |
+| A2 | Save = validated entry reference (reject non-visible/expired) | met (AC59) |
+| A3 | Collection detail view: see saved entries' media, remove item, rename | met (AC60) |
+| A4 | Collections resolve live (drop/flag expired/deleted; accurate counts) | met (AC60) |
+| A5 | Studio: new project from a collection; media = collection + local + AI only | met (AC63) |
+| A6 | Templates hover → Preview + Use (no open-on-click) | met (AC62) |
+| A7 | Sidebar order: Overview·Catalog·Collections·Templates·Design Studio·Projects·Brand kit·Social·Engagement | met |
+| A8 | Catalog + Collections redesigned; make verify green | met |
+| A9 | Clicking an entry (catalog or collection) opens an item-detail modal | met (AC61) |
 
 ## Iterations
 - **Outer 1 / Plan** — in progress. Approach: BE first (collection resolve + save-validation +

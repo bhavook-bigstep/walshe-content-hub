@@ -803,6 +803,20 @@
         "title": "CollectionCreate",
         "type": "object"
       },
+      "CollectionItemAdd": {
+        "description": "Save an entry reference into a collection (AC59).",
+        "properties": {
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entry_id"
+        ],
+        "title": "CollectionItemAdd",
+        "type": "object"
+      },
       "CollectionOut": {
         "properties": {
           "id": {
@@ -827,6 +841,41 @@
           "item_ids"
         ],
         "title": "CollectionOut",
+        "type": "object"
+      },
+      "CollectionResolved": {
+        "description": "A collection resolved against the live catalog (AC60): current, visible entries only.\n\n``dropped_item_ids`` are stored references no longer visible to the agent (expired/withdrawn/\ndeleted/out-of-scope) — the UI greys/omits them and the count reflects ``items``.",
+        "properties": {
+          "dropped_item_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Dropped Item Ids",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EntryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "items",
+          "dropped_item_ids"
+        ],
+        "title": "CollectionResolved",
         "type": "object"
       },
       "CollectionUpdate": {
@@ -5418,6 +5467,169 @@
           }
         ],
         "summary": "Update Collection",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/me/collections/{collection_id}/items": {
+      "post": {
+        "description": "Save an entry reference into a collection (AC59). Rejects entries not visible to you.",
+        "operationId": "add_collection_item_me_collections__collection_id__items_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "title": "Collection Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionItemAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Collection Item",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/me/collections/{collection_id}/items/{entry_id}": {
+      "delete": {
+        "description": "Remove a saved entry reference from a collection (AC59).",
+        "operationId": "remove_collection_item_me_collections__collection_id__items__entry_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "title": "Collection Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove Collection Item",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/me/collections/{collection_id}/resolved": {
+      "get": {
+        "description": "A collection's items (AC60): resolved against the live catalog, with stale refs dropped.",
+        "operationId": "resolve_collection_me_collections__collection_id__resolved_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "title": "Collection Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionResolved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve Collection",
         "tags": [
           "agent"
         ]
