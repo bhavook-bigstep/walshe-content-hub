@@ -20,7 +20,9 @@ from app.models.catalog import (
     CatalogEntry,
     CatalogType,
     EntryStatus,
+    EntryVisibility,
     Item,
+    Season,
     UserAsset,
 )
 from app.models.user import Role, User
@@ -77,12 +79,12 @@ def _legacy_entry_gate(entry: CatalogEntry, agent: User) -> bool:
 def is_visible_to_agent(
     entry: CatalogEntry, agent: User, *, now: datetime, blocked_terms: frozenset[str]
 ) -> bool:
-    """True iff ``agent`` may use ``entry`` — the single Contract-1 gate (AC6, re-based to AC49).
+    """True iff ``agent`` may use ``entry`` — the single Contract-1 gate (AC6, re-based to AC54).
 
-    Catalog-gating (AC49): an entry in a catalog is usable iff that catalog is public, or private
-    and shared with the agent. Expiry (AC32/33) and the off-limits list (AC36) always still apply.
-    A catalog-less entry falls back to the legacy approved + brand-safe + scope gate so pre-AC49
-    data stays correct until migrated.
+    Per-entry gating (AC54): an entry in a catalog is usable iff it is **public**, or **private**
+    and the agent is invited on its catalog (``shared_agent_ids``); **draft** entries reach no
+    agent. Expiry (AC32/33) and the off-limits list (AC36) always still apply. A catalog-less entry
+    falls back to the legacy approved + brand-safe + scope gate so pre-catalog data stays correct.
 
     ``now`` and ``blocked_terms`` are both required (no default) so an un-updated agent-facing
     caller fails loudly rather than silently skipping expiry or the off-limits list.
@@ -93,7 +95,11 @@ def is_visible_to_agent(
         return False
     catalog = entry.catalog
     if catalog is not None:
-        return catalog.is_accessible_to_agent(agent.id)
+        if entry.visibility == EntryVisibility.public:
+            return True
+        if entry.visibility == EntryVisibility.private:
+            return agent.id in (catalog.shared_agent_ids or [])
+        return False  # draft — not distributed to any agent
     return _legacy_entry_gate(entry, agent)
 
 
@@ -103,16 +109,28 @@ def agent_visible_entries(
     *,
     now: datetime,
     destination: str | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    city: str | None = None,
+    season: Season | None = None,
     type_: CatalogType | None = None,
     q: str | None = None,
 ) -> list[CatalogEntry]:
-    """Return the entries an agent may see, narrowed by optional destination/type/text filters.
+    """Return the entries an agent may see, narrowed by optional location/season/type/text filters.
 
     No status/brand-safe SQL pre-filter: visibility is decided per row by ``is_visible_to_agent``
     (catalog-gating, with the legacy fallback for catalog-less entries)."""
     stmt = select(CatalogEntry)
     if destination:
         stmt = stmt.where(CatalogEntry.destination == destination)
+    if country:
+        stmt = stmt.where(CatalogEntry.country == country)
+    if state:
+        stmt = stmt.where(CatalogEntry.state == state)
+    if city:
+        stmt = stmt.where(CatalogEntry.city == city)
+    if season is not None:
+        stmt = stmt.where(CatalogEntry.season == season)
     if type_ is not None:
         stmt = stmt.where(CatalogEntry.type == type_)
 
@@ -130,12 +148,25 @@ def agent_visible_entries(
     return result
 
 
+def catalog_has_visible_entry(catalog: Catalog, agent: User) -> bool:
+    """Whether ``agent`` can see any entry in ``catalog`` (AC54) — a public entry, or a private one
+    when the agent is invited. Expiry/off-limits aren't applied here (catalog-level listing); they
+    still filter the entries themselves when browsed."""
+    invited = agent.id in (catalog.shared_agent_ids or [])
+    for entry in catalog.entries:
+        if entry.visibility == EntryVisibility.public:
+            return True
+        if entry.visibility == EntryVisibility.private and invited:
+            return True
+    return False
+
+
 def visible_catalogs_for_agent(db: Session, agent: User) -> list[Catalog]:
-    """Catalogs an agent may access (AC49) — the catalog-level gate, kept in this one choke-point
-    so routers don't issue ad-hoc catalog queries. Public catalogs + the private ones shared with
-    the agent."""
+    """Catalogs an agent may browse (AC54) — those holding at least one entry visible to the agent
+    (a public entry, or a private one they're invited to). Kept in this one choke-point so routers
+    don't issue ad-hoc catalog queries."""
     rows = db.execute(select(Catalog).order_by(Catalog.id)).scalars().all()
-    return [c for c in rows if c.is_accessible_to_agent(agent.id)]
+    return [c for c in rows if catalog_has_visible_entry(c, agent)]
 
 
 def agent_visible_entries_by_ids(
@@ -185,6 +216,13 @@ def can_read_object(db: Session, user: User, object_key: str, *, now: datetime) 
     item = db.execute(select(Item).where(Item.object_key == object_key)).scalars().first()
     if item is not None:
         return _entry_readable(db, db.get(CatalogEntry, item.entry_id), user, now=now)
+    cover = (
+        db.execute(select(CatalogEntry).where(CatalogEntry.cover_object_key == object_key))
+        .scalars()
+        .first()
+    )
+    if cover is not None:
+        return _entry_readable(db, cover, user, now=now)
     mine = db.execute(select(UserAsset).where(UserAsset.object_key == object_key)).scalars().first()
     if mine is not None:
         return mine.owner_id == user.id

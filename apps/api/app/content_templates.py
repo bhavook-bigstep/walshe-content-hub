@@ -28,7 +28,6 @@ CONTENT_TEMPLATES: dict[str, list[dict[str, str]]] = {
     ],
     CatalogType.place.value: [
         _f("region", "Region", "text"),
-        _f("best_season", "Best season", "text", help_="e.g. Spring, Summer"),
         _f("latitude", "Latitude", "number"),
         _f("longitude", "Longitude", "number"),
         _f("accessibility", "Accessibility notes", "textarea"),

@@ -5,21 +5,23 @@ import { useEffect, useState } from "react";
 import CatalogThumb from "../../components/catalog/CatalogThumb";
 import PageHeader from "../../components/ui/PageHeader";
 import StatTile from "../../components/ui/StatTile";
-import type { Entry } from "../../lib/api";
-import { listEntries } from "../../lib/provider-store";
+import { getMyCatalog, listMyEntries, type Catalog, type Entry } from "../../lib/api";
 
 export default function ProviderHomePage() {
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
 
   useEffect(() => {
-    setEntries(listEntries());
+    getMyCatalog().then(setCatalog).catch(() => setCatalog(null));
+    listMyEntries()
+      .then(setEntries)
+      .catch(() => setEntries([]));
   }, []);
 
   const loading = entries === null;
   const total = entries?.length ?? 0;
-  const brandSafe = entries?.filter((e) => e.brand_safe).length ?? 0;
-  const pending = total - brandSafe;
   const assets = entries?.reduce((t, e) => t + (e.asset_keys?.length ?? 0), 0) ?? 0;
+  const items = entries?.reduce((t, e) => t + (e.items?.length ?? 0), 0) ?? 0;
 
   return (
     <div>
@@ -28,8 +30,8 @@ export default function ProviderHomePage() {
         title="Provider home"
         description="Publish verified destination content and control who may use it."
         action={
-          <Link href="/provider/catalog/new" className="btn-primary">
-            New entry
+          <Link href="/provider/catalog" className="btn-primary">
+            Open catalog
           </Link>
         }
       />
@@ -41,10 +43,14 @@ export default function ProviderHomePage() {
           ))
         ) : (
           <>
-            <StatTile label="Catalog entries" value={total} caption="On this device" />
-            <StatTile label="Brand-safe" value={brandSafe} caption="Approved for the trade" />
-            <StatTile label="Pending verification" value={pending} caption="Not yet brand-safe" />
+            <StatTile label="Catalog entries" value={total} caption="In your catalog" />
+            <StatTile label="Content items" value={items} caption="Text + media" />
             <StatTile label="Uploaded assets" value={assets} caption="Images across entries" />
+            <StatTile
+              label="Catalog"
+              value={catalog?.visibility === "public" ? "Public" : "Private"}
+              caption={catalog?.visibility === "public" ? "Every agent can use it" : "Shared agents only"}
+            />
           </>
         )}
       </section>
@@ -58,7 +64,7 @@ export default function ProviderHomePage() {
             </h2>
           </div>
           <Link href="/provider/catalog" className="btn-ghost shrink-0">
-            My catalog
+            Open catalog
           </Link>
         </div>
 
@@ -72,10 +78,10 @@ export default function ProviderHomePage() {
           <div className="card flex flex-col items-start gap-3 p-10 text-center sm:items-center">
             <h3 className="text-h3 text-walshe-ink">No entries yet</h3>
             <p className="max-w-md text-body text-walshe-grey">
-              Create your first event, place, offer or itinerary to start building your verified catalog.
+              Open your catalog to add your first event, place, offer or itinerary.
             </p>
-            <Link href="/provider/catalog/new" className="btn-primary mt-1">
-              Create an entry
+            <Link href="/provider/catalog" className="btn-primary mt-1">
+              Open catalog
             </Link>
           </div>
         ) : (
@@ -83,10 +89,7 @@ export default function ProviderHomePage() {
             {entries!.slice(0, 6).map((e) => (
               <li key={e.id} className="card card-hover group overflow-hidden">
                 <div className="relative overflow-hidden">
-                  <CatalogThumb imageKey={e.asset_keys?.[0]} alt={e.title} className="h-40 w-full transition-transform duration-500 group-hover:scale-105" />
-                  <span className={e.brand_safe ? "chip-verified absolute left-3.5 top-3.5" : "chip-draft absolute left-3.5 top-3.5"}>
-                    {e.brand_safe ? "Brand-safe" : "Draft"}
-                  </span>
+                  <CatalogThumb imageKey={e.cover_object_key || e.asset_keys?.[0]} alt={e.title} className="h-40 w-full transition-transform duration-500 group-hover:scale-105" />
                 </div>
                 <div className="space-y-2 p-5">
                   <h3 className="truncate text-h3 text-[1.0625rem] text-walshe-ink">{e.title}</h3>
@@ -94,7 +97,7 @@ export default function ProviderHomePage() {
                     {e.type} · {e.destination}
                   </p>
                   <Link href={`/provider/catalog/${e.id}`} className="inline-flex items-center gap-1 pt-1 text-small font-semibold text-walshe-ink hover:text-walshe-mint">
-                    Manage access →
+                    Open entry →
                   </Link>
                 </div>
               </li>

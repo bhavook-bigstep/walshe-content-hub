@@ -16,13 +16,16 @@ def _agent_id(app) -> int:
         return db.execute(select(User.id).where(User.role == Role.tourism_agent)).scalars().first()
 
 
-def _make_entry(client, provider_headers, catalog_id: int, title: str) -> int:
+def _make_entry(
+    client, provider_headers, catalog_id: int, title: str, visibility: str = "public"
+) -> int:
     body = {
         "catalog_id": catalog_id,
         "type": "event",
         "title": title,
         "description": "d",
         "destination": "Galway",
+        "visibility": visibility,
     }
     r = client.post("/catalog", headers=provider_headers, json=body)
     assert r.status_code == 201, r.text
@@ -68,35 +71,35 @@ def test_catalog_crud_and_share(client, provider_headers, admin_headers, app):
 
 # AC49.2 — catalog-level gating: public visible to all; private only to shared agents.
 def test_catalog_gating(client, provider_headers, agent_headers, app):
+    # AC54 — per-entry visibility is the gate: public reaches everyone, private only invited
+    # agents, draft nobody. The catalog holds the invited-agents list.
     agent_id = _agent_id(app)
-
-    # A PUBLIC catalog's entry is visible to any agent — even a default (unapproved) entry.
-    pub = client.post(
-        "/catalogs", headers=provider_headers, json={"name": "Public", "visibility": "public"}
+    cat = client.post(
+        "/catalogs", headers=provider_headers, json={"name": "Board"}
     ).json()
-    pub_entry = _make_entry(client, provider_headers, pub["id"], "Public Harbour Festival")
+
+    # A PUBLIC entry is visible to any agent.
+    pub_entry = _make_entry(client, provider_headers, cat["id"], "Public Festival", "public")
     assert _agent_sees(client, agent_headers, pub_entry)
 
-    # A PRIVATE catalog's entry is hidden until shared with the agent.
-    priv = client.post(
-        "/catalogs", headers=provider_headers, json={"name": "Private", "visibility": "private"}
-    ).json()
-    priv_entry = _make_entry(client, provider_headers, priv["id"], "Secret Gala")
+    # A DRAFT entry reaches no agent.
+    draft_entry = _make_entry(client, provider_headers, cat["id"], "Work in progress", "draft")
+    assert not _agent_sees(client, agent_headers, draft_entry)
+
+    # A PRIVATE entry is hidden until the agent is invited on the catalog.
+    priv_entry = _make_entry(client, provider_headers, cat["id"], "Secret Gala", "private")
     assert not _agent_sees(client, agent_headers, priv_entry)
 
     client.put(
-        f"/catalogs/{priv['id']}/share",
+        f"/catalogs/{cat['id']}/share",
         headers=provider_headers,
         json={"shared_agent_ids": [agent_id]},
     )
     assert _agent_sees(client, agent_headers, priv_entry)
 
-    # The accessible-catalogs endpoint lists public + shared, not unshared private.
-    client.put(
-        f"/catalogs/{priv['id']}/share", headers=provider_headers, json={"shared_agent_ids": []}
-    )
+    # The catalog is accessible (has a public entry); it drops off only when nothing is visible.
     accessible = {c["id"] for c in client.get("/catalogs/accessible", headers=agent_headers).json()}
-    assert pub["id"] in accessible and priv["id"] not in accessible
+    assert cat["id"] in accessible
 
 
 # AC49 × AC33 — expiry still hides an entry even inside an accessible (public) catalog.

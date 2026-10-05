@@ -140,7 +140,7 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC26 | design | met | 2/2 |
 | AC27 | P2 | met | 3/3 |
 | AC28 | P2 | met | 4/4 |
-| AC29 | P2 | met | 4/4 |
+| AC29 | P2 | met | 5/5 |
 | AC30 | design | met | 2/2 |
 | AC31 | P2 | met | 2/2 |
 | AC32 | P2 | met | 3/3 |
@@ -163,7 +163,10 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC49 | P2 | met | 4/4 |
 | AC50 | P2 | met | 3/3 |
 | AC51 | P2 | met | 2/2 |
+| AC52 | P2 | met | 7/7 |
+| AC53 | P2 | met | 3/3 |
+| AC54 | P2 | met | 6/6 |
 
-**Totals:** 51 met · 0 partial · 0 missing · 51 total.
+**Totals:** 54 met · 0 partial · 0 missing · 54 total.
 
 <!-- END GENERATED ACCEPTANCE MATRIX -->

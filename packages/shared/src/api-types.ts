@@ -292,6 +292,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/geo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Geo Reference
+         * @description Curated country → state → city hierarchy + the fixed season list (AC53) that powers the
+         *     New-entry location dropdowns and the agent catalog's location/season filters.
+         */
+        get: operations["geo_reference_catalog_geo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog/templates": {
         parameters: {
             query?: never;
@@ -319,8 +340,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get For Agent */
-        get: operations["get_for_agent_catalog__entry_id__get"];
+        /**
+         * Get Entry
+         * @description Fetch one entry (with its items). The owning provider sees their own; an agent sees it only
+         *     if visible to them (Contract 1). A hidden/unknown entry looks like missing (C1/AC36).
+         */
+        get: operations["get_entry_catalog__entry_id__get"];
         /**
          * Update Content
          * @description Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on
@@ -334,6 +359,46 @@ export interface paths {
         head?: never;
         /** Set Access */
         patch: operations["set_access_catalog__entry_id__patch"];
+        trace?: never;
+    };
+    "/catalog/{entry_id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Cover
+         * @description Set the entry's cover photo from an uploaded raster image (AC52).
+         */
+        post: operations["upload_cover_catalog__entry_id__cover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/cover/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Cover
+         * @description Generate the entry's cover photo from a prompt via the configured image model (AC52).
+         */
+        post: operations["generate_cover_catalog__entry_id__cover_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/catalog/{entry_id}/image": {
@@ -486,6 +551,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalogs/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Catalog
+         * @description The provider's single catalog (AC49), created on first access.
+         */
+        get: operations["get_my_catalog_catalogs_mine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update My Catalog */
+        patch: operations["update_my_catalog_catalogs_mine_patch"];
+        trace?: never;
+    };
+    "/catalogs/mine/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Entries
+         * @description Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.
+         */
+        get: operations["list_my_entries_catalogs_mine_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/mine/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite Agent
+         * @description Invite a tourism agent (by email) to this catalog's private entries (AC54).
+         */
+        post: operations["invite_agent_catalogs_mine_invite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/mine/invite/{agent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Uninvite Agent
+         * @description Remove an invited agent from this catalog (AC54).
+         */
+        delete: operations["uninvite_agent_catalogs_mine_invite__agent_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/mine/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Share My Catalog */
+        put: operations["share_my_catalog_catalogs_mine_share_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalogs/{catalog_id}": {
         parameters: {
             query?: never;
@@ -513,9 +676,10 @@ export interface paths {
         };
         /**
          * List Catalog Entries
-         * @description Browse a catalog's entries + their items (AC50). A provider sees their own catalog's
-         *     entries; an agent sees them only if the catalog is accessible (and per-entry expiry/off-limits
-         *     still apply via the visibility choke-point).
+         * @description Browse a catalog's entries + their items (AC50/AC54). A provider sees their own catalog's
+         *     entries (every set); an agent sees only the entries visible to them (public, or private when
+         *     invited), with expiry/off-limits applied via the visibility choke-point. A catalog with nothing
+         *     visible to the agent looks like missing (404), so its existence can't be probed.
          */
         get: operations["list_catalog_entries_catalogs__catalog_id__entries_get"];
         put?: never;
@@ -702,8 +866,9 @@ export interface paths {
         put?: never;
         /**
          * Generate
-         * @description Generate an image + text into your Agent storage (AC51). Deterministic PoC stub — image +
-         *     text only; no generated video/animation (that comes from sprites).
+         * @description Generate an image + text into your Agent storage (AC51). Image comes from the configured
+         *     image model (AC52), with a deterministic stub fallback when no key is set — image + text only;
+         *     no generated video/animation (that comes from sprites).
          */
         post: operations["generate_me_library_generate_post"];
         delete?: never;
@@ -1080,6 +1245,7 @@ export interface components {
             status?: components["schemas"]["EntryStatus"] | null;
             /** Valid From */
             valid_from?: string | null;
+            visibility?: components["schemas"]["EntryVisibility"] | null;
         };
         /**
          * AdminCreateUserRequest
@@ -1093,6 +1259,29 @@ export interface components {
             /** Password */
             password: string;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * AgentInvite
+         * @description Invite an agent to a catalog's private entries by email (AC54).
+         */
+        AgentInvite: {
+            /** Email */
+            email: string;
+        };
+        /**
+         * AgentRef
+         * @description An invited agent, resolved for display (AC54).
+         */
+        AgentRef: {
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Email */
+            email: string;
+            /** Id */
+            id: number;
         };
         /** AgentRunOut */
         AgentRunOut: {
@@ -1172,6 +1361,11 @@ export interface components {
             id: number;
             /** Term */
             term: string;
+        };
+        /** Body_upload_cover_catalog__entry_id__cover_post */
+        Body_upload_cover_catalog__entry_id__cover_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_image_catalog__entry_id__image_post */
         Body_upload_image_catalog__entry_id__image_post: {
@@ -1254,6 +1448,11 @@ export interface components {
             entry_count: number;
             /** Id */
             id: number;
+            /**
+             * Invited Agents
+             * @default []
+             */
+            invited_agents: components["schemas"]["AgentRef"][];
             /** Name */
             name: string;
             /** Provider Id */
@@ -1423,6 +1622,10 @@ export interface components {
             attributes?: {
                 [key: string]: unknown;
             } | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
             /** Custom Sections */
             custom_sections?: components["schemas"]["CustomSection"][] | null;
             /** Description */
@@ -1433,6 +1636,9 @@ export interface components {
             highlights?: string[] | null;
             /** Market Tags */
             market_tags?: string[] | null;
+            season?: components["schemas"]["Season"] | null;
+            /** State */
+            state?: string | null;
             /** Title */
             title?: string | null;
         };
@@ -1444,6 +1650,16 @@ export interface components {
             };
             /** Catalog Id */
             catalog_id?: number | null;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /**
+             * Country
+             * @default
+             */
+            country: string;
             /** Custom Sections */
             custom_sections?: components["schemas"]["CustomSection"][];
             /**
@@ -1459,11 +1675,19 @@ export interface components {
             highlights?: string[];
             /** Market Tags */
             market_tags?: string[];
+            season?: components["schemas"]["Season"] | null;
+            /**
+             * State
+             * @default
+             */
+            state: string;
             /** Title */
             title: string;
             type: components["schemas"]["CatalogType"];
             /** Valid From */
             valid_from?: string | null;
+            /** @default draft */
+            visibility: components["schemas"]["EntryVisibility"];
         };
         /** EntryOut */
         EntryOut: {
@@ -1483,6 +1707,21 @@ export interface components {
             brand_safe: boolean;
             /** Catalog Id */
             catalog_id?: number | null;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /**
+             * Country
+             * @default
+             */
+            country: string;
+            /**
+             * Cover Object Key
+             * @default
+             */
+            cover_object_key: string;
             /**
              * Custom Sections
              * @default []
@@ -1516,12 +1755,20 @@ export interface components {
              * @default
              */
             review_reason: string;
+            season?: components["schemas"]["Season"] | null;
+            /**
+             * State
+             * @default
+             */
+            state: string;
             status: components["schemas"]["EntryStatus"];
             /** Title */
             title: string;
             type: components["schemas"]["CatalogType"];
             /** Valid From */
             valid_from?: string | null;
+            /** @default draft */
+            visibility: components["schemas"]["EntryVisibility"];
         };
         /**
          * EntryStatus
@@ -1531,12 +1778,46 @@ export interface components {
          */
         EntryStatus: "draft" | "in_review" | "approved" | "withdrawn";
         /**
+         * EntryVisibility
+         * @description Per-entry distribution within a catalog (AC54): the three sets a provider sorts entries into.
+         *
+         *     draft   = work in progress, visible to no agent (the default for a new entry);
+         *     public  = visible to every agent;
+         *     private = visible only to the agents invited on the entry's catalog (``shared_agent_ids``).
+         * @enum {string}
+         */
+        EntryVisibility: "draft" | "public" | "private";
+        /**
          * GenerateRequest
          * @description Ask the AI layer to generate an image + text into the user's Agent storage (AC51).
          */
         GenerateRequest: {
             /** Prompt */
             prompt: string;
+        };
+        /** GeoCountry */
+        GeoCountry: {
+            /** Name */
+            name: string;
+            /** States */
+            states: components["schemas"]["GeoState"][];
+        };
+        /**
+         * GeoData
+         * @description Curated location hierarchy + the fixed season list for the catalog forms + filters (AC53).
+         */
+        GeoData: {
+            /** Countries */
+            countries: components["schemas"]["GeoCountry"][];
+            /** Seasons */
+            seasons: components["schemas"]["SeasonOption"][];
+        };
+        /** GeoState */
+        GeoState: {
+            /** Cities */
+            cities: string[];
+            /** Name */
+            name: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1872,6 +2153,19 @@ export interface components {
             composition_id: number;
             /** Scheduled At */
             scheduled_at?: string | null;
+        };
+        /**
+         * Season
+         * @description The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter.
+         * @enum {string}
+         */
+        Season: "spring" | "summer" | "autumn" | "winter" | "year_round";
+        /** SeasonOption */
+        SeasonOption: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
         };
         /**
          * SendBackRequest
@@ -2552,6 +2846,10 @@ export interface operations {
         parameters: {
             query?: {
                 destination?: string | null;
+                country?: string | null;
+                state?: string | null;
+                city?: string | null;
+                season?: components["schemas"]["Season"] | null;
                 type?: components["schemas"]["CatalogType"] | null;
                 q?: string | null;
             };
@@ -2614,6 +2912,26 @@ export interface operations {
             };
         };
     };
+    geo_reference_catalog_geo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeoData"];
+                };
+            };
+        };
+    };
     content_templates_catalog_templates_get: {
         parameters: {
             query?: never;
@@ -2634,7 +2952,7 @@ export interface operations {
             };
         };
     };
-    get_for_agent_catalog__entry_id__get: {
+    get_entry_catalog__entry_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2751,6 +3069,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_cover_catalog__entry_id__cover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_cover_catalog__entry_id__cover_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_cover_catalog__entry_id__cover_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3038,6 +3430,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogOut"][];
+                };
+            };
+        };
+    };
+    get_my_catalog_catalogs_mine_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+        };
+    };
+    update_my_catalog_catalogs_mine_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_entries_catalogs_mine_entries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryOut"][];
+                };
+            };
+        };
+    };
+    invite_agent_catalogs_mine_invite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentInvite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uninvite_agent_catalogs_mine_invite__agent_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    share_my_catalog_catalogs_mine_share_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogShareUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

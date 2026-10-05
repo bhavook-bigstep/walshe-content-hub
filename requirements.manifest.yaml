@@ -169,7 +169,8 @@ acceptance:
       - "apps/api/tests/test_inventory.py::test_content_templates_schema"
       - "apps/api/tests/test_inventory.py::test_media_team_and_performance"
     e2e:
-      - "apps/web/e2e/inventory-smoke.spec.ts::provider creates a structured entry with a custom section"
+      - "apps/web/e2e/inventory-smoke.spec.ts::provider creates an entry and adds a text item"
+      - "apps/web/e2e/entry-edit-smoke.spec.ts::provider edits then deletes an entry"
   # --- v2.4.0 Workspace usability (features wired end-to-end) ---
   AC31:
     tier: P2
@@ -309,7 +310,7 @@ acceptance:
       - "apps/api/tests/test_catalogs.py::test_catalog_gating"
       - "apps/api/tests/test_catalogs.py::test_migrate_entries_to_catalogs"
     e2e:
-      - "apps/web/e2e/catalog-library-smoke.spec.ts::provider creates and publishes a catalog"
+      - "apps/web/e2e/catalog-library-smoke.spec.ts::provider sets an entry's visibility to public"
   AC50:
     tier: P2
     api:
@@ -321,3 +322,29 @@ acceptance:
     api:
       - "apps/api/tests/test_user_media.py::test_upload_text_generate_list_and_owner_scope"
       - "apps/api/tests/test_user_media.py::test_generated_image_is_deterministic"
+  AC52:
+    tier: P2
+    api:
+      - "apps/api/tests/test_ai_images.py::test_stub_is_deterministic_and_is_a_png"
+      - "apps/api/tests/test_ai_images.py::test_gemini_used_when_key_present"
+      - "apps/api/tests/test_ai_images.py::test_gemini_failure_falls_back_to_stub"
+      - "apps/api/tests/test_entry_cover.py::test_upload_cover_sets_key_and_is_served_to_a_visible_agent"
+      - "apps/api/tests/test_entry_cover.py::test_generate_cover_sets_key_deterministically"
+      - "apps/api/tests/test_entry_cover.py::test_cover_upload_rejects_unsupported_type_and_guards_ownership"
+      - "apps/api/tests/test_entry_cover.py::test_cover_hidden_from_an_agent_without_catalog_access"
+  AC53:
+    tier: P2
+    api:
+      - "apps/api/tests/test_catalog_location.py::test_geo_reference_endpoint_exposes_hierarchy_and_seasons"
+      - "apps/api/tests/test_catalog_location.py::test_entry_stores_structured_location_and_season"
+      - "apps/api/tests/test_catalog_location.py::test_agent_filters_by_location_and_season"
+  AC54:
+    tier: P2
+    api:
+      - "apps/api/tests/test_entry_visibility.py::test_entry_defaults_to_draft_and_is_hidden"
+      - "apps/api/tests/test_entry_visibility.py::test_public_entry_reaches_every_agent"
+      - "apps/api/tests/test_entry_visibility.py::test_private_entry_only_for_invited_agents"
+      - "apps/api/tests/test_entry_visibility.py::test_set_access_moves_entry_between_sets_and_audits_unpublish"
+      - "apps/api/tests/test_catalogs.py::test_catalog_gating"
+    e2e:
+      - "apps/web/e2e/catalog-library-smoke.spec.ts::provider sets an entry's visibility to public"

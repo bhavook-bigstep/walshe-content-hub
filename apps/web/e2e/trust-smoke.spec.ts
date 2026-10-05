@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { allowApiCors } from "./_helpers";
+import { allowApiCors, chooseOption } from "./_helpers";
 
 // AC34–AC37 — trust, approval & audit.
 
@@ -41,12 +41,16 @@ test("provider sends an entry back with a reason", async ({ page }) => {
   await allowApiCors(page);
   await loginAs(page, "provider@example.test", /\/provider$/);
 
-  // Create an entry, then open its management page.
-  await page.goto("/provider/catalog/new");
-  await page.getByLabel("Title").fill(`Review me ${Date.now()}`);
-  await page.getByLabel("Destination").fill("Donegal");
-  await page.getByRole("button", { name: /create entry/i }).click();
-  await page.getByRole("link", { name: /set brand-safe flag and access/i }).click();
+  // Create an entry via the catalog's New-entry dialog, then open it.
+  await page.goto("/provider/catalog");
+  await page.getByRole("button", { name: "New entry" }).click();
+  const dialog = page.getByRole("dialog", { name: "New entry" });
+  const title = `Review me ${Date.now()}`;
+  await dialog.getByLabel("Title").fill(title);
+  await chooseOption(dialog, "Country", "Ireland");
+  await chooseOption(dialog, "State or region", "Donegal");
+  await dialog.getByRole("button", { name: "Create entry" }).click();
+  await page.getByRole("link", { name: new RegExp(title) }).click();
 
   const reason = "Add captions to the hero image before approval.";
   await page.getByLabel("Reason to send back").fill(reason);

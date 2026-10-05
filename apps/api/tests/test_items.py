@@ -16,10 +16,10 @@ def _catalog(client, provider_headers, visibility: str) -> int:
     return client.post("/catalogs", headers=provider_headers, json=body).json()["id"]
 
 
-def _entry(client, provider_headers, catalog_id: int) -> int:
+def _entry(client, provider_headers, catalog_id: int, visibility: str = "public") -> int:
     body = {
         "catalog_id": catalog_id, "type": "event", "title": "Harbour Festival",
-        "description": "By the sea", "destination": "Galway",
+        "description": "By the sea", "destination": "Galway", "visibility": visibility,
     }
     return client.post("/catalog", headers=provider_headers, json=body).json()["id"]
 
@@ -65,14 +65,15 @@ def test_entry_items_crud_browse_and_serving(client, provider_headers, agent_hea
 
 
 def test_private_catalog_browse_hidden_from_unshared_agent(client, provider_headers, agent_headers):
+    # AC54: a private entry with no invited agent → the catalog looks empty/missing to that agent.
     cid = _catalog(client, provider_headers, "private")
-    _entry(client, provider_headers, cid)
+    _entry(client, provider_headers, cid, "private")
     assert client.get(f"/catalogs/{cid}/entries", headers=agent_headers).status_code == 404
 
 
 def test_private_catalog_item_media_gated_by_sharing(client, provider_headers, agent_headers, app):
     cid = _catalog(client, provider_headers, "private")
-    eid = _entry(client, provider_headers, cid)
+    eid = _entry(client, provider_headers, cid, "private")
     key = client.post(
         f"/catalog/{eid}/items/media", headers=provider_headers,
         files={"file": ("a.png", PNG, "image/png")},

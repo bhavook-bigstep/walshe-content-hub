@@ -16,6 +16,7 @@ from app.models.catalog import (
     CatalogEntry,
     CatalogVisibility,
     EntryStatus,
+    EntryVisibility,
     Item,
     ItemKind,
 )
@@ -58,6 +59,9 @@ def migrate_entries_to_catalogs(db: Session) -> int:
                 db.flush()
             cache[key] = catalog
         entry.catalog_id = catalog.id
+        # AC54: carry the legacy approved+brand-safe gate over to per-entry visibility, so a
+        # migrated entry keeps the same reach (public if it was distributable, else draft).
+        entry.visibility = EntryVisibility.public if public else EntryVisibility.draft
         moved += 1
     db.commit()
     return moved

@@ -52,6 +52,29 @@ class CatalogVisibility(str, enum.Enum):
     private = "private"
 
 
+class Season(str, enum.Enum):
+    """The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter."""
+
+    spring = "spring"
+    summer = "summer"
+    autumn = "autumn"
+    winter = "winter"
+    year_round = "year_round"
+
+
+class EntryVisibility(str, enum.Enum):
+    """Per-entry distribution within a catalog (AC54): the three sets a provider sorts entries into.
+
+    draft   = work in progress, visible to no agent (the default for a new entry);
+    public  = visible to every agent;
+    private = visible only to the agents invited on the entry's catalog (``shared_agent_ids``).
+    """
+
+    draft = "draft"
+    public = "public"
+    private = "private"
+
+
 class Catalog(Base):
     """A provider-owned catalog (AC49). Catalog-level public/private + sharing is the single gate
     that decides whether an agent may use the catalog's entries + items (Contract 1, re-based from
@@ -94,6 +117,18 @@ class CatalogEntry(Base):
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text, default="")
     destination: Mapped[str] = mapped_column(String(200), index=True)
+    # Structured location (AC53) — drives the agent catalog's cascading country/state/city filters.
+    # `destination` stays as the human label (auto-composed from these in the UI).
+    country: Mapped[str] = mapped_column(String(120), default="", index=True)
+    state: Mapped[str] = mapped_column(String(120), default="", index=True)
+    city: Mapped[str] = mapped_column(String(120), default="", index=True)
+    # Season as a closed vocabulary (AC53) so it filters cleanly; optional.
+    season: Mapped[Season | None] = mapped_column(Enum(Season), nullable=True, index=True)
+    # Per-entry distribution (AC54): draft (default, hidden) · public (all agents) · private
+    # (only agents invited on the catalog). This is the Contract-1 gate for catalog entries.
+    visibility: Mapped[EntryVisibility] = mapped_column(
+        Enum(EntryVisibility), default=EntryVisibility.draft, index=True
+    )
     market_tags: Mapped[list[str]] = mapped_column(JSON, default=list)
 
     # Structured inventory (AC29) — explicit, typed data so AI agents can crawl it reliably.
@@ -103,6 +138,11 @@ class CatalogEntry(Base):
     attributes: Mapped[dict] = mapped_column(JSON, default=dict)
     highlights: Mapped[list[str]] = mapped_column(JSON, default=list)
     custom_sections: Mapped[list[dict]] = mapped_column(JSON, default=list)
+
+    # Cover photo (AC52): the entry's card image — uploaded or AI-generated. Stored key under
+    # ``entries/{id}/cover/``; empty means the UI falls back to a media asset or a placeholder.
+    cover_object_key: Mapped[str] = mapped_column(String(512), default="")
+    cover_content_type: Mapped[str] = mapped_column(String(128), default="")
 
     status: Mapped[EntryStatus] = mapped_column(Enum(EntryStatus), default=EntryStatus.draft)
     brand_safe: Mapped[bool] = mapped_column(Boolean, default=False)

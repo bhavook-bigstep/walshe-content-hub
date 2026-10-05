@@ -8,15 +8,15 @@ image + text only (animation comes from sprites). Owner-scoped: a user only ever
 
 from __future__ import annotations
 
-import struct
 import uuid
-import zlib
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.deps import get_current_user, get_db
+from app.ai.images import generate_image
+from app.config import Settings
+from app.deps import get_current_user, get_db, get_settings
 from app.models.catalog import ItemKind, UserAsset, UserAssetSource
 from app.models.user import User
 from app.schemas.catalog import GenerateRequest, TextItemCreate, UserAssetOut
@@ -34,25 +34,6 @@ _ALLOWED_UPLOAD_TYPES = _ALLOWED_IMAGE_TYPES | _ALLOWED_VIDEO_TYPES
 
 def _get_storage(request: Request) -> Storage:
     return request.app.state.storage
-
-
-def _solid_png(rgb: tuple[int, int, int], size: int = 32) -> bytes:
-    """A deterministic solid-colour PNG — the PoC stand-in for a generated image (hermetic, no
-    external image model). Swapped for a real model only when one is configured."""
-
-    def chunk(tag: bytes, data: bytes) -> bytes:
-        body = tag + data
-        crc = struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
-        return struct.pack(">I", len(data)) + body + crc
-
-    ihdr = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
-    raw = (b"\x00" + bytes(rgb) * size) * size
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", ihdr)
-        + chunk(b"IDAT", zlib.compress(raw))
-        + chunk(b"IEND", b"")
-    )
 
 
 @router.post("/upload", response_model=UserAssetOut, status_code=status.HTTP_201_CREATED)
@@ -105,16 +86,17 @@ def generate(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     storage: Storage = Depends(_get_storage),
+    settings: Settings = Depends(get_settings),
 ) -> list[UserAssetOut]:
-    """Generate an image + text into your Agent storage (AC51). Deterministic PoC stub — image +
-    text only; no generated video/animation (that comes from sprites)."""
-    seed = zlib.crc32(body.prompt.strip().lower().encode())
-    rgb = ((seed >> 16) & 0xFF, (seed >> 8) & 0xFF, seed & 0xFF)
+    """Generate an image + text into your Agent storage (AC51). Image comes from the configured
+    image model (AC52), with a deterministic stub fallback when no key is set — image + text only;
+    no generated video/animation (that comes from sprites)."""
+    picture = generate_image(settings, body.prompt)
     key = f"users/{user.id}/{uuid.uuid4().hex}"
-    storage.put_object(key, _solid_png(rgb), "image/png")
+    storage.put_object(key, picture.data, picture.content_type)
     image = UserAsset(
         owner_id=user.id, source=UserAssetSource.agent, kind=ItemKind.image,
-        title=body.prompt[:120], object_key=key, content_type="image/png",
+        title=body.prompt[:120], object_key=key, content_type=picture.content_type,
     )
     text = UserAsset(
         owner_id=user.id, source=UserAssetSource.agent, kind=ItemKind.text,

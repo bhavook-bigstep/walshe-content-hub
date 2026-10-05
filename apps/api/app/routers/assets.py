@@ -9,9 +9,12 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, 
 from sqlalchemy.orm import Session
 
 from app import clock
-from app.deps import get_current_user, get_db, require_role
+from app.ai.images import generate_image
+from app.config import Settings
+from app.deps import get_current_user, get_db, get_settings, require_role
 from app.models.catalog import Asset, CatalogEntry, Item, ItemKind
 from app.models.user import Role, User
+from app.schemas.catalog import GenerateRequest
 from app.services.visibility import can_read_object
 from app.storage.minio_client import Storage
 from app.uploads import read_capped
@@ -94,6 +97,58 @@ async def upload_media_item(
     db.commit()
     db.refresh(item)
     return {"id": str(item.id), "object_key": key, "content_type": content_type, "kind": kind.value}
+
+
+def _own_entry(db: Session, entry_id: int, provider: User) -> CatalogEntry:
+    entry = db.get(CatalogEntry, entry_id)
+    if entry is None or entry.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    return entry
+
+
+@router.post("/catalog/{entry_id}/cover", status_code=status.HTTP_201_CREATED)
+async def upload_cover(
+    entry_id: int,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+    provider: User = Depends(_provider_only),
+) -> dict[str, str]:
+    """Set the entry's cover photo from an uploaded raster image (AC52)."""
+    entry = _own_entry(db, entry_id, provider)
+    content_type = (file.content_type or "").lower()
+    if content_type not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "Unsupported image type; allowed: png, jpeg, gif, webp, avif",
+        )
+    data = await read_capped(file)
+    key = f"entries/{entry_id}/cover/{uuid.uuid4().hex}"
+    storage.put_object(key, data, content_type)
+    entry.cover_object_key = key
+    entry.cover_content_type = content_type
+    db.commit()
+    return {"cover_object_key": key, "content_type": content_type}
+
+
+@router.post("/catalog/{entry_id}/cover/generate", status_code=status.HTTP_201_CREATED)
+def generate_cover(
+    entry_id: int,
+    body: GenerateRequest,
+    db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+    provider: User = Depends(_provider_only),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, str]:
+    """Generate the entry's cover photo from a prompt via the configured image model (AC52)."""
+    entry = _own_entry(db, entry_id, provider)
+    picture = generate_image(settings, body.prompt)
+    key = f"entries/{entry_id}/cover/{uuid.uuid4().hex}"
+    storage.put_object(key, picture.data, picture.content_type)
+    entry.cover_object_key = key
+    entry.cover_content_type = picture.content_type
+    db.commit()
+    return {"cover_object_key": key, "content_type": picture.content_type}
 
 
 @router.get("/assets/{object_key:path}")

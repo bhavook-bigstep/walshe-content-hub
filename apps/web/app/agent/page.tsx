@@ -218,7 +218,7 @@ export default function AgentHomePage() {
             {(catalog ?? []).slice(0, 3).map((e) => (
               <li key={e.id} className="card card-hover group overflow-hidden">
                 <div className="relative">
-                  <CatalogThumb imageKey={e.image_key ?? e.asset_keys?.[0]} alt={e.title} />
+                  <CatalogThumb imageKey={e.cover_object_key || e.image_key || e.asset_keys?.[0]} alt={e.title} />
                   <span className="chip-verified absolute left-3.5 top-3.5">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--walshe-green))" strokeWidth="3" aria-hidden>
                       <path d="M5 13l4 4L19 7" />

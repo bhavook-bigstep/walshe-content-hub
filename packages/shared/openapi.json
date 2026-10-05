@@ -75,6 +75,16 @@
               }
             ],
             "title": "Valid From"
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntryVisibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "AccessUpdate",
@@ -115,6 +125,46 @@
           "role"
         ],
         "title": "AdminCreateUserRequest",
+        "type": "object"
+      },
+      "AgentInvite": {
+        "description": "Invite an agent to a catalog's private entries by email (AC54).",
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "AgentInvite",
+        "type": "object"
+      },
+      "AgentRef": {
+        "description": "An invited agent, resolved for display (AC54).",
+        "properties": {
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ],
+        "title": "AgentRef",
         "type": "object"
       },
       "AgentRunOut": {
@@ -308,6 +358,20 @@
           "created_at"
         ],
         "title": "BlocklistOut",
+        "type": "object"
+      },
+      "Body_upload_cover_catalog__entry_id__cover_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_cover_catalog__entry_id__cover_post",
         "type": "object"
       },
       "Body_upload_image_catalog__entry_id__image_post": {
@@ -548,6 +612,14 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "invited_agents": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AgentRef"
+            },
+            "title": "Invited Agents",
+            "type": "array"
           },
           "name": {
             "title": "Name",
@@ -1012,6 +1084,30 @@
             ],
             "title": "Attributes"
           },
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
           "custom_sections": {
             "anyOf": [
               {
@@ -1078,6 +1174,28 @@
             ],
             "title": "Market Tags"
           },
+          "season": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Season"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
           "title": {
             "anyOf": [
               {
@@ -1112,6 +1230,18 @@
               }
             ],
             "title": "Catalog Id"
+          },
+          "city": {
+            "default": "",
+            "maxLength": 120,
+            "title": "City",
+            "type": "string"
+          },
+          "country": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Country",
+            "type": "string"
           },
           "custom_sections": {
             "items": {
@@ -1157,6 +1287,22 @@
             "title": "Market Tags",
             "type": "array"
           },
+          "season": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Season"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "default": "",
+            "maxLength": 120,
+            "title": "State",
+            "type": "string"
+          },
           "title": {
             "maxLength": 300,
             "minLength": 1,
@@ -1177,6 +1323,10 @@
               }
             ],
             "title": "Valid From"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/EntryVisibility",
+            "default": "draft"
           }
         },
         "required": [
@@ -1217,6 +1367,21 @@
               }
             ],
             "title": "Catalog Id"
+          },
+          "city": {
+            "default": "",
+            "title": "City",
+            "type": "string"
+          },
+          "country": {
+            "default": "",
+            "title": "Country",
+            "type": "string"
+          },
+          "cover_object_key": {
+            "default": "",
+            "title": "Cover Object Key",
+            "type": "string"
           },
           "custom_sections": {
             "default": [],
@@ -1285,6 +1450,21 @@
             "title": "Review Reason",
             "type": "string"
           },
+          "season": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Season"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "default": "",
+            "title": "State",
+            "type": "string"
+          },
           "status": {
             "$ref": "#/components/schemas/EntryStatus"
           },
@@ -1306,6 +1486,10 @@
               }
             ],
             "title": "Valid From"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/EntryVisibility",
+            "default": "draft"
           }
         },
         "required": [
@@ -1334,6 +1518,16 @@
         "title": "EntryStatus",
         "type": "string"
       },
+      "EntryVisibility": {
+        "description": "Per-entry distribution within a catalog (AC54): the three sets a provider sorts entries into.\n\ndraft   = work in progress, visible to no agent (the default for a new entry);\npublic  = visible to every agent;\nprivate = visible only to the agents invited on the entry's catalog (``shared_agent_ids``).",
+        "enum": [
+          "draft",
+          "public",
+          "private"
+        ],
+        "title": "EntryVisibility",
+        "type": "string"
+      },
       "GenerateRequest": {
         "description": "Ask the AI layer to generate an image + text into the user's Agent storage (AC51).",
         "properties": {
@@ -1348,6 +1542,73 @@
           "prompt"
         ],
         "title": "GenerateRequest",
+        "type": "object"
+      },
+      "GeoCountry": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "states": {
+            "items": {
+              "$ref": "#/components/schemas/GeoState"
+            },
+            "title": "States",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "states"
+        ],
+        "title": "GeoCountry",
+        "type": "object"
+      },
+      "GeoData": {
+        "description": "Curated location hierarchy + the fixed season list for the catalog forms + filters (AC53).",
+        "properties": {
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/GeoCountry"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/SeasonOption"
+            },
+            "title": "Seasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "countries",
+          "seasons"
+        ],
+        "title": "GeoData",
+        "type": "object"
+      },
+      "GeoState": {
+        "properties": {
+          "cities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cities",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "cities"
+        ],
+        "title": "GeoState",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -2199,6 +2460,36 @@
           "channel"
         ],
         "title": "ScheduleRequest",
+        "type": "object"
+      },
+      "Season": {
+        "description": "The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter.",
+        "enum": [
+          "spring",
+          "summer",
+          "autumn",
+          "winter",
+          "year_round"
+        ],
+        "title": "Season",
+        "type": "string"
+      },
+      "SeasonOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "SeasonOption",
         "type": "object"
       },
       "SendBackRequest": {
@@ -3322,6 +3613,70 @@
           },
           {
             "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Season"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "in": "query",
             "name": "type",
             "required": false,
             "schema": {
@@ -3434,6 +3789,28 @@
         ]
       }
     },
+    "/catalog/geo": {
+      "get": {
+        "description": "Curated country → state → city hierarchy + the fixed season list (AC53) that powers the\nNew-entry location dropdowns and the agent catalog's location/season filters.",
+        "operationId": "geo_reference_catalog_geo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Geo Reference",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/catalog/templates": {
       "get": {
         "description": "Self-describing schema of the structured fields per content type (AC29).",
@@ -3496,7 +3873,8 @@
         ]
       },
       "get": {
-        "operationId": "get_for_agent_catalog__entry_id__get",
+        "description": "Fetch one entry (with its items). The owning provider sees their own; an agent sees it only\nif visible to them (Contract 1). A hidden/unknown entry looks like missing (C1/AC36).",
+        "operationId": "get_entry_catalog__entry_id__get",
         "parameters": [
           {
             "in": "path",
@@ -3535,7 +3913,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get For Agent",
+        "summary": "Get Entry",
         "tags": [
           "catalog"
         ]
@@ -3649,6 +4027,130 @@
         "summary": "Update Content",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/cover": {
+      "post": {
+        "description": "Set the entry's cover photo from an uploaded raster image (AC52).",
+        "operationId": "upload_cover_catalog__entry_id__cover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_cover_catalog__entry_id__cover_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Upload Cover Catalog  Entry Id  Cover Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Cover",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/cover/generate": {
+      "post": {
+        "description": "Generate the entry's cover photo from a prompt via the configured image model (AC52).",
+        "operationId": "generate_cover_catalog__entry_id__cover_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Generate Cover Catalog  Entry Id  Cover Generate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Cover",
+        "tags": [
+          "assets"
         ]
       }
     },
@@ -4095,6 +4597,249 @@
         ]
       }
     },
+    "/catalogs/mine": {
+      "get": {
+        "description": "The provider's single catalog (AC49), created on first access.",
+        "operationId": "get_my_catalog_catalogs_mine_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get My Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      },
+      "patch": {
+        "operationId": "update_my_catalog_catalogs_mine_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update My Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/entries": {
+      "get": {
+        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.",
+        "operationId": "list_my_entries_catalogs_mine_entries_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntryOut"
+                  },
+                  "title": "Response List My Entries Catalogs Mine Entries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List My Entries",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/invite": {
+      "post": {
+        "description": "Invite a tourism agent (by email) to this catalog's private entries (AC54).",
+        "operationId": "invite_agent_catalogs_mine_invite_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentInvite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Invite Agent",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/invite/{agent_id}": {
+      "delete": {
+        "description": "Remove an invited agent from this catalog (AC54).",
+        "operationId": "uninvite_agent_catalogs_mine_invite__agent_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Uninvite Agent",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/share": {
+      "put": {
+        "operationId": "share_my_catalog_catalogs_mine_share_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogShareUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Share My Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
     "/catalogs/{catalog_id}": {
       "delete": {
         "operationId": "delete_catalog_catalogs__catalog_id__delete",
@@ -4192,7 +4937,7 @@
     },
     "/catalogs/{catalog_id}/entries": {
       "get": {
-        "description": "Browse a catalog's entries + their items (AC50). A provider sees their own catalog's\nentries; an agent sees them only if the catalog is accessible (and per-entry expiry/off-limits\nstill apply via the visibility choke-point).",
+        "description": "Browse a catalog's entries + their items (AC50/AC54). A provider sees their own catalog's\nentries (every set); an agent sees only the entries visible to them (public, or private when\ninvited), with expiry/off-limits applied via the visibility choke-point. A catalog with nothing\nvisible to the agent looks like missing (404), so its existence can't be probed.",
         "operationId": "list_catalog_entries_catalogs__catalog_id__entries_get",
         "parameters": [
           {
@@ -4735,7 +5480,7 @@
     },
     "/me/library/generate": {
       "post": {
-        "description": "Generate an image + text into your Agent storage (AC51). Deterministic PoC stub — image +\ntext only; no generated video/animation (that comes from sprites).",
+        "description": "Generate an image + text into your Agent storage (AC51). Image comes from the configured\nimage model (AC52), with a deterministic stub fallback when no key is set — image + text only;\nno generated video/animation (that comes from sprites).",
         "operationId": "generate_me_library_generate_post",
         "requestBody": {
           "content": {

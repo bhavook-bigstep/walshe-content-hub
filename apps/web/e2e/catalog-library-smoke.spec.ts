@@ -1,29 +1,32 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./_helpers";
+import { chooseOption, login } from "./_helpers";
 
-// AC49 — a provider manages their catalog library: create a catalog, publish it, keep a private
-// one. (Catalog-level access gating for agents is covered by the api tests; the agent-facing
-// browse/picker UI lands in Increment 3.)
-test("provider creates and publishes a catalog", async ({ page }) => {
+// AC54 — a provider sorts each entry into one of three sets: Draft (hidden), Public (every agent),
+// Private (invited agents only). The catalog carries the invited-agents list. Catalog-level access
+// gating for agents is covered by the api tests.
+test("provider sets an entry's visibility to public", async ({ page }) => {
   await login(page, "provider@example.test", /\/provider$/);
-  await page.goto("/provider/catalogs");
-  await expect(page.getByRole("heading", { name: "Catalogs", level: 1 })).toBeVisible();
+  await page.goto("/provider/catalog");
 
-  const form = page.getByRole("form", { name: "New catalog" });
-  const name = `Events ${Date.now()}`;
-  await form.getByLabel("Catalog name").fill(name);
-  await form.getByLabel("Catalog category").fill("events");
-  await form.getByLabel("Catalog visibility").selectOption("public");
-  await form.getByRole("button", { name: "Create catalog" }).click();
+  // Invited agents (for private entries) are managed in a dialog opened from the page.
+  await page.getByRole("button", { name: /Invite agents/ }).click();
+  const invite = page.getByRole("dialog", { name: "Invite agents" });
+  await expect(invite).toBeVisible();
+  await expect(invite.getByLabel("Agent email")).toBeVisible();
+  await invite.getByRole("button", { name: "Close dialog" }).click();
+  await expect(invite).toBeHidden();
 
-  // The new catalog appears in the library, marked public.
-  const list = page.getByRole("list", { name: "Catalog list" });
-  const item = list.getByRole("listitem").filter({ hasText: name });
-  await expect(item).toBeVisible();
-  await expect(item.getByText("public", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "New entry" }).click();
+  const dialog = page.getByRole("dialog", { name: "New entry" });
+  const title = `Visible ${Date.now()}`;
+  await dialog.getByLabel("Title").fill(title);
+  await chooseOption(dialog, "Visibility", /Public/);
+  await chooseOption(dialog, "Country", "Ireland");
+  await chooseOption(dialog, "State or region", "Galway");
+  await dialog.getByRole("button", { name: "Create entry" }).click();
 
-  // Toggle it back to private — the control + badge flip.
-  await item.getByRole("button", { name: /Make private/ }).click();
-  await expect(item.getByText("private", { exact: true })).toBeVisible();
-  await expect(item.getByRole("button", { name: /Make public/ })).toBeVisible();
+  // The new card appears with a Public badge.
+  const card = page.getByRole("link", { name: new RegExp(title) });
+  await expect(card).toBeVisible();
+  await expect(card.getByText("public", { exact: true })).toBeVisible();
 });
