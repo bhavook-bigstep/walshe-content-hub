@@ -219,60 +219,62 @@ function StudioEditor() {
     "grid h-8 w-8 place-items-center rounded-sm text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
   return (
-    <div className="flex h-full flex-col gap-3">
-      {/* Top menu bar: title + format + tools (left) · zoom + save (right) */}
-      <div className="flex flex-none flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-walshe-line bg-chrome-bg px-3 py-2 shadow-card">
-        <h1 className="text-h3 text-[1.0625rem] font-bold text-walshe-ink">Design Studio</h1>
-        {project && (
-          <span className="text-small text-walshe-grey">
-            · Editing <span className="font-semibold text-walshe-ink">{project.name}</span>
-          </span>
-        )}
-        <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
-        <FormatPicker value={design.format} onChange={pickFormat} />
-        <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
-        <Toolbar
+    <div className="relative h-full w-full overflow-hidden">
+      {/* The dot-matrix workspace spans the whole studio, edge to edge. */}
+      <div className="absolute inset-0">
+        <StudioCanvas
           design={design}
-          sceneIndex={sceneIndex}
-          onChange={setDesign}
-          catalogImages={CATALOG_IMAGES}
+          activeScene={sceneIndex}
+          onReady={onReady}
+          onNodeChange={onNodeChange}
+          onSelectScene={setSceneIndex}
+          onControls={(c) => (controlsRef.current = c)}
         />
-        <div className="ml-auto flex items-center gap-2">
-          <div className="flex items-center rounded-sm border border-walshe-line bg-walshe-stone/60 px-0.5">
-            <button type="button" aria-label="Zoom out" className={zoomBtn} onClick={() => controlsRef.current?.zoomOut()}>−</button>
-            <button type="button" className="px-2 text-small font-medium text-walshe-ink hover:text-walshe-mint" onClick={() => controlsRef.current?.fit()}>Fit</button>
-            <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
-          </div>
-          {videoMsg && <span className="hidden text-small font-medium text-walshe-grey sm:inline">{videoMsg}</span>}
-          <button
-            type="button"
-            onClick={() => void generateVideo()}
-            disabled={rendering}
-            className="btn-secondary"
-          >
-            {rendering ? "Rendering…" : "Generate video"}
-          </button>
-          {saveMsg && <span className="hidden text-small font-medium text-walshe-green sm:inline">{saveMsg}</span>}
-          <button type="button" onClick={saveProject} disabled={saving} className="btn-primary">
-            {saving ? "Saving…" : project && project.id > 0 ? "Save project" : "Save to projects"}
-          </button>
-        </div>
       </div>
 
-      {/* Workspace: the dot-matrix canvas (fills) + a fixed right toolbar of panels. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
-        <div className="min-h-[360px] min-w-0 flex-1 overflow-hidden rounded-lg border border-walshe-line">
-          <StudioCanvas
+      {/* Floating sections over the workspace: clicks pass through to the canvas except on panels. */}
+      <div className="pointer-events-none absolute inset-0 z-20">
+        {/* Floating top menu bar */}
+        <div className="pointer-events-auto absolute left-3 right-3 top-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/85 px-3 py-2 shadow-xl backdrop-blur-md lg:right-[23rem]">
+          <h1 className="text-h3 text-[1.0625rem] font-bold text-walshe-ink">Design Studio</h1>
+          {project && (
+            <span className="hidden text-small text-walshe-grey sm:inline">
+              · Editing <span className="font-semibold text-walshe-ink">{project.name}</span>
+            </span>
+          )}
+          <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
+          <FormatPicker value={design.format} onChange={pickFormat} />
+          <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
+          <Toolbar
             design={design}
-            activeScene={sceneIndex}
-            onReady={onReady}
-            onNodeChange={onNodeChange}
-            onSelectScene={setSceneIndex}
-            onControls={(c) => (controlsRef.current = c)}
+            sceneIndex={sceneIndex}
+            onChange={setDesign}
+            catalogImages={CATALOG_IMAGES}
           />
+          <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center rounded-sm border border-walshe-line bg-walshe-stone/60 px-0.5">
+              <button type="button" aria-label="Zoom out" className={zoomBtn} onClick={() => controlsRef.current?.zoomOut()}>−</button>
+              <button type="button" className="px-2 text-small font-medium text-walshe-ink hover:text-walshe-mint" onClick={() => controlsRef.current?.fit()}>Fit</button>
+              <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
+            </div>
+            {videoMsg && <span className="hidden text-small font-medium text-walshe-grey sm:inline">{videoMsg}</span>}
+            <button
+              type="button"
+              onClick={() => void generateVideo()}
+              disabled={rendering}
+              className="btn-secondary"
+            >
+              {rendering ? "Rendering…" : "Generate video"}
+            </button>
+            {saveMsg && <span className="hidden text-small font-medium text-walshe-green sm:inline">{saveMsg}</span>}
+            <button type="button" onClick={saveProject} disabled={saving} className="btn-primary">
+              {saving ? "Saving…" : project && project.id > 0 ? "Save project" : "Save to projects"}
+            </button>
+          </div>
         </div>
 
-        <div className="flex-none space-y-4 overflow-y-auto rounded-lg border border-walshe-line bg-chrome-bg p-4 lg:w-[360px]">
+        {/* Floating right panel of tools */}
+        <div className="pointer-events-auto absolute bottom-3 right-3 top-[7.5rem] flex w-[21.5rem] max-w-[calc(100%-1.5rem)] flex-col gap-4 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/85 p-4 shadow-xl backdrop-blur-md lg:top-3">
           <RailCard eyebrow="Storyboard" title="Scenes" icon={ICON.film}>
             <SceneControls
               design={design}
