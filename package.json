@@ -1,0 +1,17 @@
+{
+  "name": "walsh-content-hub",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "gen:api-types": "node scripts/gen-api-types.mjs"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}

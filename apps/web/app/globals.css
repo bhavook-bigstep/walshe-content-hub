@@ -1,0 +1,307 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The Walshe Group design system (AC19): a blackish teal-green base (deepened from the Walshe
+   brand green #005653) with light off-white text, mint accents, and Inter throughout — body, UI,
+   and heavy tightly-tracked display headings, matching the reference's single-family system.
+   Dark, immersive, editorial. CSS vars mirror the Tailwind tokens. */
+/* Design tokens as RGB channels (space-separated) so Tailwind opacity modifiers work and the whole
+   palette swaps per theme (AC30). :root is the DARK theme (unchanged from before). Light theme
+   overrides below. The no-flash inline script in layout.tsx sets data-theme before first paint. */
+:root {
+  color-scheme: dark;
+  --walshe-base: 3 22 15;
+  --walshe-deep: 1 11 8;
+  --walshe-ink: 234 244 241;
+  --walshe-white: 255 255 255;
+  --walshe-paper: 3 22 15;
+  --walshe-mist: 3 22 15;
+  --walshe-stone: 14 58 53;
+  --walshe-line: 28 92 86;
+  --walshe-mint: 229 246 223;
+  --walshe-gold: 196 122 46;
+  --walshe-teal: 0 86 83;
+  --walshe-teal-700: 0 62 60;
+  --walshe-grey: 167 198 194;
+  --walshe-green: 79 202 160;
+  --walshe-danger: 224 106 99;
+  --walshe-warn: 224 178 74;
+
+  /* App chrome (sidebar / top bar) — dark bg, white fg. */
+  --chrome-bg: 1 11 8;
+  --chrome-fg: 255 255 255;
+
+  /* Page-transition cover panel — flips with the theme (near-black in dark). */
+  --transition-cover: 1 11 8;
+
+  /* Component surfaces (cards, inputs, buttons) — see light overrides below. */
+  --c-surface: 12 33 28;        /* card bg */
+  --c-surface-2: 20 46 40;      /* hover / raised */
+  --c-surface-border: 30 70 64; /* card/input hairline */
+  --c-input-bg: 18 44 38;
+  --c-btn-bg: 255 255 255;      /* primary button bg (dark: white pill) */
+  --c-btn-fg: 0 86 83;          /* primary button text (dark: teal) */
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-pill: 999px;
+}
+
+/* Light theme — warm off-white base, dark teal text, light chrome, teal accents. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --walshe-base: 244 246 245;
+  --walshe-deep: 236 240 239;
+  --walshe-ink: 14 42 38;
+  --walshe-paper: 244 246 245;
+  --walshe-mist: 237 241 240;
+  --walshe-stone: 232 238 236;
+  --walshe-line: 214 223 220;
+  --walshe-mint: 0 86 83;       /* accent flips to teal so eyebrows/active read on light */
+  --walshe-grey: 90 112 108;
+  --walshe-green: 22 135 97;
+
+  --chrome-bg: 255 255 255;
+  --chrome-fg: 16 42 38;
+
+  /* Light theme: a soft off-white cover (paired with a subtle shadow on the panel). */
+  --transition-cover: 236 240 239;
+
+  --c-surface: 255 255 255;
+  --c-surface-2: 240 244 243;
+  --c-surface-border: 216 224 221;
+  --c-input-bg: 255 255 255;
+  --c-btn-bg: 0 86 83;          /* primary button bg (light: teal) */
+  --c-btn-fg: 255 255 255;      /* primary button text (light: white) */
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scrollbar-width: none; /* Firefox — hide the scrollbar, keep scrolling */
+    -ms-overflow-style: none; /* legacy Edge/IE */
+  }
+  /* Hide the scrollbar visual on WebKit/Blink (Chrome, Safari) — scrolling still works. */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+  body {
+    background-color: rgb(var(--walshe-base));
+    color: rgb(var(--walshe-ink));
+    font-family: var(--font-sans), "Inter", "Helvetica Neue", system-ui, sans-serif;
+  }
+  h1,
+  h2,
+  h3 {
+    color: inherit;
+    text-wrap: balance;
+  }
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid rgb(var(--walshe-mint));
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+}
+
+@layer components {
+  /* Display headings use Inter (matching the reference) with a heavy weight and tight negative
+     tracking — the reference's hero runs Inter 600 at ~-0.066em. Size utilities set the scale. */
+  /* The Walshe Group wordmark rendered as a recolorable mask (the PNG is white-on-transparent, so
+     its alpha becomes the mask). The background-color is the visible ink — set it to white, and to
+     gold on hover via a group-hover utility. Width/height come from utilities at each use site. */
+  .logo-mark {
+    display: block;
+    -webkit-mask: url("/img/walshe-group-white.png") no-repeat center / contain;
+    mask: url("/img/walshe-group-white.png") no-repeat center / contain;
+  }
+
+  .font-display {
+    font-family: var(--font-sans), "Inter", "Helvetica Neue", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.045em;
+  }
+
+  /* Primary CTA — themed: dark = white pill + teal label; light = teal pill + white label. */
+  .btn-primary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill px-6 py-3 text-small font-semibold transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
+    background-color: rgb(var(--c-btn-bg));
+    color: rgb(var(--c-btn-fg));
+  }
+  .btn-primary:hover { background-color: rgb(var(--c-btn-bg) / 0.9); }
+  .btn-secondary {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill border bg-transparent px-6 py-3 text-small font-semibold transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60;
+    border-color: rgb(var(--walshe-ink) / 0.3);
+    color: rgb(var(--walshe-ink));
+  }
+  .btn-secondary:hover { border-color: rgb(var(--walshe-ink) / 0.6); }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-small font-semibold transition-colors;
+    color: rgb(var(--walshe-ink));
+  }
+  .btn-ghost:hover { background-color: rgb(var(--walshe-ink) / 0.08); }
+  .btn-on-dark {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-6 py-3 text-small font-semibold text-walshe-teal transition-all hover:bg-walshe-teal hover:text-white hover:-translate-y-0.5;
+  }
+  /* Card — themed surface, hairline, crisp corners; lift on hover. */
+  .card {
+    @apply overflow-hidden rounded-none border;
+    background-color: rgb(var(--c-surface));
+    border-color: rgb(var(--c-surface-border));
+  }
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1;
+  }
+  .card-hover:hover {
+    border-color: rgb(var(--c-surface-border));
+    background-color: rgb(var(--c-surface-2));
+  }
+  .media-card {
+    @apply group block overflow-hidden rounded-none;
+  }
+  .eyebrow {
+    @apply text-eyebrow uppercase;
+    color: rgb(var(--walshe-mint));
+  }
+  .chip-verified {
+    @apply inline-flex items-center gap-1.5 rounded-pill bg-walshe-mint px-3 py-1 text-small font-semibold text-walshe-teal;
+  }
+  .chip-draft {
+    @apply inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-small font-semibold;
+    background-color: rgb(var(--walshe-ink) / 0.08);
+    color: rgb(var(--walshe-grey));
+  }
+  .field,
+  .field-area {
+    @apply block w-full rounded-sm border px-4 text-body;
+    background-color: rgb(var(--c-input-bg));
+    border-color: rgb(var(--c-surface-border));
+    color: rgb(var(--walshe-ink));
+  }
+  .field { @apply h-12; }
+  .field-area { @apply py-3; }
+  .field::placeholder,
+  .field-area::placeholder { color: rgb(var(--walshe-grey) / 0.7); }
+  .field:focus,
+  .field-area:focus { border-color: rgb(var(--walshe-mint)); }
+  .label {
+    @apply mb-1.5 block text-small font-semibold;
+    color: rgb(var(--walshe-ink));
+  }
+}
+
+/* Light-theme component tweaks: a verified chip that reads on light, and a soft card shadow. */
+:root[data-theme="light"] .chip-verified {
+  background-color: rgb(214 240 206);
+  color: rgb(0 86 83);
+}
+:root[data-theme="light"] .card {
+  box-shadow: 0 1px 2px rgb(14 42 38 / 0.05), 0 8px 24px -16px rgb(14 42 38 / 0.12);
+}
+
+/* Workspace navigation sweep — when the signed-in content changes (e.g. a sidebar link), the new
+   page sweeps in LEFT-TO-RIGHT. Scoped to the content region only (never the top bar or sidebar).
+   GSAP-free CSS. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes app-sweep {
+    from { opacity: 0; transform: translateX(-26px); }
+    to { opacity: 1; transform: none; }
+  }
+  .page-enter { animation: app-sweep 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+  /* Sidebar profile menu — slides up when the profile is clicked. */
+  @keyframes menu-slide-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  .menu-slide-up { animation: menu-slide-up 0.18s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+}
+
+/* Page transition overlay — a theme-aware panel (near-black in dark, soft off-white in light) fades
+   in moving down to cover, then slides down to reveal the new page (modelled on
+   travelproductions.film). Colour = --transition-cover, so it tracks the active theme. */
+.page-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background-color: rgb(var(--transition-cover));
+  /* Soft leading-edge shadow so the panel's slide reads even when it's the same tone as the page
+     (light theme); it's imperceptible against the dark cover in dark theme. */
+  box-shadow: 0 24px 60px -10px rgb(0 0 0 / 0.18);
+  will-change: transform, opacity;
+}
+.page-transition--cover {
+  animation: pt-cover 0.5s cubic-bezier(0.76, 0, 0.24, 1) both;
+}
+.page-transition--covered {
+  transform: translateY(0);
+  opacity: 1;
+}
+.page-transition--reveal {
+  animation: pt-reveal 0.66s cubic-bezier(0.76, 0, 0.24, 1) both;
+}
+@keyframes pt-cover {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pt-reveal {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+@layer utilities {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Scroll-reveal system — motion is driven by GSAP + ScrollTrigger (see Reveal.tsx); CSS only
+       prevents a flash before GSAP mounts and sets up the split-text + colour-sweep painting.
+       These rules live under no-preference so reduced-motion viewers see the final state. */
+    .rv:not([data-rv="chars"]) { opacity: 0; }         /* hidden until GSAP reveals it */
+    .rv[data-rv="chars"] .rv-char { opacity: 0; }      /* chars hidden; parent stays visible */
+
+    /* Split-text spans: words stay whole, characters animate individually. */
+    .rv-word { display: inline-block; }
+    .rv-char { display: inline-block; will-change: transform, opacity; }
+
+    /* Long paragraphs — painted with a gradient clipped to the text so GSAP can sweep the colour
+       from a dull tint (--dull) to its full colour (--full). Only under no-preference, so
+       reduced-motion keeps the element's normal text colour. */
+    .rv[data-rv="color"] {
+      --full: #eaf4f1;
+      --dull: #5f7c78;
+      background-image: linear-gradient(100deg, var(--full) 42%, var(--dull) 60%);
+      background-repeat: no-repeat;
+      background-size: 260% 100%;
+      background-position: 100% 0;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+    }
+
+    @keyframes wh-drop {
+      from { opacity: 0; transform: translateY(-14px); }
+      to { opacity: 1; transform: none; }
+    }
+    .load-stagger > * {
+      opacity: 0;
+      animation: wh-drop 1.25s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    }
+    .load-stagger > *:nth-child(1) { animation-delay: 0.12s; }
+    .load-stagger > *:nth-child(2) { animation-delay: 0.3s; }
+    .load-stagger > *:nth-child(3) { animation-delay: 0.48s; }
+    .load-stagger > *:nth-child(4) { animation-delay: 0.66s; }
+    .load-stagger > *:nth-child(5) { animation-delay: 0.84s; }
+
+    @keyframes wh-draw-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes wh-draw-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+    .draw-x { opacity: 1; transform-origin: left center; animation: wh-draw-x 1.25s cubic-bezier(0.22, 0.61, 0.36, 1) 0.25s both; }
+    .draw-y { opacity: 1; transform-origin: top center; animation: wh-draw-y 1.05s cubic-bezier(0.22, 0.61, 0.36, 1) 0.5s both; }
+  }
+}

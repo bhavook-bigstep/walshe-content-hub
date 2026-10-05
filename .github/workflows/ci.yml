@@ -1,0 +1,46 @@
+name: CI
+
+# `make verify` is the project's single, authoritative acceptance gate (ruff + api pytest +
+# contract-sync + web typecheck/vitest/e2e + acceptance matrix + spec↔manifest sync + compose
+# config). CI runs exactly that in one environment that has both the Python (uv) and Node (pnpm)
+# toolchains, so a green CI means the same thing as a green local `make verify`.
+
+on:
+  push:
+    branches: [main, dev, "feat/**"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Python toolchain (api: FastAPI/SQLAlchemy via uv).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+
+      # Node toolchain (web: Next/TS, and the root openapi-typescript used by the contract guard).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable
+
+      # Install all JS workspace deps (root devDeps incl. openapi-typescript + apps/web).
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Pre-sync the api venv (uv run would also do this on demand).
+      - name: Sync Python dependencies
+        working-directory: apps/api
+        run: uv sync
+
+      # Playwright browser for the e2e suite.
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: make verify
+        run: make verify

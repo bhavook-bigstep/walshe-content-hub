@@ -1,0 +1,304 @@
+# requirements.manifest.yaml
+#
+# Machine-readable sidecar to /REQUIREMENTS.md (the governed human source of truth).
+# It maps each acceptance item (AC#) -> the test node-ids that PROVE it, grouped by suite
+# (api = pytest, web = vitest, e2e = Playwright), plus its priority tier.
+#
+# This is the ONLY hand-edited AC<->test link in the repo. Two scripts consume it:
+#   * scripts/acceptance_matrix.py      reads this + the three machine test reports and emits
+#                                       met / partial / missing per AC (and reds the build on
+#                                       any unproven AC with --check). This is how the spec
+#                                       *governs*.
+#   * scripts/check_requirements_sync.py asserts this manifest covers EXACTLY the AC set defined
+#                                       in /REQUIREMENTS.md (no orphan, no missing) so the spec
+#                                       and its proof map can never silently diverge.
+#
+# Governance decision behind this file: docs/brainstorms/2026-10-01-governing-requirements-file.md
+# (Approach D) -> implementation plan §1. Editing scope means editing /REQUIREMENTS.md first.
+version: 1
+spec: REQUIREMENTS.md
+acceptance:
+  AC1:
+    tier: P1
+    api:
+      - "apps/api/tests/test_auth_rbac.py::test_role_guard_blocks_wrong_role"
+    e2e:
+      - "apps/web/e2e/rbac-smoke.spec.ts::an expired session is bounced to login before the workspace renders"
+  AC2:
+    tier: P3
+    api:
+      - "apps/api/tests/test_admin.py::test_approve_provider_flips_flag"
+  AC3:
+    tier: P1
+    api:
+      - "apps/api/tests/test_catalog_crud.py::test_create_entry_each_type"
+  AC4:
+    tier: P1
+    api:
+      - "apps/api/tests/test_assets.py::test_upload_then_fetch"
+  AC5:
+    tier: P3
+    api:
+      - "apps/api/tests/test_catalog_access.py::test_set_brand_safe_and_access_scope"
+  AC6:
+    tier: P1
+    api:
+      - "apps/api/tests/test_visibility_contract.py::test_agent_never_sees_unapproved"
+      - "apps/api/tests/test_builder.py::test_builder_route_resolves_ids_through_visibility"
+  AC7:
+    tier: P1
+    api:
+      - "apps/api/tests/test_catalog_search.py::test_filter_by_destination_and_type"
+  AC8:
+    tier: P1
+    web:
+      - "apps/web/tests/formats.test.ts::test_format_presets"
+  AC9:
+    tier: P1
+    web:
+      - "apps/web/tests/studio-ops.test.ts::test_manual_ops_mutate_design"
+  AC10:
+    tier: P2
+    api:
+      - "apps/api/tests/test_builder.py::test_builder_stub_is_deterministic"
+  AC11:
+    tier: P2
+    web:
+      - "apps/web/tests/personalize.test.ts::test_apply_branding_adds_nodes"
+  AC12:
+    tier: P1
+    api:
+      - "apps/api/tests/test_export.py::test_pdf_and_html_from_design"
+  AC13:
+    tier: P2
+    api:
+      - "apps/api/tests/test_video.py::test_scene_script_deterministic_and_cmd_shape"
+      - "apps/api/tests/test_video.py::test_video_route_renders_catalog_image"
+  AC14:
+    tier: P3
+    api:
+      - "apps/api/tests/test_social.py::test_schedule_then_publish_transitions"
+  AC15:
+    tier: P3
+    api:
+      - "apps/api/tests/test_engagement.py::test_dashboard_returns_seeded_metrics"
+  AC16:
+    tier: P1
+    api:
+      - "apps/api/tests/test_ai_provider.py::test_factory_selects_and_falls_back"
+  AC17:
+    tier: P1
+    api:
+      - "apps/api/tests/test_seed.py::test_seed_is_idempotent_and_complete"
+  AC18:
+    tier: P1
+    api:
+      - "scripts/tests/test_acceptance_matrix.py::test_evaluate_classifies_met_partial_missing"
+      - "scripts/tests/test_requirements_sync.py::test_sync_detects_missing_and_extra"
+    e2e:
+      - "apps/web/e2e/studio-smoke.spec.ts::studio smoke"
+  # --- v2.0.0 Design & Experience (the Walshe design overhaul) ---
+  AC19:
+    tier: design
+    web:
+      - "apps/web/tests/theme.test.ts::test_theme_exposes_walshe_tokens"
+  AC30:
+    tier: design
+    web:
+      - "apps/web/tests/theme.test.ts::test_light_and_dark_palettes_defined"
+    e2e:
+      - "apps/web/e2e/theme-smoke.spec.ts::agent can switch between light and dark themes"
+  AC20:
+    tier: design
+    e2e:
+      - "apps/web/e2e/landing-smoke.spec.ts::landing hero and cta"
+  AC21:
+    tier: design
+    e2e:
+      - "apps/web/e2e/shell-smoke.spec.ts::branded nav after login"
+  AC22:
+    tier: design
+    e2e:
+      - "apps/web/e2e/dashboard-smoke.spec.ts::agent dashboard widgets"
+  AC23:
+    tier: design
+    e2e:
+      - "apps/web/e2e/responsive-smoke.spec.ts::no horizontal overflow on mobile"
+  # --- v2.1.0 Access & Accounts (hybrid registration) ---
+  AC24:
+    tier: P3
+    api:
+      - "apps/api/tests/test_register.py::test_self_register_creates_agent_and_signs_in"
+      - "apps/api/tests/test_register.py::test_self_register_rejects_duplicate_and_weak_password"
+      - "apps/api/tests/test_register.py::test_admin_creates_provider_with_org_unapproved"
+      - "apps/api/tests/test_register.py::test_admin_create_user_guards_role_and_auth"
+    e2e:
+      - "apps/web/e2e/register-smoke.spec.ts::public register creates an agent and lands on agent home"
+  # --- v2.2.0 Profiles, dual workspaces & role-based registration ---
+  AC25:
+    tier: P2
+    api:
+      - "apps/api/tests/test_register.py::test_provider_self_register_is_pending"
+      - "apps/api/tests/test_register.py::test_pending_provider_blocked_until_approved"
+    e2e:
+      - "apps/web/e2e/register-smoke.spec.ts::provider registration enters the review queue"
+  AC26:
+    tier: design
+    e2e:
+      - "apps/web/e2e/viewport-smoke.spec.ts::agent workspace fits the viewport with no page scroll"
+      - "apps/web/e2e/viewport-smoke.spec.ts::provider holding screen fits the viewport"
+  AC27:
+    tier: P2
+    api:
+      - "apps/api/tests/test_profile.py::test_update_and_read_own_profile"
+      - "apps/api/tests/test_profile.py::test_provider_updates_organization_profile"
+    e2e:
+      - "apps/web/e2e/profile-smoke.spec.ts::agent sets a display name and sees it in the workspace"
+  AC28:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_projects_crud"
+      - "apps/api/tests/test_agent_features.py::test_collections_crud"
+      - "apps/api/tests/test_agent_features.py::test_brand_kit_and_templates"
+    e2e:
+      - "apps/web/e2e/agent-features-smoke.spec.ts::agent creates a collection"
+  AC29:
+    tier: P2
+    api:
+      - "apps/api/tests/test_inventory.py::test_create_structured_entry_with_custom_sections"
+      - "apps/api/tests/test_inventory.py::test_content_templates_schema"
+      - "apps/api/tests/test_inventory.py::test_media_team_and_performance"
+    e2e:
+      - "apps/web/e2e/inventory-smoke.spec.ts::provider creates a structured entry with a custom section"
+  # --- v2.4.0 Workspace usability (features wired end-to-end) ---
+  AC31:
+    tier: P2
+    e2e:
+      - "apps/web/e2e/agent-usability-smoke.spec.ts::agent adds a catalog item to a collection"
+      - "apps/web/e2e/agent-usability-smoke.spec.ts::agent opens a saved project in the studio"
+  # --- v2.5.0 Product-framework increment 1: content lifecycle & validity ---
+  AC32:
+    tier: P2
+    api:
+      - "apps/api/tests/test_lifecycle.py::test_display_status_derived_from_clock"
+      - "apps/api/tests/test_lifecycle.py::test_validity_and_status_serialise_on_entry"
+    e2e:
+      - "apps/web/e2e/lifecycle-smoke.spec.ts::catalog item shows its status and validity"
+  AC33:
+    tier: P2
+    api:
+      - "apps/api/tests/test_lifecycle.py::test_expired_absent_from_agent_catalog_and_search"
+      - "apps/api/tests/test_lifecycle.py::test_expired_dropped_from_projects_and_schedule"
+      - "apps/api/tests/test_lifecycle.py::test_master_edit_flags_in_use_copies"
+  # --- v2.6.0 Product-framework increment 2: trust, approval & audit ---
+  AC34:
+    tier: P2
+    api:
+      - "apps/api/tests/test_preflight.py::test_preflight_passes_clean_composition"
+      - "apps/api/tests/test_preflight.py::test_preflight_flags_expired_item"
+      - "apps/api/tests/test_preflight.py::test_publish_blocked_until_preflight_clean"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::agent sees a preflight issue before sending"
+  AC35:
+    tier: P2
+    api:
+      - "apps/api/tests/test_approval.py::test_send_back_sets_draft_with_reason"
+      - "apps/api/tests/test_approval.py::test_send_back_audited_and_resubmit_returns_to_review"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::provider sends an entry back with a reason"
+  AC36:
+    tier: P2
+    api:
+      - "apps/api/tests/test_blocklist.py::test_blocked_term_hides_entry_from_agent_catalog_and_search"
+      - "apps/api/tests/test_blocklist.py::test_blocklist_crud_is_board_scoped_and_audited"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::off-limits term removes an item from the agent catalog"
+  AC37:
+    tier: P2
+    api:
+      - "apps/api/tests/test_audit_log.py::test_audit_records_key_actions"
+      - "apps/api/tests/test_audit_log.py::test_audit_export_csv_for_authorised_roles"
+    e2e:
+      - "apps/web/e2e/trust-smoke.spec.ts::admin views the audit log"
+  # --- v2.7.0 Product-framework increment 3: AI assistant & discovery (LangGraph) ---
+  AC38:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_assistant_grounds_reply_in_visible_items"
+      - "apps/api/tests/test_assistant.py::test_assistant_never_surfaces_hidden_content"
+      - "apps/api/tests/test_assistant.py::test_assistant_is_agent_only"
+      - "apps/api/tests/test_assistant.py::test_real_provider_reply_must_stay_grounded"
+    e2e:
+      - "apps/web/e2e/assistant-smoke.spec.ts::agent asks the assistant and gets a grounded reply"
+  AC39:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_natural_language_search_matches_type_and_destination"
+  AC40:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_suggestions_exclude_used_and_hidden"
+      - "apps/api/tests/test_assistant.py::test_suggestions_are_agent_only"
+    e2e:
+      - "apps/web/e2e/assistant-smoke.spec.ts::agent overview shows suggested next posts"
+  # --- v2.8.0 Sound agentic architecture, increment 1: Creative Plan IR + validation ---
+  AC41:
+    tier: P2
+    api:
+      - "apps/api/tests/test_creative_plan.py::test_plan_built_from_visible_items_and_serialises"
+      - "apps/api/tests/test_creative_plan.py::test_plan_refuses_hidden_items"
+    e2e:
+      - "apps/web/e2e/creative-plan-smoke.spec.ts::agent generates a grounded creative plan in the studio"
+  AC42:
+    tier: P2
+    api:
+      - "apps/api/tests/test_creative_plan.py::test_ungrounded_claim_is_flagged_with_evidence_gap"
+      - "apps/api/tests/test_creative_plan.py::test_grounded_plan_passes_with_evidence_links"
+  # --- v2.9.0 Sound agentic architecture, increment 2: knowledge domains + pgvector hybrid RAG ---
+  AC43:
+    tier: P2
+    api:
+      - "apps/api/tests/test_knowledge.py::test_product_domain_is_scoped_and_ranked"
+      - "apps/api/tests/test_knowledge.py::test_brand_domain_returns_scoped_note"
+      - "apps/api/tests/test_knowledge.py::test_knowledge_is_agent_only"
+  AC44:
+    tier: P2
+    api:
+      - "apps/api/tests/test_retrieval.py::test_hybrid_rank_puts_the_relevant_item_first"
+      - "apps/api/tests/test_retrieval.py::test_embedding_is_deterministic_and_cosine_reflects_overlap"
+      - "apps/api/tests/test_retrieval.py::test_backend_selection_is_cosine_on_sqlite"
+  # --- v2.10.0 Sound agentic architecture, increment 3: observability + LangSmith ---
+  AC45:
+    tier: P2
+    api:
+      - "apps/api/tests/test_observability.py::test_record_run_writes_a_content_free_row"
+      - "apps/api/tests/test_observability.py::test_assistant_call_is_traced"
+      - "apps/api/tests/test_observability.py::test_traces_are_admin_only"
+      - "apps/api/tests/test_observability.py::test_langsmith_is_off_without_a_key"
+    e2e:
+      - "apps/web/e2e/observability-smoke.spec.ts::admin sees an agent run in the trace view"
+  AC46:
+    tier: P2
+    web:
+      - "apps/web/tests/studio-ops.test.ts::test_scene_ops_storyboard"
+      - "apps/web/tests/studio-ops.test.ts::test_migrate_legacy_pages_to_scenes"
+    e2e:
+      - "apps/web/e2e/storyboard-smoke.spec.ts::agent builds a multi-scene storyboard and generates a video"
+  AC47:
+    tier: P2
+    api:
+      - "apps/api/tests/test_video.py::test_scene_script_duration_and_transition"
+      - "apps/api/tests/test_video.py::test_render_video_xfade_chain"
+      - "apps/api/tests/test_video.py::test_render_video_all_none_hard_cut"
+      - "apps/api/tests/test_video.py::test_render_video_xfade_fallback_to_concat"
+    web:
+      - "apps/web/tests/storyboard-video.test.ts::test_design_to_video_request"
+    e2e:
+      - "apps/web/e2e/storyboard-smoke.spec.ts::agent builds a multi-scene storyboard and generates a video"
+  AC48:
+    tier: P2
+    web:
+      - "apps/web/tests/studio-ops.test.ts::test_manual_ops_mutate_design"
+    e2e:
+      - "apps/web/e2e/studio-interaction-smoke.spec.ts::pan and zoom move the studio viewport; zoom control clears the assistant"
+      - "apps/web/e2e/studio-interaction-smoke.spec.ts::selecting an entity and pressing Delete removes it"

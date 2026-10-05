@@ -1,6 +1,6 @@
 # Requirements Charter — Walsh Content Hub (PoC)
 
-**Date:** 2026-10-01 · **Version:** v1 (awaiting user confirmation)
+**Date:** 2026-10-01 · **Version:** v2 — **CONFIRMED by user 2026-10-01** ("Approved, go ahead and start building")
 **Source docs:** `docs/requirements/*.docx` (Content-Hub-Background, 2026_09_23 prep, 2026_09_24 discovery call)
 
 ## 1. Product summary

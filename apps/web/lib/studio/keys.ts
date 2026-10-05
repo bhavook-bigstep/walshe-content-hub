@@ -1,0 +1,26 @@
+// Pure decision for the canvas Delete/Backspace handler, extracted so the guard (never delete while
+// typing in a field or editing inline text) is unit-testable without a DOM.
+
+export interface DeleteKeyContext {
+  /** KeyboardEvent.key */
+  key: string;
+  /** document.activeElement.tagName (uppercase), or null */
+  activeTag: string | null;
+  /** document.activeElement.isContentEditable */
+  isContentEditable: boolean;
+  /** a selected canvas object is in inline text-edit mode */
+  editing: boolean;
+  /** number of selected entities */
+  targetCount: number;
+}
+
+const TEXT_INPUT_TAGS = /^(INPUT|TEXTAREA|SELECT)$/;
+
+/** True only when Delete/Backspace should remove the current canvas selection. */
+export function shouldDeleteSelection(ctx: DeleteKeyContext): boolean {
+  if (ctx.key !== "Delete" && ctx.key !== "Backspace") return false;
+  if (ctx.activeTag && TEXT_INPUT_TAGS.test(ctx.activeTag)) return false; // typing in a field
+  if (ctx.isContentEditable) return false;
+  if (ctx.editing) return false; // editing an entity's text inline
+  return ctx.targetCount > 0;
+}

@@ -17,5 +17,18 @@ postgres-data/
 minio-data/
 playwright-report/
 test-results/
+.report.json
+.vitest.json
+.e2e.json
+*.db
+content_hub.db
 *.mp4
 !docs/**/*.mp4
+.oneshot/
+.coverage
+**/.coverage
+# Next.js / TS build artifacts
+next-env.d.ts
+*.tsbuildinfo
+e2e-results.json
+docs/design/screenshots/
