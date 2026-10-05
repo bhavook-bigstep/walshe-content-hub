@@ -231,10 +231,12 @@ export default function AgentCatalogPage() {
           {entries.map((e) => {
             const added = selected.some((x) => x.id === e.id);
             const inCollections = collectionsWith(e.id);
+            // AC55 — expired entries are shown greyed and can't be added to a composition.
+            const expired = e.display_status === "expired";
             return (
-              <li key={e.id} className="card card-hover group flex flex-col overflow-hidden">
+              <li key={e.id} className={`card card-hover group flex flex-col overflow-hidden ${expired ? "opacity-70" : ""}`}>
                 <div className="relative">
-                  <CatalogThumb imageKey={e.cover_object_key || e.image_key || e.asset_keys?.[0]} alt={e.title} />
+                  <CatalogThumb imageKey={e.cover_object_key || e.image_key || e.asset_keys?.[0]} alt={e.title} className={expired ? "grayscale" : undefined} />
                   <span className="chip-verified absolute left-3.5 top-3.5">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--walshe-green))" strokeWidth="3" aria-hidden>
                       <path d="M5 13l4 4L19 7" />
@@ -250,9 +252,11 @@ export default function AgentCatalogPage() {
                     <span
                       data-testid="entry-status"
                       className={`rounded-pill px-2.5 py-0.5 text-[11px] font-semibold ${
-                        e.display_status === "expiring_soon"
-                          ? "bg-walshe-warn/15 text-walshe-warn"
-                          : "bg-walshe-stone text-walshe-grey"
+                        expired
+                          ? "bg-walshe-danger/15 text-walshe-danger"
+                          : e.display_status === "expiring_soon"
+                            ? "bg-walshe-warn/15 text-walshe-warn"
+                            : "bg-walshe-stone text-walshe-grey"
                       }`}
                     >
                       {STATUS_LABELS[e.display_status] ?? e.display_status}
@@ -268,11 +272,11 @@ export default function AgentCatalogPage() {
                   <div className="mt-auto flex flex-col gap-2 pt-2">
                     <button
                       type="button"
-                      disabled={added}
+                      disabled={added || expired}
                       onClick={() => add(e)}
                       className="btn-secondary w-full disabled:opacity-60"
                     >
-                      {added ? "Added to composition" : "Add to composition"}
+                      {expired ? "Expired — can't add" : added ? "Added to composition" : "Add to composition"}
                     </button>
                     <button
                       type="button"

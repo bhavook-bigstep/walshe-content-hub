@@ -52,3 +52,32 @@ def test_provider_updates_organization_profile(
 
     # The org endpoint is provider-only.
     assert client.get("/me/organization", headers=agent_headers).status_code == 403
+
+
+def test_provider_uploads_org_logo_and_it_is_served(client, provider_headers, agent_headers):
+    """AC58 — a provider uploads a jpg/png logo; logo_url points at a served asset."""
+    png = b"\x89PNG\r\n\x1a\nsynthetic-logo"
+    up = client.post(
+        "/me/organization/logo", headers=provider_headers,
+        files={"file": ("logo.png", png, "image/png")},
+    )
+    assert up.status_code == 200, up.text
+    key_path = up.json()["logo_url"]
+    assert key_path.startswith("/assets/tenants/")
+
+    # The logo is served (any authenticated user may fetch an org logo).
+    served = client.get(key_path, headers=agent_headers)
+    assert served.status_code == 200 and served.content == png
+
+    # SVG (active markup) is refused.
+    bad = client.post(
+        "/me/organization/logo", headers=provider_headers,
+        files={"file": ("x.svg", b"<svg/>", "image/svg+xml")},
+    )
+    assert bad.status_code == 415
+
+    # Agents can't upload an org logo.
+    assert client.post(
+        "/me/organization/logo", headers=agent_headers,
+        files={"file": ("logo.png", png, "image/png")},
+    ).status_code == 403

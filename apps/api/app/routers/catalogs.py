@@ -281,5 +281,5 @@ def list_catalog_entries(
     return [
         EntryOut.from_entry(e, now=now)
         for e in catalog.entries
-        if is_visible_to_agent(e, user, now=now, blocked_terms=blocked)
+        if is_visible_to_agent(e, user, now=now, blocked_terms=blocked, allow_expired=True)
     ]

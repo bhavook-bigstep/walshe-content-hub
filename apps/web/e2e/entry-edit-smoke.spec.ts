@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { chooseOption, login } from "./_helpers";
+import { chooseOption, expandSection, login } from "./_helpers";
 
 // AC29 / Contract 3 — a provider edits an entry's content and deletes it (self-contained: it
 // creates and removes its own entry, so it never disturbs the shared seeded catalog).
@@ -11,6 +11,7 @@ test("provider edits then deletes an entry", async ({ page }) => {
   const create = page.getByRole("dialog", { name: "New entry" });
   const title = `Editable ${Date.now()}`;
   await create.getByLabel("Title").fill(title);
+  await expandSection(create, "Location & season");
   await chooseOption(create, "Country", "Ireland");
   await chooseOption(create, "State or region", "Clare");
   await create.getByRole("button", { name: "Create entry" }).click();

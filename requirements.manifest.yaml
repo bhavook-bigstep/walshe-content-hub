@@ -188,7 +188,6 @@ acceptance:
   AC33:
     tier: P2
     api:
-      - "apps/api/tests/test_lifecycle.py::test_expired_absent_from_agent_catalog_and_search"
       - "apps/api/tests/test_lifecycle.py::test_expired_dropped_from_projects_and_schedule"
       - "apps/api/tests/test_lifecycle.py::test_master_edit_flags_in_use_copies"
   # --- v2.6.0 Product-framework increment 2: trust, approval & audit ---
@@ -227,7 +226,7 @@ acceptance:
     api:
       - "apps/api/tests/test_assistant.py::test_assistant_grounds_reply_in_visible_items"
       - "apps/api/tests/test_assistant.py::test_assistant_never_surfaces_hidden_content"
-      - "apps/api/tests/test_assistant.py::test_assistant_is_agent_only"
+      - "apps/api/tests/test_assistant.py::test_assistant_roles"
       - "apps/api/tests/test_assistant.py::test_real_provider_reply_must_stay_grounded"
     e2e:
       - "apps/web/e2e/assistant-smoke.spec.ts::agent asks the assistant and gets a grounded reply"
@@ -348,3 +347,24 @@ acceptance:
       - "apps/api/tests/test_catalogs.py::test_catalog_gating"
     e2e:
       - "apps/web/e2e/catalog-library-smoke.spec.ts::provider sets an entry's visibility to public"
+  AC55:
+    tier: P2
+    api:
+      - "apps/api/tests/test_lifecycle.py::test_expired_shown_greyed_but_not_usable"
+      - "apps/api/tests/test_lifecycle.py::test_display_status_derived_from_clock"
+      - "apps/api/tests/test_catalogs.py::test_expired_entry_in_public_catalog_is_shown_greyed"
+  AC56:
+    tier: P2
+    api:
+      - "apps/api/tests/test_entry_provenance.py::test_entry_records_creator_and_org"
+  AC57:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_assistant_roles"
+      - "apps/api/tests/test_assistant.py::test_provider_assistant_grounds_in_own_catalog"
+  AC58:
+    tier: P2
+    api:
+      - "apps/api/tests/test_profile.py::test_provider_uploads_org_logo_and_it_is_served"
+    e2e:
+      - "apps/web/e2e/organization-smoke.spec.ts::organization page hosts profile, invite-agents and team"

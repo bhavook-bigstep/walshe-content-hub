@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.18.2 |
+| **Version** | 2.20.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -191,11 +191,13 @@ Increment 1 — **Content lifecycle & validity**:
   (FR-07/15/27/51). Proof: pytest asserts the derivation at the clock boundaries (approved →
   expiring_soon → expired) and that validity + status serialise; Playwright shows status/validity
   on a catalog item.
-- **AC33** — **Auto-withdraw & propagation**: an expired or withdrawn item disappears on its own from
-  the agent catalog, from search, from saved projects and from anything scheduled — without anyone
-  acting — and editing a master item flags every in-use copy (FR-52/53/56). Proof: pytest asserts
-  an expired item is absent from the agent catalog + search and is dropped from a saved project's
-  items / scheduled posts.
+- **AC33** — **Auto-withdraw & propagation**: an expired or withdrawn item drops on its own from
+  everything that *uses* it — saved projects, schedules, the builder, and suggestions — without
+  anyone acting, and editing a master item flags every in-use copy (FR-52/53/56). **Amended by
+  AC55:** an expired item is no longer *hidden* from the agent catalog/search — it is shown
+  **greyed and unusable** there — but it is still dropped from every usage path. Proof: pytest
+  asserts an expired item is dropped from a saved project's items / scheduled posts and the build
+  path (with AC55 covering the greyed-but-shown catalog behavior).
 
 Increment 2 — **Trust, approval & audit**:
 
@@ -379,11 +381,41 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   an agent looks like missing (404). Proof: pytest (default draft hidden; public reaches all; private
   only invited; set_access moves sets + audits unpublish; catalog gating) + a provider-UI e2e.
 
-**Priority tiers** (build order; acceptance reports honestly against all 54):
+- **AC55** — **Expiry-only lifecycle; expired shown greyed, not hidden.** An entry's only lifecycle
+  control is its **expiry date** (no separate "valid from"): past it, the entry reads **expired**
+  (and **expiring_soon** within the window) regardless of approval status; with no expiry it lives
+  forever. On creation the provider either leaves it **Never expires** or sets an expiry date, and
+  for an **event** may set the expiry to the type's **end date** in one click. Expired entries are
+  **still shown** in both the provider and agent catalogs, **greyed out** (de-rated by
+  `display_status`), but are **not usable** — an agent can't add them to a composition, they're
+  dropped from the build/schedule/suggestion paths, and the pre-send check still blocks them.
+  (Deliberate, user-approved change to AC32/33: expired is surfaced-but-greyed instead of hidden
+  from agents.) Proof: pytest (display derivation; expired shown + marked but excluded from use;
+  expired in a public catalog is greyed).
+
+- **AC56** — **Entry provenance (creator + org).** Every entry records **who created it**
+  (`created_by_email`) and **which organization it belongs to** (`org_name`, empty when the creator
+  has none), snapshotted at creation and shown on the entry. Proof: pytest (creator + org captured
+  and persisted).
+
+- **AC57** — **Chat assistant for providers too (grounded in their own catalog).** The grounded chat
+  assistant (AC38) is available to **content providers** as well as agents — a provider's assistant
+  is grounded in **their own catalog** (`visibility.entries_for_actor`: all of the provider's
+  entries, including drafts agents can't see), never another org's content. `/me/suggestions` +
+  `/knowledge` stay agent-only. This is the first of further provider agentic features. Proof:
+  pytest (a provider may call `/assistant`, grounded in their own draft entry; admins still 403).
+
+- **AC58** — **Organization logo upload.** A provider uploads the org logo (**jpg/jpeg/png**, no
+  SVG) rather than pasting a URL; it is stored and served through the one asset gate (readable by any
+  authenticated user, since a logo isn't sensitive), and `logo_url` points at the served asset. The
+  org page shows the uploaded logo. Proof: pytest (upload sets a served `logo_url`; SVG refused;
+  agents can't upload).
+
+**Priority tiers** (build order; acceptance reports honestly against all 58):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
-studio = AC46,47,48 · catalog = AC49,50,51,52,53,54 (all prior ACs stay green).
+studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -422,6 +454,8 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.20.0 | 2026-10-06 | **Provider assistant + org logo upload + UX cleanup** (⏸G feedback): added **AC57** — the grounded chat assistant now serves **providers** (grounded in their own catalog via `entries_for_actor`); and **AC58** — **org logo upload** (jpg/jpeg/png) replacing the URL field, served through the asset gate. Also: the entry **Edit** now uses the same form as create (edits everything — type/visibility/location/season/attributes/expiry) via a shared `EntryForm`; form sections (location/details/cover/expiry) **collapse by default** for a cleaner form; **Team** + **Invite agents** moved into the **Organization** page (removed Team from the sidebar and Invite from the Catalog); **Off-limits** removed from the provider sidebar (backend + route retained for now). All prior ACs stay green. | user + Claude |
+| 2.19.0 | 2026-10-06 | **Expiry-only lifecycle (greyed, not hidden) + entry provenance** (⏸G feedback): added **AC55** — an entry's only lifecycle control is its expiry date (New-entry UX: "Never expires", or a date, or one-click "use event end date"; dropped the separate valid-from field). Expired entries now show **greyed** in both provider + agent catalogs but are **not usable** (can't add to a composition; dropped from build/schedule/suggestions; pre-send still blocks). This amends AC32/33 (expired surfaced-but-greyed instead of hidden); `display_status` now derives expiry for any non-withdrawn status. Added **AC56** — each entry snapshots its creator (`created_by_email`) + org (`org_name`, empty when none), shown on the entry page. All prior ACs stay green. | user + Claude |
 | 2.18.2 | 2026-10-05 | **Entry edit/delete + invite-in-a-dialog** (⏸G feedback): the entry page gained **Edit** (title + cascading location + season via `PUT /catalog/{id}`) and **Delete** (confirm dialog → audited `DELETE /catalog/{id}` → back to the catalog) controls; a new self-contained edit/delete e2e (AC29). The invite-agents UI moved from an inline card into a **dialog** opened by an "Invite agents" button on the catalog page. No contract change. | user + Claude |
 | 2.18.1 | 2026-10-05 | **LLM/image provider verification + fixes** (⏸G feedback: "check the LLM path"): live-smoked the AI providers with the user's keys. Gemini works (`gemini-2.5-flash` for LLM, `gemini-2.5-flash-image` for images); the OpenAI key returned 401 (invalid/revoked). Corrected the invalid default image model (`nano-banana-2` → `gemini-2.5-flash-image`) in config + `.env.example` + AC52 wording, and pointed the local `.env` LLM at the working Gemini config. Also (same pass) added **invite-agents-by-email** UI + API (`/catalogs/mine/invite`), split the provider catalog into **Public/Private/Drafts** sections, and replaced native `<select>`s with a custom accessible dropdown (`components/ui/Select`) across the catalog/agent forms. No contract change. | user + Claude |
 | 2.18.0 | 2026-10-05 | **Per-entry visibility (Draft/Public/Private)** (⏸G feedback): added **AC54** — each catalog entry is independently Draft (default, hidden), Public (every agent), or Private (only agents invited on the catalog). This **re-bases the Contract-1 gate from catalog-level (AC49) to per-entry** in `is_visible_to_agent`; the catalog becomes a container holding the invited-agents list, and its own public/private toggle is retired from the UI. Provider sets the set at creation + on the entry's Review panel; → draft is a traceable unpublish; a catalog with nothing visible is 404. The legacy catalog→catalog migration now carries approved+brand-safe over to public. Reworked the catalog-gating/items tests + the catalog e2e to the per-entry model; seed marks the demo entries public (one private + the demo agent invited). All prior ACs stay green. | user + Claude |

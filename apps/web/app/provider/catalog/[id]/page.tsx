@@ -7,6 +7,7 @@ import CatalogThumb from "../../../../components/catalog/CatalogThumb";
 import Dialog from "../../../../components/ui/Dialog";
 import PageHeader from "../../../../components/ui/PageHeader";
 import Select from "../../../../components/ui/Select";
+import EntryForm from "../../../../components/provider/EntryForm";
 import {
   addTextItem,
   deleteEntry,
@@ -18,7 +19,6 @@ import {
   listItems,
   sendBackEntry,
   setAccess,
-  updateEntry,
   uploadEntryCover,
   uploadMediaItem,
   type ContentTemplates,
@@ -88,6 +88,16 @@ export default function ProviderEntryPage() {
         }
       />
 
+      {entry && (entry.created_by_email || entry.org_name) && (
+        <p className="mb-6 text-small text-walshe-grey" aria-label="Provenance">
+          Created by <span className="font-medium text-walshe-ink">{entry.created_by_email || "—"}</span>
+          {entry.org_name && <> · {entry.org_name}</>}
+          {entry.display_status === "expired" && (
+            <span className="ml-2 rounded-pill bg-walshe-ink/80 px-2 py-0.5 text-[11px] font-semibold text-white">Expired</span>
+          )}
+        </p>
+      )}
+
       {entry && <CoverSection entry={entry} onChanged={reload} />}
 
       {entry && <EntryDetails entry={entry} templates={templates} />}
@@ -149,6 +159,7 @@ export default function ProviderEntryPage() {
         <EditEntryDialog
           open={editOpen}
           entry={entry}
+          templates={templates}
           geo={geo}
           onClose={() => setEditOpen(false)}
           onSaved={() => {
@@ -169,133 +180,38 @@ export default function ProviderEntryPage() {
     </div>
   );
 }
-
-// AC29 — edit an entry's core content: title, location (cascading), and season.
+// AC29/AC55 — edit an entry via the shared EntryForm: everything the creation form set.
 function EditEntryDialog({
   open,
   entry,
+  templates,
   geo,
   onClose,
   onSaved,
 }: {
   open: boolean;
   entry: Entry;
+  templates: ContentTemplates | null;
   geo: GeoData | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [title, setTitle] = useState(entry.title);
-  const [country, setCountry] = useState(entry.country ?? "");
-  const [state, setState] = useState(entry.state ?? "");
-  const [city, setCity] = useState(entry.city ?? "");
-  const [season, setSeason] = useState<string>(entry.season ?? "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Re-sync when a different entry loads or the dialog re-opens.
-  useEffect(() => {
-    if (open) {
-      setTitle(entry.title);
-      setCountry(entry.country ?? "");
-      setState(entry.state ?? "");
-      setCity(entry.city ?? "");
-      setSeason(entry.season ?? "");
-      setError(null);
-    }
-  }, [open, entry]);
-
-  const countries = geo?.countries ?? [];
-  const states = countries.find((c) => c.name === country)?.states ?? [];
-  const cities = states.find((s) => s.name === state)?.cities ?? [];
-  const destination = [city || state, country].filter(Boolean).join(", ");
-
-  async function submit(ev: FormEvent) {
-    ev.preventDefault();
-    if (!title.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await updateEntry(entry.id, {
-        title: title.trim(),
-        country,
-        state,
-        city,
-        destination: destination || country || entry.destination,
-        season: (season || null) as Entry["season"],
-      });
-      onSaved();
-    } catch {
-      setError("Could not save the entry.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <Dialog title="Edit entry" open={open} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-4">
-        <label className="block">
-          <span className="label">Title</span>
-          <input className="field h-11" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Title" />
-        </label>
-        <fieldset className="grid grid-cols-2 gap-3 rounded-lg border border-walshe-line p-3">
-          <legend className="px-1 text-small font-semibold text-walshe-grey">Location &amp; season</legend>
-          <div className="block">
-            <span className="label">Country</span>
-            <Select
-              aria-label="Country"
-              value={country}
-              placeholder="Select…"
-              onChange={(v) => { setCountry(v); setState(""); setCity(""); }}
-              options={countries.map((c) => ({ value: c.name, label: c.name }))}
-            />
-          </div>
-          <div className="block">
-            <span className="label">State / region</span>
-            <Select
-              aria-label="State or region"
-              value={state}
-              placeholder="Select…"
-              disabled={!country}
-              onChange={(v) => { setState(v); setCity(""); }}
-              options={states.map((s) => ({ value: s.name, label: s.name }))}
-            />
-          </div>
-          <div className="block">
-            <span className="label">City</span>
-            <Select
-              aria-label="City"
-              value={city}
-              placeholder="Select…"
-              disabled={!state}
-              onChange={setCity}
-              options={cities.map((c) => ({ value: c, label: c }))}
-            />
-          </div>
-          <div className="block">
-            <span className="label">Season</span>
-            <Select
-              aria-label="Season"
-              value={season}
-              placeholder="Any"
-              onChange={setSeason}
-              options={(geo?.seasons ?? []).map((s) => ({ value: s.value, label: s.label }))}
-            />
-          </div>
-        </fieldset>
-        {error && <p role="alert" className="text-small text-walshe-danger">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn-primary" disabled={busy}>
-            {busy ? "Saving…" : "Save changes"}
-          </button>
-        </div>
-      </form>
+      <EntryForm
+        mode="edit"
+        catalogId={entry.catalog_id ?? null}
+        entry={entry}
+        templates={templates}
+        geo={geo}
+        onDone={onSaved}
+        onCancel={onClose}
+      />
     </Dialog>
   );
 }
 
-// AC/Contract 3 — delete an entry with explicit confirmation (the delete is audited server-side).
+// Contract 3 — delete an entry with explicit confirmation (the delete is audited server-side).
 function DeleteEntryDialog({
   open,
   entry,
@@ -613,3 +529,4 @@ function AddItemDialog({
     </Dialog>
   );
 }
+

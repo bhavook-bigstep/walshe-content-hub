@@ -72,7 +72,8 @@ export interface paths {
         put?: never;
         /**
          * Assistant
-         * @description Ask the grounded Content Assistant (AC38/AC39). It only ever speaks about visible content.
+         * @description Ask the grounded Content Assistant (AC38/39/57). It only ever speaks about content the
+         *     caller may browse — an agent's visible set, or a provider's own catalog.
          */
         post: operations["assistant_assistant_post"];
         delete?: never;
@@ -955,6 +956,26 @@ export interface paths {
         patch: operations["update_organization_me_organization_patch"];
         trace?: never;
     };
+    "/me/organization/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Logo
+         * @description Upload the org logo (jpg/jpeg/png) → store it + point ``logo_url`` at the served asset.
+         */
+        post: operations["upload_logo_me_organization_logo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/performance": {
         parameters: {
             query?: never;
@@ -1372,6 +1393,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_logo_me_organization_logo_post */
+        Body_upload_logo_me_organization_logo_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_media_item_catalog__entry_id__items_media_post */
         Body_upload_media_item_catalog__entry_id__items_media_post: {
             /** File */
@@ -1641,6 +1667,7 @@ export interface components {
             state?: string | null;
             /** Title */
             title?: string | null;
+            type?: components["schemas"]["CatalogType"] | null;
         };
         /** EntryCreate */
         EntryCreate: {
@@ -1723,6 +1750,11 @@ export interface components {
              */
             cover_object_key: string;
             /**
+             * Created By Email
+             * @default
+             */
+            created_by_email: string;
+            /**
              * Custom Sections
              * @default []
              */
@@ -1748,6 +1780,11 @@ export interface components {
             items: components["schemas"]["ItemOut"][];
             /** Market Tags */
             market_tags: string[];
+            /**
+             * Org Name
+             * @default
+             */
+            org_name: string;
             /** Provider Id */
             provider_id: number;
             /**
@@ -4177,6 +4214,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OrganizationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_logo_me_organization_logo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_logo_me_organization_logo_post"];
             };
         };
         responses: {

@@ -174,6 +174,7 @@ class EntryCreate(BaseModel):
 class EntryContentUpdate(BaseModel):
     """Provider-owned content edit (AC29). All fields optional; only provided ones change."""
 
+    type: CatalogType | None = None
     title: str | None = Field(default=None, min_length=1, max_length=300)
     description: str | None = None
     destination: str | None = Field(default=None, min_length=1, max_length=200)
@@ -222,6 +223,9 @@ class EntryOut(BaseModel):
     city: str = ""
     season: Season | None = None
     visibility: EntryVisibility = EntryVisibility.draft
+    # Provenance (AC56): who created the entry + which org it belongs to ("" when none).
+    created_by_email: str = ""
+    org_name: str = ""
     market_tags: list[str]
     status: EntryStatus
     brand_safe: bool
@@ -258,6 +262,8 @@ class EntryOut(BaseModel):
             city=entry.city,
             season=entry.season,
             visibility=entry.visibility,
+            created_by_email=entry.created_by_email,
+            org_name=entry.org_name,
             market_tags=entry.market_tags,
             status=entry.status,
             brand_safe=entry.brand_safe,

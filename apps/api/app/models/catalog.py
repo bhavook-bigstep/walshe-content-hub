@@ -158,6 +158,10 @@ class CatalogEntry(Base):
     allowed_agent_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
 
     provider_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    # Provenance (AC56): who created the entry + which org it belongs to, captured at creation.
+    # `org_name` is empty when the creator has no organization.
+    created_by_email: Mapped[str] = mapped_column(String(320), default="")
+    org_name: Mapped[str] = mapped_column(String(200), default="")
 
     catalog: Mapped["Catalog | None"] = relationship(back_populates="entries")
 

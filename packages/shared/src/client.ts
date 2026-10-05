@@ -172,6 +172,15 @@ export async function updateOrganization(body: OrganizationUpdateInput): Promise
   return (await (await send("/me/organization", init)).json()) as Organization;
 }
 
+/** Upload the org logo (jpg/jpeg/png); returns the updated organization (AC58). */
+export async function uploadOrgLogo(file: File): Promise<Organization> {
+  const form = new FormData();
+  form.append("file", file);
+  return (await (
+    await send("/me/organization/logo", { method: "POST", body: form })
+  ).json()) as Organization;
+}
+
 export async function me(): Promise<User> {
   return (await (await send("/auth/me")).json()) as User;
 }

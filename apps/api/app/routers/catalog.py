@@ -108,6 +108,9 @@ def create_entry(
         valid_from=body.valid_from,
         expires_at=body.expires_at,
         provider_id=provider.id,
+        # Provenance (AC56): snapshot the creator + their org at creation.
+        created_by_email=provider.email,
+        org_name=(provider.tenant.name if provider.tenant else ""),
     )
     db.add(entry)
     db.commit()
@@ -131,7 +134,7 @@ def update_content(
     data = body.model_dump(exclude_unset=True)
     changed = False
     for field in (
-        "title", "description", "destination", "country", "state", "city", "season",
+        "type", "title", "description", "destination", "country", "state", "city", "season",
         "market_tags", "attributes", "highlights",
     ):
         if field in data and data[field] is not None:
@@ -298,7 +301,10 @@ def get_entry(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
     else:
         blocked = active_blocked_terms(db)
-        if not is_visible_to_agent(entry, user, now=now, blocked_terms=blocked):
+        # Agents can open an expired (greyed) entry for context (AC55); usage is gated elsewhere.
+        if not is_visible_to_agent(
+            entry, user, now=now, blocked_terms=blocked, allow_expired=True
+        ):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
     return EntryOut.from_entry(entry, now=now)
 
@@ -343,7 +349,9 @@ def list_items(
     if user.role == Role.content_provider:
         if entry.provider_id != user.id:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
-    elif not is_visible_to_agent(entry, user, now=now, blocked_terms=active_blocked_terms(db)):
+    elif not is_visible_to_agent(
+        entry, user, now=now, blocked_terms=active_blocked_terms(db), allow_expired=True
+    ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
     return [ItemOut.model_validate(i) for i in entry.items]
 

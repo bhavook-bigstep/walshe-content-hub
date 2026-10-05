@@ -11,6 +11,12 @@ export async function chooseOption(
   await scope.getByRole("option", { name: optionText }).click();
 }
 
+// Expand a collapsed <CollapsibleSection> (components/ui/CollapsibleSection) by its title, so its
+// fields become visible. The EntryForm collapses location/details/etc. by default.
+export async function expandSection(scope: Page | Locator, title: string | RegExp): Promise<void> {
+  await scope.getByRole("button", { name: title }).click();
+}
+
 // The e2e API now sends real CORS headers for the web origin (CORS_ORIGINS in playwright.config),
 // so the browser calls it directly. This is a no-op kept for call-site compatibility — no brittle
 // route interception (which raced and disposed responses).

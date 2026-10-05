@@ -146,6 +146,8 @@ def _upsert_entry(
     *,
     valid_from: datetime | None,
     expires_at: datetime | None,
+    created_by_email: str = "",
+    org_name: str = "",
 ) -> CatalogEntry:
     entry = db.execute(
         select(CatalogEntry).where(
@@ -170,6 +172,8 @@ def _upsert_entry(
             valid_from=valid_from,
             expires_at=expires_at,
             provider_id=provider_id,
+            created_by_email=created_by_email,
+            org_name=org_name,
             catalog_id=catalog_id,
             attributes=_SEED_ATTRIBUTES.get(type_, {}),
             highlights=[
@@ -275,6 +279,8 @@ def seed(db: Session) -> dict[str, int]:
             dest,
             valid_from=_SEED_VALIDITY.get(title, (t - timedelta(days=30), None))[0],
             expires_at=_SEED_VALIDITY.get(title, (t - timedelta(days=30), None))[1],
+            created_by_email=provider.email,
+            org_name=tenant.name,
         )
         for type_, title, dest in _SEED_ENTRIES
     ]

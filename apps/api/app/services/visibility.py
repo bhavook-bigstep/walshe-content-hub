@@ -25,7 +25,7 @@ from app.models.catalog import (
     Season,
     UserAsset,
 )
-from app.models.user import Role, User
+from app.models.user import Role, Tenant, User
 
 
 def active_blocked_terms(db: Session) -> frozenset[str]:
@@ -77,19 +77,28 @@ def _legacy_entry_gate(entry: CatalogEntry, agent: User) -> bool:
 
 
 def is_visible_to_agent(
-    entry: CatalogEntry, agent: User, *, now: datetime, blocked_terms: frozenset[str]
+    entry: CatalogEntry,
+    agent: User,
+    *,
+    now: datetime,
+    blocked_terms: frozenset[str],
+    allow_expired: bool = False,
 ) -> bool:
-    """True iff ``agent`` may use ``entry`` — the single Contract-1 gate (AC6, re-based to AC54).
+    """True iff ``agent`` may see ``entry`` — the single Contract-1 gate (AC6, re-based to AC54).
 
-    Per-entry gating (AC54): an entry in a catalog is usable iff it is **public**, or **private**
+    Per-entry gating (AC54): an entry in a catalog is visible iff it is **public**, or **private**
     and the agent is invited on its catalog (``shared_agent_ids``); **draft** entries reach no
-    agent. Expiry (AC32/33) and the off-limits list (AC36) always still apply. A catalog-less entry
-    falls back to the legacy approved + brand-safe + scope gate so pre-catalog data stays correct.
+    agent. The off-limits list (AC36) always applies. A catalog-less entry falls back to the legacy
+    approved + brand-safe + scope gate so pre-catalog data stays correct.
+
+    Expiry (AC32/33/AC55): by default an expired entry is excluded (it is not *usable* — the
+    build/schedule paths pass ``allow_expired=False``). Browse/read paths pass
+    ``allow_expired=True`` so an expired entry is still *shown* (greyed), while remaining unusable.
 
     ``now`` and ``blocked_terms`` are both required (no default) so an un-updated agent-facing
     caller fails loudly rather than silently skipping expiry or the off-limits list.
     """
-    if lifecycle.is_expired(entry.expires_at, now):
+    if not allow_expired and lifecycle.is_expired(entry.expires_at, now):
         return False
     if is_blocked(entry, blocked_terms):
         return False
@@ -140,7 +149,11 @@ def agent_visible_entries(
     needle = (q or "").strip().lower()
     result: list[CatalogEntry] = []
     for entry in rows:
-        if not is_visible_to_agent(entry, agent, now=now, blocked_terms=blocked):
+        # Browse shows expired entries greyed (AC55), so allow_expired here; the build/schedule
+        # paths (agent_visible_entries_by_ids) keep the default to drop them from use.
+        if not is_visible_to_agent(
+            entry, agent, now=now, blocked_terms=blocked, allow_expired=True
+        ):
             continue  # access-scope filter (JSON membership) done in Python for portability
         if needle and needle not in entry.title.lower() and needle not in entry.description.lower():
             continue
@@ -159,6 +172,22 @@ def catalog_has_visible_entry(catalog: Catalog, agent: User) -> bool:
         if entry.visibility == EntryVisibility.private and invited:
             return True
     return False
+
+
+def entries_for_actor(db: Session, user: User, *, now: datetime) -> list[CatalogEntry]:
+    """Entries an actor may browse via the assistant (AC57): a content provider sees their **own**
+    full catalog (every set), an agent sees their visible set (catalog-gated, expired greyed)."""
+    if user.role == Role.content_provider:
+        return (
+            db.execute(
+                select(CatalogEntry)
+                .where(CatalogEntry.provider_id == user.id)
+                .order_by(CatalogEntry.id)
+            )
+            .scalars()
+            .all()
+        )
+    return agent_visible_entries(db, user, now=now)
 
 
 def visible_catalogs_for_agent(db: Session, agent: User) -> list[Catalog]:
@@ -199,7 +228,10 @@ def _entry_readable(db: Session, entry: CatalogEntry | None, user: User, *, now:
     if user.role == Role.content_provider:
         return entry.provider_id == user.id
     if user.role == Role.tourism_agent:
-        return is_visible_to_agent(entry, user, now=now, blocked_terms=active_blocked_terms(db))
+        # Media of an expired (greyed) entry still renders in the catalog, so allow_expired.
+        return is_visible_to_agent(
+            entry, user, now=now, blocked_terms=active_blocked_terms(db), allow_expired=True
+        )
     return False
 
 
@@ -226,6 +258,12 @@ def can_read_object(db: Session, user: User, object_key: str, *, now: datetime) 
     mine = db.execute(select(UserAsset).where(UserAsset.object_key == object_key)).scalars().first()
     if mine is not None:
         return mine.owner_id == user.id
+    # Org logos (AC58) are not sensitive: any authenticated user may read one that an org points at.
+    if object_key.startswith("tenants/") and "/logo/" in object_key:
+        return (
+            db.execute(select(Tenant.id).where(Tenant.logo_url == f"/assets/{object_key}")).first()
+            is not None
+        )
     return False
 
 

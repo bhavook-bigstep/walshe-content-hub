@@ -102,8 +102,10 @@ def test_catalog_gating(client, provider_headers, agent_headers, app):
     assert cat["id"] in accessible
 
 
-# AC49 × AC33 — expiry still hides an entry even inside an accessible (public) catalog.
-def test_expired_entry_in_public_catalog_is_hidden(client, provider_headers, agent_headers, app):
+# AC49 × AC55 — an expired entry stays in an accessible catalog, but is marked expired (greyed).
+def test_expired_entry_in_public_catalog_is_shown_greyed(
+    client, provider_headers, agent_headers, app
+):
     cid = client.post(
         "/catalogs", headers=provider_headers, json={"name": "P", "visibility": "public"}
     ).json()["id"]
@@ -114,7 +116,11 @@ def test_expired_entry_in_public_catalog_is_hidden(client, provider_headers, age
         entry = db.get(CatalogEntry, eid)
         entry.expires_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
         db.commit()
-    assert not _agent_sees(client, agent_headers, eid)  # expiry wins over catalog access
+    # Still present, now flagged expired so the UI can grey it (AC55).
+    row = next(
+        (e for e in client.get("/catalog", headers=agent_headers).json() if e["id"] == eid), None
+    )
+    assert row is not None and row["display_status"] == "expired"
 
 
 # AC49.4 — deterministic, idempotent migration of catalog-less entries.

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { allowApiCors, chooseOption } from "./_helpers";
+import { allowApiCors, chooseOption, expandSection } from "./_helpers";
 
 // AC34–AC37 — trust, approval & audit.
 
@@ -47,6 +47,7 @@ test("provider sends an entry back with a reason", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "New entry" });
   const title = `Review me ${Date.now()}`;
   await dialog.getByLabel("Title").fill(title);
+  await expandSection(dialog, "Location & season");
   await chooseOption(dialog, "Country", "Ireland");
   await chooseOption(dialog, "State or region", "Donegal");
   await dialog.getByRole("button", { name: "Create entry" }).click();

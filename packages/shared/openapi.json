@@ -388,6 +388,20 @@
         "title": "Body_upload_image_catalog__entry_id__image_post",
         "type": "object"
       },
+      "Body_upload_logo_me_organization_logo_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_logo_me_organization_logo_post",
+        "type": "object"
+      },
       "Body_upload_media_item_catalog__entry_id__items_media_post": {
         "properties": {
           "file": {
@@ -1208,6 +1222,16 @@
               }
             ],
             "title": "Title"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "EntryContentUpdate",
@@ -1383,6 +1407,11 @@
             "title": "Cover Object Key",
             "type": "string"
           },
+          "created_by_email": {
+            "default": "",
+            "title": "Created By Email",
+            "type": "string"
+          },
           "custom_sections": {
             "default": [],
             "items": {
@@ -1440,6 +1469,11 @@
             },
             "title": "Market Tags",
             "type": "array"
+          },
+          "org_name": {
+            "default": "",
+            "title": "Org Name",
+            "type": "string"
           },
           "provider_id": {
             "title": "Provider Id",
@@ -3086,7 +3120,7 @@
     },
     "/assistant": {
       "post": {
-        "description": "Ask the grounded Content Assistant (AC38/AC39). It only ever speaks about visible content.",
+        "description": "Ask the grounded Content Assistant (AC38/39/57). It only ever speaks about content the\ncaller may browse — an agent's visible set, or a provider's own catalog.",
         "operationId": "assistant_assistant_post",
         "requestBody": {
           "content": {
@@ -5719,6 +5753,53 @@
           }
         ],
         "summary": "Update Organization",
+        "tags": [
+          "organization"
+        ]
+      }
+    },
+    "/me/organization/logo": {
+      "post": {
+        "description": "Upload the org logo (jpg/jpeg/png) → store it + point ``logo_url`` at the served asset.",
+        "operationId": "upload_logo_me_organization_logo_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_logo_me_organization_logo_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Logo",
         "tags": [
           "organization"
         ]
