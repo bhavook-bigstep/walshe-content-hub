@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import INSECURE_JWT_SECRET, Settings, get_settings
 from app.db import create_all, make_engine, make_sessionmaker
+from app.observability import configure_langsmith
 from app.routers import (
     admin,
     agent,
@@ -22,6 +23,7 @@ from app.routers import (
     builder,
     catalog,
     engagement,
+    observability,
     org,
     provider,
     render,
@@ -56,6 +58,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.sessionmaker = make_sessionmaker(engine)
     app.state.storage = get_storage(settings)
 
+    # AC45: turn on LangSmith tracing only when a key is configured (no-op otherwise — no egress).
+    configure_langsmith(settings)
+
     # Browser CORS for local dev / e2e only (origins from CORS_ORIGINS). Empty in prod → no
     # middleware, so the default posture stays closed and same-origin.
     cors_origins = settings.cors_origin_list()
@@ -82,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(blocklist.router)
     app.include_router(audit_log.router)
     app.include_router(assistant.router)
+    app.include_router(observability.router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict[str, str]:

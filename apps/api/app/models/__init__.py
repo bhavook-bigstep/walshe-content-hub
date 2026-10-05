@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.models.agent_features import BrandKit, Collection
+from app.models.agent_run import AgentRun
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.blocklist import BlocklistTerm
@@ -23,6 +24,7 @@ __all__ = [
     "DisplayStatus",
     "Asset",
     "Composition",
+    "AgentRun",
     "AuditLog",
     "BlocklistTerm",
     "Post",

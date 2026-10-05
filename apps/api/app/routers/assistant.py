@@ -17,6 +17,8 @@ from app.ai.factory import get_provider
 from app.config import Settings
 from app.deps import get_db, get_settings, require_role
 from app.models.user import Role, User
+from app.observability import record_run, trace_span
+from app.observability.tracing import elapsed_ms, monotonic_ms
 
 router = APIRouter(tags=["assistant"])
 
@@ -66,7 +68,23 @@ def assistant(
     now: datetime = Depends(clock.now),
 ) -> AssistantOut:
     """Ask the grounded Content Assistant (AC38/AC39). It only ever speaks about visible content."""
-    result = run_assistant(db, agent, body.message, get_provider(settings), now=now)
+    provider = get_provider(settings)
+    start = monotonic_ms()
+    ls = settings.langsmith_enabled()
+    outcome, intent = "ok", ""
+    try:
+        with trace_span("assistant", enabled=ls, metadata={"actor": agent.id}):
+            result = run_assistant(db, agent, body.message, provider, now=now)
+        intent = result.intent
+    except Exception:
+        outcome = "error"
+        raise
+    finally:
+        record_run(
+            db, actor_id=agent.id, kind="assistant", intent=intent,
+            tools=[intent] if intent else [], provider=provider.name,
+            latency_ms=elapsed_ms(start), outcome=outcome,
+        )
     return AssistantOut(
         reply=result.reply,
         intent=result.intent,
@@ -95,7 +113,14 @@ def knowledge_search(
     now: datetime = Depends(clock.now),
 ) -> KnowledgeOut:
     """Route a query to its knowledge domain; return scoped, hybrid-ranked results (AC43/AC44)."""
-    result = knowledge.retrieve(db, agent, q, get_provider(settings), now=now)
+    provider = get_provider(settings)
+    start = monotonic_ms()
+    with trace_span("knowledge", enabled=settings.langsmith_enabled(), metadata={"a": agent.id}):
+        result = knowledge.retrieve(db, agent, q, provider, now=now)
+    record_run(
+        db, actor_id=agent.id, kind="knowledge", intent=result.domain,
+        tools=[result.domain], provider=provider.name, latency_ms=elapsed_ms(start),
+    )
     return KnowledgeOut(
         domain=result.domain,
         items=_cards([ItemCard.of(e, now) for e in result.entries]),

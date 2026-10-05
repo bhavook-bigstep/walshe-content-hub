@@ -44,6 +44,15 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
 
+    # Observability (AC45). LangSmith tracing is OFF by default — no key, no egress, hermetic tests.
+    # Set LANGSMITH_API_KEY (+ optional LANGSMITH_PROJECT) to export the agent loop + creative plan
+    # + provider calls to LangSmith. The in-app trace store always records a content-free run row.
+    langsmith_api_key: str | None = None
+    langsmith_project: str = "walsh-content-hub"
+
+    def langsmith_enabled(self) -> bool:
+        return bool(self.langsmith_api_key)
+
     # Browser CORS: comma-separated allowed origins. Empty (prod default) = no CORS middleware
     # (the web app is served same-origin / behind one origin in prod). Dev and e2e set the local
     # web origin(s) so the browser may call the API cross-port.

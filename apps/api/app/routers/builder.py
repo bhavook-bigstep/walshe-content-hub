@@ -16,6 +16,8 @@ from app.ai.factory import get_provider
 from app.config import Settings
 from app.deps import get_db, get_settings, require_role
 from app.models.user import Role, User
+from app.observability import record_run, trace_span
+from app.observability.tracing import elapsed_ms, monotonic_ms
 from app.services.visibility import active_blocked_terms, agent_visible_entries_by_ids
 
 router = APIRouter(prefix="/builder", tags=["builder"])
@@ -95,8 +97,16 @@ def plan(
     brief = CreativeBrief(
         objective=body.objective, format=body.format, audience=body.audience, item_ids=item_ids
     )
+    provider = get_provider(settings)
+    start = monotonic_ms()
+    ls = settings.langsmith_enabled()
     # Off-limits terms also screen the AI-rephrased copy (not just the source entries).
-    result = build_plan(rows, brief, get_provider(settings), blocked_terms=active_blocked_terms(db))
+    with trace_span("creative_plan", enabled=ls, metadata={"a": agent.id}):
+        result = build_plan(rows, brief, provider, blocked_terms=active_blocked_terms(db))
+    record_run(
+        db, actor_id=agent.id, kind="plan", intent="ready" if result.ready else "needs_review",
+        tools=["creative_plan"], provider=provider.name, latency_ms=elapsed_ms(start),
+    )
     return CreativePlanOut(
         item_ids=item_ids,
         message_primary=result.message_primary,

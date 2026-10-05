@@ -59,6 +59,7 @@ const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
   super_admin: [
     { href: "/admin", label: "Users", icon: I.users },
     { href: "/admin/audit", label: "Audit log", icon: I.list },
+    { href: "/admin/traces", label: "Traces", icon: I.chart },
   ],
 };
 
@@ -94,6 +95,7 @@ const CRUMB_LABELS: Readonly<Record<string, string>> = {
   audit: "Audit log",
   assistant: "Assistant",
   suggestions: "Suggestions",
+  traces: "Traces",
 };
 
 function isActive(pathname: string, href: string): boolean {

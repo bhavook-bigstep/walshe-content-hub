@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.9.0 |
+| **Version** | 2.10.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -274,10 +274,20 @@ Increment 2 — **Knowledge domains + pgvector hybrid retrieval**:
   deterministic + the cosine backend is selected on SQLite; a Postgres-gated integration test
   exercises the real pgvector path.
 
-**Priority tiers** (build order; acceptance reports honestly against all 44):
+Increment 3 — **Observability**:
+
+- **AC45** — **Agent-run tracing + LangSmith**: every agentic run (assistant, creative plan,
+  knowledge) records a **content-free** in-app trace (actor, kind, intent, tools, provider, latency,
+  outcome — never prompts/replies/keys/PII), admin-viewable at `GET /traces`; and the LangGraph loop
+  + creative plan + provider calls export to **LangSmith** when a key is configured — **off by
+  default** (no key → no egress; hermetic tests + demo unaffected). Proof: pytest asserts a run is
+  recorded (content-free) on an assistant/plan call, the trace view is admin-only, and LangSmith is
+  off without a key; Playwright shows the admin trace view after an agent run.
+
+**Priority tiers** (build order; acceptance reports honestly against all 45):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
-framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44 (all prior ACs stay green).
+framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -313,3 +323,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.7.0 | 2026-10-04 | **Product-framework features, increment 3** (same charter): added **AC38–AC40** — a **LangGraph** Content Assistant (grounded, permission-scoped: route→tool→respond), **natural-language search**, and **suggested next posts**, all via the AC16 provider abstraction (real model with a key, deterministic stub offline). Real **reach/social-media integration** explicitly deferred to future (sending stays simulated). Also added a **demo seed** (`make seed-demo`: 1 provider + 2 agents + populated workspaces). All prior ACs stay green. | user + Claude |
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
+| 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |

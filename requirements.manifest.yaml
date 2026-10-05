@@ -267,3 +267,13 @@ acceptance:
       - "apps/api/tests/test_retrieval.py::test_hybrid_rank_puts_the_relevant_item_first"
       - "apps/api/tests/test_retrieval.py::test_embedding_is_deterministic_and_cosine_reflects_overlap"
       - "apps/api/tests/test_retrieval.py::test_backend_selection_is_cosine_on_sqlite"
+  # --- v2.10.0 Sound agentic architecture, increment 3: observability + LangSmith ---
+  AC45:
+    tier: P2
+    api:
+      - "apps/api/tests/test_observability.py::test_record_run_writes_a_content_free_row"
+      - "apps/api/tests/test_observability.py::test_assistant_call_is_traced"
+      - "apps/api/tests/test_observability.py::test_traces_are_admin_only"
+      - "apps/api/tests/test_observability.py::test_langsmith_is_off_without_a_key"
+    e2e:
+      - "apps/web/e2e/observability-smoke.spec.ts::admin sees an agent run in the trace view"
