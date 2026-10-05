@@ -73,11 +73,25 @@ in favour of catalog publish/share.
 - Proof: pytest (item CRUD, video upload accepted + bad type/size rejected, browse API returns only
   accessible catalogs' items, migration of text+assets to items).
 
-### AC51 — Agent's own media uploads
-- **AC51.1** Agents upload their own **image + video** files (type/size validated), stored
-  server-side and **owner-scoped** (only that agent sees them).
-- **AC51.2** A list API returns the agent's own uploads for the studio ("my uploads").
-- Proof: pytest (agent uploads image+video; listed for the owner; another agent cannot see them).
+### AC51 — Per-user media storage (Local + Agent), by origin
+Each user has their **own storage** (their S3/MinIO prefix) holding a `UserAsset` tagged by
+**source** — `local` (the user **uploaded** it) or `agent` (an **AI/LLM service generated** it) —
+and **kind** (image/text/video). The studio media picker therefore has three sections: **Catalog**
+(provider items, in the catalog owner's storage), **Local** (user uploads), **Agent** (generated).
+- **AC51.1** `UserAsset{ owner_id, source: local|agent, kind, object_key?, content_type?, text?,
+  title }`, stored under the owner's prefix; **owner-scoped** (only the owner reads their assets).
+- **AC51.2** **Local:** the user uploads image / video / text (type + size validated) → stored
+  `source=local`.
+- **AC51.3** **Agent:** a generate endpoint produces **image + text** via the AI provider
+  abstraction (deterministic stub offline; Contract 2/4 preserved) → stored `source=agent`.
+  Generation is limited to image + text — no generated video/animation (animation = sprites).
+- **AC51.4** A list API returns the user's assets filtered by source, for the Local / Agent sections.
+- Proof: pytest (upload image/video/text → local; generate → agent image+text; list by source;
+  another user cannot see them).
+
+> **Charter amendment:** this reverses the earlier "asset selection only, no generative imagery"
+> guard for the **Agent** section — AI-generated image+text are now in scope (stubbed
+> deterministically for the PoC; a real image model only when configured).
 
 ## Out of scope (scope guard)
 The studio media-picker UI + entity model (Increment 3) · animation/video/sprite render

@@ -324,6 +324,46 @@
         "title": "Body_upload_image_catalog__entry_id__image_post",
         "type": "object"
       },
+      "Body_upload_media_item_catalog__entry_id__items_media_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_media_item_catalog__entry_id__items_media_post",
+        "type": "object"
+      },
+      "Body_upload_media_me_library_upload_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_media_me_library_upload_post",
+        "type": "object"
+      },
       "BrandKitOut": {
         "properties": {
           "accent_color": {
@@ -1221,6 +1261,14 @@
             "title": "Id",
             "type": "integer"
           },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
           "market_tags": {
             "items": {
               "type": "string"
@@ -1286,6 +1334,22 @@
         "title": "EntryStatus",
         "type": "string"
       },
+      "GenerateRequest": {
+        "description": "Ask the AI layer to generate an image + text into the user's Agent storage (AC51).",
+        "properties": {
+          "prompt": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "GenerateRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1335,6 +1399,69 @@
           "display_status"
         ],
         "title": "ItemCardOut",
+        "type": "object"
+      },
+      "ItemKind": {
+        "description": "The kind of a first-class entry item (AC50).",
+        "enum": [
+          "text",
+          "image",
+          "video"
+        ],
+        "title": "ItemKind",
+        "type": "string"
+      },
+      "ItemOut": {
+        "description": "A first-class entry item (AC50) — one text block or one media file.",
+        "properties": {
+          "alt": {
+            "default": "",
+            "title": "Alt",
+            "type": "string"
+          },
+          "content_type": {
+            "default": "",
+            "title": "Content Type",
+            "type": "string"
+          },
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          },
+          "object_key": {
+            "default": "",
+            "title": "Object Key",
+            "type": "string"
+          },
+          "order": {
+            "default": 0,
+            "title": "Order",
+            "type": "integer"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "entry_id",
+          "kind"
+        ],
+        "title": "ItemOut",
         "type": "object"
       },
       "KnowledgeOut": {
@@ -2201,6 +2328,32 @@
         "title": "TemplateField",
         "type": "object"
       },
+      "TextItemCreate": {
+        "properties": {
+          "order": {
+            "default": 0,
+            "title": "Order",
+            "type": "integer"
+          },
+          "text": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextItemCreate",
+        "type": "object"
+      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -2218,6 +2371,57 @@
         ],
         "title": "TokenResponse",
         "type": "object"
+      },
+      "UserAssetOut": {
+        "description": "A user's own stored asset (AC51) — uploaded (``local``) or generated (``agent``).",
+        "properties": {
+          "content_type": {
+            "default": "",
+            "title": "Content Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          },
+          "object_key": {
+            "default": "",
+            "title": "Object Key",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/UserAssetSource"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "kind"
+        ],
+        "title": "UserAssetOut",
+        "type": "object"
+      },
+      "UserAssetSource": {
+        "description": "Origin of a user-storage asset (AC51): user upload, or AI-service generation.",
+        "enum": [
+          "local",
+          "agent"
+        ],
+        "title": "UserAssetSource",
+        "type": "string"
       },
       "UserOut": {
         "properties": {
@@ -3509,6 +3713,225 @@
         ]
       }
     },
+    "/catalog/{entry_id}/items": {
+      "get": {
+        "operationId": "list_items_catalog__entry_id__items_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemOut"
+                  },
+                  "title": "Response List Items Catalog  Entry Id  Items Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Items",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/items/media": {
+      "post": {
+        "description": "Add an image or video media item to an entry (AC50). Stored in the provider's media store.",
+        "operationId": "upload_media_item_catalog__entry_id__items_media_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_item_catalog__entry_id__items_media_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Upload Media Item Catalog  Entry Id  Items Media Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Media Item",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/items/text": {
+      "post": {
+        "operationId": "add_text_item_catalog__entry_id__items_text_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Text Item",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/items/{item_id}": {
+      "delete": {
+        "operationId": "delete_item_catalog__entry_id__items__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Item",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/catalog/{entry_id}/send-back": {
       "post": {
         "description": "Return an entry to its owner with a reason (AC35 / FR-14).\n\nA provider may send back only their own entry; a super admin may send back any. The entry drops\nto ``draft`` with the reason recorded (shown to the owner) and re-enters review on resubmit.",
@@ -3762,6 +4185,58 @@
           }
         ],
         "summary": "Update Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/{catalog_id}/entries": {
+      "get": {
+        "description": "Browse a catalog's entries + their items (AC50). A provider sees their own catalog's\nentries; an agent sees them only if the catalog is accessible (and per-entry expiry/off-limits\nstill apply via the visibility choke-point).",
+        "operationId": "list_catalog_entries_catalogs__catalog_id__entries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntryOut"
+                  },
+                  "title": "Response List Catalog Entries Catalogs  Catalog Id  Entries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Catalog Entries",
         "tags": [
           "catalogs"
         ]
@@ -4196,6 +4671,210 @@
         "summary": "Design Templates",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/me/library": {
+      "get": {
+        "description": "List the caller's own assets, optionally filtered by source (Local / Agent). Owner-scoped.",
+        "operationId": "list_media_me_library_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UserAssetSource"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserAssetOut"
+                  },
+                  "title": "Response List Media Me Library Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Media",
+        "tags": [
+          "me-library"
+        ]
+      }
+    },
+    "/me/library/generate": {
+      "post": {
+        "description": "Generate an image + text into your Agent storage (AC51). Deterministic PoC stub — image +\ntext only; no generated video/animation (that comes from sprites).",
+        "operationId": "generate_me_library_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserAssetOut"
+                  },
+                  "title": "Response Generate Me Library Generate Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate",
+        "tags": [
+          "me-library"
+        ]
+      }
+    },
+    "/me/library/text": {
+      "post": {
+        "description": "Save a text snippet into your Local storage (AC51).",
+        "operationId": "add_text_me_library_text_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Text",
+        "tags": [
+          "me-library"
+        ]
+      }
+    },
+    "/me/library/upload": {
+      "post": {
+        "description": "Upload an image or video into your Local storage (AC51).",
+        "operationId": "upload_media_me_library_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_me_library_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Media",
+        "tags": [
+          "me-library"
         ]
       }
     },

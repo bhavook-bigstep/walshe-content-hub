@@ -353,6 +353,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/{entry_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Items */
+        get: operations["list_items_catalog__entry_id__items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/items/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Media Item
+         * @description Add an image or video media item to an entry (AC50). Stored in the provider's media store.
+         */
+        post: operations["upload_media_item_catalog__entry_id__items_media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/items/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Text Item */
+        post: operations["add_text_item_catalog__entry_id__items_text_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Item */
+        delete: operations["delete_item_catalog__entry_id__items__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog/{entry_id}/send-back": {
         parameters: {
             query?: never;
@@ -431,6 +502,28 @@ export interface paths {
         head?: never;
         /** Update Catalog */
         patch: operations["update_catalog_catalogs__catalog_id__patch"];
+        trace?: never;
+    };
+    "/catalogs/{catalog_id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Entries
+         * @description Browse a catalog's entries + their items (AC50). A provider sees their own catalog's
+         *     entries; an agent sees them only if the catalog is accessible (and per-entry expiry/off-limits
+         *     still apply via the visibility choke-point).
+         */
+        get: operations["list_catalog_entries_catalogs__catalog_id__entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/catalogs/{catalog_id}/share": {
@@ -572,6 +665,87 @@ export interface paths {
         get: operations["design_templates_me_design_templates_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Media
+         * @description List the caller's own assets, optionally filtered by source (Local / Agent). Owner-scoped.
+         */
+        get: operations["list_media_me_library_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/library/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate
+         * @description Generate an image + text into your Agent storage (AC51). Deterministic PoC stub — image +
+         *     text only; no generated video/animation (that comes from sprites).
+         */
+        post: operations["generate_me_library_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/library/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Text
+         * @description Save a text snippet into your Local storage (AC51).
+         */
+        post: operations["add_text_me_library_text_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/library/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Media
+         * @description Upload an image or video into your Local storage (AC51).
+         */
+        post: operations["upload_media_me_library_upload_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1004,6 +1178,26 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_media_item_catalog__entry_id__items_media_post */
+        Body_upload_media_item_catalog__entry_id__items_media_post: {
+            /** File */
+            file: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
+        /** Body_upload_media_me_library_upload_post */
+        Body_upload_media_me_library_upload_post: {
+            /** File */
+            file: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
         /** BrandKitOut */
         BrandKitOut: {
             /** Accent Color */
@@ -1308,6 +1502,11 @@ export interface components {
             highlights: string[];
             /** Id */
             id: number;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["ItemOut"][];
             /** Market Tags */
             market_tags: string[];
             /** Provider Id */
@@ -1331,6 +1530,14 @@ export interface components {
          * @enum {string}
          */
         EntryStatus: "draft" | "in_review" | "approved" | "withdrawn";
+        /**
+         * GenerateRequest
+         * @description Ask the AI layer to generate an image + text into the user's Agent storage (AC51).
+         */
+        GenerateRequest: {
+            /** Prompt */
+            prompt: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1353,6 +1560,53 @@ export interface components {
             title: string;
             /** Type */
             type: string;
+        };
+        /**
+         * ItemKind
+         * @description The kind of a first-class entry item (AC50).
+         * @enum {string}
+         */
+        ItemKind: "text" | "image" | "video";
+        /**
+         * ItemOut
+         * @description A first-class entry item (AC50) — one text block or one media file.
+         */
+        ItemOut: {
+            /**
+             * Alt
+             * @default
+             */
+            alt: string;
+            /**
+             * Content Type
+             * @default
+             */
+            content_type: string;
+            /** Entry Id */
+            entry_id: number;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["ItemKind"];
+            /**
+             * Object Key
+             * @default
+             */
+            object_key: string;
+            /**
+             * Order
+             * @default 0
+             */
+            order: number;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
         };
         /** KnowledgeOut */
         KnowledgeOut: {
@@ -1666,6 +1920,21 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** TextItemCreate */
+        TextItemCreate: {
+            /**
+             * Order
+             * @default 0
+             */
+            order: number;
+            /** Text */
+            text: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
         /** TokenResponse */
         TokenResponse: {
             /** Access Token */
@@ -1676,6 +1945,42 @@ export interface components {
              */
             token_type: string;
         };
+        /**
+         * UserAssetOut
+         * @description A user's own stored asset (AC51) — uploaded (``local``) or generated (``agent``).
+         */
+        UserAssetOut: {
+            /**
+             * Content Type
+             * @default
+             */
+            content_type: string;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["ItemKind"];
+            /**
+             * Object Key
+             * @default
+             */
+            object_key: string;
+            source: components["schemas"]["UserAssetSource"];
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
+        /**
+         * UserAssetSource
+         * @description Origin of a user-storage asset (AC51): user upload, or AI-service generation.
+         * @enum {string}
+         */
+        UserAssetSource: "local" | "agent";
         /** UserOut */
         UserOut: {
             /** Approved */
@@ -2496,6 +2801,139 @@ export interface operations {
             };
         };
     };
+    list_items_catalog__entry_id__items_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_item_catalog__entry_id__items_media_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_media_item_catalog__entry_id__items_media_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_text_item_catalog__entry_id__items_text_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_item_catalog__entry_id__items__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     send_back_catalog__entry_id__send_back_post: {
         parameters: {
             query?: never;
@@ -2655,6 +3093,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_catalog_entries_catalogs__catalog_id__entries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryOut"][];
                 };
             };
             /** @description Validation Error */
@@ -2962,6 +3431,136 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DesignTemplate"][];
+                };
+            };
+        };
+    };
+    list_media_me_library_get: {
+        parameters: {
+            query?: {
+                source?: components["schemas"]["UserAssetSource"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_me_library_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_text_me_library_text_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_me_library_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_media_me_library_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

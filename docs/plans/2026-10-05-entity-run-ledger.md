@@ -22,7 +22,37 @@ Durable state for the `/oneshot-poc:run` building the entity-model epic. Content
 
 | # | Requirement | Status | Evidence / note |
 |---|-------------|--------|-----------------|
-| AC48 | Studio interaction & theming fixes | met | left-drag pan + wheel-zoom-to-cursor (fixed a pointer-events bug: the closed storyboard drawer swallowed canvas events); zoom pill clear of assistant FAB; light-theme selected-text (bg-walshe-mint→bg-walshe-teal text-white), also fixed app-wide; dot spacing floored (DOT_MIN_PX); entity select/move/resize/**delete** (`deleteNode` op + `shouldDeleteSelection` guard + Delete key). `make verify` **48/48**. 3 reviewers APPROVED_WITH_COMMENTS (no P1); P2s applied — app-wide theme fix, delete-guard unit tests, strengthened e2e, bottom-dock pointer-events. e2e `studio-interaction-smoke`. |
+| AC48 | Studio interaction & theming fixes | met (`eb96d23`) | pan/zoom fix (pointer-events), zoom pill, light-theme text (app-wide), dot spacing, entity delete. 48/48. |
+| AC49 | Catalog library + catalog-level access (Contract 1 re-base) | met (`b61fa0d`) | Catalog model + catalog-gating in `services/visibility` (legacy fallback keeps prior ACs green); provider CRUD/share API + UI; deterministic idempotent migration. pytest `test_catalogs` (3) + e2e. |
+| AC50 | Entries → first-class items (text + media incl. video) + browse | met (uncommitted) | `Item` model; provider text/media(image+video) CRUD; catalog-gated `GET /catalogs/{id}/entries`; generalized `can_read_object` serving across 3 stores; `decompose_entries_to_items` migration. pytest `test_items` (3). |
+| AC51 | Per-user media storage (Local uploads + Agent generated) | met (uncommitted) | `UserAsset` (source local|agent + kind) under the user's own prefix; `/me/library` upload/text/generate/list; deterministic PNG generation stub; owner-scoped serving. pytest `test_user_media` (2). |
+
+**Model (user-clarified):** provider **catalog library** (catalogs public/private + share) → entries →
+items; studio media picker sections by **origin**: **Catalog** (provider), **Local** (user upload),
+**Agent** (AI-generated) — Local+Agent in the user's own storage. Generation = image+text (animation
+= sprites). `make verify` **51/51** after AC49–51.
+
+## Increment 2 review (AC49–51)
+
+3 reviewers on the full diff — security + tests **APPROVED_WITH_COMMENTS**; architecture
+**CHANGES_REQUIRED** (2 P1s). Both P1s resolved:
+- **P1-A (catalog gate drops approved/brand-safe + per-entry scope):** this is the user's confirmed
+  model ("catalog sharing is the only gate" — publish = put in a public/shared catalog), so resolved
+  by making AC6 explicit (removed the contradictory "drafts never exposed"; stated the deliberate
+  drop of per-entry status/brand_safe/AC37-scope for catalog entries) + the behaviour is tested. Did
+  **not** re-add approval (would contradict the user).
+- **P1-B (migration never invoked / no Alembic):** wired `migrate_entries_to_catalogs` +
+  `decompose_entries_to_items` into `app.seed` so they run on a real path. The PoC uses
+  `create_all` (no Alembic) — an existing pre-AC49 dev DB must be **re-seeded** (fresh schema);
+  e2e already uses a throwaway DB. Noted as the PoC persistence stance.
+
+P2 fixes applied: server-generated uuid storage key in the legacy `upload_image` (was client
+filename — overwrite risk); 25 MB upload cap (`app/uploads.read_capped`) on all three upload
+endpoints; `title` Form `max_length=300`; `visible_catalogs_for_agent` choke-point helper used by
+`/catalogs/accessible`. Added tests: expired-entry-in-public-catalog hidden, private-catalog item
+media gated by sharing (404→share→200), owner-scoped `/me/library` list + `?source=` 422.
+Deferred (noted): cross-provider item-authz tests, magic-byte sniffing, Alembic, orphaned stored
+objects on item delete, `created_at` via injected clock.
 
 ## Notes / discovered
 

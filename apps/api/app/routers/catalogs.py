@@ -8,14 +8,28 @@ through ``services/visibility`` — these routes only manage catalogs and list t
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import clock
 from app.deps import get_db, require_role
 from app.models.catalog import Catalog
 from app.models.user import Role, User
-from app.schemas.catalog import CatalogCreate, CatalogOut, CatalogShareUpdate, CatalogUpdate
+from app.schemas.catalog import (
+    CatalogCreate,
+    CatalogOut,
+    CatalogShareUpdate,
+    CatalogUpdate,
+    EntryOut,
+)
+from app.services.visibility import (
+    active_blocked_terms,
+    is_visible_to_agent,
+    visible_catalogs_for_agent,
+)
 
 router = APIRouter(prefix="/catalogs", tags=["catalogs"])
 
@@ -115,6 +129,32 @@ def list_accessible_catalogs(
 ) -> list[CatalogOut]:
     """Catalogs an agent may browse: every public one + the private ones shared with them (AC49).
     The single catalog-level gate — entry/item reads then flow through services/visibility."""
-    rows = db.execute(select(Catalog).order_by(Catalog.id)).scalars().all()
-    accessible = [c for c in rows if c.is_accessible_to_agent(agent.id)]
-    return [CatalogOut.from_catalog(c) for c in accessible]
+    return [CatalogOut.from_catalog(c) for c in visible_catalogs_for_agent(db, agent)]
+
+
+@router.get("/{catalog_id}/entries", response_model=list[EntryOut])
+def list_catalog_entries(
+    catalog_id: int,
+    user: User = Depends(require_role(Role.content_provider, Role.tourism_agent)),
+    db: Session = Depends(get_db),
+    now: datetime = Depends(clock.now),
+) -> list[EntryOut]:
+    """Browse a catalog's entries + their items (AC50). A provider sees their own catalog's
+    entries; an agent sees them only if the catalog is accessible (and per-entry expiry/off-limits
+    still apply via the visibility choke-point)."""
+    catalog = db.get(Catalog, catalog_id)
+    if catalog is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Catalog not found")
+    if user.role == Role.content_provider:
+        if catalog.provider_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Catalog not found")
+        return [EntryOut.from_entry(e, now=now) for e in catalog.entries]
+    # agent
+    if not catalog.is_accessible_to_agent(user.id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Catalog not found")
+    blocked = active_blocked_terms(db)
+    return [
+        EntryOut.from_entry(e, now=now)
+        for e in catalog.entries
+        if is_visible_to_agent(e, user, now=now, blocked_terms=blocked)
+    ]

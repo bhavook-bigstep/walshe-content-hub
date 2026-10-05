@@ -310,3 +310,14 @@ acceptance:
       - "apps/api/tests/test_catalogs.py::test_migrate_entries_to_catalogs"
     e2e:
       - "apps/web/e2e/catalog-library-smoke.spec.ts::provider creates and publishes a catalog"
+  AC50:
+    tier: P2
+    api:
+      - "apps/api/tests/test_items.py::test_entry_items_crud_browse_and_serving"
+      - "apps/api/tests/test_items.py::test_private_catalog_browse_hidden_from_unshared_agent"
+      - "apps/api/tests/test_items.py::test_decompose_entries_to_items"
+  AC51:
+    tier: P2
+    api:
+      - "apps/api/tests/test_user_media.py::test_upload_text_generate_list_and_owner_scope"
+      - "apps/api/tests/test_user_media.py::test_generated_image_is_deterministic"

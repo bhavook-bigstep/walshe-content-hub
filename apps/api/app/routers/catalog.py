@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app import audit, clock
 from app.content_templates import CONTENT_TEMPLATES
 from app.deps import get_db, require_role
-from app.models.catalog import Catalog, CatalogEntry, CatalogType, EntryStatus
+from app.models.catalog import Catalog, CatalogEntry, CatalogType, EntryStatus, Item, ItemKind
 from app.models.user import Role, User
 from app.schemas.catalog import (
     AccessUpdate,
@@ -22,7 +22,9 @@ from app.schemas.catalog import (
     EntryContentUpdate,
     EntryCreate,
     EntryOut,
+    ItemOut,
     SendBackRequest,
+    TextItemCreate,
 )
 from app.services.visibility import (
     active_blocked_terms,
@@ -238,3 +240,63 @@ def get_for_agent(
         # Unapproved/unsafe/out-of-scope/expired/off-limits entries look like missing (C1/AC36).
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
     return EntryOut.from_entry(entry, now=now)
+
+
+# ---- Entry items (AC50): first-class text/media pieces of an entry ----
+
+
+def _owned_entry(db: Session, entry_id: int, provider: User) -> CatalogEntry:
+    entry = db.get(CatalogEntry, entry_id)
+    if entry is None or entry.provider_id != provider.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    return entry
+
+
+@router.post("/{entry_id}/items/text", response_model=ItemOut, status_code=status.HTTP_201_CREATED)
+def add_text_item(
+    entry_id: int,
+    body: TextItemCreate,
+    provider: User = Depends(_provider_only),
+    db: Session = Depends(get_db),
+) -> ItemOut:
+    entry = _owned_entry(db, entry_id, provider)
+    item = Item(
+        entry_id=entry.id, kind=ItemKind.text, order=body.order, title=body.title, text=body.text
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return ItemOut.model_validate(item)
+
+
+@router.get("/{entry_id}/items", response_model=list[ItemOut])
+def list_items(
+    entry_id: int,
+    user: User = Depends(require_role(Role.content_provider, Role.tourism_agent)),
+    db: Session = Depends(get_db),
+    now: datetime = Depends(clock.now),
+) -> list[ItemOut]:
+    entry = db.get(CatalogEntry, entry_id)
+    if entry is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    if user.role == Role.content_provider:
+        if entry.provider_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    elif not is_visible_to_agent(entry, user, now=now, blocked_terms=active_blocked_terms(db)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    return [ItemOut.model_validate(i) for i in entry.items]
+
+
+@router.delete("/{entry_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_item(
+    entry_id: int,
+    item_id: int,
+    provider: User = Depends(_provider_only),
+    db: Session = Depends(get_db),
+) -> None:
+    entry = _owned_entry(db, entry_id, provider)
+    item = db.get(Item, item_id)
+    if item is None or item.entry_id != entry.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Item not found")
+    db.delete(item)
+    db.commit()

@@ -18,6 +18,7 @@ from app.models.engagement import Engagement
 from app.models.post import Post, PostStatus
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
+from app.services.catalog_migration import decompose_entries_to_items, migrate_entries_to_catalogs
 
 # A fixed salt keeps seeded password hashes deterministic across runs (dev/demo only).
 _SEED_SALT = b"walsh-seed-salt0"
@@ -232,6 +233,11 @@ def seed(db: Session) -> dict[str, int]:
     _upsert_composition(db, agent.id, "Trade Showcase teaser", [entries[2].id])
 
     _upsert_post_with_engagement(db, launch_comp.id)
+
+    # AC49/AC50: move seeded entries into per-provider catalogs and decompose them into items, so
+    # the catalog library is populated and the migration runs on a real path (not only in tests).
+    migrate_entries_to_catalogs(db)
+    decompose_entries_to_items(db)
 
     db.commit()
 

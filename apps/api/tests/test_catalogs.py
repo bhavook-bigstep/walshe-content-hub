@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 
 from app.models.catalog import Catalog, CatalogEntry, CatalogType, CatalogVisibility, EntryStatus
@@ -95,6 +97,21 @@ def test_catalog_gating(client, provider_headers, agent_headers, app):
     )
     accessible = {c["id"] for c in client.get("/catalogs/accessible", headers=agent_headers).json()}
     assert pub["id"] in accessible and priv["id"] not in accessible
+
+
+# AC49 × AC33 — expiry still hides an entry even inside an accessible (public) catalog.
+def test_expired_entry_in_public_catalog_is_hidden(client, provider_headers, agent_headers, app):
+    cid = client.post(
+        "/catalogs", headers=provider_headers, json={"name": "P", "visibility": "public"}
+    ).json()["id"]
+    eid = _make_entry(client, provider_headers, cid, "Expired Festival")
+    assert _agent_sees(client, agent_headers, eid)  # visible while unexpired
+
+    with app.state.sessionmaker() as db:
+        entry = db.get(CatalogEntry, eid)
+        entry.expires_at = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        db.commit()
+    assert not _agent_sees(client, agent_headers, eid)  # expiry wins over catalog access
 
 
 # AC49.4 — deterministic, idempotent migration of catalog-less entries.

@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.13.0 |
+| **Version** | 2.14.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -60,7 +60,7 @@ travel/aviation tone ("Premium brands, trusted outcomes"; 50 years in 2026).
 - **AC3** `[explicit]` — Create catalog entries of type **event / place / opportunity** (+ offer, itinerary) with title, description, destination/market tags.
 - **AC4** `[explicit]` — Upload an **image** for an entry; stored in MinIO; served back in the UI.
 - **AC5** `[explicit]` — Mark an entry **brand-safe** and set which agents/tenants may use it.
-- **AC6** `[requirement]` — **CONTRACT:** Agents only ever see content a provider has deliberately published. **Re-based by AC49:** distribution is gated at the **catalog** level (an agent may use a catalog's entries/items iff the catalog is public, or private and shared with them); the legacy per-entry **approved + brand-safe** gate remains only for catalog-less (pre-AC49) entries. Drafts/unpublished content is never exposed. Expiry (AC32/33) + off-limits (AC36) always apply.
+- **AC6** `[requirement]` — **CONTRACT:** Agents only ever see content a provider has deliberately published. **Re-based by AC49 (deliberate, user-approved contract change):** for an entry **in a catalog**, distribution is gated **solely at the catalog level** — an agent may use its entries/items iff the catalog is **public, or private and shared** with them. Putting an entry in a public/shared catalog *is* the act of publishing it, so an entry's draft/approved **status**, **brand_safe** flag, and per-entry access scope (the pre-AC49 **AC37** `allowed_tenant/agent_ids`) **no longer gate catalog entries** — the provider's choice of catalog visibility does. Content **not** in a public or shared catalog is never exposed. The legacy per-entry approved + brand-safe + scope gate still applies to **catalog-less** (pre-AC49) entries, so AC32–37 stay green there. Expiry (AC32/33) + off-limits (AC36) always apply to every entry.
 
 ### Tourism Agent — catalog + Design Studio
 - **AC7** `[explicit]` — Browse / search / filter the catalog by destination and type; select items into a **composition**.
@@ -326,11 +326,27 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   catalog-less entries into per-provider catalogs (approved→public "Imported", else private
   "Drafts"). Proof: pytest (catalog-gating; CRUD + share; migration) + a provider-UI e2e.
 
-**Priority tiers** (build order; acceptance reports honestly against all 49):
+- **AC50** — **Entries decompose into first-class items (text + media, incl. video).** An `Item`
+  (`kind: text|image|video`, ordered) is one text block or one media file of an entry. Providers add
+  text items and upload **image + video** media items (type validated; active-markup types refused).
+  A **catalog-gated browse API** (`GET /catalogs/{id}/entries`) returns a catalog's entries + items
+  for the studio; a deterministic migration decomposes an entry's title/description/sections + assets
+  into items. Proof: pytest (item CRUD; video accepted + bad type refused; browse gating; serving;
+  migration).
+
+- **AC51** — **Per-user media storage (Local + Agent).** Every user has their own storage (their
+  `users/<id>/` prefix) holding a `UserAsset` tagged by **source** — `local` (uploaded) or `agent`
+  (AI-generated) — and **kind**; these surface in the studio as the **Local** and **Agent** picker
+  sections (alongside **Catalog**). Upload image/video/text → local; **generate image + text** →
+  agent (deterministic stub offline; no generated video/animation — that is sprites); list by
+  source; owner-scoped serving. Proof: pytest (upload/text/generate; list by source; deterministic
+  generation; another user cannot read your assets).
+
+**Priority tiers** (build order; acceptance reports honestly against all 51):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
-studio = AC46,47,48 · catalog = AC49 (all prior ACs stay green).
+studio = AC46,47,48 · catalog = AC49,50,51 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -369,6 +385,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.14.0 | 2026-10-05 | **Catalog library, phase 2** (entity-model epic, Increment 2b; same charter): added **AC50** — entries decompose into first-class **items** (`Item`: text / image / video, ordered), with provider item CRUD + image/video upload (validated), a catalog-gated browse API (`GET /catalogs/{id}/entries`), generalized media serving across catalog assets/items + personal assets, and a deterministic entry→items migration — and **AC51** — **per-user media storage** (`UserAsset` by **source** local/agent + kind) in each user's own storage: upload image/video/text (Local), **generate image+text** (Agent, deterministic stub; animation = sprites), list by source, owner-scoped. The studio media picker's three sections (Catalog · Local · Agent) are defined by origin. All prior ACs stay green. | user + Claude |
 | 2.13.0 | 2026-10-05 | **Catalog library, phase 1** (entity-model epic, Increment 2a; charter `docs/plans/2026-10-05-catalog-library-charter.md`): added **AC49** — a provider **catalog library** (Catalog model: name/category/public-private + agent sharing) that **re-bases Contract 1 / AC6** to catalog-level gating (public or privately-shared) in the single `services/visibility` choke-point; per-entry approval remains only for legacy catalog-less entries. Provider CRUD + share API + a "Catalog library" UI; deterministic idempotent migration of catalog-less entries into per-provider catalogs. Entries→items + uploads (AC50–51) follow in phase 2b. All prior ACs stay green. | user + Claude |
 | 2.12.0 | 2026-10-05 | **Studio interaction & theming fixes** (entity-model epic, Increment 1; charter `docs/plans/2026-10-05-entity-model-charter.md`): added **AC48** — left-drag pan + wheel-zoom-to-cursor on the full-bleed canvas, zoom control moved clear of the assistant FAB, light-theme selected-text contrast fixed (a dark-on-dark `bg-walshe-mint text-walshe-teal` active state), dot-matrix spacing floored for zoomed-out views, and entity select/move/resize/**delete** on the canvas. Fixes a pointer-events bug where the closed storyboard drawer swallowed canvas pan/zoom. Increments 2–4 (catalog re-model + uploads, declarative entity model + media picker, entity-aware animation/video/sprite render) follow. All prior ACs stay green. | user + Claude |
 | 2.11.0 | 2026-10-05 | **Studio storyboard → video** (charter `docs/plans/2026-10-05-studio-storyboard-charter.md`, design `…-studio-storyboard-design.md`): added **AC46–AC47** — the Design Studio becomes a pannable dot-matrix **multi-scene storyboard** (model carries `scenes[]`; pure deterministic add/remove/**reorder** + per-scene **duration**/**transition**; auto-sequential connectors; legacy `pages[]` migrated) and **Generate video** stitches the ordered scenes to an MP4 via the extended `/render/video` (ffmpeg **xfade** per transition with hard-cut fallback, caption overlays + local **TTS** narration, images only from visible catalog — Contract 1). Phase 1 editor shell shipped earlier as a UX redesign (no AC); the superseded catalog-item VideoPanel was folded into the storyboard action. All prior ACs stay green. | user + Claude |

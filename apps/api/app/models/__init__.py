@@ -15,6 +15,10 @@ from app.models.catalog import (
     CatalogVisibility,
     DisplayStatus,
     EntryStatus,
+    Item,
+    ItemKind,
+    UserAsset,
+    UserAssetSource,
 )
 from app.models.composition import Composition
 from app.models.engagement import Engagement
@@ -30,6 +34,10 @@ __all__ = [
     "CatalogEntry",
     "CatalogType",
     "CatalogVisibility",
+    "Item",
+    "ItemKind",
+    "UserAsset",
+    "UserAssetSource",
     "EntryStatus",
     "DisplayStatus",
     "Asset",

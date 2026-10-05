@@ -6,10 +6,59 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, Field, model_validator
 
 from app.lifecycle import display_status
-from app.models.catalog import CatalogType, CatalogVisibility, DisplayStatus, EntryStatus
+from app.models.catalog import (
+    CatalogType,
+    CatalogVisibility,
+    DisplayStatus,
+    EntryStatus,
+    ItemKind,
+    UserAssetSource,
+)
 
 if TYPE_CHECKING:
     from app.models.catalog import Catalog, CatalogEntry
+
+
+class ItemOut(BaseModel):
+    """A first-class entry item (AC50) — one text block or one media file."""
+
+    id: int
+    entry_id: int
+    kind: ItemKind
+    order: int = 0
+    title: str = ""
+    text: str = ""
+    object_key: str = ""
+    content_type: str = ""
+    alt: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class TextItemCreate(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
+    title: str = Field(default="", max_length=300)
+    order: int = 0
+
+
+class UserAssetOut(BaseModel):
+    """A user's own stored asset (AC51) — uploaded (``local``) or generated (``agent``)."""
+
+    id: int
+    source: UserAssetSource
+    kind: ItemKind
+    title: str = ""
+    text: str = ""
+    object_key: str = ""
+    content_type: str = ""
+
+    model_config = {"from_attributes": True}
+
+
+class GenerateRequest(BaseModel):
+    """Ask the AI layer to generate an image + text into the user's Agent storage (AC51)."""
+
+    prompt: str = Field(min_length=1, max_length=500)
 
 
 class CatalogCreate(BaseModel):
@@ -142,6 +191,7 @@ class EntryOut(BaseModel):
     highlights: list[str] = []
     custom_sections: list[CustomSection] = []
     asset_keys: list[str] = []
+    items: list[ItemOut] = []
     # Validity + derived display status serialise on every item, for every role (AC32).
     valid_from: datetime | None = None
     expires_at: datetime | None = None
@@ -170,6 +220,7 @@ class EntryOut(BaseModel):
             highlights=entry.highlights,
             custom_sections=entry.custom_sections,
             asset_keys=entry.asset_keys,
+            items=[ItemOut.model_validate(i) for i in entry.items],
             valid_from=entry.valid_from,
             expires_at=entry.expires_at,
             display_status=display_status(entry.status, entry.expires_at, now),

@@ -14,7 +14,15 @@ from sqlalchemy.orm import Session
 
 from app import lifecycle
 from app.models.blocklist import BlocklistTerm
-from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
+from app.models.catalog import (
+    Asset,
+    Catalog,
+    CatalogEntry,
+    CatalogType,
+    EntryStatus,
+    Item,
+    UserAsset,
+)
 from app.models.user import Role, User
 
 
@@ -122,6 +130,14 @@ def agent_visible_entries(
     return result
 
 
+def visible_catalogs_for_agent(db: Session, agent: User) -> list[Catalog]:
+    """Catalogs an agent may access (AC49) — the catalog-level gate, kept in this one choke-point
+    so routers don't issue ad-hoc catalog queries. Public catalogs + the private ones shared with
+    the agent."""
+    rows = db.execute(select(Catalog).order_by(Catalog.id)).scalars().all()
+    return [c for c in rows if c.is_accessible_to_agent(agent.id)]
+
+
 def agent_visible_entries_by_ids(
     db: Session, agent: User, ids: list[int], *, now: datetime
 ) -> list[CatalogEntry]:
@@ -140,6 +156,39 @@ def agent_visible_entries_by_ids(
         if entry is not None and is_visible_to_agent(entry, agent, now=now, blocked_terms=blocked):
             result.append(entry)
     return result
+
+
+def _entry_readable(db: Session, entry: CatalogEntry | None, user: User, *, now: datetime) -> bool:
+    """Whether ``user`` may read media belonging to ``entry`` (provider owner, admin, or an agent
+    the entry is visible to)."""
+    if entry is None:
+        return False
+    if user.role == Role.super_admin:
+        return True
+    if user.role == Role.content_provider:
+        return entry.provider_id == user.id
+    if user.role == Role.tourism_agent:
+        return is_visible_to_agent(entry, user, now=now, blocked_terms=active_blocked_terms(db))
+    return False
+
+
+def can_read_object(db: Session, user: User, object_key: str, *, now: datetime) -> bool:
+    """Single gate for serving a stored object (AC4/AC50/AC51) across the three media stores —
+    catalog Assets + entry Items (gated by their entry/catalog) and personal UserAssets
+    (owner-only). Unknown keys and traversal attempts return False (indistinguishable from hidden).
+    """
+    if ".." in object_key or object_key.startswith("/") or "\\" in object_key:
+        return False
+    asset = db.execute(select(Asset).where(Asset.object_key == object_key)).scalars().first()
+    if asset is not None:
+        return _entry_readable(db, db.get(CatalogEntry, asset.entry_id), user, now=now)
+    item = db.execute(select(Item).where(Item.object_key == object_key)).scalars().first()
+    if item is not None:
+        return _entry_readable(db, db.get(CatalogEntry, item.entry_id), user, now=now)
+    mine = db.execute(select(UserAsset).where(UserAsset.object_key == object_key)).scalars().first()
+    if mine is not None:
+        return mine.owner_id == user.id
+    return False
 
 
 def visible_asset_or_none(
