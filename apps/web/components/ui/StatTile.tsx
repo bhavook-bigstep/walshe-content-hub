@@ -27,7 +27,7 @@ export default function StatTile({
           <span
             className={`inline-flex items-center gap-1 rounded-pill px-2 py-0.5 text-[12px] font-medium ${
               delta.direction === "up"
-                ? "bg-walshe-mint text-walshe-teal"
+                ? "bg-walshe-teal text-white"
                 : delta.direction === "down"
                   ? "bg-walshe-stone text-walshe-warn"
                   : "bg-walshe-stone text-walshe-grey"

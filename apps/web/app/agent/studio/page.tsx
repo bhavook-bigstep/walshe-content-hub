@@ -25,6 +25,7 @@ import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import {
   addShape,
   addText,
+  deleteNode,
   migrateDesign,
   moveNode,
   newDesign,
@@ -214,6 +215,16 @@ function StudioEditor() {
     });
   }
 
+  function onNodeDelete(scene: number, nodeId: string) {
+    setDesign((d) => {
+      try {
+        return deleteNode(d, scene, nodeId);
+      } catch {
+        return d; // already gone
+      }
+    });
+  }
+
   const zoomBtn =
     "grid h-8 w-8 place-items-center rounded-sm text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
@@ -226,6 +237,7 @@ function StudioEditor() {
           activeScene={sceneIndex}
           onReady={onReady}
           onNodeChange={onNodeChange}
+          onNodeDelete={onNodeDelete}
           onSelectScene={setSceneIndex}
           onControls={(c) => (controlsRef.current = c)}
         />
@@ -248,7 +260,7 @@ function StudioEditor() {
             aria-expanded={storyboardOpen}
             className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-small font-semibold transition-colors ${
               storyboardOpen
-                ? "border-walshe-teal bg-walshe-mint text-walshe-teal"
+                ? "border-walshe-teal bg-walshe-teal text-white"
                 : "border-walshe-line bg-walshe-stone/60 text-walshe-ink hover:bg-walshe-ink/10"
             }`}
           >
@@ -280,10 +292,11 @@ function StudioEditor() {
           </div>
         </div>
 
-        {/* Storyboard top drawer (scenes) — slides down from the top bar. */}
+        {/* Storyboard top drawer (scenes) — slides down from the top bar. When closed it must not
+            capture pointer events (an invisible overlay would otherwise swallow canvas pan/zoom). */}
         <div
-          className={`pointer-events-auto absolute left-3 right-3 top-[4.5rem] origin-top transition-all duration-200 lg:right-20 ${
-            storyboardOpen ? "opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
+          className={`absolute left-3 right-3 top-[4.5rem] origin-top transition-all duration-200 lg:right-20 ${
+            storyboardOpen ? "pointer-events-auto opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
           }`}
           aria-hidden={!storyboardOpen}
         >
@@ -306,8 +319,8 @@ function StudioEditor() {
           catalogImages={CATALOG_IMAGES}
         />
 
-        {/* Zoom / fit — at the bottom, beside the right rail. */}
-        <div className="pointer-events-auto absolute bottom-4 right-3 flex items-center rounded-lg border border-walshe-line/70 bg-chrome-bg/90 px-0.5 shadow-xl backdrop-blur-md">
+        {/* Zoom / fit — bottom-right, shifted left to clear the Q/A assistant button. */}
+        <div className="pointer-events-auto absolute bottom-4 right-24 flex items-center rounded-lg border border-walshe-line/70 bg-chrome-bg/90 px-0.5 shadow-xl backdrop-blur-md">
           <button type="button" aria-label="Zoom out" className={zoomBtn} onClick={() => controlsRef.current?.zoomOut()}>−</button>
           <button type="button" className="px-2 text-small font-medium text-walshe-ink hover:text-walshe-mint" onClick={() => controlsRef.current?.fit()}>Fit</button>
           <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>

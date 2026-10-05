@@ -9,6 +9,7 @@ import {
   addShape,
   addText,
   clampSceneDuration,
+  deleteNode,
   editText,
   migrateDesign,
   moveNode,
@@ -85,6 +86,16 @@ describe("studio manual ops", () => {
 
     const edited = editText(resized, 0, textId, "Discover Connemara");
     expect(edited.scenes[0].nodes[0].text).toBe("Discover Connemara");
+
+    // Delete removes an entity by id (AC48); it is pure and a missing target throws.
+    const afterDelete = deleteNode(withBg, 0, textId);
+    expect(afterDelete.scenes[0].nodes.map((n) => n.id)).toEqual([
+      "shape-scene-n1-n2",
+      "image-scene-n1-n3",
+    ]);
+    expect(withBg.scenes[0].nodes).toHaveLength(3); // original intact
+    expect(() => deleteNode(withBg, 0, "no-such-node")).toThrow(/not found/);
+    expect(() => deleteNode(withBg, 99, textId)).toThrow(/out of range/); // scene bounds guard
 
     // addScene extends a pamphlet (multi-scene, AC9).
     const pamphlet = newDesign("pamphlet");

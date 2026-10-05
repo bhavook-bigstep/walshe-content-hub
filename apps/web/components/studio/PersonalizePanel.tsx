@@ -76,7 +76,7 @@ export default function PersonalizePanel({
       <div>
         <span className="label">Logo</span>
         <label className="flex cursor-pointer items-center gap-3 rounded-sm border border-dashed border-walshe-line bg-walshe-mist/50 px-4 py-3 transition-colors hover:border-walshe-ink/30">
-          <span className="grid h-9 w-9 flex-none place-items-center rounded-md bg-walshe-mint text-walshe-teal">
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-md bg-walshe-teal text-white">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M12 16V4M7 9l5-5 5 5M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
             </svg>

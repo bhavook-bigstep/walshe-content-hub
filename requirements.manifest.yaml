@@ -295,3 +295,10 @@ acceptance:
       - "apps/web/tests/storyboard-video.test.ts::test_design_to_video_request"
     e2e:
       - "apps/web/e2e/storyboard-smoke.spec.ts::agent builds a multi-scene storyboard and generates a video"
+  AC48:
+    tier: P2
+    web:
+      - "apps/web/tests/studio-ops.test.ts::test_manual_ops_mutate_design"
+    e2e:
+      - "apps/web/e2e/studio-interaction-smoke.spec.ts::pan and zoom move the studio viewport; zoom control clears the assistant"
+      - "apps/web/e2e/studio-interaction-smoke.spec.ts::selecting an entity and pressing Delete removes it"

@@ -9,7 +9,9 @@ export default function WalsheLogo({
   className?: string;
 }) {
   const onTeal = tone === "teal";
-  const tile = onTeal ? "bg-walshe-mint text-walshe-teal" : "bg-walshe-mint text-walshe-teal";
+  // Fixed light-mint tile with teal lettering so the monogram reads in both themes (the themed
+  // --walshe-mint flips to teal in light mode, which would make teal-on-teal invisible).
+  const tile = "bg-[rgb(229_246_223)] text-walshe-teal";
   const word = onTeal ? "text-walshe-white" : "text-walshe-ink";
   const sub = onTeal ? "text-walshe-mint" : "text-walshe-grey";
   return (

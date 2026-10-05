@@ -146,7 +146,7 @@ export default function BuilderPanel({
       {items.length === 0 ? (
         <p className="text-small text-walshe-grey">Select at least one catalog item for the Builder to use.</p>
       ) : (
-        <p className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-walshe-mint px-3 py-1 text-small font-semibold text-walshe-teal">
+        <p className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-walshe-teal px-3 py-1 text-small font-semibold text-white">
           {items.length} catalog item{items.length === 1 ? "" : "s"} selected
         </p>
       )}

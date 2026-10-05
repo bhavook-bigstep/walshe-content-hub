@@ -96,7 +96,7 @@ export default function StudioRightRail({
             aria-pressed={active === t.id}
             onClick={() => setActive((cur) => (cur === t.id ? null : t.id))}
             className={`grid h-11 w-11 place-items-center rounded-lg transition-colors ${
-              active === t.id ? "bg-walshe-mint text-walshe-teal" : "text-walshe-ink hover:bg-walshe-ink/10"
+              active === t.id ? "bg-walshe-teal text-white" : "text-walshe-ink hover:bg-walshe-ink/10"
             }`}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

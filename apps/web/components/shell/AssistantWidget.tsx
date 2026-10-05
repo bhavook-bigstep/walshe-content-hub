@@ -80,7 +80,7 @@ export default function AssistantWidget() {
           className="fixed bottom-24 right-5 z-50 flex h-[32rem] max-h-[calc(100vh-7rem)] w-[calc(100vw-2.5rem)] max-w-[24rem] flex-col overflow-hidden rounded-lg border border-walshe-line bg-walshe-base shadow-lift"
         >
           <header className="flex flex-none items-center gap-2 border-b border-walshe-line px-4 py-3">
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-walshe-mint text-walshe-teal">
+            <span className="grid h-7 w-7 place-items-center rounded-md bg-walshe-teal text-white">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path d="M12 3l1.6 4.8L18.5 9l-4.9 1.2L12 15l-1.6-4.8L5.5 9l4.9-1.2z" />
               </svg>

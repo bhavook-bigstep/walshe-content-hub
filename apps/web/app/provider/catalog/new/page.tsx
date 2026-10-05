@@ -251,7 +251,7 @@ export default function NewEntryPage() {
             type="file"
             accept="image/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-mint file:px-4 file:py-2 file:text-small file:font-medium file:text-walshe-teal hover:file:bg-walshe-deep"
+            className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white hover:file:bg-walshe-deep"
           />
         </label>
 

@@ -171,7 +171,7 @@ export default function AgentHomePage() {
             <ol className="space-y-3">
               {topPosts.map((p, i) => (
                 <li key={p.post_id} className="flex items-center gap-3">
-                  <span className="grid h-6 w-6 flex-none place-items-center rounded-md bg-walshe-mint text-[12px] font-extrabold text-walshe-teal tabular-nums">
+                  <span className="grid h-6 w-6 flex-none place-items-center rounded-md bg-walshe-teal text-[12px] font-extrabold text-white tabular-nums">
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">

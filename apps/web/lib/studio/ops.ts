@@ -313,6 +313,19 @@ function mapNode(
   return next;
 }
 
+/** Delete a node (entity) from a scene (AC48). Throws if the target is missing. */
+export function deleteNode(design: DesignDoc, sceneIndex: number, nodeId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const idx = scene.nodes.findIndex((n) => n.id === nodeId);
+  if (idx === -1) {
+    throw new Error(`node ${nodeId} not found on scene ${sceneIndex}`);
+  }
+  scene.nodes.splice(idx, 1);
+  return next;
+}
+
 /** Move a node (AC9 "move"). */
 export function moveNode(
   design: DesignDoc,

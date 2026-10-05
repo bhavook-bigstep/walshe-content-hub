@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.11.0 |
+| **Version** | 2.12.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -305,11 +305,21 @@ Studio — **storyboard → video** (design `docs/plans/2026-10-05-studio-storyb
   durations, transition modes, offsets, caption/TTS wiring) without encoding + the fallback; vitest
   asserts the design→request serialisation; Playwright drives the editor → video.
 
-**Priority tiers** (build order; acceptance reports honestly against all 47):
+- **AC48** — **Studio interaction & theming fixes**: the full-bleed canvas **pans by left-dragging
+  empty space** (plus space/middle-drag) and the **wheel zooms to the cursor** (mouse + trackpad);
+  the zoom/fit control sits clear of the bottom-right assistant button; selected-item text is
+  **readable in light theme** (theme-aware tokens, not light-on-light); the dot-matrix spacing is
+  **floored** so a zoomed-out view isn't clouded; and entities can be **selected, moved, resized,
+  and deleted** on the canvas. First increment of the entity-model epic (charter
+  `docs/plans/2026-10-05-entity-model-charter.md`). Proof: a studio-interaction e2e (drag pans,
+  wheel zooms, zoom clears the assistant, select+Delete removes an entity) + a `deleteNode` unit
+  test; existing studio/storyboard ACs stay green.
+
+**Priority tiers** (build order; acceptance reports honestly against all 48):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
-studio = AC46,47 (all prior ACs stay green).
+studio = AC46,47,48 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -346,4 +356,5 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.12.0 | 2026-10-05 | **Studio interaction & theming fixes** (entity-model epic, Increment 1; charter `docs/plans/2026-10-05-entity-model-charter.md`): added **AC48** — left-drag pan + wheel-zoom-to-cursor on the full-bleed canvas, zoom control moved clear of the assistant FAB, light-theme selected-text contrast fixed (a dark-on-dark `bg-walshe-mint text-walshe-teal` active state), dot-matrix spacing floored for zoomed-out views, and entity select/move/resize/**delete** on the canvas. Fixes a pointer-events bug where the closed storyboard drawer swallowed canvas pan/zoom. Increments 2–4 (catalog re-model + uploads, declarative entity model + media picker, entity-aware animation/video/sprite render) follow. All prior ACs stay green. | user + Claude |
 | 2.11.0 | 2026-10-05 | **Studio storyboard → video** (charter `docs/plans/2026-10-05-studio-storyboard-charter.md`, design `…-studio-storyboard-design.md`): added **AC46–AC47** — the Design Studio becomes a pannable dot-matrix **multi-scene storyboard** (model carries `scenes[]`; pure deterministic add/remove/**reorder** + per-scene **duration**/**transition**; auto-sequential connectors; legacy `pages[]` migrated) and **Generate video** stitches the ordered scenes to an MP4 via the extended `/render/video` (ffmpeg **xfade** per transition with hard-cut fallback, caption overlays + local **TTS** narration, images only from visible catalog — Contract 1). Phase 1 editor shell shipped earlier as a UX redesign (no AC); the superseded catalog-item VideoPanel was folded into the storyboard action. All prior ACs stay green. | user + Claude |

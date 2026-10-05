@@ -13,6 +13,7 @@ import {
   type TPointerEventInfo,
 } from "fabric";
 import { nodeToObject } from "../../lib/studio/fabric-nodes";
+import { shouldDeleteSelection } from "../../lib/studio/keys";
 import type { DesignDoc } from "../../lib/studio/ops";
 
 export interface NodeBox {
@@ -36,16 +37,20 @@ export interface StudioCanvasProps {
   onReady?: (canvas: Canvas | null) => void;
   /** Called when the user moves/resizes an element — write it back to the design model. */
   onNodeChange?: (sceneIndex: number, nodeId: string, box: NodeBox) => void;
+  /** Called when the user deletes selected elements (Delete/Backspace). */
+  onNodeDelete?: (sceneIndex: number, nodeId: string) => void;
   /** Called when the user clicks a scene on the canvas — make it active. */
   onSelectScene?: (sceneIndex: number) => void;
   /** Receives imperative zoom/fit controls for the top bar once mounted. */
   onControls?: (controls: StudioControls) => void;
 }
 
-const DOT_BASE = 22; // dot spacing at 100% zoom (px)
+const DOT_BASE = 26; // dot spacing at 100% zoom (px) — a touch wider than before so it reads cleaner
+const DOT_MIN_PX = 18; // floor on-screen dot spacing so a zoomed-out view isn't clouded
 const ZOOM_MIN = 0.04;
 const ZOOM_MAX = 4;
 const SCENE_GAP = 160; // scene-space px between consecutive artboards
+const CLICK_SLOP_PX = 3; // pointer travel under this counts as a click (select), not a drag (pan)
 
 type TaggedObject = FabricObject & { nodeId?: string; sceneIndex?: number };
 
@@ -71,6 +76,7 @@ export default function StudioCanvas({
   activeScene,
   onReady,
   onNodeChange,
+  onNodeDelete,
   onSelectScene,
   onControls,
 }: StudioCanvasProps) {
@@ -80,6 +86,8 @@ export default function StudioCanvas({
   const canvasRef = useRef<Canvas | null>(null);
   const changeRef = useRef(onNodeChange);
   changeRef.current = onNodeChange;
+  const deleteRef = useRef(onNodeDelete);
+  deleteRef.current = onNodeDelete;
   const selectRef = useRef(onSelectScene);
   selectRef.current = onSelectScene;
   const designRef = useRef(design);
@@ -92,9 +100,16 @@ export default function StudioCanvas({
     const dots = dotsRef.current;
     if (!canvas || !dots) return;
     const [zoom, , , , tx, ty] = canvas.viewportTransform;
-    const size = DOT_BASE * zoom;
+    const size = Math.max(DOT_MIN_PX, DOT_BASE * zoom);
     dots.style.backgroundSize = `${size}px ${size}px`;
     dots.style.backgroundPosition = `${tx}px ${ty}px`;
+    // Test signals: the Fabric canvas is opaque to the DOM, so e2e reads pan/zoom (and entity
+    // count, set in the render effect) from these data-* attributes.
+    const c = containerRef.current;
+    if (c) {
+      c.dataset.zoom = zoom.toFixed(3);
+      c.dataset.pan = `${Math.round(tx)},${Math.round(ty)}`;
+    }
   }
 
   function zoomAt(factor: number) {
@@ -143,8 +158,11 @@ export default function StudioCanvas({
 
     let panning = false;
     let spaceHeld = false;
+    let moved = false;
     let lastX = 0;
     let lastY = 0;
+    let downX = 0;
+    let downY = 0;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") {
@@ -158,31 +176,47 @@ export default function StudioCanvas({
         canvas.defaultCursor = "default";
       }
     };
+    // Delete / Backspace removes the selected entities — unless an input or inline text edit is focused.
+    const onDeleteKey = (e: KeyboardEvent) => {
+      const ae = document.activeElement as HTMLElement | null;
+      const targets = canvas.getActiveObjects() as TaggedObject[];
+      const ok = shouldDeleteSelection({
+        key: e.key,
+        activeTag: ae?.tagName ?? null,
+        isContentEditable: !!ae?.isContentEditable,
+        editing: targets.some((o) => (o as { isEditing?: boolean }).isEditing),
+        targetCount: targets.length,
+      });
+      if (!ok) return;
+      e.preventDefault();
+      canvas.discardActiveObject();
+      for (const obj of targets) {
+        if (obj.nodeId && obj.sceneIndex !== undefined) deleteRef.current?.(obj.sceneIndex, obj.nodeId);
+      }
+    };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("keydown", onDeleteKey);
 
+    // Pan by dragging empty canvas (or with space / alt / middle button); drag an element to move it.
     canvas.on("mouse:down", (opt: TPointerEventInfo) => {
       const e = opt.e as MouseEvent;
-      if (spaceHeld || e.altKey || e.button === 1) {
+      downX = e.clientX;
+      downY = e.clientY;
+      const onEmpty = !opt.target; // artboards + inactive scenes are non-evented → count as empty
+      if (spaceHeld || e.altKey || e.button === 1 || (e.button === 0 && onEmpty)) {
         panning = true;
+        moved = false;
         canvas.selection = false;
         canvas.defaultCursor = "grabbing";
         lastX = e.clientX;
         lastY = e.clientY;
-        return;
-      }
-      // A plain click anywhere selects the scene under the pointer (scene-space x band).
-      const pt = canvas.getScenePoint(opt.e);
-      const design = designRef.current;
-      const step = design.width + SCENE_GAP;
-      const i = Math.floor(pt.x / step);
-      if (i >= 0 && i < design.scenes.length && pt.x - i * step <= design.width) {
-        selectRef.current?.(i);
       }
     });
     canvas.on("mouse:move", (opt: TPointerEventInfo) => {
       if (!panning) return;
       const e = opt.e as MouseEvent;
+      if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > CLICK_SLOP_PX) moved = true;
       const vpt = canvas.viewportTransform;
       vpt[4] += e.clientX - lastX;
       vpt[5] += e.clientY - lastY;
@@ -191,26 +225,31 @@ export default function StudioCanvas({
       lastY = e.clientY;
       syncDots();
     });
-    canvas.on("mouse:up", () => {
+    canvas.on("mouse:up", (opt: TPointerEventInfo) => {
+      const wasPanning = panning;
       panning = false;
       canvas.selection = true;
       canvas.defaultCursor = spaceHeld ? "grab" : "default";
+      // A click on empty canvas (pan that never moved) selects the scene under the pointer.
+      if (wasPanning && !moved) {
+        const pt = canvas.getScenePoint(opt.e);
+        const design = designRef.current;
+        const step = design.width + SCENE_GAP;
+        const i = Math.floor(pt.x / step);
+        if (i >= 0 && i < design.scenes.length && pt.x - i * step <= design.width) {
+          selectRef.current?.(i);
+        }
+      }
     });
 
+    // Wheel zooms to the cursor — works for a mouse wheel and a trackpad pinch (ctrl+wheel) alike.
     canvas.on("mouse:wheel", (opt: TPointerEventInfo) => {
       const e = opt.e as WheelEvent;
       e.preventDefault();
       e.stopPropagation();
-      if (e.ctrlKey || e.metaKey) {
-        let zoom = canvas.getZoom() * 0.999 ** e.deltaY;
-        zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
-        canvas.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
-      } else {
-        const vpt = canvas.viewportTransform;
-        vpt[4] -= e.deltaX;
-        vpt[5] -= e.deltaY;
-        canvas.setViewportTransform(vpt);
-      }
+      let zoom = canvas.getZoom() * 0.999 ** e.deltaY;
+      zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+      canvas.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
       syncDots();
     });
 
@@ -236,6 +275,7 @@ export default function StudioCanvas({
       ro.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("keydown", onDeleteKey);
       onReady?.(null);
       canvasRef.current = null;
       void canvas.dispose();
@@ -347,6 +387,9 @@ export default function StudioCanvas({
       } else {
         canvas.setViewportTransform(savedVpt);
         syncDots();
+      }
+      if (containerRef.current) {
+        containerRef.current.dataset.entities = String(design.scenes[activeScene]?.nodes.length ?? 0);
       }
       canvas.requestRenderAll();
     })();

@@ -28,7 +28,7 @@ export default function StudioBottomDock({ design, sceneIndex, onChange, items }
       aria-pressed={tab === id}
       onClick={() => setTab(id)}
       className={`rounded-lg px-4 py-1.5 text-small font-semibold transition-colors ${
-        tab === id ? "bg-walshe-mint text-walshe-teal" : "text-walshe-grey hover:bg-walshe-ink/10 hover:text-walshe-ink"
+        tab === id ? "bg-walshe-teal text-white" : "text-walshe-grey hover:bg-walshe-ink/10 hover:text-walshe-ink"
       }`}
     >
       {label}
@@ -53,8 +53,8 @@ export default function StudioBottomDock({ design, sceneIndex, onChange, items }
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex justify-center">
         <div
-          className={`pointer-events-auto flex h-[46vh] w-full max-w-3xl flex-col rounded-t-2xl border border-b-0 border-walshe-line/70 bg-chrome-bg/95 shadow-2xl backdrop-blur-md transition-transform duration-300 ${
-            open ? "translate-y-0" : "translate-y-full"
+          className={`flex h-[46vh] w-full max-w-3xl flex-col rounded-t-2xl border border-b-0 border-walshe-line/70 bg-chrome-bg/95 shadow-2xl backdrop-blur-md transition-transform duration-300 ${
+            open ? "translate-y-0 pointer-events-auto" : "translate-y-full pointer-events-none"
           }`}
           role="dialog"
           aria-label="AI studio"

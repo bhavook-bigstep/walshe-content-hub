@@ -77,7 +77,7 @@ export default function SceneControls({ design, activeScene, onChange, onSelectS
               <div
                 className={`flex items-center gap-2 rounded-sm border px-2.5 py-2 ${
                   isActive
-                    ? "border-walshe-teal bg-walshe-mint/40"
+                    ? "border-walshe-teal bg-walshe-teal/10"
                     : "border-walshe-line bg-walshe-stone/40"
                 }`}
               >

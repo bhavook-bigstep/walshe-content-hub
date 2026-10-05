@@ -215,7 +215,7 @@ export default function AdminPage() {
                 <div className="flex items-start gap-3">
                   <span
                     aria-hidden
-                    className="grid h-10 w-10 flex-none place-items-center rounded-md bg-walshe-mint text-base font-bold uppercase text-walshe-teal"
+                    className="grid h-10 w-10 flex-none place-items-center rounded-md bg-walshe-teal text-base font-bold uppercase text-white"
                   >
                     {u.email.charAt(0)}
                   </span>
