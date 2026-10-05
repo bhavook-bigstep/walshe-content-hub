@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app import audit, clock
 from app.content_templates import CONTENT_TEMPLATES
 from app.deps import get_db, require_role
-from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
+from app.models.catalog import Catalog, CatalogEntry, CatalogType, EntryStatus
 from app.models.user import Role, User
 from app.schemas.catalog import (
     AccessUpdate,
@@ -53,7 +53,13 @@ def create_entry(
     # A pending (unapproved) provider has no workspace access until verified (AC25).
     if not provider.approved:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Your organization is pending verification")
+    # AC49: an entry may be placed in one of the provider's own catalogs.
+    if body.catalog_id is not None:
+        catalog_row = db.get(Catalog, body.catalog_id)
+        if catalog_row is None or catalog_row.provider_id != provider.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Catalog not found")
     entry = CatalogEntry(
+        catalog_id=body.catalog_id,
         type=body.type,
         title=body.title,
         description=body.description,

@@ -7,7 +7,15 @@ from app.models.agent_run import AgentRun
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.blocklist import BlocklistTerm
-from app.models.catalog import Asset, CatalogEntry, CatalogType, DisplayStatus, EntryStatus
+from app.models.catalog import (
+    Asset,
+    Catalog,
+    CatalogEntry,
+    CatalogType,
+    CatalogVisibility,
+    DisplayStatus,
+    EntryStatus,
+)
 from app.models.composition import Composition
 from app.models.engagement import Engagement
 from app.models.post import Post, PostStatus
@@ -18,8 +26,10 @@ __all__ = [
     "User",
     "Tenant",
     "Role",
+    "Catalog",
     "CatalogEntry",
     "CatalogType",
+    "CatalogVisibility",
     "EntryStatus",
     "DisplayStatus",
     "Asset",

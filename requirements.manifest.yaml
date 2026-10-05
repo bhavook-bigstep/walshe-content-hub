@@ -302,3 +302,11 @@ acceptance:
     e2e:
       - "apps/web/e2e/studio-interaction-smoke.spec.ts::pan and zoom move the studio viewport; zoom control clears the assistant"
       - "apps/web/e2e/studio-interaction-smoke.spec.ts::selecting an entity and pressing Delete removes it"
+  AC49:
+    tier: P2
+    api:
+      - "apps/api/tests/test_catalogs.py::test_catalog_crud_and_share"
+      - "apps/api/tests/test_catalogs.py::test_catalog_gating"
+      - "apps/api/tests/test_catalogs.py::test_migrate_entries_to_catalogs"
+    e2e:
+      - "apps/web/e2e/catalog-library-smoke.spec.ts::provider creates and publishes a catalog"

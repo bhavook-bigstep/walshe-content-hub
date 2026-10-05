@@ -48,6 +48,7 @@ const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
   ],
   content_provider: [
     { href: "/provider", label: "Overview", icon: I.home },
+    { href: "/provider/catalogs", label: "Catalog library", icon: I.catalog },
     { href: "/provider/catalog", label: "My catalog", icon: I.catalog },
     { href: "/provider/catalog/new", label: "New entry", icon: I.plus },
     { href: "/provider/media", label: "Media library", icon: I.image },

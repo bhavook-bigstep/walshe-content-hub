@@ -9,8 +9,12 @@ Durable state for the `/oneshot-poc:run` building the entity-model epic. Content
 
 ## Increment plan
 
-1. **Increment 1 — Studio interaction & theming fixes (AC48).** ← **active**
-2. Increment 2 — Catalog re-model (media items first-class) + agent image/video uploads.
+1. **Increment 1 — Studio interaction & theming fixes (AC48).** ✅ done (`eb96d23`; CI green; PR #1).
+2. **Increment 2 — Catalog Library** (charter `docs/plans/2026-10-05-catalog-library-charter.md`,
+   v1.0.0 confirmed): Catalog→Entry→Item hierarchy, catalog public/private + sharing as the sole
+   access gate (**amends Contract 1/AC6**), entries decompose into text+media items (incl. video),
+   agent uploads, browse API. AC49 (model+access+migration) · AC50 (items+video+browse) · AC51
+   (agent uploads). ← **active** (phase 2a: AC49). Picker UI deferred to Inc 3.
 3. Increment 3 — Declarative entity model + studio media picker (catalog items + uploads).
 4. Increment 4 — Entity-aware animation + video/sprite render.
 

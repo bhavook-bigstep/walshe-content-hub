@@ -52,28 +52,41 @@ def is_blocked(entry: CatalogEntry, blocked_terms: frozenset[str]) -> bool:
     return any(term in haystack for term in blocked_terms)
 
 
-def is_visible_to_agent(
-    entry: CatalogEntry, agent: User, *, now: datetime, blocked_terms: frozenset[str]
-) -> bool:
-    """True iff ``entry`` is approved, brand-safe, unexpired, not off-limits, and in agent scope.
-
-    ``now`` and ``blocked_terms`` are both required (no default) so an un-updated agent-facing
-    caller fails loudly rather than silently skipping expiry (AC33) or the off-limits list (AC36).
-    Pass ``frozenset()`` only when the off-limits list genuinely does not apply.
-    """
+def _legacy_entry_gate(entry: CatalogEntry, agent: User) -> bool:
+    """The pre-AC49 per-entry gate: approved + brand-safe + in access scope. Applied only to a
+    catalog-less entry (migration bridge) until it is moved into a catalog."""
     if entry.status != EntryStatus.approved or not entry.brand_safe:
-        return False
-    if lifecycle.is_expired(entry.expires_at, now):
-        return False
-    if is_blocked(entry, blocked_terms):
         return False
     tenants = entry.allowed_tenant_ids or []
     agents = entry.allowed_agent_ids or []
     if not tenants and not agents:
-        return True  # open to all approved + brand-safe viewers
+        return True
     if agent.tenant_id is not None and agent.tenant_id in tenants:
         return True
     return agent.id in agents
+
+
+def is_visible_to_agent(
+    entry: CatalogEntry, agent: User, *, now: datetime, blocked_terms: frozenset[str]
+) -> bool:
+    """True iff ``agent`` may use ``entry`` — the single Contract-1 gate (AC6, re-based to AC49).
+
+    Catalog-gating (AC49): an entry in a catalog is usable iff that catalog is public, or private
+    and shared with the agent. Expiry (AC32/33) and the off-limits list (AC36) always still apply.
+    A catalog-less entry falls back to the legacy approved + brand-safe + scope gate so pre-AC49
+    data stays correct until migrated.
+
+    ``now`` and ``blocked_terms`` are both required (no default) so an un-updated agent-facing
+    caller fails loudly rather than silently skipping expiry or the off-limits list.
+    """
+    if lifecycle.is_expired(entry.expires_at, now):
+        return False
+    if is_blocked(entry, blocked_terms):
+        return False
+    catalog = entry.catalog
+    if catalog is not None:
+        return catalog.is_accessible_to_agent(agent.id)
+    return _legacy_entry_gate(entry, agent)
 
 
 def agent_visible_entries(
@@ -85,11 +98,11 @@ def agent_visible_entries(
     type_: CatalogType | None = None,
     q: str | None = None,
 ) -> list[CatalogEntry]:
-    """Return the entries an agent may see, narrowed by optional destination/type/text filters."""
-    stmt = select(CatalogEntry).where(
-        CatalogEntry.status == EntryStatus.approved,
-        CatalogEntry.brand_safe.is_(True),
-    )
+    """Return the entries an agent may see, narrowed by optional destination/type/text filters.
+
+    No status/brand-safe SQL pre-filter: visibility is decided per row by ``is_visible_to_agent``
+    (catalog-gating, with the legacy fallback for catalog-less entries)."""
+    stmt = select(CatalogEntry)
     if destination:
         stmt = stmt.where(CatalogEntry.destination == destination)
     if type_ is not None:

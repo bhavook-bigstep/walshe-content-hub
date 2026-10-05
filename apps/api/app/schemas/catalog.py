@@ -6,10 +6,56 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, Field, model_validator
 
 from app.lifecycle import display_status
-from app.models.catalog import CatalogType, DisplayStatus, EntryStatus
+from app.models.catalog import CatalogType, CatalogVisibility, DisplayStatus, EntryStatus
 
 if TYPE_CHECKING:
-    from app.models.catalog import CatalogEntry
+    from app.models.catalog import Catalog, CatalogEntry
+
+
+class CatalogCreate(BaseModel):
+    """Provider creates a catalog (AC49)."""
+
+    name: str = Field(min_length=1, max_length=200)
+    category: str = Field(default="", max_length=120)
+    visibility: CatalogVisibility = CatalogVisibility.private
+
+
+class CatalogUpdate(BaseModel):
+    """Rename / re-categorise / re-publish a catalog (AC49). Only provided fields change."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    category: str | None = Field(default=None, max_length=120)
+    visibility: CatalogVisibility | None = None
+
+
+class CatalogShareUpdate(BaseModel):
+    """Set the agent ids a private catalog is shared with (AC49)."""
+
+    shared_agent_ids: list[int] = Field(default_factory=list)
+
+
+class CatalogOut(BaseModel):
+    id: int
+    provider_id: int
+    name: str
+    category: str
+    visibility: CatalogVisibility
+    shared_agent_ids: list[int] = []
+    entry_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_catalog(cls, catalog: "Catalog") -> "CatalogOut":
+        return cls(
+            id=catalog.id,
+            provider_id=catalog.provider_id,
+            name=catalog.name,
+            category=catalog.category,
+            visibility=catalog.visibility,
+            shared_agent_ids=list(catalog.shared_agent_ids or []),
+            entry_count=len(catalog.entries),
+        )
 
 
 def _check_validity_window(valid_from: datetime | None, expires_at: datetime | None) -> None:
@@ -26,6 +72,9 @@ class CustomSection(BaseModel):
 
 
 class EntryCreate(BaseModel):
+    # The catalog this entry belongs to (AC49). Optional during migration; when given it must be
+    # one of the provider's own catalogs.
+    catalog_id: int | None = None
     type: CatalogType
     title: str = Field(min_length=1, max_length=300)
     description: str = ""
@@ -80,6 +129,7 @@ class SendBackRequest(BaseModel):
 
 class EntryOut(BaseModel):
     id: int
+    catalog_id: int | None = None
     type: CatalogType
     title: str
     description: str
@@ -107,6 +157,7 @@ class EntryOut(BaseModel):
         """Serialise an entry, deriving ``display_status`` from its validity window + clock."""
         return cls(
             id=entry.id,
+            catalog_id=entry.catalog_id,
             type=entry.type,
             title=entry.title,
             description=entry.description,

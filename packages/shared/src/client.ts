@@ -177,6 +177,29 @@ export async function createEntry(body: EntryCreate): Promise<Entry> {
   return (await (await send("/catalog", json(body))).json()) as Entry;
 }
 
+// Catalog library (AC49).
+export type Catalog = Schemas["CatalogOut"];
+export type CatalogCreate = Schemas["CatalogCreate"];
+export type CatalogUpdate = Schemas["CatalogUpdate"];
+export type CatalogVisibility = Catalog["visibility"];
+
+export async function listCatalogs(): Promise<Catalog[]> {
+  return (await (await send("/catalogs")).json()) as Catalog[];
+}
+export async function createCatalog(body: CatalogCreate): Promise<Catalog> {
+  return (await (await send("/catalogs", json(body))).json()) as Catalog;
+}
+export async function updateCatalog(id: number, body: CatalogUpdate): Promise<Catalog> {
+  return (await (await send(`/catalogs/${id}`, { ...json(body), method: "PATCH" })).json()) as Catalog;
+}
+export async function shareCatalog(id: number, shared_agent_ids: number[]): Promise<Catalog> {
+  const init = { ...json({ shared_agent_ids }), method: "PUT" };
+  return (await (await send(`/catalogs/${id}/share`, init)).json()) as Catalog;
+}
+export async function listAccessibleCatalogs(): Promise<Catalog[]> {
+  return (await (await send("/catalogs/accessible")).json()) as Catalog[];
+}
+
 /** Self-describing structured-field schema per content type (AC29). */
 export async function getContentTemplates(): Promise<ContentTemplates> {
   return (await (await send("/catalog/templates", {}, false)).json()) as ContentTemplates;

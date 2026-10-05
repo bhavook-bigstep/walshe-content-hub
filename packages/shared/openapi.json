@@ -468,6 +468,91 @@
         "title": "BrandKitUpdate",
         "type": "object"
       },
+      "CatalogCreate": {
+        "description": "Provider creates a catalog (AC49).",
+        "properties": {
+          "category": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Category",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/CatalogVisibility",
+            "default": "private"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CatalogCreate",
+        "type": "object"
+      },
+      "CatalogOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "entry_count": {
+            "default": 0,
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "integer"
+          },
+          "shared_agent_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Shared Agent Ids",
+            "type": "array"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/CatalogVisibility"
+          }
+        },
+        "required": [
+          "id",
+          "provider_id",
+          "name",
+          "category",
+          "visibility"
+        ],
+        "title": "CatalogOut",
+        "type": "object"
+      },
+      "CatalogShareUpdate": {
+        "description": "Set the agent ids a private catalog is shared with (AC49).",
+        "properties": {
+          "shared_agent_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Shared Agent Ids",
+            "type": "array"
+          }
+        },
+        "title": "CatalogShareUpdate",
+        "type": "object"
+      },
       "CatalogType": {
         "enum": [
           "event",
@@ -477,6 +562,57 @@
           "itinerary"
         ],
         "title": "CatalogType",
+        "type": "string"
+      },
+      "CatalogUpdate": {
+        "description": "Rename / re-categorise / re-publish a catalog (AC49). Only provided fields change.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogVisibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "CatalogUpdate",
+        "type": "object"
+      },
+      "CatalogVisibility": {
+        "description": "A catalog's distribution gate (AC49): public = every agent; private = only shared agents.",
+        "enum": [
+          "public",
+          "private"
+        ],
+        "title": "CatalogVisibility",
         "type": "string"
       },
       "ClaimSourceOut": {
@@ -926,6 +1062,17 @@
             "title": "Attributes",
             "type": "object"
           },
+          "catalog_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Id"
+          },
           "custom_sections": {
             "items": {
               "$ref": "#/components/schemas/CustomSection"
@@ -1019,6 +1166,17 @@
           "brand_safe": {
             "title": "Brand Safe",
             "type": "boolean"
+          },
+          "catalog_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Id"
           },
           "custom_sections": {
             "default": [],
@@ -3406,6 +3564,264 @@
         "summary": "Send Back",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/catalogs": {
+      "get": {
+        "operationId": "list_own_catalogs_catalogs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogOut"
+                  },
+                  "title": "Response List Own Catalogs Catalogs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Own Catalogs",
+        "tags": [
+          "catalogs"
+        ]
+      },
+      "post": {
+        "operationId": "create_catalog_catalogs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/accessible": {
+      "get": {
+        "description": "Catalogs an agent may browse: every public one + the private ones shared with them (AC49).\nThe single catalog-level gate — entry/item reads then flow through services/visibility.",
+        "operationId": "list_accessible_catalogs_catalogs_accessible_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogOut"
+                  },
+                  "title": "Response List Accessible Catalogs Catalogs Accessible Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Accessible Catalogs",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/{catalog_id}": {
+      "delete": {
+        "operationId": "delete_catalog_catalogs__catalog_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      },
+      "patch": {
+        "operationId": "update_catalog_catalogs__catalog_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/{catalog_id}/share": {
+      "put": {
+        "description": "Set the agents a private catalog is shared with (AC49). Only real tourism agents are kept.",
+        "operationId": "share_catalog_catalogs__catalog_id__share_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogShareUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Share Catalog",
+        "tags": [
+          "catalogs"
         ]
       }
     },

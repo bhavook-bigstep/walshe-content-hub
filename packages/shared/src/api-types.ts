@@ -376,6 +376,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalogs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Own Catalogs */
+        get: operations["list_own_catalogs_catalogs_get"];
+        put?: never;
+        /** Create Catalog */
+        post: operations["create_catalog_catalogs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/accessible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Accessible Catalogs
+         * @description Catalogs an agent may browse: every public one + the private ones shared with them (AC49).
+         *     The single catalog-level gate — entry/item reads then flow through services/visibility.
+         */
+        get: operations["list_accessible_catalogs_catalogs_accessible_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/{catalog_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Catalog */
+        delete: operations["delete_catalog_catalogs__catalog_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Catalog */
+        patch: operations["update_catalog_catalogs__catalog_id__patch"];
+        trace?: never;
+    };
+    "/catalogs/{catalog_id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Share Catalog
+         * @description Set the agents a private catalog is shared with (AC49). Only real tourism agents are kept.
+         */
+        put: operations["share_catalog_catalogs__catalog_id__share_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/engagement": {
         parameters: {
             query?: never;
@@ -958,10 +1035,72 @@ export interface components {
             website?: string | null;
         };
         /**
+         * CatalogCreate
+         * @description Provider creates a catalog (AC49).
+         */
+        CatalogCreate: {
+            /**
+             * Category
+             * @default
+             */
+            category: string;
+            /** Name */
+            name: string;
+            /** @default private */
+            visibility: components["schemas"]["CatalogVisibility"];
+        };
+        /** CatalogOut */
+        CatalogOut: {
+            /** Category */
+            category: string;
+            /**
+             * Entry Count
+             * @default 0
+             */
+            entry_count: number;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Provider Id */
+            provider_id: number;
+            /**
+             * Shared Agent Ids
+             * @default []
+             */
+            shared_agent_ids: number[];
+            visibility: components["schemas"]["CatalogVisibility"];
+        };
+        /**
+         * CatalogShareUpdate
+         * @description Set the agent ids a private catalog is shared with (AC49).
+         */
+        CatalogShareUpdate: {
+            /** Shared Agent Ids */
+            shared_agent_ids?: number[];
+        };
+        /**
          * CatalogType
          * @enum {string}
          */
         CatalogType: "event" | "place" | "opportunity" | "offer" | "itinerary";
+        /**
+         * CatalogUpdate
+         * @description Rename / re-categorise / re-publish a catalog (AC49). Only provided fields change.
+         */
+        CatalogUpdate: {
+            /** Category */
+            category?: string | null;
+            /** Name */
+            name?: string | null;
+            visibility?: components["schemas"]["CatalogVisibility"] | null;
+        };
+        /**
+         * CatalogVisibility
+         * @description A catalog's distribution gate (AC49): public = every agent; private = only shared agents.
+         * @enum {string}
+         */
+        CatalogVisibility: "public" | "private";
         /** ClaimSourceOut */
         ClaimSourceOut: {
             /** Claim */
@@ -1109,6 +1248,8 @@ export interface components {
             attributes?: {
                 [key: string]: unknown;
             };
+            /** Catalog Id */
+            catalog_id?: number | null;
             /** Custom Sections */
             custom_sections?: components["schemas"]["CustomSection"][];
             /**
@@ -1146,6 +1287,8 @@ export interface components {
             };
             /** Brand Safe */
             brand_safe: boolean;
+            /** Catalog Id */
+            catalog_id?: number | null;
             /**
              * Custom Sections
              * @default []
@@ -2375,6 +2518,178 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_own_catalogs_catalogs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"][];
+                };
+            };
+        };
+    };
+    create_catalog_catalogs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_accessible_catalogs_catalogs_accessible_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"][];
+                };
+            };
+        };
+    };
+    delete_catalog_catalogs__catalog_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_catalog_catalogs__catalog_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    share_catalog_catalogs__catalog_id__share_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogShareUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
                 };
             };
             /** @description Validation Error */

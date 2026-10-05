@@ -45,10 +45,51 @@ class DisplayStatus(str, enum.Enum):
     withdrawn = "withdrawn"
 
 
+class CatalogVisibility(str, enum.Enum):
+    """A catalog's distribution gate (AC49): public = every agent; private = only shared agents."""
+
+    public = "public"
+    private = "private"
+
+
+class Catalog(Base):
+    """A provider-owned catalog (AC49). Catalog-level public/private + sharing is the single gate
+    that decides whether an agent may use the catalog's entries + items (Contract 1, re-based from
+    per-entry approval to catalog publish/share)."""
+
+    __tablename__ = "catalogs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(120), default="")
+    visibility: Mapped[CatalogVisibility] = mapped_column(
+        Enum(CatalogVisibility), default=CatalogVisibility.private
+    )
+    # Agent ids a private catalog is shared with (empty for public, where it is ignored).
+    shared_agent_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now()
+    )
+
+    entries: Mapped[list["CatalogEntry"]] = relationship(back_populates="catalog")
+
+    def is_accessible_to_agent(self, agent_id: int) -> bool:
+        """Catalog-level gate: public to all, else only to agents it is shared with."""
+        if self.visibility == CatalogVisibility.public:
+            return True
+        return agent_id in (self.shared_agent_ids or [])
+
+
 class CatalogEntry(Base):
     __tablename__ = "catalog_entries"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # The owning catalog (AC49). Nullable only as a migration bridge; the visibility choke-point
+    # treats a catalog-less entry by the legacy approved+brand-safe gate until it is migrated.
+    catalog_id: Mapped[int | None] = mapped_column(
+        ForeignKey("catalogs.id"), nullable=True, index=True
+    )
     type: Mapped[CatalogType] = mapped_column(Enum(CatalogType))
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -77,6 +118,8 @@ class CatalogEntry(Base):
     allowed_agent_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
 
     provider_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+    catalog: Mapped["Catalog | None"] = relationship(back_populates="entries")
 
     assets: Mapped[list["Asset"]] = relationship(
         back_populates="entry", cascade="all, delete-orphan"
