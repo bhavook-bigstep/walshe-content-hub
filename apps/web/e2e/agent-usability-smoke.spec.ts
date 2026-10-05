@@ -38,7 +38,7 @@ test("agent opens a saved project in the studio", async ({ page }) => {
   await page.goto("/agent/studio");
   await page.getByRole("button", { name: /save to projects/i }).click();
   await expect(page.getByText(/saved to projects/i)).toBeVisible();
-  await expect(page.getByText(/^Editing:/)).toBeVisible();
+  await expect(page.getByText(/Editing/).first()).toBeVisible();
 
   // Re-open it from the Projects list.
   await page.goto("/agent/projects");
@@ -47,5 +47,5 @@ test("agent opens a saved project in the studio", async ({ page }) => {
   await open.click();
 
   await expect(page).toHaveURL(/\/agent\/studio\?project=\d+/);
-  await expect(page.getByText(/^Editing:/)).toBeVisible();
+  await expect(page.getByText(/Editing/).first()).toBeVisible();
 });

@@ -1,19 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const API = "http://localhost:8765";
-const CORS = {
-  "access-control-allow-origin": "http://localhost:3100",
-  "access-control-allow-headers": "authorization,content-type",
-  "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-};
-
-// See studio-smoke.spec.ts: the API has no CORS middleware, so bridge the cross-port calls.
-async function allowApiCors(page: Page): Promise<void> {
-  await page.route(`${API}/**`, async (route) => {
-    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: CORS });
-    const res = await route.fetch();
-    await route.fulfill({ response: res, headers: { ...res.headers(), ...CORS } });
-  });
+// The e2e API serves real CORS headers for the web origin (CORS_ORIGINS in playwright.config), so
+// the browser calls it directly. This is a no-op kept for call-site compatibility — the old route
+// interception raced with mid-test navigations (route.fetch on a disposed request) and flaked.
+async function allowApiCors(_page: Page): Promise<void> {
+  return;
 }
 
 test("agent is redirected away from admin", async ({ page }) => {

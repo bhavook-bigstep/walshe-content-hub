@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Canvas } from "fabric";
+import type { StudioControls } from "../../../components/studio/StudioCanvas";
 import BuilderPanel, { type BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
 import CreativePlanPanel from "../../../components/studio/CreativePlanPanel";
 import ExportMenu from "../../../components/studio/ExportMenu";
@@ -11,7 +12,6 @@ import FormatPicker from "../../../components/studio/FormatPicker";
 import PersonalizePanel from "../../../components/studio/PersonalizePanel";
 import VideoPanel from "../../../components/studio/VideoPanel";
 import Toolbar, { type CatalogImageOption } from "../../../components/studio/Toolbar";
-import PageHeader from "../../../components/ui/PageHeader";
 import {
   createProject,
   fetchAssetObjectUrl,
@@ -22,7 +22,15 @@ import {
   type Entry,
 } from "../../../lib/api";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
-import { addShape, addText, newDesign, setBackground, type DesignDoc } from "../../../lib/studio/ops";
+import {
+  addShape,
+  addText,
+  moveNode,
+  newDesign,
+  resizeNode,
+  setBackground,
+  type DesignDoc,
+} from "../../../lib/studio/ops";
 
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
@@ -76,6 +84,7 @@ function StudioEditor() {
   const [saving, setSaving] = useState(false);
   const params = useSearchParams();
   const canvasRef = useRef<Canvas | null>(null);
+  const controlsRef = useRef<StudioControls | null>(null);
   useEffect(() => {
     let cancelled = false;
     const urls: string[] = [];
@@ -151,58 +160,68 @@ function StudioEditor() {
     }
   }
 
+  function onNodeChange(nodeId: string, box: { x: number; y: number; width: number; height: number }) {
+    setDesign((d) => {
+      try {
+        const moved = moveNode(d, pageIndex, nodeId, box.x, box.y);
+        return box.width > 0 && box.height > 0
+          ? resizeNode(moved, pageIndex, nodeId, box.width, box.height)
+          : moved;
+      } catch {
+        return d; // ignore a drag the model can't apply (e.g. a removed node)
+      }
+    });
+  }
+
+  const zoomBtn =
+    "grid h-8 w-8 place-items-center rounded-sm text-walshe-ink transition-colors hover:bg-walshe-ink/10";
+
   return (
-    <div>
-      <PageHeader
-        title="Design Studio"
-        description="Compose pamphlets, posts and stories on the canvas — manually or with the AI Builder."
-        action={
-          <div className="flex items-center gap-3">
-            {saveMsg && <span className="text-small font-medium text-walshe-green">{saveMsg}</span>}
-            <button type="button" onClick={saveProject} disabled={saving} className="btn-primary">
-              {saving ? "Saving…" : project && project.id > 0 ? "Save project" : "Save to projects"}
-            </button>
+    <div className="flex h-full flex-col gap-3">
+      {/* Top menu bar: title + format + tools (left) · zoom + save (right) */}
+      <div className="flex flex-none flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-walshe-line bg-chrome-bg px-3 py-2 shadow-card">
+        <h1 className="text-h3 text-[1.0625rem] font-bold text-walshe-ink">Design Studio</h1>
+        {project && (
+          <span className="text-small text-walshe-grey">
+            · Editing <span className="font-semibold text-walshe-ink">{project.name}</span>
+          </span>
+        )}
+        <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
+        <FormatPicker value={design.format} onChange={pickFormat} />
+        <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
+        <Toolbar
+          design={design}
+          pageIndex={pageIndex}
+          onChange={setDesign}
+          onPageChange={setPageIndex}
+          catalogImages={CATALOG_IMAGES}
+        />
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center rounded-sm border border-walshe-line bg-walshe-stone/60 px-0.5">
+            <button type="button" aria-label="Zoom out" className={zoomBtn} onClick={() => controlsRef.current?.zoomOut()}>−</button>
+            <button type="button" className="px-2 text-small font-medium text-walshe-ink hover:text-walshe-mint" onClick={() => controlsRef.current?.fit()}>Fit</button>
+            <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
           </div>
-        }
-      />
-
-      {project && (
-        <p className="-mt-3 mb-5 text-small text-walshe-grey">
-          Editing: <span className="font-semibold text-walshe-ink">{project.name}</span>
-        </p>
-      )}
-
-      {/* Slim top tool bar: format + canvas tools, grouped (Canva-style). */}
-      <div className="mb-5 rounded-lg border border-walshe-line bg-walshe-stone/60 p-3 shadow-card sm:px-4">
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-          <div className="flex items-end pb-2">
-            <FormatPicker value={design.format} onChange={pickFormat} />
-          </div>
-          <span aria-hidden className="hidden h-9 w-px self-end bg-walshe-line sm:block" />
-          <Toolbar
-            design={design}
-            pageIndex={pageIndex}
-            onChange={setDesign}
-            onPageChange={setPageIndex}
-            catalogImages={CATALOG_IMAGES}
-          />
+          {saveMsg && <span className="hidden text-small font-medium text-walshe-green sm:inline">{saveMsg}</span>}
+          <button type="button" onClick={saveProject} disabled={saving} className="btn-primary">
+            {saving ? "Saving…" : project && project.id > 0 ? "Save project" : "Save to projects"}
+          </button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-        {/* Soft neutral workspace with a dotted surface; the artboard stays white. */}
-        <div
-          className="flex min-h-[460px] items-center justify-center overflow-auto rounded-lg border border-walshe-line bg-walshe-mist p-6 sm:p-10"
-          style={{
-            backgroundImage: "radial-gradient(rgb(var(--walshe-stone)) 1.1px, transparent 1.1px)",
-            backgroundSize: "18px 18px",
-          }}
-        >
-          <StudioCanvas design={design} pageIndex={pageIndex} onReady={onReady} />
+      {/* Workspace: the dot-matrix canvas (fills) + a fixed right toolbar of panels. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+        <div className="min-h-[360px] min-w-0 flex-1 overflow-hidden rounded-lg border border-walshe-line">
+          <StudioCanvas
+            design={design}
+            pageIndex={pageIndex}
+            onReady={onReady}
+            onNodeChange={onNodeChange}
+            onControls={(c) => (controlsRef.current = c)}
+          />
         </div>
 
-        {/* Right-hand panel rail. */}
-        <div className="flex flex-col gap-5">
+        <div className="flex-none space-y-4 overflow-y-auto rounded-lg border border-walshe-line bg-chrome-bg p-4 lg:w-[360px]">
           <RailCard eyebrow="AI" title="AI Builder" icon={ICON.sparkle}>
             {panelItems === null ? (
               <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
@@ -230,7 +249,7 @@ function StudioEditor() {
           )}
 
           <RailCard eyebrow="Download" title="Export" icon={ICON.download}>
-            <ExportMenu design={design} pageIndex={pageIndex} getCanvas={() => canvasRef.current} />
+            <ExportMenu design={design} pageIndex={pageIndex} />
           </RailCard>
         </div>
       </div>

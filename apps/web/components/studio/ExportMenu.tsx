@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { Canvas } from "fabric";
 import { renderEmailHtml, renderPdf } from "../../lib/api";
 import { filenameFor, type ExportKind } from "../../lib/studio/export";
 import type { DesignDoc } from "../../lib/studio/ops";
+import { renderDesignToPng } from "../../lib/studio/render";
 
 function download(href: string, filename: string): void {
   const a = document.createElement("a");
@@ -24,11 +24,9 @@ function downloadBlob(blob: Blob, filename: string): void {
 export default function ExportMenu({
   design,
   pageIndex,
-  getCanvas,
 }: {
   design: DesignDoc;
   pageIndex: number;
-  getCanvas: () => Canvas | null;
 }) {
   const [busy, setBusy] = useState<ExportKind | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,10 +36,9 @@ export default function ExportMenu({
     setError(null);
     try {
       if (kind === "png") {
-        const canvas = getCanvas();
-        if (!canvas) throw new Error("Canvas is not ready.");
+        // Full-resolution render of the scene, independent of the on-screen pan/zoom.
         const page = design.pages.length > 1 ? pageIndex + 1 : undefined;
-        download(canvas.toDataURL({ format: "png", multiplier: 1 }), filenameFor(design.format, "png", page));
+        download(await renderDesignToPng(design, pageIndex), filenameFor(design.format, "png", page));
       } else if (kind === "pdf") {
         downloadBlob(await renderPdf({ ...design }), filenameFor(design.format, "pdf"));
       } else {
