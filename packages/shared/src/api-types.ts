@@ -1588,10 +1588,18 @@ export interface components {
              * @default
              */
             caption: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
             /** Item Id */
             item_id?: number | null;
             /** Title */
             title: string;
+            /**
+             * Transition
+             * @default none
+             * @enum {string}
+             */
+            transition: "none" | "fade" | "slide-left" | "zoom";
         };
     };
     responses: never;

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -45,6 +45,9 @@ class VideoScene(BaseModel):
     item_id: int | None = None
     title: str = Field(max_length=200)
     caption: str = Field(default="", max_length=200)
+    # AC47 storyboard: per-scene lifespan (ms, clamped server-side) + transition to the next scene.
+    duration_ms: int | None = Field(default=None, ge=0, le=60000)
+    transition: Literal["none", "fade", "slide-left", "zoom"] = "none"
 
 
 class VideoRequest(BaseModel):
@@ -99,7 +102,15 @@ def render_video(
         with tempfile.TemporaryDirectory() as tmp:
             images = _scene_image_paths(db, agent, storage, body.scenes, tmp, now=now)
             scenes = build_scene_script(
-                [{"title": s.title, "description": s.caption} for s in body.scenes]
+                [
+                    {
+                        "title": s.title,
+                        "description": s.caption,
+                        "duration_ms": s.duration_ms,
+                        "transition": s.transition,
+                    }
+                    for s in body.scenes
+                ]
             )
             path = encode_video(scenes, images, tts=body.narrate)
             with open(path, "rb") as fh:

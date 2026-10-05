@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.10.0 |
+| **Version** | 2.11.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -284,10 +284,32 @@ Increment 3 — **Observability**:
   recorded (content-free) on an assistant/plan call, the trace view is admin-only, and LangSmith is
   off without a key; Playwright shows the admin trace view after an agent run.
 
-**Priority tiers** (build order; acceptance reports honestly against all 45):
+Studio — **storyboard → video** (design `docs/plans/2026-10-05-studio-storyboard-design.md`):
+
+- **AC46** — **Multi-scene storyboard**: the Design Studio is a pannable/zoomable dot-matrix
+  workspace holding one **artboard per scene**, laid out in an **auto-sequential chain** with
+  connector arrows. The serialisable design model carries `scenes[]` (each `{id, name, nodes,
+  background?, durationMs, transition}`; a single-scene doc = a plain design, migrated from legacy
+  `pages[]`). **Pure, deterministic** ops add / remove / **reorder** scenes and set per-scene
+  **duration** (clamped 0.5–15 s) + **transition**; the active scene is highlighted and new content
+  lands on it. Existing studio ACs (AC8/AC9/AC12/AC18) stay green. Proof: vitest asserts the scene
+  ops + legacy migration are deterministic; Playwright adds/reorders scenes and edits duration +
+  transition on the canvas.
+
+- **AC47** — **Stitch scenes → video**: the editor's **Generate video** action serialises the
+  ordered scenes → `POST /render/video`, which encodes each scene for its **duration** and joins
+  consecutive scenes with ffmpeg **xfade** (fade/slide/zoom; `none` = hard cut; graceful hard-cut
+  fallback when xfade is unavailable), overlaying a **caption** (scene text → item title) with local
+  **TTS narration**. Scene images resolve to `item_id` and come **only from visible catalog
+  entries** (Contract 1). Proof: pytest asserts the deterministic scene-script/xfade argv (per-scene
+  durations, transition modes, offsets, caption/TTS wiring) without encoding + the fallback; vitest
+  asserts the design→request serialisation; Playwright drives the editor → video.
+
+**Priority tiers** (build order; acceptance reports honestly against all 47):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
-framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 (all prior ACs stay green).
+framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
+studio = AC46,47 (all prior ACs stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -324,3 +346,4 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.11.0 | 2026-10-05 | **Studio storyboard → video** (charter `docs/plans/2026-10-05-studio-storyboard-charter.md`, design `…-studio-storyboard-design.md`): added **AC46–AC47** — the Design Studio becomes a pannable dot-matrix **multi-scene storyboard** (model carries `scenes[]`; pure deterministic add/remove/**reorder** + per-scene **duration**/**transition**; auto-sequential connectors; legacy `pages[]` migrated) and **Generate video** stitches the ordered scenes to an MP4 via the extended `/render/video` (ffmpeg **xfade** per transition with hard-cut fallback, caption overlays + local **TTS** narration, images only from visible catalog — Contract 1). Phase 1 editor shell shipped earlier as a UX redesign (no AC); the superseded catalog-item VideoPanel was folded into the storyboard action. All prior ACs stay green. | user + Claude |

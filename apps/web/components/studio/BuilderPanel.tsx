@@ -52,7 +52,7 @@ export function parseBuilderOps(response: Record<string, unknown>): BuilderOp[] 
  */
 export function applyBuilderOps(
   design: DesignDoc,
-  pageIndex: number,
+  sceneIndex: number,
   ops: BuilderOp[],
   items: BuilderCatalogItem[],
 ): DesignDoc {
@@ -63,7 +63,7 @@ export function applyBuilderOps(
   for (const op of ops) {
     if (op.op === "write-copy") {
       if (op.item_id !== null && !byId.has(op.item_id)) continue;
-      next = addText(next, pageIndex, op.text, { x: MARGIN, y, width });
+      next = addText(next, sceneIndex, op.text, { x: MARGIN, y, width });
       y += ROW_H;
     } else {
       const item = byId.get(op.item_id);
@@ -71,7 +71,7 @@ export function applyBuilderOps(
       const size = Math.min(IMAGE_SIZE, width);
       next = addCatalogImage(
         next,
-        pageIndex,
+        sceneIndex,
         { src: item.imageSrc, catalogItemId: String(item.id) },
         { x: MARGIN, y, width: size, height: size },
       );
@@ -83,13 +83,13 @@ export function applyBuilderOps(
 
 export default function BuilderPanel({
   design,
-  pageIndex,
+  sceneIndex,
   items,
   onChange,
   generate = builderDesign,
 }: {
   design: DesignDoc;
-  pageIndex: number;
+  sceneIndex: number;
   /** Catalog items selected for this design. */
   items: BuilderCatalogItem[];
   onChange: (next: DesignDoc) => void;
@@ -112,7 +112,7 @@ export default function BuilderPanel({
         item_ids: items.map((i) => i.id),
       });
       const ops = parseBuilderOps(res);
-      const next = applyBuilderOps(design, pageIndex, ops, items);
+      const next = applyBuilderOps(design, sceneIndex, ops, items);
       if (next === design) {
         setNotice("The Builder returned nothing to place. Try a more specific prompt.");
         return;

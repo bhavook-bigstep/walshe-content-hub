@@ -2203,6 +2203,19 @@
             "title": "Caption",
             "type": "string"
           },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "maximum": 60000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
           "item_id": {
             "anyOf": [
               {
@@ -2217,6 +2230,17 @@
           "title": {
             "maxLength": 200,
             "title": "Title",
+            "type": "string"
+          },
+          "transition": {
+            "default": "none",
+            "enum": [
+              "none",
+              "fade",
+              "slide-left",
+              "zoom"
+            ],
+            "title": "Transition",
             "type": "string"
           }
         },

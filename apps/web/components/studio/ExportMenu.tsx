@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { renderEmailHtml, renderPdf } from "../../lib/api";
 import { filenameFor, type ExportKind } from "../../lib/studio/export";
-import type { DesignDoc } from "../../lib/studio/ops";
+import { scenesAsPages, type DesignDoc } from "../../lib/studio/ops";
 import { renderDesignToPng } from "../../lib/studio/render";
 
 function download(href: string, filename: string): void {
@@ -23,10 +23,10 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 export default function ExportMenu({
   design,
-  pageIndex,
+  sceneIndex,
 }: {
   design: DesignDoc;
-  pageIndex: number;
+  sceneIndex: number;
 }) {
   const [busy, setBusy] = useState<ExportKind | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,12 +37,12 @@ export default function ExportMenu({
     try {
       if (kind === "png") {
         // Full-resolution render of the scene, independent of the on-screen pan/zoom.
-        const page = design.pages.length > 1 ? pageIndex + 1 : undefined;
-        download(await renderDesignToPng(design, pageIndex), filenameFor(design.format, "png", page));
+        const page = design.scenes.length > 1 ? sceneIndex + 1 : undefined;
+        download(await renderDesignToPng(design, sceneIndex), filenameFor(design.format, "png", page));
       } else if (kind === "pdf") {
-        downloadBlob(await renderPdf({ ...design }), filenameFor(design.format, "pdf"));
+        downloadBlob(await renderPdf(scenesAsPages(design)), filenameFor(design.format, "pdf"));
       } else {
-        const html = await renderEmailHtml({ ...design });
+        const html = await renderEmailHtml(scenesAsPages(design));
         downloadBlob(new Blob([html], { type: "text/html" }), filenameFor(design.format, "html"));
       }
     } catch (err) {

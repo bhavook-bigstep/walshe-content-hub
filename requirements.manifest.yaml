@@ -277,3 +277,21 @@ acceptance:
       - "apps/api/tests/test_observability.py::test_langsmith_is_off_without_a_key"
     e2e:
       - "apps/web/e2e/observability-smoke.spec.ts::admin sees an agent run in the trace view"
+  AC46:
+    tier: P2
+    web:
+      - "apps/web/tests/studio-ops.test.ts::test_scene_ops_storyboard"
+      - "apps/web/tests/studio-ops.test.ts::test_migrate_legacy_pages_to_scenes"
+    e2e:
+      - "apps/web/e2e/storyboard-smoke.spec.ts::agent builds a multi-scene storyboard and generates a video"
+  AC47:
+    tier: P2
+    api:
+      - "apps/api/tests/test_video.py::test_scene_script_duration_and_transition"
+      - "apps/api/tests/test_video.py::test_render_video_xfade_chain"
+      - "apps/api/tests/test_video.py::test_render_video_all_none_hard_cut"
+      - "apps/api/tests/test_video.py::test_render_video_xfade_fallback_to_concat"
+    web:
+      - "apps/web/tests/storyboard-video.test.ts::test_design_to_video_request"
+    e2e:
+      - "apps/web/e2e/storyboard-smoke.spec.ts::agent builds a multi-scene storyboard and generates a video"

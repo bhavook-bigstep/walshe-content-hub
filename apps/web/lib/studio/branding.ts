@@ -6,7 +6,7 @@
  * Output is the same serialisable DesignDoc shape the API export consumes (text/image nodes).
  */
 
-import type { DesignDoc, DesignNode, DesignPage } from "./ops";
+import { cloneDesign, type DesignDoc, type DesignNode } from "./ops";
 
 export interface Branding {
   /** served URL of the agent's uploaded logo (existing agent-scoped assets endpoint) */
@@ -20,8 +20,8 @@ export interface Branding {
 const MARGIN = 48;
 const BRAND_PREFIX = "brand-";
 
-function brandId(role: "logo" | "offer" | "contact", pageIndex: number): string {
-  return `${BRAND_PREFIX}${role}-p${pageIndex}`;
+function brandId(role: "logo" | "offer" | "contact", sceneId: string): string {
+  return `${BRAND_PREFIX}${role}-${sceneId}`;
 }
 
 function contactText(c: NonNullable<Branding["contact"]>): string {
@@ -34,17 +34,18 @@ function contactText(c: NonNullable<Branding["contact"]>): string {
 export function applyBranding(
   design: DesignDoc,
   branding: Branding,
-  pageIndex = 0,
+  sceneIndex = 0,
 ): DesignDoc {
-  if (pageIndex < 0 || pageIndex >= design.pages.length) {
-    throw new RangeError(`page index ${pageIndex} out of range (0..${design.pages.length - 1})`);
+  if (sceneIndex < 0 || sceneIndex >= design.scenes.length) {
+    throw new RangeError(`scene index ${sceneIndex} out of range (0..${design.scenes.length - 1})`);
   }
   const { width, height } = design;
+  const sceneId = design.scenes[sceneIndex].id;
   const brandNodes: DesignNode[] = [];
 
   if (branding.logo?.src) {
     brandNodes.push({
-      id: brandId("logo", pageIndex),
+      id: brandId("logo", sceneId),
       type: "image",
       x: MARGIN,
       y: MARGIN,
@@ -56,7 +57,7 @@ export function applyBranding(
   const offer = branding.offer?.text.trim();
   if (offer) {
     brandNodes.push({
-      id: brandId("offer", pageIndex),
+      id: brandId("offer", sceneId),
       type: "text",
       x: MARGIN,
       y: Math.max(MARGIN, height - 280),
@@ -69,7 +70,7 @@ export function applyBranding(
   const contact = branding.contact ? contactText(branding.contact) : "";
   if (contact) {
     brandNodes.push({
-      id: brandId("contact", pageIndex),
+      id: brandId("contact", sceneId),
       type: "text",
       x: MARGIN,
       y: Math.max(MARGIN, height - 140),
@@ -80,17 +81,10 @@ export function applyBranding(
     });
   }
 
+  // Re-applying replaces the previous brand nodes on this scene rather than stacking (idempotent).
   const ids = new Set(brandNodes.map((n) => n.id));
-  return {
-    format: design.format,
-    width: design.width,
-    height: design.height,
-    pages: design.pages.map((p, i): DesignPage => {
-      const kept = p.nodes.filter((n) => !(i === pageIndex && ids.has(n.id))).map((n) => ({ ...n }));
-      return {
-        background: p.background,
-        nodes: i === pageIndex ? [...kept, ...brandNodes] : kept,
-      };
-    }),
-  };
+  const next = cloneDesign(design);
+  const target = next.scenes[sceneIndex];
+  target.nodes = [...target.nodes.filter((n) => !ids.has(n.id)), ...brandNodes];
+  return next;
 }

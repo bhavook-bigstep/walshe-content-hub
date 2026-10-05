@@ -3,14 +3,12 @@
 import { useState, type ReactNode } from "react";
 import {
   addCatalogImage,
-  addPage,
   addShape,
   addText,
   setBackground,
   type DesignDoc,
   type ShapeKind,
 } from "../../lib/studio/ops";
-import { getFormatPreset } from "../../lib/studio/formats";
 
 export interface CatalogImageOption {
   catalogItemId: string;
@@ -20,9 +18,9 @@ export interface CatalogImageOption {
 
 interface Props {
   design: DesignDoc;
-  pageIndex: number;
+  /** index of the active scene new content lands on */
+  sceneIndex: number;
   onChange: (next: DesignDoc) => void;
-  onPageChange: (pageIndex: number) => void;
   catalogImages?: readonly CatalogImageOption[];
 }
 
@@ -67,10 +65,9 @@ function ShapeGlyph({ kind }: { kind: ShapeKind }) {
   );
 }
 
-export default function Toolbar({ design, pageIndex, onChange, onPageChange, catalogImages = [] }: Props) {
+export default function Toolbar({ design, sceneIndex, onChange, catalogImages = [] }: Props) {
   const [text, setText] = useState("New text");
   const [bg, setBg] = useState("#fef3c7");
-  const multi = getFormatPreset(design.format).multiPage;
 
   return (
     <div className="flex flex-wrap items-end gap-x-4 gap-y-3" role="toolbar" aria-label="Design tools">
@@ -81,7 +78,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <button type="button" className={btn} onClick={() => onChange(addText(design, pageIndex, text))}>
+        <button type="button" className={btn} onClick={() => onChange(addText(design, sceneIndex, text))}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
             <path d="M5 6h14M12 6v12M8 18h8" />
           </svg>
@@ -93,7 +90,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
 
       <Group label="Shapes">
         {(["rect", "ellipse", "line"] as ShapeKind[]).map((s) => (
-          <button key={s} type="button" className={btn} onClick={() => onChange(addShape(design, pageIndex, s))}>
+          <button key={s} type="button" className={btn} onClick={() => onChange(addShape(design, sceneIndex, s))}>
             <ShapeGlyph kind={s} />
             Add {s}
           </button>
@@ -110,7 +107,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
           onChange={(e) => setBg(e.target.value)}
           className="h-9 w-9 cursor-pointer rounded-sm border border-walshe-line bg-walshe-stone/60 p-0.5"
         />
-        <button type="button" className={btn} onClick={() => onChange(setBackground(design, pageIndex, bg))}>
+        <button type="button" className={btn} onClick={() => onChange(setBackground(design, sceneIndex, bg))}>
           Set background
         </button>
       </Group>
@@ -125,7 +122,7 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
                 type="button"
                 className={btn}
                 onClick={() =>
-                  onChange(addCatalogImage(design, pageIndex, { src: img.src, catalogItemId: img.catalogItemId }))
+                  onChange(addCatalogImage(design, sceneIndex, { src: img.src, catalogItemId: img.catalogItemId }))
                 }
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -140,41 +137,6 @@ export default function Toolbar({ design, pageIndex, onChange, onPageChange, cat
         </>
       )}
 
-      {multi && (
-        <>
-          <Divider />
-          <Group label="Pages">
-            <button
-              type="button"
-              className={btn}
-              onClick={() => {
-                const next = addPage(design);
-                onChange(next);
-                onPageChange(next.pages.length - 1);
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Add page
-            </button>
-            <button type="button" className={btn} disabled={pageIndex === 0} onClick={() => onPageChange(pageIndex - 1)}>
-              Prev
-            </button>
-            <span className="inline-flex h-9 items-center rounded-sm bg-walshe-mist px-3 text-small font-semibold text-walshe-ink">
-              Page {pageIndex + 1}/{design.pages.length}
-            </span>
-            <button
-              type="button"
-              className={btn}
-              disabled={pageIndex >= design.pages.length - 1}
-              onClick={() => onPageChange(pageIndex + 1)}
-            >
-              Next
-            </button>
-          </Group>
-        </>
-      )}
     </div>
   );
 }

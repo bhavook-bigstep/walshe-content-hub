@@ -10,7 +10,7 @@ import CreativePlanPanel from "../../../components/studio/CreativePlanPanel";
 import ExportMenu from "../../../components/studio/ExportMenu";
 import FormatPicker from "../../../components/studio/FormatPicker";
 import PersonalizePanel from "../../../components/studio/PersonalizePanel";
-import VideoPanel from "../../../components/studio/VideoPanel";
+import SceneControls from "../../../components/studio/SceneControls";
 import Toolbar, { type CatalogImageOption } from "../../../components/studio/Toolbar";
 import {
   createProject,
@@ -18,13 +18,16 @@ import {
   getProject,
   listAgentCatalog,
   listDesignTemplates,
+  renderVideo,
   updateProject,
   type Entry,
 } from "../../../lib/api";
+import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import {
   addShape,
   addText,
+  migrateDesign,
   moveNode,
   newDesign,
   resizeNode,
@@ -77,11 +80,13 @@ export default function StudioPage() {
 
 function StudioEditor() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
-  const [pageIndex, setPageIndex] = useState(0);
+  const [sceneIndex, setSceneIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
   const [project, setProject] = useState<{ id: number; name: string } | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [videoMsg, setVideoMsg] = useState<string | null>(null);
+  const [rendering, setRendering] = useState(false);
   const params = useSearchParams();
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
@@ -108,7 +113,7 @@ function StudioEditor() {
   function pickFormat(format: FormatName) {
     getFormatPreset(format);
     setDesign(seeded(format));
-    setPageIndex(0);
+    setSceneIndex(0);
   }
 
   // Open a saved project (?project=id) or start from a template (?template=id) (AC31).
@@ -119,8 +124,12 @@ function StudioEditor() {
       getProject(Number(pid))
         .then((p) => {
           setProject({ id: p.id, name: p.name });
-          const d = p.design as unknown as Partial<DesignDoc> | undefined;
-          if (d && Array.isArray(d.pages) && d.pages.length > 0) setDesign(d as DesignDoc);
+          // Migrate the stored design into the canonical scenes[] shape (handles legacy pages[]).
+          const migrated = migrateDesign(p.design);
+          if (migrated) {
+            setDesign(migrated);
+            setSceneIndex(0);
+          }
         })
         .catch(() => {});
     } else if (tid) {
@@ -160,12 +169,45 @@ function StudioEditor() {
     }
   }
 
-  function onNodeChange(nodeId: string, box: { x: number; y: number; width: number; height: number }) {
+  // AC47 — stitch the ordered storyboard scenes (durations + transitions, captions, approved
+  // catalog images) into an MP4 via the server render service and download it.
+  async function generateVideo() {
+    setVideoMsg(null);
+    setRendering(true);
+    try {
+      const items = (panelItems ?? []).map((i) => ({
+        id: Number(i.id),
+        title: i.title,
+        description: i.description,
+      }));
+      const body = designToVideoRequest(design, items, true);
+      const blob = await renderVideo(body);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `walsh-${design.format}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setVideoMsg("Video ready.");
+    } catch {
+      setVideoMsg("Video rendering unavailable.");
+    } finally {
+      setRendering(false);
+    }
+  }
+
+  function onNodeChange(
+    scene: number,
+    nodeId: string,
+    box: { x: number; y: number; width: number; height: number },
+  ) {
     setDesign((d) => {
       try {
-        const moved = moveNode(d, pageIndex, nodeId, box.x, box.y);
+        const moved = moveNode(d, scene, nodeId, box.x, box.y);
         return box.width > 0 && box.height > 0
-          ? resizeNode(moved, pageIndex, nodeId, box.width, box.height)
+          ? resizeNode(moved, scene, nodeId, box.width, box.height)
           : moved;
       } catch {
         return d; // ignore a drag the model can't apply (e.g. a removed node)
@@ -191,9 +233,8 @@ function StudioEditor() {
         <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
         <Toolbar
           design={design}
-          pageIndex={pageIndex}
+          sceneIndex={sceneIndex}
           onChange={setDesign}
-          onPageChange={setPageIndex}
           catalogImages={CATALOG_IMAGES}
         />
         <div className="ml-auto flex items-center gap-2">
@@ -202,6 +243,15 @@ function StudioEditor() {
             <button type="button" className="px-2 text-small font-medium text-walshe-ink hover:text-walshe-mint" onClick={() => controlsRef.current?.fit()}>Fit</button>
             <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
           </div>
+          {videoMsg && <span className="hidden text-small font-medium text-walshe-grey sm:inline">{videoMsg}</span>}
+          <button
+            type="button"
+            onClick={() => void generateVideo()}
+            disabled={rendering}
+            className="btn-secondary"
+          >
+            {rendering ? "Rendering…" : "Generate video"}
+          </button>
           {saveMsg && <span className="hidden text-small font-medium text-walshe-green sm:inline">{saveMsg}</span>}
           <button type="button" onClick={saveProject} disabled={saving} className="btn-primary">
             {saving ? "Saving…" : project && project.id > 0 ? "Save project" : "Save to projects"}
@@ -214,23 +264,33 @@ function StudioEditor() {
         <div className="min-h-[360px] min-w-0 flex-1 overflow-hidden rounded-lg border border-walshe-line">
           <StudioCanvas
             design={design}
-            pageIndex={pageIndex}
+            activeScene={sceneIndex}
             onReady={onReady}
             onNodeChange={onNodeChange}
+            onSelectScene={setSceneIndex}
             onControls={(c) => (controlsRef.current = c)}
           />
         </div>
 
         <div className="flex-none space-y-4 overflow-y-auto rounded-lg border border-walshe-line bg-chrome-bg p-4 lg:w-[360px]">
+          <RailCard eyebrow="Storyboard" title="Scenes" icon={ICON.film}>
+            <SceneControls
+              design={design}
+              activeScene={sceneIndex}
+              onChange={setDesign}
+              onSelectScene={setSceneIndex}
+            />
+          </RailCard>
+
           <RailCard eyebrow="AI" title="AI Builder" icon={ICON.sparkle}>
             {panelItems === null ? (
               <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
             ) : panelItems.length === 0 ? (
               <p role="status" className="text-small text-walshe-grey">
-                No approved catalog items available for the Builder and Video panels.
+                No approved catalog items available for the AI Builder.
               </p>
             ) : (
-              <BuilderPanel design={design} pageIndex={pageIndex} items={panelItems} onChange={setDesign} />
+              <BuilderPanel design={design} sceneIndex={sceneIndex} items={panelItems} onChange={setDesign} />
             )}
           </RailCard>
 
@@ -239,17 +299,11 @@ function StudioEditor() {
           </RailCard>
 
           <RailCard eyebrow="Branding" title="Personalise" icon={ICON.user}>
-            <PersonalizePanel design={design} pageIndex={pageIndex} onChange={setDesign} />
+            <PersonalizePanel design={design} sceneIndex={sceneIndex} onChange={setDesign} />
           </RailCard>
 
-          {panelItems !== null && panelItems.length > 0 && (
-            <RailCard eyebrow="Motion" title="Video" icon={ICON.video}>
-              <VideoPanel items={panelItems} />
-            </RailCard>
-          )}
-
           <RailCard eyebrow="Download" title="Export" icon={ICON.download}>
-            <ExportMenu design={design} pageIndex={pageIndex} />
+            <ExportMenu design={design} sceneIndex={sceneIndex} />
           </RailCard>
         </div>
       </div>
@@ -260,7 +314,7 @@ function StudioEditor() {
 const ICON = {
   sparkle: <path d="M12 3l1.6 4.8L18.5 9l-4.9 1.2L12 15l-1.6-4.8L5.5 9l4.9-1.2zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />,
   user: <path d="M20 21a8 8 0 10-16 0M12 11a4 4 0 100-8 4 4 0 000 8" />,
-  video: <path d="M4 5h16v14H4zM10 9l5 3-5 3z" />,
+  film: <path d="M4 4h16v16H4zM4 9h16M4 15h16M9 4v16M15 4v16" />,
   download: <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16" />,
 } as const;
 

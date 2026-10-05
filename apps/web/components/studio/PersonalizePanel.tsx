@@ -18,12 +18,12 @@ function readAsDataUrl(file: File): Promise<string> {
 
 export default function PersonalizePanel({
   design,
-  pageIndex,
+  sceneIndex,
   onChange,
   uploadLogo = readAsDataUrl,
 }: {
   design: DesignDoc;
-  pageIndex: number;
+  sceneIndex: number;
   onChange: (next: DesignDoc) => void;
   uploadLogo?: (file: File) => Promise<string>;
 }) {
@@ -65,7 +65,7 @@ export default function PersonalizePanel({
       contact,
       offer: { text: offer },
     };
-    onChange(applyBranding(design, branding, pageIndex));
+    onChange(applyBranding(design, branding, sceneIndex));
   }
 
   const input = "field text-small";

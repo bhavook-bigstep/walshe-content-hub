@@ -16,7 +16,7 @@ describe("applyBranding", () => {
     const out = applyBranding(base, branding);
 
     expect(JSON.stringify(base)).toBe(snapshot); // immutable
-    const nodes = out.pages[0].nodes;
+    const nodes = out.scenes[0].nodes;
     expect(nodes).toHaveLength(4);
     expect(nodes.find((n) => n.type === "image")).toMatchObject({ src: "/assets/agent-1/logo.png" });
     expect(nodes.find((n) => n.text?.includes("aoife@example.test"))).toBeDefined();
@@ -32,10 +32,10 @@ describe("applyBranding", () => {
   it("skips empty parts and targets the given page only", () => {
     const base = newDesign("pamphlet");
     const out = applyBranding(base, { offer: { text: "  " }, contact: {} }, 1);
-    expect(out.pages.every((p) => p.nodes.length === 0)).toBe(true);
+    expect(out.scenes.every((p) => p.nodes.length === 0)).toBe(true);
     const two = applyBranding(base, { offer: { text: "Deal" } }, 1);
-    expect(two.pages[0].nodes).toHaveLength(0);
-    expect(two.pages[1].nodes).toHaveLength(1);
+    expect(two.scenes[0].nodes).toHaveLength(0);
+    expect(two.scenes[1].nodes).toHaveLength(1);
     expect(() => applyBranding(base, branding, 99)).toThrow(RangeError);
   });
 });
