@@ -2,16 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { Canvas } from "fabric";
 import type { StudioControls } from "../../../components/studio/StudioCanvas";
-import BuilderPanel, { type BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
-import CreativePlanPanel from "../../../components/studio/CreativePlanPanel";
-import ExportMenu from "../../../components/studio/ExportMenu";
-import FormatPicker from "../../../components/studio/FormatPicker";
-import PersonalizePanel from "../../../components/studio/PersonalizePanel";
+import type { BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
 import SceneControls from "../../../components/studio/SceneControls";
-import Toolbar, { type CatalogImageOption } from "../../../components/studio/Toolbar";
+import StudioBottomDock from "../../../components/studio/StudioBottomDock";
+import StudioRightRail from "../../../components/studio/StudioRightRail";
+import type { CatalogImageOption } from "../../../components/studio/Toolbar";
 import {
   createProject,
   fetchAssetObjectUrl,
@@ -87,6 +85,7 @@ function StudioEditor() {
   const [saving, setSaving] = useState(false);
   const [videoMsg, setVideoMsg] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
+  const [storyboardOpen, setStoryboardOpen] = useState(false);
   const params = useSearchParams();
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
@@ -234,8 +233,8 @@ function StudioEditor() {
 
       {/* Floating sections over the workspace: clicks pass through to the canvas except on panels. */}
       <div className="pointer-events-none absolute inset-0 z-20">
-        {/* Floating top menu bar */}
-        <div className="pointer-events-auto absolute left-3 right-3 top-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/85 px-3 py-2 shadow-xl backdrop-blur-md lg:right-[23rem]">
+        {/* Slim top bar: title · Storyboard drawer toggle · Generate video · Save. */}
+        <div className="pointer-events-auto absolute left-3 right-3 top-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/85 px-3 py-2 shadow-xl backdrop-blur-md lg:right-20">
           <h1 className="text-h3 text-[1.0625rem] font-bold text-walshe-ink">Design Studio</h1>
           {project && (
             <span className="hidden text-small text-walshe-grey sm:inline">
@@ -243,20 +242,28 @@ function StudioEditor() {
             </span>
           )}
           <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
-          <FormatPicker value={design.format} onChange={pickFormat} />
-          <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
-          <Toolbar
-            design={design}
-            sceneIndex={sceneIndex}
-            onChange={setDesign}
-            catalogImages={CATALOG_IMAGES}
-          />
+          <button
+            type="button"
+            onClick={() => setStoryboardOpen((o) => !o)}
+            aria-expanded={storyboardOpen}
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-small font-semibold transition-colors ${
+              storyboardOpen
+                ? "border-walshe-teal bg-walshe-mint text-walshe-teal"
+                : "border-walshe-line bg-walshe-stone/60 text-walshe-ink hover:bg-walshe-ink/10"
+            }`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 4h16v16H4zM4 9h16M4 15h16M9 4v16M15 4v16" />
+            </svg>
+            Storyboard
+            <span className="grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-walshe-teal px-1 text-[11px] font-bold text-white">
+              {design.scenes.length}
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${storyboardOpen ? "rotate-180" : ""}`} aria-hidden>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
           <div className="ml-auto flex items-center gap-2">
-            <div className="flex items-center rounded-sm border border-walshe-line bg-walshe-stone/60 px-0.5">
-              <button type="button" aria-label="Zoom out" className={zoomBtn} onClick={() => controlsRef.current?.zoomOut()}>−</button>
-              <button type="button" className="px-2 text-small font-medium text-walshe-ink hover:text-walshe-mint" onClick={() => controlsRef.current?.fit()}>Fit</button>
-              <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
-            </div>
             {videoMsg && <span className="hidden text-small font-medium text-walshe-grey sm:inline">{videoMsg}</span>}
             <button
               type="button"
@@ -273,79 +280,47 @@ function StudioEditor() {
           </div>
         </div>
 
-        {/* Floating right panel of tools */}
-        <div className="pointer-events-auto absolute bottom-3 right-3 top-[7.5rem] flex w-[21.5rem] max-w-[calc(100%-1.5rem)] flex-col gap-4 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/85 p-4 shadow-xl backdrop-blur-md lg:top-3">
-          <RailCard eyebrow="Storyboard" title="Scenes" icon={ICON.film}>
+        {/* Storyboard top drawer (scenes) — slides down from the top bar. */}
+        <div
+          className={`pointer-events-auto absolute left-3 right-3 top-[4.5rem] origin-top transition-all duration-200 lg:right-20 ${
+            storyboardOpen ? "opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
+          }`}
+          aria-hidden={!storyboardOpen}
+        >
+          <div className="max-h-[48vh] overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <SceneControls
               design={design}
               activeScene={sceneIndex}
               onChange={setDesign}
               onSelectScene={setSceneIndex}
             />
-          </RailCard>
-
-          <RailCard eyebrow="AI" title="AI Builder" icon={ICON.sparkle}>
-            {panelItems === null ? (
-              <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
-            ) : panelItems.length === 0 ? (
-              <p role="status" className="text-small text-walshe-grey">
-                No approved catalog items available for the AI Builder.
-              </p>
-            ) : (
-              <BuilderPanel design={design} sceneIndex={sceneIndex} items={panelItems} onChange={setDesign} />
-            )}
-          </RailCard>
-
-          <RailCard eyebrow="Plan" title="Creative plan" icon={ICON.sparkle}>
-            <CreativePlanPanel itemIds={(panelItems ?? []).map((i) => Number(i.id))} />
-          </RailCard>
-
-          <RailCard eyebrow="Branding" title="Personalise" icon={ICON.user}>
-            <PersonalizePanel design={design} sceneIndex={sceneIndex} onChange={setDesign} />
-          </RailCard>
-
-          <RailCard eyebrow="Download" title="Export" icon={ICON.download}>
-            <ExportMenu design={design} sceneIndex={sceneIndex} />
-          </RailCard>
+          </div>
         </div>
+
+        {/* Right icon rail: creation tools + export. */}
+        <StudioRightRail
+          design={design}
+          sceneIndex={sceneIndex}
+          onChange={setDesign}
+          onPickFormat={pickFormat}
+          catalogImages={CATALOG_IMAGES}
+        />
+
+        {/* Zoom / fit — at the bottom, beside the right rail. */}
+        <div className="pointer-events-auto absolute bottom-4 right-3 flex items-center rounded-lg border border-walshe-line/70 bg-chrome-bg/90 px-0.5 shadow-xl backdrop-blur-md">
+          <button type="button" aria-label="Zoom out" className={zoomBtn} onClick={() => controlsRef.current?.zoomOut()}>−</button>
+          <button type="button" className="px-2 text-small font-medium text-walshe-ink hover:text-walshe-mint" onClick={() => controlsRef.current?.fit()}>Fit</button>
+          <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
+        </div>
+
+        {/* Bottom AI dock: AI Builder / Planner tabs. */}
+        <StudioBottomDock
+          design={design}
+          sceneIndex={sceneIndex}
+          onChange={setDesign}
+          items={panelItems}
+        />
       </div>
     </div>
-  );
-}
-
-const ICON = {
-  sparkle: <path d="M12 3l1.6 4.8L18.5 9l-4.9 1.2L12 15l-1.6-4.8L5.5 9l4.9-1.2zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />,
-  user: <path d="M20 21a8 8 0 10-16 0M12 11a4 4 0 100-8 4 4 0 000 8" />,
-  film: <path d="M4 4h16v16H4zM4 9h16M4 15h16M9 4v16M15 4v16" />,
-  download: <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 20h16" />,
-} as const;
-
-// Right-rail panel card: icon badge + eyebrow + heading, then the panel body.
-function RailCard({
-  eyebrow,
-  title,
-  icon,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="card p-5">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="grid h-10 w-10 flex-none place-items-center rounded-md bg-walshe-mint text-walshe-teal">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            {icon}
-          </svg>
-        </span>
-        <div className="min-w-0">
-          <p className="eyebrow text-[11px]">{eyebrow}</p>
-          <h2 className="text-h3 text-walshe-ink">{title}</h2>
-        </div>
-      </div>
-      {children}
-    </section>
   );
 }

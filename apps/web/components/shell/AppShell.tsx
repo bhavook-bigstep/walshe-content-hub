@@ -351,14 +351,15 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
   const pathname = usePathname() ?? "";
   const fullBleed = pathname.endsWith("/studio"); // the Design Studio fills the content region
   const [open, setOpen] = useState(false); // mobile drawer
-  const [collapsed, setCollapsed] = useState(false); // desktop sidebar collapsed to an icon rail
+  const [collapsed, setCollapsed] = useState(true); // desktop sidebar: collapsed to an icon rail by default
   const [profile, setProfile] = useState<User | null>(null);
   const items = NAV[role];
 
-  // Remember the collapsed choice per device (guarded — storage may be unavailable).
+  // Remember the collapsed choice per device; default to collapsed when nothing is stored yet.
   useEffect(() => {
     try {
-      setCollapsed(localStorage.getItem("walsh-sidebar-collapsed") === "1");
+      const stored = localStorage.getItem("walsh-sidebar-collapsed");
+      if (stored !== null) setCollapsed(stored === "1");
     } catch {
       /* storage blocked */
     }

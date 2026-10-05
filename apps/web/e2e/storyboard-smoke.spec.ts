@@ -14,7 +14,8 @@ test("agent builds a multi-scene storyboard and generates a video", async ({ pag
   await page.goto("/agent/studio");
   await expect(page.getByRole("heading", { name: "Design Studio" })).toBeVisible();
 
-  // The storyboard starts with a single scene.
+  // Open the Storyboard top drawer, which starts with a single scene.
+  await page.getByRole("button", { name: /Storyboard/ }).click();
   const scenePanel = page.getByLabel("Scenes");
   await expect(scenePanel.getByText(/1 scene/)).toBeVisible();
 

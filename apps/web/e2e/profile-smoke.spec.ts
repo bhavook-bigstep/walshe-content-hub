@@ -12,7 +12,8 @@ test("agent sets a display name and sees it in the workspace", async ({ page }) 
   await page.getByRole("button", { name: /save changes/i }).click();
   await expect(page.getByRole("status")).toBeVisible();
 
-  // The workspace (top-bar profile menu) now shows the new name.
+  // The workspace profile section now shows the new name (expand the icon rail to reveal it).
   await page.reload();
+  await page.getByRole("button", { name: "Expand sidebar" }).click();
   await expect(page.getByText(name).first()).toBeVisible();
 });

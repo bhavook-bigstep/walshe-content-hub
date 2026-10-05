@@ -7,6 +7,9 @@ test("agent generates a grounded creative plan in the studio", async ({ page }) 
   await login(page, "agent@example.test", /\/agent$/);
 
   await page.goto("/agent/studio");
+  // The Creative Planner lives in the studio's bottom AI dock, under the "Planner" tab.
+  await page.getByRole("button", { name: "Open the AI studio" }).click();
+  await page.getByRole("button", { name: "Planner" }).click();
   await page.getByRole("button", { name: /generate creative plan/i }).click();
 
   const plan = page.getByTestId("creative-plan");

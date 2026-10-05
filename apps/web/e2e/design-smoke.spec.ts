@@ -39,6 +39,8 @@ test("landing page has no horizontal scroll on mobile", async ({ page }) => {
 test("agent app shell shows branded nav and logo", async ({ page }) => {
   await allowApiCors(page);
   await loginAsAgent(page);
+  // Expand the icon rail (collapsed by default) to show the labelled nav + Walshe wordmark.
+  await page.getByRole("button", { name: "Expand sidebar" }).click();
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav.getByRole("link", { name: "Catalog" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Design Studio" })).toBeVisible();

@@ -7,6 +7,8 @@ test("branded nav after login", async ({ page }) => {
   await allowApiCors(page);
   await login(page, "agent@example.test", /\/agent$/);
 
+  // The sidebar is collapsed to an icon rail by default; expand it to see the labelled nav + wordmark.
+  await page.getByRole("button", { name: "Expand sidebar" }).click();
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav).toBeVisible();
   await expect(nav.getByRole("link", { name: "Design Studio" })).toBeVisible();

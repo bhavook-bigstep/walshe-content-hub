@@ -22,21 +22,26 @@ test("studio smoke", async ({ page }) => {
   await expect(page).toHaveURL(/\/agent\/catalog$/);
   await expect(page.getByRole("heading", { name: "Harbour Festival" })).toBeVisible();
 
-  // Open the studio and pick a format.
+  // Open the studio.
   await page.goto("/agent");
   await nav.getByRole("link", { name: "Design Studio" }).click();
   await expect(page.getByRole("heading", { name: "Design Studio" })).toBeVisible();
-  const format = page.getByLabel("Format");
+
+  // Pick a format (Format & size tool in the right rail).
+  await page.getByRole("button", { name: "Format & size" }).click();
+  const format = page.getByLabel("Format", { exact: true });
   const options = await format.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
   await format.selectOption(options[0]);
 
-  // Add a catalog image and a text node.
+  // Add a catalog image and a text node (the Add elements tool in the right rail).
+  await page.getByRole("button", { name: "Add elements" }).click();
   await page.getByRole("button", { name: /Add image/ }).click();
   await page.getByLabel("Text content").fill("Smoke test headline");
   await page.getByRole("button", { name: "Add text" }).click();
   await expect(page.locator("canvas").first()).toBeVisible();
 
-  // Export PNG.
+  // Export (the Export / download tool in the right rail).
+  await page.getByRole("button", { name: "Export / download" }).click();
   const [png] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export PNG" }).click(),
