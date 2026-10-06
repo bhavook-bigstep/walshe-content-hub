@@ -4,16 +4,25 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "../../../../components/ui/PageHeader";
 import {
-  ApiError, getCampaign, getProject, listProjects, scheduleCampaignPost,
-  type CampaignDetail, type Project,
+  ApiError, getCampaign, getProject, listProjects, patchCampaignPost, scheduleCampaignPost,
+  type CampaignDetail, type CampaignPost, type Project,
 } from "../../../../lib/api";
 import { bucketByLocalDay, monthCells, STATUS_CHIP } from "../../../../lib/campaigns/calendar";
-import { buildCampaignPostForm, localInputToOffsetISO } from "../../../../lib/campaigns/form";
+import {
+  buildCampaignPatchForm, buildCampaignPostForm, localInputToOffsetISO,
+} from "../../../../lib/campaigns/form";
 import { migrateDesign } from "../../../../lib/studio/ops";
 import { renderDesignToJpegBlob } from "../../../../lib/studio/render";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const cellKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+// ISO → datetime-local value (viewer's local time), to prefill the edit form.
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export default function CampaignDetailPage() {
   const id = Number(useParams().id);
@@ -24,6 +33,9 @@ export default function CampaignDetailPage() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<CampaignPost | null>(null);
+  const [editCaption, setEditCaption] = useState("");
+  const [editWhen, setEditWhen] = useState("");
 
   const reload = useCallback(
     () => getCampaign(id).then(setCampaign)
@@ -77,6 +89,31 @@ export default function CampaignDetailPage() {
       await reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : (e instanceof Error ? e.message : "Could not schedule the post."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEdit(p: CampaignPost) {
+    setSelected(p);
+    setEditCaption(p.caption);
+    setEditWhen(isoToLocalInput(p.scheduled_at));
+  }
+
+  async function onSaveEdit(unschedule: boolean) {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await patchCampaignPost(id, selected.id, buildCampaignPatchForm({
+        caption: editCaption,
+        unschedule,
+        scheduledAtISO: unschedule ? null : (editWhen ? localInputToOffsetISO(editWhen) : null),
+      }));
+      setSelected(null);
+      await reload();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not save changes.");
     } finally {
       setBusy(false);
     }
@@ -144,15 +181,41 @@ export default function CampaignDetailPage() {
                    className={`min-h-20 rounded-sm border border-walshe-line p-1.5 ${inWindow ? "" : "opacity-40"}`}>
                 <div className="text-[11px] text-walshe-grey">{cell.getDate()}</div>
                 {posts.map((p) => (
-                  <div key={p.id} className={`mt-1 truncate rounded px-1 text-[11px] ${STATUS_CHIP[p.status] ?? ""}`}>
+                  <button key={p.id} type="button" onClick={() => openEdit(p)}
+                    className={`mt-1 block w-full truncate rounded px-1 text-left text-[11px] ${STATUS_CHIP[p.status] ?? ""}`}>
                     {p.caption || `Post #${p.id}`}
-                  </div>
+                  </button>
                 ))}
               </div>
             );
           })}
         </div>
       </section>
+
+      {selected && (
+        <section className="card mt-6 p-5" aria-label="Edit post" data-testid="edit-post-panel">
+          <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Edit post</h2>
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="label">Caption</span>
+              <input className="field" aria-label="Edit caption" value={editCaption}
+                     onChange={(e) => setEditCaption(e.target.value)} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="label">When</span>
+              <input type="datetime-local" className="field" aria-label="Edit scheduled at"
+                     value={editWhen} onChange={(e) => setEditWhen(e.target.value)} />
+            </label>
+            <button type="button" className="btn-primary h-12" disabled={busy}
+                    onClick={() => void onSaveEdit(false)}>Save changes</button>
+            <button type="button" className="btn-secondary h-12" disabled={busy}
+                    onClick={() => void onSaveEdit(true)}>Unschedule</button>
+            <button type="button" className="btn-ghost h-12" onClick={() => setSelected(null)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
