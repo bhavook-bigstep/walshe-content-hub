@@ -37,6 +37,36 @@ export type FontWeight = "normal" | "bold";
 export type FontStyle = "normal" | "italic";
 export type TextAlign = "left" | "center" | "right";
 
+// ── Animation model (declarative, JSON-serialisable; lives in the workspace scenes) ─────────────
+// Each element may carry a keyframe track: at time `t` (ms from the scene start) it has a position,
+// scale, rotation and opacity. A pure engine (lib/studio/anim.ts) interpolates between keyframes —
+// the SAME engine drives the live canvas preview and the video frame-capture, so export == preview.
+export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut" | "back" | "bounce";
+export const EASINGS: readonly Easing[] = ["linear", "easeIn", "easeOut", "easeInOut", "back", "bounce"];
+
+export interface AnimKeyframe {
+  /** Time in ms from the scene's start. */
+  t: number;
+  /** Absolute x/y (canvas units). Omitted → the node's base x/y. Two+ keyframes = a motion path. */
+  x?: number;
+  y?: number;
+  /** Size multiplier on the node's base box (1 = base). */
+  scale?: number;
+  /** Absolute rotation in degrees. */
+  rotation?: number;
+  /** 0..1. */
+  opacity?: number;
+  /** Easing used to interpolate INTO this keyframe from the previous one. */
+  ease?: Easing;
+}
+
+export interface NodeAnimation {
+  /** Keyframes sorted by `t`. Empty/one keyframe = effectively static. */
+  keyframes: AnimKeyframe[];
+  /** Optional emphasis loop applied on top of the track (pulse/bob), after the last keyframe time. */
+  loop?: { type: "pulse" | "bob"; periodMs: number };
+}
+
 export interface DesignNode {
   readonly id: string;
   readonly type: NodeType;
@@ -80,6 +110,9 @@ export interface DesignNode {
   stroke?: string;
   /** shape: stroke width in px */
   strokeWidth?: number;
+
+  /** optional keyframe animation (position/scale/rotation/opacity over time within the scene) */
+  anim?: NodeAnimation;
 }
 
 /** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
@@ -466,6 +499,21 @@ export function updateNode(
       if (v === undefined) delete (next as Record<string, unknown>)[k];
       else (next as Record<string, unknown>)[k] = v;
     }
+    return next;
+  });
+}
+
+/** Set (or clear, with `undefined`) a node's keyframe animation. Returns the new design. */
+export function setNodeAnim(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  anim: NodeAnimation | undefined,
+): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    const next = { ...n };
+    if (anim && anim.keyframes.length > 0) next.anim = anim;
+    else delete next.anim;
     return next;
   });
 }
