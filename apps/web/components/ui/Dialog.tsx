@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 // Minimal accessible modal: dimmed backdrop + centered panel, Escape + backdrop-click to close.
+// Portalled to <body> so no transformed/filtered ancestor can become the containing block of the
+// `fixed` overlay (which would pin it to the top of scrolled content instead of the viewport).
 const SIZE_CLASS = {
   md: "max-w-md",
   lg: "max-w-lg",
@@ -18,8 +21,11 @@ export default function Dialog({
   size = "lg",
   titleHidden = false,
   bodyClassName = "min-h-0 flex-1 overflow-y-auto p-5",
+  ariaLabel,
 }: {
   title: string;
+  /** Accessible name when it should differ from the visible title. Defaults to `title`. */
+  ariaLabel?: string;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
@@ -30,17 +36,27 @@ export default function Dialog({
   /** Override the scrolling body wrapper (e.g. to remove padding for edge-to-edge media). */
   bodyClassName?: string;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Lock the workspace scroller (AppShell's <main>) so the page behind doesn't scroll.
+    const scroller = document.querySelector("main");
+    const prevOverflow = scroller?.style.overflow ?? "";
+    if (scroller) scroller.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (scroller) scroller.style.overflow = prevOverflow;
+    };
   }, [open, onClose]);
 
-  if (!open) return null;
-  return (
+  if (!open || !mounted) return null;
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-walshe-deep/50 p-4 backdrop-blur-sm"
       onClick={onClose}
@@ -50,7 +66,7 @@ export default function Dialog({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={ariaLabel ?? title}
         className={`relative flex max-h-[88vh] w-full ${SIZE_CLASS[size]} flex-col overflow-hidden rounded-lg border border-walshe-line bg-walshe-base shadow-lift`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -82,6 +98,7 @@ export default function Dialog({
         )}
         <div className={bodyClassName}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

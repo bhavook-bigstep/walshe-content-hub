@@ -303,6 +303,14 @@
       },
       "AssistantRequest": {
         "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryTurn"
+            },
+            "maxItems": 20,
+            "title": "History",
+            "type": "array"
+          },
           "message": {
             "maxLength": 2000,
             "minLength": 1,
@@ -1799,6 +1807,30 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistoryTurn": {
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "HistoryTurn",
         "type": "object"
       },
       "ItemCardOut": {
@@ -3554,6 +3586,49 @@
           }
         ],
         "summary": "Assistant",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/assistant/stream": {
+      "post": {
+        "description": "The same assistant as ``POST /assistant``, streamed as server-sent events (AC65):\n``delta`` events carry reply text as it is generated, then one ``done`` event carries the\nfinal (guarded) reply + cited item cards, which replaces the streamed text. On failure a\nsingle ``error`` event is sent instead of ``done``.",
+        "operationId": "assistant_stream_assistant_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Assistant Stream",
         "tags": [
           "assistant"
         ]

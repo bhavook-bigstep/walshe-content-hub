@@ -20,8 +20,11 @@ test("provider edits then deletes an entry", async ({ page }) => {
 
   // Edit the title.
   const edited = `${title} edited`;
+  // Scroll the workspace first: the dialog must still open in the viewport.
+  await page.locator("main").evaluate((m) => m.scrollTo(0, m.scrollHeight));
   await page.getByRole("button", { name: "Edit" }).click();
   const edit = page.getByRole("dialog", { name: "Edit entry" });
+  await expect(edit).toBeInViewport();
   await edit.getByLabel("Title").fill(edited);
   await edit.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("heading", { name: edited, level: 1 })).toBeVisible();

@@ -46,6 +46,7 @@ export type AuditEntry = Schemas["AuditOut"];
 export type AgentRunTrace = Schemas["AgentRunOut"];
 export type AssistantReply = Schemas["AssistantOut"];
 export type AssistantItem = Schemas["ItemCardOut"];
+export type AssistantTurn = Schemas["HistoryTurn"];
 export type CreativePlan = Schemas["CreativePlanOut"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
@@ -478,8 +479,42 @@ export async function buildCreativePlan(
 }
 
 // --- Assistant & discovery (AC38-40) ---
-export async function askAssistant(message: string): Promise<AssistantReply> {
-  return (await (await send("/assistant", json({ message }))).json()) as AssistantReply;
+export async function askAssistant(
+  message: string,
+  history: AssistantTurn[] = [],
+): Promise<AssistantReply> {
+  return (await (await send("/assistant", json({ message, history }))).json()) as AssistantReply;
+}
+// Streamed assistant (AC65): server-sent events — `delta` text chunks as the reply is generated, then
+// one `done` event with the final (authoritative) reply + cards, or an `error` event.
+export async function streamAssistant(
+  message: string,
+  history: AssistantTurn[],
+  onDelta: (text: string) => void,
+): Promise<AssistantReply> {
+  const res = await send("/assistant/stream", json({ message, history }));
+  if (!res.body) throw new ApiError(0, "The assistant is unavailable right now.");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    let cut: number;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const line = buffer.slice(0, cut).trim();
+      buffer = buffer.slice(cut + 2);
+      if (!line.startsWith("data:")) continue;
+      const event = JSON.parse(line.slice(5)) as
+        | { type: "delta"; text: string }
+        | ({ type: "done" } & AssistantReply)
+        | { type: "error"; message: string };
+      if (event.type === "delta") onDelta(event.text);
+      else if (event.type === "error") throw new ApiError(0, event.message);
+      else return event;
+    }
+    if (done) throw new ApiError(0, "The assistant is unavailable right now.");
+  }
 }
 export async function listSuggestions(): Promise<AssistantItem[]> {
   const out = (await (await send("/me/suggestions")).json()) as { items: AssistantItem[] };
