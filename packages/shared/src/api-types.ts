@@ -583,6 +583,9 @@ export interface paths {
         /**
          * List My Entries
          * @description Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.
+         *
+         *     ``ai_created`` filters the set (AC68): ``true`` = only Auto-Catalog-generated entries,
+         *     ``false`` = only hand-authored entries, omitted = all.
          */
         get: operations["list_my_entries_catalogs_mine_entries_get"];
         put?: never;
@@ -759,6 +762,30 @@ export interface paths {
         get: operations["knowledge_search_knowledge_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/auto-catalog/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Document
+         * @description Import a document into 1..N AI-generated draft entries (AC64–AC67).
+         *
+         *     Validates type + size at the boundary (AC64), extracts via the AC16 seam (AC65), structures into
+         *     draft entries with full field inference (AC66), and persists them as hidden drafts with the
+         *     AI-created marker in the provider's catalog (AC67/AC68).
+         */
+        post: operations["import_document_me_auto_catalog_import_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1424,6 +1451,16 @@ export interface components {
             /** Target Type */
             target_type: string;
         };
+        /**
+         * AutoCatalogResult
+         * @description Result of an Auto-Catalog import (AC64–AC67): draft entries generated from one document.
+         */
+        AutoCatalogResult: {
+            /** Count */
+            count: number;
+            /** Entries */
+            entries: components["schemas"]["EntryOut"][];
+        };
         /** BlocklistCreate */
         BlocklistCreate: {
             /** Term */
@@ -1442,6 +1479,11 @@ export interface components {
             id: number;
             /** Term */
             term: string;
+        };
+        /** Body_import_document_me_auto_catalog_import_post */
+        Body_import_document_me_auto_catalog_import_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_cover_catalog__entry_id__cover_post */
         Body_upload_cover_catalog__entry_id__cover_post: {
@@ -1803,6 +1845,11 @@ export interface components {
         };
         /** EntryOut */
         EntryOut: {
+            /**
+             * Ai Created
+             * @default false
+             */
+            ai_created: boolean;
             /**
              * Asset Keys
              * @default []
@@ -3611,7 +3658,9 @@ export interface operations {
     };
     list_my_entries_catalogs_mine_entries_get: {
         parameters: {
-            query?: never;
+            query?: {
+                ai_created?: boolean | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3625,6 +3674,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3916,6 +3974,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KnowledgeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_document_me_auto_catalog_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_document_me_auto_catalog_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoCatalogResult"];
                 };
             };
             /** @description Validation Error */

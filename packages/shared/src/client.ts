@@ -251,8 +251,20 @@ export async function inviteAgent(email: string): Promise<Catalog> {
 export async function uninviteAgent(agentId: number): Promise<Catalog> {
   return (await (await send(`/catalogs/mine/invite/${agentId}`, { method: "DELETE" })).json()) as Catalog;
 }
-export async function listMyEntries(): Promise<Entry[]> {
-  return (await (await send("/catalogs/mine/entries")).json()) as Entry[];
+/** The provider's own entries (AC50). ``aiCreated`` filters to only AI-generated / only manual (AC68). */
+export async function listMyEntries(aiCreated?: boolean): Promise<Entry[]> {
+  const qs = aiCreated === undefined ? "" : `?ai_created=${aiCreated}`;
+  return (await (await send(`/catalogs/mine/entries${qs}`)).json()) as Entry[];
+}
+
+export type AutoCatalogResult = Schemas["AutoCatalogResult"];
+/** Auto-Catalog import (AC64–AC67): upload a PDF/PNG/JPEG → 1..N AI-generated draft entries. */
+export async function importAutoCatalog(file: File): Promise<AutoCatalogResult> {
+  const form = new FormData();
+  form.append("file", file);
+  return (await (
+    await send("/me/auto-catalog/import", { method: "POST", body: form })
+  ).json()) as AutoCatalogResult;
 }
 export async function listCatalogEntries(catalogId: number): Promise<Entry[]> {
   return (await (await send(`/catalogs/${catalogId}/entries`)).json()) as Entry[];

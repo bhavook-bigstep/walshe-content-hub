@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.21.0 |
+| **Version** | 2.22.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -432,12 +432,48 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   items + the agent's Local uploads + AI-generated** media (via `/me/library`) — the whole catalog is
   no longer loaded. Proof: e2e (collection → Open in Design Studio → `?project=`).
 
-**Priority tiers** (build order; acceptance reports honestly against all 63):
+### Auto-Catalog Agent (provider) — AC64–AC70
+
+Charter: `docs/plans/2026-10-06-auto-catalog-agent-charter.md`. An agent that turns an uploaded
+document into draft catalog entries the provider reviews and publishes. All prior ACs stay green.
+
+- **AC64** — **Document upload in the Provider section.** The provider opens an **Auto-Catalog**
+  import flow and uploads a document — **PDF, PNG, or JPEG** — bounded by the existing 25 MB cap
+  (`uploads.read_capped`) and validated by content-type. An invalid type or oversize file is refused
+  with a clear error; the file is parsed inertly (no active content). Proof: unit + e2e.
+- **AC65** — **AI extraction via the AC16 seam.** The uploaded document is sent to the configured AI
+  provider with an instruction to **extract** relevant tourism information (PDF text is extracted
+  locally first to feed clean text). With **no key**, a **deterministic stub** produces stable
+  extracted content (Contract 4); the same document always yields the same extraction. API keys are
+  never logged (Contract 2). Proof: unit (stub determinism + mocked provider).
+- **AC66** — **Extraction → 1..N draft entries, full field inference.** An agent turns the extracted
+  info into **one or more** proposed catalog entries, inferring every field it can: `type`
+  (event/place/opportunity/offer/itinerary), `title`, `description`, `destination` +
+  `country/state/city`, `season`, per-type `attributes` (from `CONTENT_TEMPLATES`), `highlights`, and
+  `market_tags`. Invalid/ungrounded values are dropped or left blank — never fabricated into a
+  published state. Proof: unit (shape + validation) + e2e.
+- **AC67** — **Saved as drafts, not distributable.** Generated entries are persisted as **drafts**
+  (`EntryVisibility.draft`, `status=draft`, `brand_safe=false`) in the provider's own catalog
+  (`catalogs/mine`), owned by the requesting provider with provenance captured. They are **invisible
+  to every agent** (Contract 1) until the provider acts. Proof: visibility test (agent cannot see a
+  generated draft) + e2e.
+- **AC68** — **AI-created marker + filter.** Every AI-generated entry carries an **AI-created**
+  marker, and the provider catalog can be **filtered** to show only AI-created (or only manual)
+  entries. Proof: unit (flag set on generated entries) + e2e (filter).
+- **AC69** — **Review, edit, publish (reuse).** The provider **reviews and edits** a generated draft
+  in the **existing entry editor**, then **publishes** it to **public or private** using the existing
+  **AC54** visibility controls. No separate review screen is introduced. Proof: e2e
+  (import → edit draft → set public/private → agent sees the published one).
+- **AC70** — **Determinism & safety.** Same document + stub ⇒ **identical** proposed entries; the AI
+  boundary is mocked/stubbed in every test; no secret or raw-document PII is written to logs or error
+  messages. Proof: reproducibility test + review.
+
+**Priority tiers** (build order; acceptance reports honestly against all 70):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -476,6 +512,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.22.0 | 2026-10-06 | **Auto-Catalog Agent (provider)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-auto-catalog-agent-charter.md`): added **AC64–AC70** — a provider uploads a document (PDF/PNG/JPEG, 25 MB cap, type-validated), the AI seam (AC16) **extracts** tourism info (PDF text pulled locally; deterministic stub with no key), and an agent turns it into **1..N draft entries** with full field inference (type/title/description/location/season/per-type attributes/highlights/tags). Entries save as **drafts** in the provider's catalog — invisible to agents (Contract 1) — carry an **AI-created marker** (filterable), and are reviewed/edited in the existing editor then published **public/private** via AC54. Deterministic in tests; no secrets/PII logged. All prior ACs stay green. | user + Claude |
 | 2.21.0 | 2026-10-06 | **Agent workspace: Catalog + Collections (accurate + redesigned)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-agent-workspace-charter.md`): added **AC59** (catalog = search/query library; primary action **Save to collection** as a validated reference; removed the dead "Add to composition"), **AC60** (collections **resolve** against the live catalog + a detail view: see items, remove, rename, Open in Design Studio), **AC61** (clicking an entry opens an item-detail modal, in catalog + collections), **AC62** (templates **Preview + Use on hover**), **AC63** (a studio **project starts from a collection**; usable media = collection items + Local uploads + AI library, not the whole catalog). Reordered the agent sidebar. Redesigned both pages within the design system. All prior ACs stay green. | user + Claude |
 | 2.20.0 | 2026-10-06 | **Provider assistant + org logo upload + UX cleanup** (⏸G feedback): added **AC57** — the grounded chat assistant now serves **providers** (grounded in their own catalog via `entries_for_actor`); and **AC58** — **org logo upload** (jpg/jpeg/png) replacing the URL field, served through the asset gate. Also: the entry **Edit** now uses the same form as create (edits everything — type/visibility/location/season/attributes/expiry) via a shared `EntryForm`; form sections (location/details/cover/expiry) **collapse by default** for a cleaner form; **Team** + **Invite agents** moved into the **Organization** page (removed Team from the sidebar and Invite from the Catalog); **Off-limits** removed from the provider sidebar (backend + route retained for now). All prior ACs stay green. | user + Claude |
 | 2.19.0 | 2026-10-06 | **Expiry-only lifecycle (greyed, not hidden) + entry provenance** (⏸G feedback): added **AC55** — an entry's only lifecycle control is its expiry date (New-entry UX: "Never expires", or a date, or one-click "use event end date"; dropped the separate valid-from field). Expired entries now show **greyed** in both provider + agent catalogs but are **not usable** (can't add to a composition; dropped from build/schedule/suggestions; pre-send still blocks). This amends AC32/33 (expired surfaced-but-greyed instead of hidden); `display_status` now derives expiry for any non-withdrawn status. Added **AC56** — each entry snapshots its creator (`created_by_email`) + org (`org_name`, empty when none), shown on the entry page. All prior ACs stay green. | user + Claude |

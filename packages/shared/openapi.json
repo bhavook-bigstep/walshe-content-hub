@@ -316,6 +316,28 @@
         "title": "AuditOut",
         "type": "object"
       },
+      "AutoCatalogResult": {
+        "description": "Result of an Auto-Catalog import (AC64–AC67): draft entries generated from one document.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "entries"
+        ],
+        "title": "AutoCatalogResult",
+        "type": "object"
+      },
       "BlocklistCreate": {
         "properties": {
           "term": {
@@ -358,6 +380,20 @@
           "created_at"
         ],
         "title": "BlocklistOut",
+        "type": "object"
+      },
+      "Body_import_document_me_auto_catalog_import_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_document_me_auto_catalog_import_post",
         "type": "object"
       },
       "Body_upload_cover_catalog__entry_id__cover_post": {
@@ -1412,6 +1448,11 @@
       },
       "EntryOut": {
         "properties": {
+          "ai_created": {
+            "default": false,
+            "title": "Ai Created",
+            "type": "boolean"
+          },
           "asset_keys": {
             "default": [],
             "items": {
@@ -4753,8 +4794,26 @@
     },
     "/catalogs/mine/entries": {
       "get": {
-        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.",
+        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.\n\n``ai_created`` filters the set (AC68): ``true`` = only Auto-Catalog-generated entries,\n``false`` = only hand-authored entries, omitted = all.",
         "operationId": "list_my_entries_catalogs_mine_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ai_created",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Created"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4769,6 +4828,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -5230,6 +5299,53 @@
         "summary": "Knowledge Search",
         "tags": [
           "assistant"
+        ]
+      }
+    },
+    "/me/auto-catalog/import": {
+      "post": {
+        "description": "Import a document into 1..N AI-generated draft entries (AC64–AC67).\n\nValidates type + size at the boundary (AC64), extracts via the AC16 seam (AC65), structures into\ndraft entries with full field inference (AC66), and persists them as hidden drafts with the\nAI-created marker in the provider's catalog (AC67/AC68).",
+        "operationId": "import_document_me_auto_catalog_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_document_me_auto_catalog_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoCatalogResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Document",
+        "tags": [
+          "auto-catalog"
         ]
       }
     },
