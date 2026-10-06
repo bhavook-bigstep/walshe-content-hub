@@ -71,7 +71,9 @@ def test_instagram_maps_insight_rows_and_basic_counts():
 def test_instagram_permission_error_is_typed():
     t = _Transport([(400, {"error": {"code": 10, "message": "insights perm missing"}})])
     with pytest.raises(PublishError) as ei:
-        InstagramInsights(_settings(), transport=t).fetch_insights(external_id="M1", media_type="IMAGE")
+        InstagramInsights(_settings(), transport=t).fetch_insights(
+            external_id="M1", media_type="IMAGE"
+        )
     assert ei.value.code in ("insights_permission", "unknown")
 
 

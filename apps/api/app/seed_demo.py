@@ -169,7 +169,7 @@ def _published_post(db: Session, composition_id: int, metrics: dict) -> None:
     post.published_at = when
     db.flush()
     if db.execute(select(Engagement.id).where(Engagement.post_id == post.id)).first() is None:
-        db.add(Engagement(post_id=post.id, **metrics))
+        db.add(Engagement(post_id=post.id, platform="instagram", metrics=metrics, fetched_at=when))
 
 
 def seed_demo(db: Session) -> dict[str, int]:
@@ -228,7 +228,12 @@ def seed_demo(db: Session) -> dict[str, int]:
         "Galway launch post",
         [by_title["Harbour Festival"], by_title["Cliffs of Moher"]],
     )
-    _published_post(db, launch.id, {"impressions": 1200, "clicks": 84, "engagement": 150})
+    _published_post(
+        db,
+        launch.id,
+        {"reach": 1200, "views": 1200, "likes": 90, "comments": 12,
+         "saved": 20, "shares": 8, "total_interactions": 130},
+    )
 
     # Agent 2 (Sam): city-breaks focus, a brand kit, a collection + a draft project.
     _brand_kit(

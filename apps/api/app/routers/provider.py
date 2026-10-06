@@ -116,15 +116,21 @@ def content_performance(
     )
     comps = db.execute(select(Composition)).scalars().all()
 
-    # impressions per composition (via its published posts).
-    impressions_by_comp: dict[int, int] = {}
-    post_rows = db.execute(
-        select(Post.composition_id, Engagement.impressions).join(
-            Engagement, Engagement.post_id == Post.id
-        )
+    # Reach per composition (via its published posts). Engagement is platform-tagged snapshots now,
+    # so take the LATEST snapshot per post (reach, else views), not a sum.
+    reach_by_post: dict[int, int] = {}
+    eng_rows = db.execute(
+        select(Engagement.post_id, Engagement.metrics).order_by(Engagement.fetched_at)
     ).all()
-    for comp_id, impressions in post_rows:
-        impressions_by_comp[comp_id] = impressions_by_comp.get(comp_id, 0) + (impressions or 0)
+    for post_id, metrics in eng_rows:  # ascending fetched_at → last write wins = latest snapshot
+        m = metrics or {}
+        reach_by_post[post_id] = int(m.get("reach", m.get("views", 0)) or 0)
+    post_comp = dict(db.execute(select(Post.id, Post.composition_id)).all())
+    impressions_by_comp: dict[int, int] = {}
+    for post_id, reach in reach_by_post.items():
+        comp_id = post_comp.get(post_id)
+        if comp_id is not None:
+            impressions_by_comp[comp_id] = impressions_by_comp.get(comp_id, 0) + reach
 
     rows: list[PerformanceRow] = []
     for entry in entries:

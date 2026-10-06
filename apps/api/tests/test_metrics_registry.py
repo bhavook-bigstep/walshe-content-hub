@@ -1,4 +1,4 @@
-"""Task 2 — platform metric registry: the per-platform 'matrix' driving ingestion + the dashboard."""
+"""Task 2 — platform metric registry: the per-platform 'matrix' for ingestion + dashboard."""
 
 from __future__ import annotations
 

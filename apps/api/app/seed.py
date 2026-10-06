@@ -156,7 +156,16 @@ def _upsert_composition(db: Session, agent_id: int, name: str, item_ids: list[in
 
 _SEED_CHANNEL = "facebook"
 _SEED_PUBLISHED_AT = datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)  # fixed => deterministic
-_SEED_METRICS = {"impressions": 1200, "clicks": 84, "engagement": 150}  # synthetic
+# Synthetic Instagram-shaped metrics (one snapshot) so the demo dashboard looks alive.
+_SEED_METRICS = {
+    "reach": 1200,
+    "views": 1200,
+    "likes": 90,
+    "comments": 12,
+    "saved": 20,
+    "shares": 8,
+    "total_interactions": 130,
+}
 
 
 def _upsert_post_with_engagement(db: Session, composition_id: int) -> None:
@@ -175,7 +184,14 @@ def _upsert_post_with_engagement(db: Session, composition_id: int) -> None:
         db.flush()
     has_metrics = db.execute(select(Engagement.id).where(Engagement.post_id == post.id)).first()
     if has_metrics is None:
-        db.add(Engagement(post_id=post.id, **_SEED_METRICS))
+        db.add(
+            Engagement(
+                post_id=post.id,
+                platform="instagram",
+                metrics=dict(_SEED_METRICS),
+                fetched_at=_SEED_PUBLISHED_AT,
+            )
+        )
 
 
 _SEED_DISPLAY_NAMES = {

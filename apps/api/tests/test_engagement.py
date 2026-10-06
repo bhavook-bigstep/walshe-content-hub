@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from app.models.base import Base
@@ -29,16 +31,22 @@ def _insert(app, rows):
 
 
 def test_dashboard_returns_seeded_metrics(eng_app, eng_client, agent_headers):
+    when = datetime(2026, 1, 15, tzinfo=timezone.utc)
     rows = [
-        {"post_id": 2, "impressions": 500, "clicks": 40, "engagement": 12},
-        {"post_id": 1, "impressions": 1000, "clicks": 90, "engagement": 30},
+        {"post_id": 2, "platform": "instagram",
+         "metrics": {"reach": 500, "likes": 12}, "fetched_at": when},
+        {"post_id": 1, "platform": "instagram",
+         "metrics": {"reach": 1000, "likes": 30}, "fetched_at": when},
     ]
     _insert(eng_app, rows)
 
     resp = eng_client.get("/engagement", headers=agent_headers)
 
     assert resp.status_code == 200
-    assert resp.json() == sorted(rows, key=lambda r: r["post_id"])
+    body = resp.json()
+    assert [r["post_id"] for r in body] == [1, 2]  # ordered by post_id
+    assert body[0]["platform"] == "instagram"
+    assert body[0]["metrics"] == {"reach": 1000, "likes": 30}
 
 
 def test_dashboard_is_agent_only(eng_app, eng_client, provider_headers, admin_headers):

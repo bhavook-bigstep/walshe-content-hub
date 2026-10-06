@@ -11,6 +11,7 @@ from app.models.catalog import Asset, CatalogEntry, CatalogType, DisplayStatus, 
 from app.models.composition import Composition
 from app.models.engagement import Engagement
 from app.models.post import Post, PostStatus
+from app.models.post_insights_sync import PostInsightsSync
 from app.models.user import Role, Tenant, User
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "BlocklistTerm",
     "Post",
     "PostStatus",
+    "PostInsightsSync",
     "Engagement",
     "Collection",
     "BrandKit",

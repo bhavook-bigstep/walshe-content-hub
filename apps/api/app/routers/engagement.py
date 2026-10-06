@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
@@ -20,9 +22,9 @@ class EngagementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     post_id: int
-    impressions: int
-    clicks: int
-    engagement: int
+    platform: str
+    metrics: dict[str, int]
+    fetched_at: datetime
 
 
 @router.get("", response_model=list[EngagementOut])
