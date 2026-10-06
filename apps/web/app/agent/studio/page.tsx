@@ -88,7 +88,7 @@ const FORMAT_DIMS: Record<FormatName, { width: number; height: number }> = {
 };
 
 // Collapse a resolved workspace back to the reference-only shape the PUT /workspace endpoint
-// expects (AC64): entries → {entry_id,title,type}; assets pass through as refs; scenes = the
+// expects (AC75): entries → {entry_id,title,type}; assets pass through as refs; scenes = the
 // current design's scenes. Metadata follows the live format the user is editing in.
 function toWorkspaceIn(ws: WorkspaceResolved, design: DesignDoc): WorkspaceIn {
   const fmt = design.format as FormatName;
@@ -157,7 +157,7 @@ function StudioEditor() {
   // The left media drawer = the UI representation of reference_content (collections/uploads/generated).
   const [gallery, setGallery] = useState<MediaGroup[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // AC64 — the structured workspace (resolved): the single input the studio reads for grounding +
+  // AC75 — the structured workspace (resolved): the single input the studio reads for grounding +
   // placeable media (collection entries + uploads + generated) and autosaves back.
   const [workspace, setWorkspace] = useState<WorkspaceResolved | null>(null);
   const [project, setProject] = useState<{ id: number; name: string } | null>(null);
@@ -173,7 +173,7 @@ function StudioEditor() {
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
 
-  // Load the usable media from the project's structured workspace (AC64): collection entries
+  // Load the usable media from the project's structured workspace (AC75): collection entries
   // (builder grounding + placeable images) + the project's own uploads/generated assets. The whole
   // catalog is intentionally NOT loaded here (AC63); media is scoped to this workspace.
   useEffect(() => {
@@ -316,7 +316,7 @@ function StudioEditor() {
     setSaving(true);
     try {
       if (project && project.id > 0 && workspace) {
-        // AC64 — autosave the whole structured workspace (references + scenes); bumps the version.
+        // AC75 — autosave the whole structured workspace (references + scenes); bumps the version.
         const saved = await saveWorkspace(project.id, toWorkspaceIn(workspace, design));
         setWorkspace(saved);
         setSaveMsg("Saved.");
@@ -348,7 +348,7 @@ function StudioEditor() {
     }
   }
 
-  // AC64 — media added in the studio is stored on the workspace (uploads/generated), then the
+  // AC75 — media added in the studio is stored on the workspace (uploads/generated), then the
   // workspace is autosaved so it stays a complete, structured record.
   async function onMediaAdded(assets: UserAsset[], kind: "uploads" | "generated") {
     const refs = assets.map(assetToRef);
@@ -743,7 +743,7 @@ function AddCollectionDialog({
   );
 }
 
-// AC63/AC64 — add Local (upload) or AI-generated media; the created assets are reported to the
+// AC63/AC75 — add Local (upload) or AI-generated media; the created assets are reported to the
 // parent, which stores them on the workspace (uploads/generated) and autosaves.
 function MediaDialog({
   onClose,

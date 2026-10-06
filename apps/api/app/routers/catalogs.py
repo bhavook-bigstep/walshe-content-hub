@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -159,13 +159,20 @@ def share_my_catalog(
 
 @router.get("/mine/entries", response_model=list[EntryOut])
 def list_my_entries(
+    ai_created: bool | None = Query(default=None),
     provider: User = Depends(_provider_only),
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
 ) -> list[EntryOut]:
-    """Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility."""
+    """Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.
+
+    ``ai_created`` filters the set (AC68): ``true`` = only Auto-Catalog-generated entries,
+    ``false`` = only hand-authored entries, omitted = all."""
     catalog = provider_catalog(db, provider)
-    return [EntryOut.from_entry(e, now=now) for e in catalog.entries]
+    entries = catalog.entries
+    if ai_created is not None:
+        entries = [e for e in entries if bool(e.ai_created) == ai_created]
+    return [EntryOut.from_entry(e, now=now) for e in entries]
 
 
 @router.post("", response_model=CatalogOut, status_code=status.HTTP_201_CREATED)

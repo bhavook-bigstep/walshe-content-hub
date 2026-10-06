@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.23.0 |
+| **Version** | 2.25.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -229,7 +229,7 @@ Increment 3 — **AI assistant & discovery** (built on **LangGraph**):
 - **AC38** — **Content Assistant**: a grounded, permission-scoped assistant (a LangGraph state
   machine: route → tool → respond) that answers in plain language and only ever surfaces catalog
   content the agent may see — it cannot surface or invent anything outside the approved, current,
-  in-scope library (FR-24/36). It may also explain how the platform itself works (AC65). Runs via the AC16 provider abstraction: a real model when a key is
+  in-scope library (FR-24/36). It may also explain how the platform itself works (AC76). Runs via the AC16 provider abstraction: a real model when a key is
   set, the deterministic stub otherwise, so it works offline for the demo and is reproducible in
   tests. Proof: pytest asserts the reply is grounded in a visible item and never surfaces
   draft/off-limits content; Playwright shows an agent asking and getting a grounded answer.
@@ -431,7 +431,70 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   collection** (from the collection detail); the studio's usable media is the **project's collection
   items + the agent's Local uploads + AI-generated** media (via `/me/library`) — the whole catalog is
   no longer loaded. Proof: e2e (collection → Open in Design Studio → `?project=`).
-- **AC64** — **Structured Workspace (single studio input + autosave).** A project stores one
+
+### Auto-Catalog Agent (provider) — AC64–AC70
+
+Charter: `docs/plans/2026-10-06-auto-catalog-agent-charter.md`. An agent that turns an uploaded
+document into draft catalog entries the provider reviews and publishes. All prior ACs stay green.
+
+- **AC64** — **Document upload in the Provider section.** The provider opens an **Auto-Catalog**
+  import flow and uploads a document — **PDF, PNG, or JPEG** — bounded by the existing 25 MB cap
+  (`uploads.read_capped`) and validated by content-type. An invalid type or oversize file is refused
+  with a clear error; the file is parsed inertly (no active content). Proof: unit + e2e.
+- **AC65** — **AI extraction via the AC16 seam.** The uploaded document is sent to the configured AI
+  provider with an instruction to **extract** relevant tourism information (PDF text is extracted
+  locally first to feed clean text). With **no key**, a **deterministic stub** produces stable
+  extracted content (Contract 4); the same document always yields the same extraction. API keys are
+  never logged (Contract 2). Proof: unit (stub determinism + mocked provider).
+- **AC66** — **Extraction → 1..N draft entries, full field inference.** An agent turns the extracted
+  info into **one or more** proposed catalog entries, inferring every field it can: `type`
+  (event/place/opportunity/offer/itinerary), `title`, `description`, `destination` +
+  `country/state/city`, `season`, per-type `attributes` (from `CONTENT_TEMPLATES`), `highlights`, and
+  `market_tags`. Invalid/ungrounded values are dropped or left blank — never fabricated into a
+  published state. Proof: unit (shape + validation) + e2e.
+- **AC67** — **Saved as drafts, not distributable.** Generated entries are persisted as **drafts**
+  (`EntryVisibility.draft`, `status=draft`, `brand_safe=false`) in the provider's own catalog
+  (`catalogs/mine`), owned by the requesting provider with provenance captured. They are **invisible
+  to every agent** (Contract 1) until the provider acts. Proof: visibility test (agent cannot see a
+  generated draft) + e2e.
+- **AC68** — **AI-created marker + filter.** Every AI-generated entry carries an **AI-created**
+  marker, and the provider catalog can be **filtered** to show only AI-created (or only manual)
+  entries. Proof: unit (flag set on generated entries) + e2e (filter).
+- **AC69** — **Review, edit, publish (reuse).** The provider **reviews and edits** a generated draft
+  in the **existing entry editor**, then **publishes** it to **public or private** using the existing
+  **AC54** visibility controls. No separate review screen is introduced. Proof: e2e
+  (import → edit draft → set public/private → agent sees the published one).
+- **AC70** — **Determinism & safety.** Same document + stub ⇒ **identical** proposed entries; the AI
+  boundary is mocked/stubbed in every test; no secret or raw-document PII is written to logs or error
+  messages. Proof: reproducibility test + review.
+
+### Auto-Catalog Agent v2 (provider) — AC71–AC74
+
+Charter v2: `docs/plans/2026-10-06-auto-catalog-agent-charter.md` (⏸G feedback). Async jobs, image
+extraction, LLM tool-call insert, and a notification bell. All prior ACs stay green.
+
+- **AC71** — **Async import job.** `POST /me/auto-catalog/import` validates the upload at the boundary
+  (AC64), **enqueues an owner-scoped `Job`** (`queued → running → done | failed`) and returns **202**
+  with the job id *without* blocking on the LLM; extraction runs in a background task. `GET /me/jobs`
+  lists the provider's jobs with status + a result summary (drafts created, or an error with no
+  secret/PII). Deterministic/mocked in tests. Proof: unit (job lifecycle + 202) + e2e.
+- **AC72** — **Image extraction → MinIO.** Embedded images are extracted from PDFs (**PyMuPDF**),
+  uploaded via the existing storage seam under an entry/asset key, and referenced by object key (served
+  by the existing media route). No usable image → no cover (clean). Parsed inertly. A directly-uploaded
+  PNG/JPEG is itself the candidate image. Proof: unit (synthetic PDF with an image) + e2e.
+- **AC73** — **LLM tool-call entry creation + image attach.** The agent runs a tool-use loop exposing
+  `create_entries(entries_json)` + `attach_image(entry_ref, image_ref)`; the **server validates** each
+  call (valid type, grounded fields, real extracted image ref) before persisting and drops
+  invalid/ungrounded calls — entries stay **drafts** (Contract 1). With no key/stub a deterministic
+  fallback creates entries + attaches images by page/order (Contract 4). Proof: unit (tool dispatch +
+  validation + stub determinism) + e2e.
+- **AC74** — **Navbar notification bell.** The provider app shell shows a notification bell that polls
+  `GET /me/jobs`, badges in-progress/just-completed jobs, and opens a list of recent jobs with status +
+  a link to the drafts a finished job created. Empty/loading/error states handled. Proof: e2e.
+
+### Structured Workspace (agent) — AC75
+
+- **AC75** — **Structured Workspace (single studio input + autosave).** A project stores one
   **structured workspace** — `{metadata, reference_content:{collections,uploads,generated}, scenes}`
   — where `reference_content` holds **references only** (entry ids + asset object_keys + labels),
   never media copies. `GET /me/projects/{id}/workspace` returns it **resolved** (collections'
@@ -443,7 +506,10 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   grounding + placeable media) and autosaves it; `item_ids`/`design` stay a derived/compat view.
   Agent-only, ownership-scoped. Proof: api (seed-from-collection, PUT validation + version bump,
   legacy migration).
-- **AC65** — **Conversational platform assistant.** The chat assistant (AC38/AC57) is a real
+
+### Conversational platform assistant — AC76
+
+- **AC76** — **Conversational platform assistant.** The chat assistant (AC38/AC57) is a real
   conversational chatbot: its system prompt carries a **role-specific, user-level platform guide**
   (agent or provider — no internal/confidential detail), so it answers "how do I…" questions and
   small talk, not only catalog lookups. The widget sends the **recent conversation turns** with each
@@ -460,12 +526,12 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   without the marker; stream endpoint roles + event order; stable per-role system prompt; Gemini
   streaming request shape).
 
-**Priority tiers** (build order; acceptance reports honestly against all 65):
+**Priority tiers** (build order; acceptance reports honestly against all 76):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · workspace-engine = AC64 · assistant = AC65 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -504,8 +570,10 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
-| 2.23.0 | 2026-10-06 | **Conversational platform assistant** (user request): added **AC65** — the chat assistant becomes a real chatbot: a role-specific user-level platform guide in its system prompt, recent conversation turns sent from the (unchanged, client-side) widget, a grounded catalog search on every message, the reply **streamed** over server-sent events ending with a hidden `ITEMS: [ids]` line (only cited, visible items become cards; invented ids dropped), guard + deterministic fallback kept (final event authoritative), stub deterministic. **AC38** softened from "only ever speaks about catalog content" to "only ever *surfaces* catalog content … may also explain how the platform works". All prior ACs stay green. | user + Claude |
-| 2.22.0 | 2026-10-06 | **Structured Workspace (single studio input + autosave)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-ai-builder-optimize-charter.md` v2.0): added **AC64** — a project stores one structured **workspace** `{metadata, reference_content:{collections,uploads,generated}, scenes}` holding **references only**; `GET /me/projects/{id}/workspace` returns it resolved, `PUT` autosaves the whole object (validates visible-entry/owned-asset references, drops stale, bumps `metadata.version`); creating a project from a collection seeds `reference_content.collections`; old projects migrate on read; the Design Studio reads the resolved workspace as its single input (builder grounding + placeable media) and autosaves it; `item_ids`/`design` kept as a derived/compat view. All prior ACs stay green. | user + Claude |
+| 2.25.0 | 2026-10-06 | **Merge `feat/provider-agentic` → dev: Auto-Catalog + assistant reconciled.** Brings the **Auto-Catalog Agent** (**AC64–AC74**) onto the main line alongside dev's **Conversational platform assistant**. The branches both claimed AC64/AC65, so the assistant is renumbered **AC65 → AC76** (Auto-Catalog keeps AC64–AC74; **Structured Workspace** stays **AC75**); the manifest, ledger, and this spec updated to match. Also folds in dev's **dialog-in-viewport** fix. No behaviour change beyond the union of both branches; all prior ACs stay green. | user + Claude |
+| 2.24.0 | 2026-10-06 | **Structured Workspace (single studio input + autosave)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-ai-builder-optimize-charter.md` v2.0): added **AC75** — a project stores one structured **workspace** `{metadata, reference_content:{collections,uploads,generated}, scenes}` holding **references only**; `GET /me/projects/{id}/workspace` returns it resolved, `PUT` autosaves the whole object (validates visible-entry/owned-asset references, drops stale, bumps `metadata.version`); creating a project from a collection seeds `reference_content.collections`; old projects migrate on read; the Design Studio reads the resolved workspace as its single input (builder grounding + placeable media) and autosaves it; `item_ids`/`design` kept as a derived/compat view. All prior ACs stay green. | user + Claude |
+| 2.23.0 | 2026-10-06 | **Auto-Catalog Agent v2 — async jobs, images, tool-call insert, notifications** (`/oneshot-poc:run`, ⏸G feedback, charter v2 `docs/plans/2026-10-06-auto-catalog-agent-charter.md`): added **AC71–AC74** — the import now runs **asynchronously** as an owner-scoped **Job** (202 + `GET /me/jobs`; in-process background task, no queue), the agent **extracts embedded images** from PDFs (PyMuPDF) into MinIO and attaches them to drafts, entry creation + image attach go through an **LLM tool-call loop** the server validates before inserting (deterministic heuristic fallback with no key), and the provider shell gains a **notification bell** polling `/me/jobs`. Also folds in the live-⏸G **provider-failure fallback** fix (extract.py both stages degrade on timeout/error; Gemini timeout 30→60s) with a regression test. All prior ACs stay green. | user + Claude |
+| 2.22.0 | 2026-10-06 | **Auto-Catalog Agent (provider)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-auto-catalog-agent-charter.md`): added **AC64–AC70** — a provider uploads a document (PDF/PNG/JPEG, 25 MB cap, type-validated), the AI seam (AC16) **extracts** tourism info (PDF text pulled locally; deterministic stub with no key), and an agent turns it into **1..N draft entries** with full field inference (type/title/description/location/season/per-type attributes/highlights/tags). Entries save as **drafts** in the provider's catalog — invisible to agents (Contract 1) — carry an **AI-created marker** (filterable), and are reviewed/edited in the existing editor then published **public/private** via AC54. Deterministic in tests; no secrets/PII logged. All prior ACs stay green. | user + Claude |
 | 2.21.0 | 2026-10-06 | **Agent workspace: Catalog + Collections (accurate + redesigned)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-agent-workspace-charter.md`): added **AC59** (catalog = search/query library; primary action **Save to collection** as a validated reference; removed the dead "Add to composition"), **AC60** (collections **resolve** against the live catalog + a detail view: see items, remove, rename, Open in Design Studio), **AC61** (clicking an entry opens an item-detail modal, in catalog + collections), **AC62** (templates **Preview + Use on hover**), **AC63** (a studio **project starts from a collection**; usable media = collection items + Local uploads + AI library, not the whole catalog). Reordered the agent sidebar. Redesigned both pages within the design system. All prior ACs stay green. | user + Claude |
 | 2.20.0 | 2026-10-06 | **Provider assistant + org logo upload + UX cleanup** (⏸G feedback): added **AC57** — the grounded chat assistant now serves **providers** (grounded in their own catalog via `entries_for_actor`); and **AC58** — **org logo upload** (jpg/jpeg/png) replacing the URL field, served through the asset gate. Also: the entry **Edit** now uses the same form as create (edits everything — type/visibility/location/season/attributes/expiry) via a shared `EntryForm`; form sections (location/details/cover/expiry) **collapse by default** for a cleaner form; **Team** + **Invite agents** moved into the **Organization** page (removed Team from the sidebar and Invite from the Catalog); **Off-limits** removed from the provider sidebar (backend + route retained for now). All prior ACs stay green. | user + Claude |
 | 2.19.0 | 2026-10-06 | **Expiry-only lifecycle (greyed, not hidden) + entry provenance** (⏸G feedback): added **AC55** — an entry's only lifecycle control is its expiry date (New-entry UX: "Never expires", or a date, or one-click "use event end date"; dropped the separate valid-from field). Expired entries now show **greyed** in both provider + agent catalogs but are **not usable** (can't add to a composition; dropped from build/schedule/suggestions; pre-send still blocks). This amends AC32/33 (expired surfaced-but-greyed instead of hidden); `display_status` now derives expiry for any non-withdrawn status. Added **AC56** — each entry snapshots its creator (`created_by_email`) + org (`org_name`, empty when none), shown on the entry page. All prior ACs stay green. | user + Claude |

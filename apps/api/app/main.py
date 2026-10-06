@@ -19,6 +19,7 @@ from app.routers import (
     assistant,
     audit_log,
     auth,
+    auto_catalog,
     blocklist,
     builder,
     catalog,
@@ -91,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(blocklist.router)
     app.include_router(audit_log.router)
     app.include_router(assistant.router)
+    app.include_router(auto_catalog.router)
     app.include_router(observability.router)
 
     @app.get("/health", tags=["meta"])
