@@ -63,7 +63,7 @@ def test_scheduled_at_returned_as_utc_aware_instant(client):
     r = _schedule(client, a, cid, comp, scheduled_at="2026-08-16T02:00:00+05:30")
     returned = r.json()["scheduled_at"]
     parsed = datetime.fromisoformat(returned)
-    assert parsed.utcoffset() is not None, f"naive datetime {returned!r} — browser reads it as local"
+    assert parsed.utcoffset() is not None, f"naive {returned!r}: browser reads it as local"
     assert parsed == datetime(2026, 8, 15, 20, 30, tzinfo=timezone.utc)
 
 
