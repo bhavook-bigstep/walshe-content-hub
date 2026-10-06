@@ -421,8 +421,10 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   shows the saved entries' media, lets the agent **remove** items and **rename**, and **Open in
   Design Studio** (starts a project). (redesigned UI.) Proof: pytest (resolve drops an expired ref) +
   a collection-detail e2e.
-- **AC61** — **Entry detail modal.** Clicking an entry — in the Catalog or inside a Collection —
-  opens a read-only modal of its items (text/image/video). Proof: e2e.
+- **AC61** — **Entry detail modal (all info).** Clicking an entry — in the Catalog or inside a
+  Collection — opens a read-only modal showing **all of the entry's information**: its structured
+  type details, season, validity (valid-from / expiry), markets, highlights, custom sections,
+  provenance (provider + org), and its items (text/image/video). Proof: e2e.
 - **AC62** — **Templates: Preview + Use on hover.** A template card reveals **Preview** (opens a
   preview) and **Use** (opens it in the studio) on hover, instead of opening on click. Proof: e2e.
 - **AC63** — **Studio project from a collection; scoped media.** A **new project is started from a
