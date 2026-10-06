@@ -10,6 +10,7 @@ import logging
 
 from app.config import Settings
 from app.social.base import PublishConnector
+from app.social.insights import InsightsConnector, InstagramInsights, StubInsights
 from app.social.instagram import InstagramConnector
 from app.social.stub import StubConnector
 
@@ -22,3 +23,11 @@ def get_connector(settings: Settings) -> PublishConnector:
         return InstagramConnector(settings)
     log.info("publish connector: stub (no Instagram keys configured)")
     return StubConnector()
+
+
+def get_insights_connector(settings: Settings) -> InsightsConnector:
+    if settings.instagram_configured():
+        log.info("insights connector: instagram")
+        return InstagramInsights(settings)
+    log.info("insights connector: stub (no Instagram keys configured)")
+    return StubInsights()
