@@ -67,6 +67,20 @@ def build_prompt(items: list[CopyItem]) -> str:
     return "\n".join(lines)
 
 
+def caption_prompt(items: list[CopyItem]) -> str:
+    """Caption prompt with strict output rules so the model returns ONE paste-ready caption.
+
+    Without these rules a chat model tends to answer with a preamble ("Here are a few options…")
+    and a numbered list instead of a single usable caption.
+    """
+    return (
+        build_prompt(items)
+        + "\n\nReturn ONLY the caption text — a single, paste-ready caption. No preamble, no "
+        "numbered or bulleted options, no surrounding quotes, no hashtags, no explanation. "
+        "Keep it under 300 characters."
+    )
+
+
 def keyword_prompt(items: list[CopyItem]) -> str:
     """Prompt variant asking a real provider for hashtags (the stub path never uses this)."""
     return (
@@ -127,7 +141,7 @@ def content_hashtags(items: list[CopyItem]) -> list[str]:
 
 def generate_caption(items: list[CopyItem], provider: AIProvider) -> str:
     """Generate a caption via the provider; the stub yields a deterministic, prompt-derived line."""
-    return clamp_caption(provider.complete(build_prompt(items)).text)
+    return clamp_caption(provider.complete(caption_prompt(items)).text)
 
 
 def generate_hashtags(items: list[CopyItem], provider: AIProvider) -> list[str]:
