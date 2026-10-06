@@ -94,15 +94,17 @@ export default function CampaignsPage() {
             ) : campaigns.length === 0 ? (
               <div className="card p-8 text-center text-walshe-grey">No campaigns yet.</div>
             ) : (
-              <ul className="space-y-4">
+              <ul className="space-y-3">
                 {campaigns.map((c) => (
-                  <li key={c.id} className="card card-hover p-5">
-                    <Link href={`/agent/campaigns/${c.id}`} className="block">
-                      <div className="eyebrow text-[11px] capitalize">{c.status} · {c.destination ?? "—"}</div>
-                      <h3 className="mt-2 text-h3 text-walshe-ink">{c.name}</h3>
-                      <p className="mt-1 text-small text-walshe-grey">
-                        {c.starts_on} → {c.ends_on} · {c.post_count} post{c.post_count === 1 ? "" : "s"}
-                      </p>
+                  <li key={c.id} className="card card-hover p-4">
+                    <Link href={`/agent/campaigns/${c.id}`} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-body font-semibold text-walshe-ink">{c.name}</h3>
+                        <p className="mt-0.5 truncate text-small text-walshe-grey">
+                          {c.destination ?? "—"} · {c.starts_on} → {c.ends_on} · {c.post_count} post{c.post_count === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <span className="eyebrow shrink-0 text-[11px] capitalize">{c.status}</span>
                     </Link>
                   </li>
                 ))}
