@@ -836,17 +836,21 @@
       },
       "EngagementOut": {
         "properties": {
-          "clicks": {
-            "title": "Clicks",
-            "type": "integer"
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
           },
-          "engagement": {
-            "title": "Engagement",
-            "type": "integer"
+          "metrics": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Metrics",
+            "type": "object"
           },
-          "impressions": {
-            "title": "Impressions",
-            "type": "integer"
+          "platform": {
+            "title": "Platform",
+            "type": "string"
           },
           "post_id": {
             "title": "Post Id",
@@ -855,9 +859,9 @@
         },
         "required": [
           "post_id",
-          "impressions",
-          "clicks",
-          "engagement"
+          "platform",
+          "metrics",
+          "fetched_at"
         ],
         "title": "EngagementOut",
         "type": "object"
@@ -1877,6 +1881,19 @@
           "channel"
         ],
         "title": "PublishRequest",
+        "type": "object"
+      },
+      "RefreshOut": {
+        "properties": {
+          "synced": {
+            "title": "Synced",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "synced"
+        ],
+        "title": "RefreshOut",
         "type": "object"
       },
       "RegisterProviderRequest": {
@@ -3518,6 +3535,33 @@
           }
         ],
         "summary": "List Engagement",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
+    "/engagement/refresh": {
+      "post": {
+        "description": "On-demand pull: sync insights for this agent's own published posts right now.",
+        "operationId": "refresh_engagement_engagement_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Refresh Engagement",
         "tags": [
           "engagement"
         ]

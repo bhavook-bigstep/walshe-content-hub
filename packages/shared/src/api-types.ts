@@ -393,6 +393,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/engagement/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Engagement
+         * @description On-demand pull: sync insights for this agent's own published posts right now.
+         */
+        post: operations["refresh_engagement_engagement_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1107,12 +1127,17 @@ export interface components {
         DisplayStatus: "draft" | "in_review" | "approved" | "expiring_soon" | "expired" | "withdrawn";
         /** EngagementOut */
         EngagementOut: {
-            /** Clicks */
-            clicks: number;
-            /** Engagement */
-            engagement: number;
-            /** Impressions */
-            impressions: number;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Metrics */
+            metrics: {
+                [key: string]: number;
+            };
+            /** Platform */
+            platform: string;
             /** Post Id */
             post_id: number;
         };
@@ -1474,6 +1499,11 @@ export interface components {
             channel: string;
             /** Composition Id */
             composition_id: number;
+        };
+        /** RefreshOut */
+        RefreshOut: {
+            /** Synced */
+            synced: number;
         };
         /**
          * RegisterProviderRequest
@@ -2450,6 +2480,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EngagementOut"][];
+                };
+            };
+        };
+    };
+    refresh_engagement_engagement_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshOut"];
                 };
             };
         };

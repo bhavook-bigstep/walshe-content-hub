@@ -53,3 +53,40 @@ def test_dashboard_is_agent_only(eng_app, eng_client, provider_headers, admin_he
     assert eng_client.get("/engagement").status_code == 401
     assert eng_client.get("/engagement", headers=provider_headers).status_code == 403
     assert eng_client.get("/engagement", headers=admin_headers).status_code == 403
+
+
+def _make_agent_post(app, external_id="MREF"):
+    from sqlalchemy import select
+
+    from app.models.composition import Composition
+    from app.models.post import Post, PostStatus
+    from app.models.user import Role, User
+
+    with app.state.sessionmaker() as db:
+        agent = db.execute(select(User).where(User.role == Role.tourism_agent)).scalar_one()
+        comp = Composition(agent_id=agent.id, format="social", item_ids=[])
+        db.add(comp)
+        db.flush()
+        db.add(
+            Post(
+                composition_id=comp.id,
+                channel="instagram",
+                platform="instagram",
+                status=PostStatus.published,
+                external_id=external_id,
+                published_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+            )
+        )
+        db.commit()
+
+
+def test_refresh_syncs_agents_own_posts(eng_app, eng_client, agent_headers):
+    _make_agent_post(eng_app)
+    resp = eng_client.post("/engagement/refresh", headers=agent_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["synced"] == 1  # stub connector (no keys), explicit post_ids override age
+    assert eng_client.get("/engagement", headers=agent_headers).json()  # a snapshot now exists
+
+
+def test_refresh_is_agent_only(eng_app, eng_client, provider_headers):
+    assert eng_client.post("/engagement/refresh", headers=provider_headers).status_code == 403

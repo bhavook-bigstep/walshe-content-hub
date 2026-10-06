@@ -373,6 +373,13 @@ export async function listEngagement(): Promise<Engagement[]> {
   return (await (await send("/engagement")).json()) as Engagement[];
 }
 
+/** On-demand: pull fresh Instagram insights for the agent's own published posts. */
+export async function refreshEngagement(): Promise<{ synced: number }> {
+  return (await (await send("/engagement/refresh", { method: "POST" })).json()) as {
+    synced: number;
+  };
+}
+
 /** Assets need the bearer header, so <img src> cannot hit the API directly: authed fetch -> blob -> object URL. */
 export async function fetchAssetObjectUrl(key: string): Promise<string> {
   const encoded = key.split("/").map(encodeURIComponent).join("/");
