@@ -59,12 +59,13 @@ export default function CampaignsCalendar({ campaigns }: { campaigns: Campaign[]
           const minHeight = Math.max(FLOOR, HEADER + laneCount * LANE + 8);
           return (
             <div key={wi} className="relative" style={{ minHeight }}>
-              {/* Background day cells — borders + day number, identical to the detail calendar. */}
-              <div className="grid h-full grid-cols-7">
+              {/* Background day cells — absolutely filling the row so the grid lines (border-r /
+                  border-b) run the full cell height beneath the bars, not just under the number. */}
+              <div className="absolute inset-0 grid grid-cols-7">
                 {week.map((cell, i) => (
                   <div
                     key={i}
-                    className={`h-full border-b border-r border-walshe-line p-1.5 ${
+                    className={`border-b border-r border-walshe-line p-1.5 ${
                       i === 0 ? "border-l" : ""
                     } ${cell ? "" : "bg-walshe-stone/20"}`}
                     aria-hidden={cell ? undefined : true}
