@@ -8,7 +8,13 @@
 | **Supersedes / builds on** | `docs/plans/2026-10-05-instagram-publishing-pipeline-design.md`, `docs/plans/2026-10-06-engagement-insights-design.md` |
 | **Governing spec** | `/REQUIREMENTS.md` (new ACs added under Governance, below) |
 
-*Rev 2026-10-06b: added delivery semantics & crash recovery — at-least-once publishing (§8.1) — per review.*
+*Rev 2026-10-06b: added delivery semantics & crash recovery (§8.1).*
+*Rev 2026-10-06c (review round 2): reframed delivery as bounded at-least-once **attempts**; made the
+`approved→publishing` claim an **atomic** conditional update (§8); rebuilt recovery on the documented
+container `status_code` and reframed `publish_container_id` as a correlation handle, not an idempotency
+token (§8.1); added `PATCH` edit/reschedule semantics (§7.1); added UTC timezone + campaign-window
+rules (§4.1); simplified campaign status to `active`/`completed` (§3); added a live-reconcile
+verification gate (§13.3).*
 
 ## 1. Context & goal
 
@@ -71,9 +77,9 @@ Platform-agnostic container owned by an agent.
 | `agent_id` | FK → `users.id` | Owner / creator. **Not** assumed to be the approver (§5). |
 | `name` | `String(120)` | e.g. "3N/4D Australia". |
 | `destination` | `String(120)`, nullable | Optional descriptive metadata only (e.g. "Australia"). **Not** structural; does not drive routing or platform. |
-| `starts_on` | `Date` | Campaign window start (drives the calendar + "active" state). |
+| `starts_on` | `Date` | Campaign window start (drives the calendar + window validation, §3.1). |
 | `ends_on` | `Date` | Campaign window end. |
-| `status` | enum (`native_enum=False`) | `draft` \| `active` \| `completed`. PoC create defaults to `active`; `draft` exists for a campaign still being assembled (the diagram's start node). Lightweight metadata for the campaigns list — **post firing never depends on it**. |
+| `status` | enum (`native_enum=False`) | `active` \| `completed` only. Created `active`; no `draft` and no activation step for the PoC (there is no campaign-draft UI — YAGNI). Lightweight metadata for the campaigns list — **post firing never depends on it**. |
 | `created_at` | `DateTime(tz)` | |
 
 ### Extended: `Post` (`apps/api/app/models/post.py`)
@@ -87,7 +93,7 @@ Platform-agnostic container owned by an agent.
 | `approved_by` | FK → `users.id`, nullable | Who approved (§5). Decouples approval authority from `campaign.agent_id`. |
 | `reviewed_at` | `DateTime(tz)`, nullable | When the approve/reject decision was made. |
 | `review_note` | `Text`, default `""` | Optional reviewer note (used on reject). |
-| `publish_container_id` | `String(100)`, nullable | The IG `creation_id`, persisted the instant the container is created, **before** `media_publish`. The correlation handle that makes crash recovery idempotent (§8.1). |
+| `publish_container_id` | `String(100)`, nullable | The IG `creation_id`, persisted the instant the container is created, **before** `media_publish`. A persisted **external correlation handle** used to resume/reconcile an interrupted publish — not an idempotency token of our own (§8.1). |
 | `publish_started_at` | `DateTime(tz)`, nullable | When the dispatcher claimed the row (`approved → publishing`). Drives the stale-claim reaper (§8.1). |
 | `publish_attempts` | `Integer`, default `0` | Incremented on each claim; capped by `max_publish_attempts` → terminal `failed`, never an infinite loop (§8.1). |
 
@@ -117,32 +123,32 @@ migration** on both SQLite (dev/test) and Postgres. Existing values are untouche
 Two orthogonal dimensions: **approval/publish status** and the **`scheduled_at` timestamp**.
 
 ```
-Campaign(draft) ──activate──▶ Campaign(active) ───────────────────────────▶ Campaign(completed)
+Campaign: created active ───────────────────────────────────────────────▶ completed
         │
         ▼  (agent, in Studio)
   Post: draft ──schedule (render+capture image, set scheduled_at)──▶ pending_approval
                                                                           │
-                                           reviewer reject (review_note)  │  reviewer approve
-                                               ◀──────────── rejected ◀───┤  (set approved_by,
-                                               │  edit + resubmit         │   reviewed_at)
-                                               └──────────────────────────┤
+                              reviewer reject (review_note)               │  reviewer approve
+                                  ◀──────────────── rejected ◀────────────┤  (set approved_by,
+                                  │  PATCH edit (re-capture media,         │   reviewed_at)
+                                  │  clear approval fields) → ─────────────┤
+                                  └────────────────────────────────────▶  ▼
+                                      pending_approval               approved ──────────┐
+                                                                          │             │ agent cancel
+                                   dispatcher: now >= scheduled_at        │             ▼
+                                   (atomic claim: approved → publishing)  │         cancelled
                                                                           ▼
-                                                                      approved ───────────┐
-                                                                          │               │ agent cancel
-                                                                          │               ▼
-                                   dispatcher: now >= scheduled_at        │           cancelled
-                                   (claims row: approved → publishing)    │
-                                                                          ▼
-                                                                      publishing
-                                                              success │        │ PublishError / any exc
-                                                                      ▼        ▼
-                                                                  published   failed
-                                                                      │
-                                                                      ▼
+                              reaper resumes a stale ───────────────▶ publishing
+                              publishing row (§8.1)                 ╱            ╲
+                                                            success╱              ╲ non-retryable / attempts>max
+                                                                  ▼                ▼
+                                                              published          failed
+                                                                  │          (retryable: left for next tick)
+                                                                  ▼
                               (existing) PostInsightsSync pulls Engagement snapshots → post analytics
-                                                                      │
-                                                                      ▼
-                                                        campaign analytics = GROUP BY campaign (§6)
+                                                                  │
+                                                                  ▼
+                                                    campaign analytics = GROUP BY campaign (§6)
 ```
 
 **"Scheduled / armed" is derived, not a stored state** — it is exactly `status == approved AND
@@ -171,12 +177,30 @@ Therefore the creative image is **captured when the post is scheduled**, while t
    the bytes through the storage abstraction (`apps/api/app/storage/s3_media.py` → S3/MinIO when
    configured; in-memory for the keyless dev/test path), and sets `post.media_object_key`.
 3. At dispatch (Inc 2), the worker resolves the public URL from `media_object_key` via a small
-   `s3_media.public_url(settings, key)` helper (to add in Inc 2) and calls
-   `connector.publish(image_url=..., caption=...)`. The deterministic stub ignores the URL.
+   `s3_media.public_url(settings, key)` helper (to add in Inc 2). The **IG container is created at
+   dispatch time, not schedule time** — a container expires 24 h after creation [2], so it must be
+   created when we are about to publish, not when the post is scheduled (which may be weeks out).
+   The deterministic stub ignores the URL.
 
 Rejected alternative: a headless Fabric/puppeteer renderer at dispatch time — a heavy new runtime
 dependency outside PoC scope, and non-deterministic. Capture-at-schedule reuses code we already
 ship and keeps the worker pure.
+
+### 4.1 Scheduling rules: timezone & campaign window
+
+**Timezone.** `scheduled_at` is stored and compared in **UTC** (the column is already
+`DateTime(timezone=True)`). The web client converts the agent's chosen local date/time to an
+absolute instant (ISO-8601 with offset / `Z`) before sending; the API persists UTC; the dispatcher
+compares absolute instants (`now_utc >= scheduled_at_utc`). The calendar and post UI render times
+back in the **browser's local timezone**, so an India-based agent sees IST while the scheduler
+reasons in UTC — no "published 5.5 h off" surprises. A stored per-agent/per-org timezone is a
+future refinement, not built now (the browser's own timezone is sufficient for the PoC).
+
+**Campaign window.** A campaign post's `scheduled_at` **must fall within the campaign's
+`[starts_on, ends_on]` window**, inclusive, evaluated against the agent's local calendar date; the
+schedule endpoint (and PATCH reschedule) returns **422** otherwise. This is a deliberate PoC
+constraint — if we later want pre-campaign teasers we will relax it explicitly rather than by
+accident.
 
 ## 5. Approval (Inc 2) — gate real, authority a seam
 
@@ -220,13 +244,34 @@ additionally honour `can_review`.
 | `POST /campaigns` | 1 | Create a campaign (name, destination?, starts_on, ends_on). |
 | `GET /campaigns` | 1 | List the agent's campaigns (with lightweight status + counts). |
 | `GET /campaigns/{id}` | 1 | Campaign detail + its posts (for the calendar). |
-| `POST /campaigns/{id}/posts` | 1 | Schedule a composition into the campaign; multipart rendered JPEG; lands `pending_approval` (or `draft` if no `scheduled_at`). Validates ownership of the composition. |
+| `POST /campaigns/{id}/posts` | 1 | Schedule a composition into the campaign; multipart rendered JPEG; validates composition ownership + campaign window (§4.1); lands `pending_approval` (or `draft` if no `scheduled_at`). |
+| `PATCH /campaigns/{id}/posts/{post_id}` | 1 | Edit / reschedule a post (§7.1). Allowed only in `draft` / `rejected` / `pending_approval`. |
 | `POST /campaigns/{id}/posts/{post_id}/approve` | 2 | `can_review` → `approved` + `approved_by`/`reviewed_at`; audited. |
 | `POST /campaigns/{id}/posts/{post_id}/reject` | 2 | `can_review` → `rejected` + `review_note`; audited. |
 | `POST /campaigns/{id}/posts/{post_id}/cancel` | 2 | Owner → `cancelled`; audited. |
 | `GET /campaigns/{id}/analytics` | 3 | Aggregated metrics + per-post breakdown + series. |
 
 The dispatcher (Inc 2) is **not** an endpoint — it is a lifespan background worker (§8).
+
+### 7.1 Edit / resubmit / reschedule semantics
+
+Editing is how a `rejected` post gets fixed and how an agent reschedules before approval. The rule
+for the PoC: **editing updates the existing `Post` row in place** (it does not spawn a new post).
+`PATCH /campaigns/{id}/posts/{post_id}` (multipart, all fields optional):
+
+- Allowed **only** while `status ∈ {draft, pending_approval, rejected}`. Editing an `approved`,
+  `publishing`, or `published` post is **409** — approved/in-flight/live work is immutable; to
+  change it the agent cancels and creates a new post.
+- A new rendered JPEG (if supplied) **replaces** the captured media: stored at a fresh
+  `media_object_key`; the old object is left in storage (orphan cleanup is out of PoC scope — noted).
+- `caption` and `scheduled_at` may change; a changed `scheduled_at` is re-validated against the
+  campaign window (§4.1).
+- The edit **clears the approval fields** (`approved_by`, `reviewed_at`, `review_note`) and returns
+  the post to `pending_approval` if a `scheduled_at` is present, else `draft`. A fix always re-enters
+  review — an edit can never keep a stale approval.
+- Composition: the post keeps its `composition_id`; editing re-captures from the (possibly
+  Studio-updated) composition. The `Composition` itself is edited in the Studio, independently.
+- Audited (Contract 3).
 
 ## 8. Background dispatcher (Inc 2) — mirrors the insights worker
 
@@ -241,8 +286,16 @@ dispatch_due_posts(db, connector, now) -> int   # apps/api/app/services/campaign
 - Selects posts matching the §4 predicate **plus** stale `publishing` rows to recover (§8.1),
   **ordered by `scheduled_at`**, via `get_connector(settings)` (real IG or stub by env).
 - The publish is **split across commits so a crash is recoverable** (§8.1). Per post:
-  1. **Claim** — `approved → publishing`, set `publish_started_at=now`, `publish_attempts += 1`;
-     commit. This is the double-dispatch lock.
+  1. **Claim (atomic)** — a single **conditional update** is the lock, not a read-then-write:
+     ```sql
+     UPDATE posts SET status='publishing', publish_started_at=:now, publish_attempts=publish_attempts+1
+     WHERE id=:id AND status='approved'
+     ```
+     The dispatcher proceeds only if **exactly one row was updated**; a `rowcount == 0` means
+     another execution already claimed it, so this one skips. (On Postgres the equivalent is a
+     `SELECT … FOR UPDATE SKIP LOCKED` claim.) **PoC assumption:** we run a **single** dispatcher
+     instance (one lifespan worker), so the claim is uncontended; the conditional update is what
+     keeps it correct if the API is ever scaled to multiple instances — see §8.1.
   2. **Create + persist container** — `connector.create_container(...)` → persist
      `publish_container_id`; **commit before publishing**.
   3. **Publish** — `connector.publish_container(container_id)` → `published` + `external_id` /
@@ -253,53 +306,66 @@ dispatch_due_posts(db, connector, now) -> int   # apps/api/app/services/campaign
   `max_publish_attempts`, §8.1).
 - Every transition `audit.record`-ed (Contract 3). Returns the count published.
 
-### 8.1 Delivery semantics & recovery (at-least-once)
+### 8.1 Delivery semantics & recovery (bounded at-least-once attempts)
 
-**Guarantee: at-least-once.** A due, approved post is published *at least once* and is never
-silently lost. Exactly-once is **not** achievable here — the Instagram `media_publish` is an
-external side effect that cannot be committed in the same transaction as our DB write, and the
-Graph API exposes no idempotency token it will honour (the connector's `idempotency_key` arg is
-currently ignored by the IG adapter, `apps/api/app/social/instagram.py`). In the narrow window
-where Instagram accepts the post but the worker dies before persisting the receipt, a later
-recovery attempt could create a **duplicate**. We make that window small and duplicates detectable;
-we do not pretend it is impossible.
+**Delivery semantics: bounded at-least-once *attempts*.** A due, approved post is **never silently
+dropped** — it always reaches a terminal, observable state (`published` or `failed`). The dispatcher
+retries recoverable failures and reconciles stale `publishing` attempts; after `max_publish_attempts`
+the post transitions to `failed` (visible, not lost). This is deliberately weaker than "published at
+least once": we do **not** guarantee a post is ever successfully published — a persistently failing
+one ends in `failed`. And it is **not** exactly-once: `media_publish` is an external side effect that
+cannot commit in the same transaction as our DB write, and the Graph API honours no idempotency token
+of ours (the connector's `idempotency_key` arg is ignored by the IG adapter today,
+`apps/api/app/social/instagram.py`). So a *successful* publish may, in a narrow crash window, happen
+**more than once** (a duplicate) — never zero times without the post landing in `failed`. We make
+that window small, make duplicates detectable, and reconcile wherever Meta's API lets us.
 
 **The orphaned-`publishing` problem.** The claim `approved → publishing` is committed *before* the
 publish call, so if the process dies mid-publish the row is stuck in `publishing` and the normal
 predicate (`status == approved`) will never pick it up again. `publishing` rows therefore need an
 explicit recovery path, or posts would be silently dropped.
 
-**Recovery via the container id (idempotent resume).** The IG publish is a 3-step flow (create
-container → poll `FINISHED` → `media_publish`). The dispatcher persists the **container id
-(`creation_id`) the instant the container is created, before `media_publish`** — this is why the
-connector is split (§8) and why `publish_container_id` exists (§3). The **reaper** — the same sweep,
-selecting `publishing` rows whose `publish_started_at` is older than
-`campaign_dispatch_reaper_timeout_seconds` (set well above the worst-case publish duration,
-including video transcode polling) — resumes each orphan:
+**Recovery via the container `status_code` (documented reconcile).** The IG publish is a 3-step flow
+(create container → poll `FINISHED` → `media_publish`). The dispatcher persists the **container id
+(`creation_id`) the instant the container is created, before `media_publish`** — a persisted
+external **correlation handle** (§3), not an idempotency token of ours. The **reaper** — the same
+sweep, selecting `publishing` rows whose `publish_started_at` is older than
+`campaign_dispatch_reaper_timeout_seconds` — resumes each orphan by reading the container's
+**documented** `status_code` [2] (`GET /{container-id}?fields=status_code`):
 
-- **`publish_container_id` present** → call `publish_container(id)` again. Instagram rejects a
-  second publish of the same container; the connector maps that specific error to
-  "already published", and the reaper reconciles the media id / permalink by reading the container
-  (or recent media), then marks it `published`. **No duplicate** — the container id *is* the
-  idempotency key.
-- **No `publish_container_id`** → the crash was at or before container creation, so at most an
-  unpublished container exists; it is safe to recreate. The only residual duplicate risk is a crash
-  *between* IG accepting the container-create and our commit of the id — kept tiny by committing the
-  id immediately after step 2 and before step 3.
+- `PUBLISHED` → the media already went live before the crash. **Reconcile** the media id / permalink
+  (do **not** re-publish) and mark `published`. **No duplicate.**
+- `FINISHED` → the container is ready but was not published; call `publish_container(id)`. Safe.
+- `EXPIRED` / `ERROR`, or **no `publish_container_id`** at all → no live media resulted; **re-create**
+  from the captured image, within the attempt cap. (Containers expire 24 h after creation [2] and we
+  create them at dispatch, so an expired container simply means "start over".)
+
+Correctness here rests on a **documented** container status, not on the undocumented behaviour of a
+repeated `media_publish`. The one residual duplicate window is a crash *between* Instagram accepting
+`media_publish` and our commit of `published`, **while the container status has not yet flipped to
+`PUBLISHED`** — kept small and bounded by the attempt cap. **This reconcile path must be smoke-tested
+against the real Graph API before its acceptance criterion is promoted (§12, §13.3).**
 
 **Bounded retries.** `publish_attempts` is incremented on every claim; past `max_publish_attempts`
 (default 3) the post goes terminal `failed` with its last error, so a poisoned post can never loop
 forever.
+
+**Reaper timeout.** `campaign_dispatch_reaper_timeout_seconds` must exceed the **maximum legitimate
+create → poll → publish duration** (dominated by video transcode polling), or the reaper could
+reclaim a row a slow-but-healthy worker is still publishing. A per-worker lease id
+(`publish_claim_id`) would remove that race entirely, but with a single PoC dispatcher it is
+unnecessary — noted as the extension for a multi-worker deployment.
 
 **Startup sweep.** On worker start the dispatcher runs one recovery pass, so a crash during a
 deploy/restart is reconciled promptly instead of waiting a full interval.
 
 **Connector contract (additive, back-compatible).** `publish()` stays unchanged for the manual IG
 path (`apps/api/app/routers/instagram.py`); Inc 2 **adds** granular `create_container(...) ->
-container_id`, `poll_until_ready(container_id)`, and `publish_container(container_id) ->
-PublishResult`, and `publish()` becomes their composition. The stub connector implements the same
-split deterministically, and a repeated `publish_container` on the same id returns the same result
-(idempotent), so the whole recovery path is unit-testable with no network (Contract 4).
+container_id`, `container_status(container_id) -> str` (the documented `status_code`),
+`poll_until_ready(container_id)`, and `publish_container(container_id) -> PublishResult`; the
+existing `publish()` becomes their composition. The stub implements the same split deterministically
+— after a `publish_container` its `container_status` returns `PUBLISHED` — so the reaper's reconcile
+path is exercised with no network (Contract 4).
 
 **Acknowledged downstream.** Because a rare duplicate is possible, analytics treat each `Post` row
 independently (a duplicate surfaces as two posts, not corrupted data), and the agent can
@@ -310,12 +376,17 @@ minimises the window and records enough (`publish_container_id`, `external_id`) 
 
 - **Increment 1 (build now): Campaign + calendar.** `Campaign` model + `Post` columns + enum
   values; `POST/GET /campaigns`, `GET /campaigns/{id}`, `POST /campaigns/{id}/posts` (with
-  capture-at-schedule); web `app/agent/campaigns/` — campaigns list, create form, and a month
-  **calendar** showing a campaign's posts by `scheduled_at`, status-chipped; agent-home quick-link.
-  Posts land in `pending_approval`. **Nothing fires yet.**
+  capture-at-schedule + window validation §4.1) and `PATCH .../posts/{id}` (edit/reschedule §7.1);
+  UTC scheduling semantics (§4.1); web `app/agent/campaigns/` — campaigns list, create form, and a
+  month **calendar** showing a campaign's posts by `scheduled_at` (rendered in the browser's
+  timezone), status-chipped; agent-home quick-link. Posts land in `pending_approval`. **Nothing
+  fires yet.**
 - **Increment 2: Approval + dispatcher.** `can_review` seam; approve/reject/cancel endpoints +
-  minimal review UI (approve/reject buttons on the calendar/post detail); the
-  `dispatch_due_posts` worker; `s3_media.public_url` helper.
+  minimal review UI (approve/reject on the calendar/post detail); connector split
+  (`create_container` / `container_status` / `poll_until_ready` / `publish_container`); the
+  `dispatch_due_posts` worker with the **atomic claim**, the `status_code` reaper, bounded retries,
+  and startup sweep (§8.1); `s3_media.public_url` helper. **Live reconcile smoke test (§13.3)
+  before the recovery AC is promoted.**
 - **Increment 3: Campaign analytics.** `GET /campaigns/{id}/analytics` rollup + the campaign
   analytics page (totals, per-post table, series), labelled per §6.
 
@@ -337,16 +408,24 @@ TDD throughout (RED → GREEN), per-task commits (`Co-Authored-By: Claude Opus 4
 
 - Model + enum: migration/metadata smoke; nullable `campaign_id` leaves legacy posts intact.
 - Schedule endpoint: ownership 404; JPEG/size validation reused; lands `pending_approval`;
-  `media_object_key` set; `draft` when no `scheduled_at`.
+  `media_object_key` set; `draft` when no `scheduled_at`; **422 when `scheduled_at` is outside the
+  campaign window** (§4.1).
+- Timezone (§4.1): a `scheduled_at` sent with an offset is stored/compared as the correct UTC
+  instant; due-ness (`now_utc >= scheduled_at_utc`) is offset-correct (an IST-entered time does not
+  fire 5.5 h early/late).
+- Edit / reschedule (§7.1): `PATCH` allowed in `draft`/`pending_approval`/`rejected` only (409
+  otherwise); a new JPEG replaces `media_object_key`; a changed `scheduled_at` is window-validated;
+  approval fields cleared → back to `pending_approval`; audited.
 - State machine (Inc 2): legal transitions only; `can_review` allow/deny; audit rows written.
 - Dispatcher (Inc 2): picks only `approved && due && campaign_id`; **never** legacy `scheduled`;
-  one failing post doesn't abort the sweep; the `approved → publishing` claim prevents a second
-  concurrent sweep grabbing the same row; stub connector + fixed clock → deterministic.
-- Recovery / at-least-once (Inc 2, §8.1): a `publishing` row older than the reaper timeout **with**
-  a `publish_container_id` resumes and reconciles to `published` without creating a second
-  container (repeated `publish_container(id)` on the stub is idempotent); **without** a container id
-  it safely recreates; `publish_attempts > max_publish_attempts` → terminal `failed`; the startup
-  sweep reconciles a simulated mid-publish crash.
+  one failing post doesn't abort the sweep; the **atomic conditional-update claim** updates exactly
+  one row and a second concurrent sweep gets `rowcount == 0` and skips; stub connector + fixed clock
+  → deterministic.
+- Recovery (Inc 2, §8.1): a `publishing` row older than the reaper timeout is resumed by its
+  container `status_code` — `PUBLISHED` → reconciles to `published` **without** re-publishing (no
+  duplicate); `FINISHED` → publishes; `EXPIRED`/`ERROR`/no-container → recreates; `publish_attempts
+  > max_publish_attempts` → terminal `failed`; the startup sweep reconciles a simulated mid-publish
+  crash. (The stub's `container_status` returns `PUBLISHED` after a publish, so this is hermetic.)
 - Analytics (Inc 3): sum across latest-per-post; scoped to the calling agent; empty campaign → zeros.
 - Web: Vitest for the calendar date-bucketing + status chips (pure); one Playwright e2e for
   create-campaign + calendar render.
@@ -361,11 +440,12 @@ AC49–AC58 block):
 - Campaign CRUD + agent scoping.
 - Schedule-into-campaign captures the rendered creative at schedule time.
 - Approval gate: no post auto-publishes unless `approved` **and** due; approver recorded.
-- Dispatcher publishes due approved posts via the real connector (stub in tests) and never touches
-  legacy manual posts.
-- Scheduled posts are delivered **at-least-once**: a worker crash mid-publish is recovered (the
-  post is never lost), and recovery resumes on the persisted container id so it does not duplicate
-  when one exists (§8.1).
+- Dispatcher publishes due approved posts via the real connector (stub in tests), using an **atomic
+  claim**, and never touches legacy manual posts.
+- **Delivery: bounded at-least-once attempts** — a due approved post always reaches a terminal
+  `published`/`failed` state and is never silently dropped; a worker crash mid-publish is recovered
+  via the container `status_code` (reconciles instead of duplicating when `PUBLISHED`); retries are
+  bounded (§8.1). *(Promote only after the real-Graph-API reconcile smoke test — §13.3.)*
 - Campaign analytics aggregate post metrics (labelled as aggregate, not unique reach).
 
 ## 13. Open decisions (flag at spec review)
@@ -373,8 +453,15 @@ AC49–AC58 block):
 1. **Approver identity** (§5): PoC allows owner-agent or super_admin. If the business workflow is
    "agency employee creates, manager/client approves", we keep the `can_review` seam but may want a
    `reviewer` role sooner. Deferred unless you say otherwise.
-2. **Campaign `status`** (`draft/active/completed`): included as lightweight metadata; could be
-   derived purely from dates instead. Kept explicit for a clean campaigns list.
+2. **Campaign `status`** — **resolved**: dropped `draft`/activation; a campaign is created `active`
+   and moves to `completed`. No campaign-draft UI for the PoC (§3).
+3. **Verify Meta reconcile behaviour before promoting the recovery AC** (§8.1): the recovery design
+   reads the container `status_code` and treats `PUBLISHED` as "already live, reconcile don't
+   re-publish". The `status_code` values are documented [2], but the end-to-end reconcile (publish,
+   then re-read status, then fetch the media by the container/`creation_id`) should be **smoke-tested
+   once against the real Graph API** on the shared account before this becomes a hard acceptance
+   criterion. Unit tests use the stub; this is the one live check. Needs your go-ahead to run a live
+   post on the shared IG account (it creates one real post).
 
 ## References
 
@@ -383,3 +470,10 @@ https://developers.facebook.com/docs/instagram-platform/insights/ (accessed 2026
 the media `reach` metric as the total number of **unique** accounts that have seen the media
 object — the basis for labelling summed campaign reach as *aggregate post reach*, not unique
 campaign-level reach (§6, review point 5).
+
+[2] *Publish Content — Instagram Platform — Meta for Developers* — Meta —
+https://developers.facebook.com/docs/instagram-platform/content-publishing/ (accessed 2026-10-06).
+Documents the 3-step publish flow and the container `status_code` values
+(`EXPIRED`/`ERROR`/`FINISHED`/`IN_PROGRESS`/`PUBLISHED`), and that a container expires 24 h after
+creation — the basis for the §8.1 reconcile-on-`PUBLISHED` recovery path and the create-at-dispatch
+timing (§4).
