@@ -55,6 +55,10 @@ _TEMPLATES: list[DesignTemplate] = [
         name=ws["metadata"]["name"],
         format=ws["metadata"]["format"],
         description=TEMPLATE_DESCRIPTIONS.get(tid, ""),
+        width=ws["metadata"]["width"],
+        height=ws["metadata"]["height"],
+        background=(ws["scenes"][0].get("background", "") if ws["scenes"] else ""),
+        nodes=(ws["scenes"][0].get("nodes", []) if ws["scenes"] else []),
     )
     for tid, ws in TEMPLATE_WORKSPACES.items()
 ]

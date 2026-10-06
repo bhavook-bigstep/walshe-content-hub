@@ -30,15 +30,19 @@ test("agent adds a catalog item to a collection", async ({ page }) => {
   await expect(page.getByText(name).first()).toBeVisible();
 });
 
-// Save a design in the Studio, then re-open it from Projects via the ?project route.
+// Create a project from a template (which saves it + autosaves), then re-open it from Projects.
 test("agent opens a saved project in the studio", async ({ page }) => {
   await allowApiCors(page);
   await login(page, "agent@example.test", /\/agent$/);
 
-  await page.goto("/agent/studio");
-  await page.getByRole("button", { name: /save to projects/i }).click();
-  await expect(page.getByText(/saved to projects/i)).toBeVisible();
-  await expect(page.getByText(/Editing/).first()).toBeVisible();
+  // Using a template creates a saved project and opens it in the studio.
+  await page.goto("/agent/templates");
+  const card = page.locator(".card.group").first();
+  await card.hover();
+  await card.getByRole("button", { name: "Preview" }).click({ force: true });
+  await page.getByRole("dialog").getByRole("button", { name: /use template/i }).click();
+  await expect(page).toHaveURL(/\/agent\/studio\?project=\d+/);
+  await expect(page.getByTestId("studio-canvas")).toBeVisible();
 
   // Re-open it from the Projects list.
   await page.goto("/agent/projects");
@@ -47,5 +51,5 @@ test("agent opens a saved project in the studio", async ({ page }) => {
   await open.click();
 
   await expect(page).toHaveURL(/\/agent\/studio\?project=\d+/);
-  await expect(page.getByText(/Editing/).first()).toBeVisible();
+  await expect(page.getByTestId("studio-canvas")).toBeVisible();
 });

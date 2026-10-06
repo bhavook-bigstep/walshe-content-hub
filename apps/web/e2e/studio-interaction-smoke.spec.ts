@@ -9,7 +9,7 @@ import { login } from "./_helpers";
 test.beforeEach(async ({ page }) => {
   await login(page, "agent@example.test", /\/agent$/);
   await page.goto("/agent/studio");
-  await expect(page.getByRole("heading", { name: "Design Studio" })).toBeVisible();
+  await expect(page.getByTestId("studio-canvas")).toBeVisible();
   await page.getByRole("button", { name: "Fit" }).click(); // known viewport transform
 });
 
@@ -53,17 +53,22 @@ test("pan and zoom move the studio viewport; zoom control clears the assistant",
 test("selecting an entity and pressing Delete removes it", async ({ page }) => {
   const canvas = page.getByTestId("studio-canvas");
   const box = (await canvas.boundingBox())!;
-  const before = Number(await canvas.getAttribute("data-entities"));
-  expect(before).toBeGreaterThan(0);
 
-  // The seeded scene has an ellipse centred at artboard (720, 240). Map it to the screen using the
+  // The default canvas is empty, so add a rectangle via the right-rail Shapes tool.
+  await page.getByRole("button", { name: "Shapes" }).click();
+  await page.getByRole("button", { name: "rect" }).click();
+  await page.getByRole("button", { name: "Fit" }).click(); // known transform after adding
+  await expect.poll(async () => Number(await canvas.getAttribute("data-entities"))).toBeGreaterThan(0);
+  const before = Number(await canvas.getAttribute("data-entities"));
+
+  // The rect defaults to (64,64) 200x200 → centre at artboard (164,164). Map to screen using the
   // viewport transform (scene 0 origin is 0,0): screen = box + pan + artboardCoord * zoom.
   const z = Number(await canvas.getAttribute("data-zoom"));
   const [tx, ty] = (await canvas.getAttribute("data-pan"))!.split(",").map(Number);
-  const sx = box.x + tx + 720 * z;
-  const sy = box.y + ty + 240 * z;
+  const sx = box.x + tx + 164 * z;
+  const sy = box.y + ty + 164 * z;
   expect(sx).toBeGreaterThan(box.x);
-  expect(sx).toBeLessThan(box.x + box.width); // the computed point is on the canvas (seed sanity)
+  expect(sx).toBeLessThan(box.x + box.width); // the computed point is on the canvas
 
   await page.mouse.click(sx, sy); // select the entity under the pointer
   await page.keyboard.press("Delete");

@@ -190,3 +190,8 @@ class DesignTemplate(BaseModel):
     name: str
     format: str
     description: str
+    # Lightweight preview of the template's first scene so the gallery can render a real thumbnail.
+    width: int = 1080
+    height: int = 1080
+    background: str = ""
+    nodes: list[dict] = Field(default_factory=list)
