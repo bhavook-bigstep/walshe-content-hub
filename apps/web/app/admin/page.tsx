@@ -100,7 +100,6 @@ export default function AdminPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/admin" }, { label: "Users" }]}
         title="Users"
-        description="Govern tenants, users and provider verification across the hub."
       />
 
       {error && (

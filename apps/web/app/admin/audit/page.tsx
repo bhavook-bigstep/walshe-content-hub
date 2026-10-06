@@ -56,7 +56,6 @@ export default function AuditPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/admin" }, { label: "Audit log" }]}
         title="Audit log"
-        description="Every change, send-back, withdrawal, publish and off-limits update across the hub — traceable and exportable."
         action={
           <button type="button" onClick={() => void exportCsv()} disabled={exporting} className="btn-secondary">
             {exporting ? "Exporting…" : "Export CSV"}

@@ -1,6 +1,7 @@
 "use client";
 
 import SceneControls from "./SceneControls";
+import Spinner from "../ui/Spinner";
 import type { DesignDoc } from "../../lib/studio/ops";
 
 interface Props {
@@ -51,7 +52,8 @@ export default function TimelineDrawer({
           <h2 className="text-small font-bold text-walshe-ink">Timeline</h2>
           <div className="ml-auto flex items-center gap-2">
             {videoMsg && <span className="text-[12px] text-walshe-grey">{videoMsg}</span>}
-            <button type="button" onClick={onGenerateVideo} disabled={rendering} className="btn-secondary">
+            <button type="button" onClick={onGenerateVideo} disabled={rendering} className="btn-secondary inline-flex items-center gap-2">
+              {rendering && <Spinner />}
               {rendering ? "Rendering…" : "Generate video"}
             </button>
           </div>

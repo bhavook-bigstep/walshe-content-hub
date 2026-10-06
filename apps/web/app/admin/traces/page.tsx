@@ -30,7 +30,6 @@ export default function TracesPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/admin" }, { label: "Traces" }]}
         title="Agent traces"
-        description="Every agentic run — the assistant, creative plans and knowledge queries — with its intent, provider, latency and outcome. Prompts and replies are never stored; set a LangSmith key to export full traces."
       />
 
       {error && (

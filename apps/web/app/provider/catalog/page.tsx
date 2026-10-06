@@ -126,7 +126,6 @@ export default function ProviderCatalogPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/provider" }, { label: "Catalog" }]}
         title="Catalog"
-        description="Each entry is Draft (hidden), Public (every agent), or Private (invited agents only)."
         action={
           <div className="flex items-center gap-2">
             <button type="button" className="btn-secondary" onClick={() => setImportOpen(true)}>

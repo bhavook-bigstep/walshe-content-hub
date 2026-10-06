@@ -102,7 +102,6 @@ export default function AgentSocialPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Social" }]}
         title="Social"
-        description="Schedule or publish a composition — every send is checked against the brand rules first."
       />
 
       <form onSubmit={onSchedule} className="card mb-6 flex flex-wrap items-end gap-4 p-4">

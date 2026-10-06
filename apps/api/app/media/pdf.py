@@ -3,16 +3,20 @@
 A *design* is the serialisable shape the studio exports (``scenesAsPages``):
 ``{"width", "height", "pages": [{"background", "nodes": [...]}]}``. Each page becomes one PDF page
 at the design's own pixel size (1px = 1pt), so the PDF matches the canvas layout — positions, text
-styling and shapes. No external resource is fetched and no secret is embedded; image nodes are laid
-out as neutral frames (the real photos appear in the PNG/MP4 exports, which resolve storage).
+styling and shapes. An image node whose ``src`` is an inline ``data:`` URL is embedded (cover-fit,
+rounded if the node has a radius); the client inlines its photos to ``data:`` URLs before export, so
+no external resource is fetched and no secret is embedded. An image with no inline source falls back
+to a neutral placeholder frame.
 """
 
 from __future__ import annotations
 
+import base64
 import io
 from typing import Any
 
 from reportlab.lib.colors import Color, HexColor
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 _DEFAULT_W = 1080
@@ -39,8 +43,10 @@ def _font(node: dict[str, Any]) -> str:
     italic = node.get("fontStyle") == "italic"
     if "serif" in fam and "sans" not in fam:
         return {
-            (0, 0): "Times-Roman", (1, 0): "Times-Bold",
-            (0, 1): "Times-Italic", (1, 1): "Times-BoldItalic",
+            (0, 0): "Times-Roman",
+            (1, 0): "Times-Bold",
+            (0, 1): "Times-Italic",
+            (1, 1): "Times-BoldItalic",
         }[(int(bold), int(italic))]
     base = "Courier" if ("mono" in fam or "courier" in fam) else "Helvetica"
     if bold and italic:
@@ -115,8 +121,71 @@ def _draw_shape(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None
     pdf.restoreState()
 
 
+def _decode_data_url(src: Any) -> bytes | None:
+    """Return the raw bytes of a base64 ``data:`` image URL, or ``None`` for anything else.
+
+    Only inline ``data:`` sources are decoded — never ``http``/``blob`` — so the export fetches
+    nothing over the network (no egress) and parses the bytes inertly as an image.
+    """
+    if not isinstance(src, str) or not src.startswith("data:"):
+        return None
+    header, _, payload = src.partition(",")
+    if not payload or ";base64" not in header:
+        return None
+    try:
+        return base64.b64decode(payload, validate=True)
+    except Exception:
+        return None
+
+
+def _draw_image(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None:
+    """Embed an inline ``data:`` image cover-fitted to the node box (rounded if a radius is set).
+
+    Falls back to a neutral placeholder frame when the node has no decodable inline source.
+    """
+    data = _decode_data_url(node.get("src"))
+    reader = None
+    if data is not None:
+        try:
+            reader = ImageReader(io.BytesIO(data))
+            iw, ih = reader.getSize()
+        except Exception:
+            reader = None
+    if reader is None or iw <= 0 or ih <= 0:
+        _draw_image_frame(pdf, node, page_h)
+        return
+
+    x = float(node.get("x", 0))
+    y = float(node.get("y", 0))
+    w = float(node.get("width", 0))
+    h = float(node.get("height", 0))
+    radius = float(node.get("radius", 0) or 0)
+    bottom = page_h - y - h
+    pdf.saveState()
+    # Clip to the (optionally rounded) node box, then draw the image scaled to *cover* the box
+    # (fill it, cropping overflow) exactly like the canvas's object-cover rendering.
+    clip = pdf.beginPath()
+    if radius > 0:
+        clip.roundRect(x, bottom, w, h, radius)
+    else:
+        clip.rect(x, bottom, w, h)
+    pdf.clipPath(clip, stroke=0, fill=0)
+    scale = max(w / iw, h / ih)
+    dw, dh = iw * scale, ih * scale
+    pdf.drawImage(
+        reader,
+        x - (dw - w) / 2,
+        bottom - (dh - h) / 2,
+        width=dw,
+        height=dh,
+        mask="auto",
+        preserveAspectRatio=False,
+    )
+    pdf.restoreState()
+
+
 def _draw_image_frame(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None:
-    # Neutral placeholder frame preserving the layout (photos render in PNG/MP4 exports).
+    # Neutral placeholder frame preserving the layout (used when an image has no inline source).
     x = float(node.get("x", 0))
     y = float(node.get("y", 0))
     w = float(node.get("width", 0))
@@ -154,7 +223,7 @@ def design_to_pdf(design: dict[str, Any]) -> bytes:
             elif t == "shape":
                 _draw_shape(pdf, node, height)
             elif t == "image":
-                _draw_image_frame(pdf, node, height)
+                _draw_image(pdf, node, height)
         pdf.showPage()
 
     pdf.save()

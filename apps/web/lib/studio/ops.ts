@@ -50,10 +50,12 @@ export interface DesignNode {
   shape?: ShapeKind;
   /** fill/stroke/background colour */
   color?: string;
-  /** image nodes only — the served catalog asset URL */
+  /** image nodes only — the served catalog asset URL (ephemeral blob/data; re-resolved on open) */
   src?: string;
   /** image nodes only — provenance back to the approved catalog entry */
   catalogItemId?: string;
+  /** image nodes only — the stable storage object key, used to re-resolve `src` after reload */
+  objectKey?: string;
 
   // ---- Styling (optional; sensible defaults applied at render) ----
   /** text: font size in px */
@@ -296,7 +298,7 @@ export function setBackground(design: DesignDoc, sceneIndex: number, color: stri
 export function addCatalogImage(
   design: DesignDoc,
   sceneIndex: number,
-  image: { src: string; catalogItemId: string },
+  image: { src: string; catalogItemId: string; objectKey?: string },
   placement: NodePlacement = {},
 ): DesignDoc {
   assertScene(design, sceneIndex);
@@ -311,6 +313,8 @@ export function addCatalogImage(
     height: placement.height ?? 480,
     src: image.src,
     catalogItemId: image.catalogItemId,
+    // Persist the stable object key so the (ephemeral) blob src can be re-resolved on reopen.
+    ...(image.objectKey ? { objectKey: image.objectKey } : {}),
     ...stylePlacement(placement),
   });
   return next;

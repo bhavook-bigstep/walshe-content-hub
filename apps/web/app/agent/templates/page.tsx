@@ -53,7 +53,7 @@ export default function TemplatesPage() {
 
   return (
     <div>
-      <PageHeader title="Templates" description="Start a design from a preset." />
+      <PageHeader title="Templates" />
 
       {error && (
         <p role="alert" className="card mb-6 border-walshe-danger/30 p-4 text-small text-walshe-danger">

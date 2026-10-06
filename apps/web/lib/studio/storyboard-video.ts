@@ -21,15 +21,29 @@ export interface VideoCatalogItem {
 
 type RequestScene = VideoRequest["scenes"][number];
 
+/**
+ * The catalog **entry** id a scene's photo comes from, parsed from an image node's `catalogItemId`.
+ * Placed media is tagged `entry-<id>` (an entry card, whose cover becomes the scene photo),
+ * `item-<id>` or `asset-<id>`; only `entry-<id>` (or a legacy bare number) resolves to the catalog
+ * entry the server renders from (item/asset media aren't catalog entries). Returns null otherwise.
+ */
+function sceneEntryId(catalogItemId?: string): number | null {
+  if (!catalogItemId) return null;
+  const match = /^entry-(\d+)$/.exec(catalogItemId.trim());
+  if (match) return Number(match[1]);
+  const bare = Number(catalogItemId);
+  return catalogItemId.trim() !== "" && Number.isInteger(bare) ? bare : null;
+}
+
 export function designToVideoScenes(
   design: DesignDoc,
   items: readonly VideoCatalogItem[],
 ): RequestScene[] {
   const byId = new Map(items.map((it) => [it.id, it]));
   return design.scenes.slice(0, MAX_SCENES).map((scene) => {
-    const imageNode = scene.nodes.find((n) => n.type === "image" && n.catalogItemId);
-    const parsedId = imageNode ? Number(imageNode.catalogItemId) : NaN;
-    const itemId = Number.isFinite(parsedId) ? parsedId : null;
+    // The first image node that resolves to a catalog entry — its cover becomes the scene photo.
+    const imageNode = scene.nodes.find((n) => n.type === "image" && sceneEntryId(n.catalogItemId) !== null);
+    const itemId = imageNode ? sceneEntryId(imageNode.catalogItemId) : null;
     const item = itemId !== null ? byId.get(itemId) : undefined;
     const textNode = scene.nodes.find((n) => n.type === "text" && n.text?.trim());
 

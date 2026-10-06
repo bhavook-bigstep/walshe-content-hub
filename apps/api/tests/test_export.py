@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+import base64
+import io
 import re
 
 from app.media.html_export import design_to_email_html
-from app.media.pdf import _is_transparent, design_to_pdf
+from app.media.pdf import _decode_data_url, _is_transparent, design_to_pdf
+
+
+def _png_data_url() -> str:
+    """A tiny synthetic PNG as a base64 data: URL (no fixtures, no network)."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (200, 40, 40)).save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
 
 DESIGN = {
     "pages": [
@@ -157,3 +169,64 @@ def test_email_html_escapes_markup():
     # ...they are HTML-escaped instead.
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "&amp;" in html
+
+
+def test_decode_data_url_accepts_base64_image_only():
+    assert _decode_data_url(_png_data_url()) is not None
+    assert _decode_data_url("blob:http://x/abc") is None
+    assert _decode_data_url("https://example.test/a.png") is None
+    assert _decode_data_url("data:image/png,notbase64") is None
+    assert _decode_data_url(None) is None
+
+
+def test_pdf_embeds_inline_data_image():
+    # An image node with an inline data: URL is embedded as a real image XObject (not a frame).
+    design = {
+        "width": 600,
+        "height": 400,
+        "pages": [
+            {
+                "nodes": [
+                    {
+                        "type": "image",
+                        "x": 40,
+                        "y": 40,
+                        "width": 240,
+                        "height": 180,
+                        "radius": 16,
+                        "src": _png_data_url(),
+                    },
+                ],
+            }
+        ],
+    }
+    pdf = design_to_pdf(design)
+    assert pdf.startswith(b"%PDF")
+    # reportlab writes embedded bitmaps as image XObjects.
+    assert b"/Subtype /Image" in pdf
+
+
+def test_pdf_image_without_inline_source_falls_back_to_frame():
+    # A non-data src (e.g. a client blob: URL the server can't read) must not embed or crash;
+    # it renders the neutral placeholder frame instead.
+    design = {
+        "width": 600,
+        "height": 400,
+        "pages": [
+            {
+                "nodes": [
+                    {
+                        "type": "image",
+                        "x": 10,
+                        "y": 10,
+                        "width": 200,
+                        "height": 150,
+                        "src": "blob:nope",
+                    }
+                ]
+            },
+        ],
+    }
+    pdf = design_to_pdf(design)
+    assert pdf.startswith(b"%PDF")
+    assert b"/Subtype /Image" not in pdf

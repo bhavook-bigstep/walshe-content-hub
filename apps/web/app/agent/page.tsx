@@ -70,7 +70,6 @@ export default function AgentHomePage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Overview" }]}
         title="Agent home"
-        description="Browse approved destination content and turn it into marketing assets."
         action={
           <Link href="/agent/studio" className="btn-primary">
             Open Design Studio

@@ -60,7 +60,6 @@ export default function AgentCollectionsPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Collections" }]}
         title="Collections"
-        description="Your saved picks from the catalog. Open one to manage it or start a design."
       />
 
       <form onSubmit={onCreate} className="card mb-6 flex items-end gap-3 p-4">

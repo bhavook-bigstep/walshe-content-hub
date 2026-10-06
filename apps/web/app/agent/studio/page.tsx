@@ -39,6 +39,7 @@ import {
   type WorkspaceResolved,
 } from "../../../lib/api";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
+import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
 import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import {
@@ -212,7 +213,7 @@ function StudioEditor() {
                   urls.push(src);
                   const id = `item-${it.id}`;
                   imgs.push({ catalogItemId: id, label: it.title || e.title, src });
-                  tiles.push({ key: id, label: it.title || e.title, src, catalogItemId: id });
+                  tiles.push({ key: id, label: it.title || e.title, src, catalogItemId: id, objectKey: it.object_key });
                 } catch {
                   /* item image optional */
                 }
@@ -239,7 +240,7 @@ function StudioEditor() {
                 urls.push(src);
                 const id = `asset-${a.asset_id}`;
                 imgs.push({ catalogItemId: id, label: a.title || a.source, src });
-                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id });
+                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id, objectKey: a.object_key });
               } catch {
                 /* asset optional */
               }
@@ -283,17 +284,25 @@ function StudioEditor() {
     const pid = projectId;
     const tid = params.get("template");
     if (pid) {
+      let cancelled = false;
       getProject(Number(pid))
-        .then((p) => {
+        .then(async (p) => {
+          if (cancelled) return;
           setProject({ id: p.id, name: p.name });
           // Migrate the stored design into the canonical scenes[] shape (handles legacy pages[]).
           const migrated = migrateDesign(p.design);
-          if (migrated) {
-            setDesign(migrated);
-            setSceneIndex(0);
-          }
+          if (!migrated) return;
+          setSceneIndex(0);
+          setDesign(migrated);
+          // Placed media stored an ephemeral blob: URL that is dead now; re-resolve each image from
+          // its stable object key so the media reappears (AC75).
+          const resolved = await resolveDesignImageSrcs(migrated, fetchAssetObjectUrl);
+          if (!cancelled) setDesign(resolved);
         })
         .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
     } else if (tid) {
       listDesignTemplates()
         .then((templates) => {
@@ -305,6 +314,7 @@ function StudioEditor() {
         })
         .catch(() => {});
     }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -338,6 +348,10 @@ function StudioEditor() {
       return;
     }
     setProject({ ...project, name });
+    // Also update the workspace metadata name: the autosave sends metadata.name, and the server
+    // sets project.name from it — without this, the next autosave reverts the rename to the stale
+    // workspace name (AC75).
+    setWorkspace((w) => (w ? { ...w, metadata: { ...w.metadata, name } } : w));
     if (project.id > 0) {
       try {
         await updateProject(project.id, { name });
@@ -404,7 +418,12 @@ function StudioEditor() {
         const off = (n % 8) * 28;
         placement = { x: 80 + off, y: 80 + off, width: w, height: h };
       }
-      return addCatalogImage(d, sceneIndex, { src: tile.src, catalogItemId: tile.catalogItemId }, placement);
+      return addCatalogImage(
+        d,
+        sceneIndex,
+        { src: tile.src, catalogItemId: tile.catalogItemId, objectKey: tile.objectKey },
+        placement,
+      );
     });
   }
 
@@ -416,11 +435,15 @@ function StudioEditor() {
       const t = JSON.parse(raw) as {
         src: string;
         catalogItemId: string;
+        objectKey?: string;
         width?: number;
         height?: number;
       };
       const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
-      placeTile({ key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, width: t.width, height: t.height }, pt);
+      placeTile(
+        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, width: t.width, height: t.height },
+        pt,
+      );
     } catch {
       /* ignore a malformed payload */
     }

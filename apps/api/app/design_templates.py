@@ -65,12 +65,19 @@ def _ellipse(
     }
 
 
-def _scene(sid: str, name: str, background: str, nodes: list[dict[str, Any]]) -> dict[str, Any]:
+def _scene(
+    sid: str,
+    name: str,
+    background: str,
+    nodes: list[dict[str, Any]],
+    duration_ms: int = 4000,
+    transition: str = "fade",
+) -> dict[str, Any]:
     return {
         "id": sid,
         "name": name,
-        "durationMs": 4000,
-        "transition": "fade",
+        "durationMs": duration_ms,
+        "transition": transition,
         "background": background,
         "nodes": nodes,
     }
@@ -336,14 +343,486 @@ _ITINERARY = _workspace(
     ],
 )
 
+# ── Template 3: Social promo (square, 1080×1080) ───────────────────────────────────────────────
+_PROMO = _workspace(
+    "Weekend Getaway",
+    "social",
+    1080,
+    1080,
+    [
+        _scene(
+            "scene-n1",
+            "Promo",
+            "#1e3a5f",
+            [
+                # Hero photo band across the top ~58%.
+                _rect("photo", 0, 0, 1080, 620, "#2b5278", radius=0),
+                _text(
+                    "photo_hint",
+                    "Drag a photo here",
+                    0,
+                    290,
+                    1080,
+                    36,
+                    color="#dbe7f3",
+                    textAlign="center",
+                    opacity=0.85,
+                ),
+                _rect("accent", 72, 680, 110, 10, "#f4a62a", radius=5),
+                _text(
+                    "eyebrow",
+                    "WEEKEND GETAWAY",
+                    72,
+                    712,
+                    936,
+                    28,
+                    color="#9fc3e8",
+                    fontWeight="bold",
+                ),
+                _text(
+                    "title",
+                    "Escape to the Coast",
+                    72,
+                    752,
+                    900,
+                    82,
+                    color="#ffffff",
+                    fontWeight="bold",
+                    font=_DISPLAY,
+                    lineHeight=1.04,
+                ),
+                _text(
+                    "subtitle",
+                    "Two nights, ocean views and time to slow down.",
+                    72,
+                    900,
+                    820,
+                    34,
+                    color="#e6eef7",
+                    opacity=0.9,
+                ),
+                _rect("cta_bg", 72, 968, 300, 84, "#f4a62a", radius=42),
+                _text(
+                    "cta",
+                    "Book now",
+                    72,
+                    992,
+                    300,
+                    34,
+                    color="#12263a",
+                    fontWeight="bold",
+                    textAlign="center",
+                ),
+            ],
+        ),
+    ],
+)
+
+# ── Template 4: Event announcement (story, 1080×1920) ──────────────────────────────────────────
+_EVENT = _workspace(
+    "Event Announcement",
+    "story",
+    1080,
+    1920,
+    [
+        _scene(
+            "scene-n1",
+            "Event",
+            "#3b0d2e",
+            [
+                _rect("photo", 0, 0, 1080, 1040, "#5a1646", radius=0),
+                _text(
+                    "photo_hint",
+                    "Drag an event photo here",
+                    0,
+                    500,
+                    1080,
+                    38,
+                    color="#f6d9ec",
+                    textAlign="center",
+                    opacity=0.85,
+                ),
+                _text(
+                    "eyebrow",
+                    "YOU'RE INVITED",
+                    80,
+                    1110,
+                    920,
+                    30,
+                    color="#f4a6d4",
+                    fontWeight="bold",
+                ),
+                _text(
+                    "title",
+                    "Harbour\nFestival",
+                    80,
+                    1150,
+                    940,
+                    104,
+                    color="#ffffff",
+                    fontWeight="bold",
+                    font=_DISPLAY,
+                    lineHeight=1.0,
+                ),
+                # Date/time chip.
+                _rect("when_bg", 80, 1430, 560, 96, "#f4a62a", radius=16),
+                _text(
+                    "when",
+                    "SAT 14 DEC · 6 PM",
+                    80,
+                    1462,
+                    560,
+                    40,
+                    color="#3b0d2e",
+                    fontWeight="bold",
+                    textAlign="center",
+                ),
+                _text(
+                    "where",
+                    "Circular Quay · live music, food & fireworks",
+                    80,
+                    1560,
+                    900,
+                    34,
+                    color="#f6d9ec",
+                    opacity=0.92,
+                ),
+                _rect("cta_bg", 80, 1700, 360, 96, "#ffffff", radius=48),
+                _text(
+                    "cta",
+                    "Get tickets",
+                    80,
+                    1728,
+                    360,
+                    38,
+                    color="#3b0d2e",
+                    fontWeight="bold",
+                    textAlign="center",
+                ),
+            ],
+        ),
+    ],
+)
+
+# ── Template 5: Special offer (square, 1080×1080) ──────────────────────────────────────────────
+_OFFER = _workspace(
+    "Special Offer",
+    "social",
+    1080,
+    1080,
+    [
+        _scene(
+            "scene-n1",
+            "Offer",
+            "#0f3d2e",
+            [
+                _rect("photo", 540, 0, 540, 1080, "#15573f", radius=0),
+                _text(
+                    "photo_hint",
+                    "Drag a photo here",
+                    540,
+                    520,
+                    540,
+                    30,
+                    color="#cdeadd",
+                    textAlign="center",
+                    opacity=0.85,
+                ),
+                # Discount badge.
+                _ellipse("badge", 56, 72, 200, 200, "#f4a62a"),
+                _text(
+                    "badge_pct",
+                    "-20%",
+                    56,
+                    138,
+                    200,
+                    64,
+                    color="#0f3d2e",
+                    fontWeight="bold",
+                    textAlign="center",
+                ),
+                _text(
+                    "eyebrow", "LIMITED OFFER", 56, 360, 440, 28, color="#7ad6ad", fontWeight="bold"
+                ),
+                _text(
+                    "title",
+                    "Summer Sale",
+                    56,
+                    400,
+                    460,
+                    84,
+                    color="#ffffff",
+                    fontWeight="bold",
+                    font=_DISPLAY,
+                    lineHeight=1.02,
+                ),
+                _text(
+                    "detail",
+                    "20% off every coastal tour booked this month.",
+                    56,
+                    520,
+                    440,
+                    34,
+                    color="#e4f5ee",
+                    opacity=0.92,
+                ),
+                _rect("cta_bg", 56, 940, 300, 84, "#f4a62a", radius=42),
+                _text(
+                    "cta",
+                    "Claim deal",
+                    56,
+                    964,
+                    300,
+                    34,
+                    color="#0f3d2e",
+                    fontWeight="bold",
+                    textAlign="center",
+                ),
+            ],
+        ),
+    ],
+)
+
+# ── Template 6: Travel Itinerary (long, pamphlet 1240×1754) ────────────────────────────────────
+# A multi-scene itinerary that doubles as a **multi-page PDF** (one scene = one page) and a
+# **video** (one scene = one clip). Every day page has a top photo zone the agent fills with a real
+# catalog photo — that photo becomes the scene's picture in both the PDF and the MP4. The first text
+# node of each scene is a one-line summary (the video caption); the scene name is the video title.
+_ITIN_PHOTO_H = 760
+
+
+def _day_scene(
+    sid: str, name: str, day_label: str, title: str, summary: str, highlights: list[str]
+) -> dict[str, Any]:
+    """One itinerary day — a PDF page and a video clip. Photo zone on top, then a day badge,
+    title, a one-line summary (the video caption) and a few highlight bullets."""
+    nodes: list[dict[str, Any]] = [
+        # Photo zone (agent drops a catalog photo here → the scene's PDF/video image).
+        _rect("photo", 0, 0, 1240, _ITIN_PHOTO_H, "#1e293b", radius=0),
+        # Summary first, so it is the scene's video caption.
+        _text(
+            "summary", summary, 100, _ITIN_PHOTO_H + 196, 1040, 34, color="#334155", lineHeight=1.3
+        ),
+        _rect("day_bg", 100, _ITIN_PHOTO_H + 44, 230, 66, "#38bdf8", radius=14),
+        _text(
+            "day",
+            day_label,
+            100,
+            _ITIN_PHOTO_H + 62,
+            230,
+            30,
+            color="#082f49",
+            fontWeight="bold",
+            textAlign="center",
+        ),
+        _text(
+            "title",
+            title,
+            100,
+            _ITIN_PHOTO_H + 126,
+            1040,
+            54,
+            color="#0f172a",
+            fontWeight="bold",
+            font=_SERIF,
+            lineHeight=1.04,
+        ),
+    ]
+    y = _ITIN_PHOTO_H + 300
+    for i, h in enumerate(highlights):
+        nodes.append(_ellipse(f"hl{i}_dot", 100, y + 8, 16, 16, "#38bdf8"))
+        nodes.append(_text(f"hl{i}", h, 136, y, 1000, 28, color="#475569"))
+        y += 58
+    # Faint placeholder hint, last so it never becomes the video caption.
+    nodes.append(
+        _text(
+            "photo_hint",
+            "Drag a photo here",
+            0,
+            _ITIN_PHOTO_H // 2 - 18,
+            1240,
+            34,
+            color="#cbd5e1",
+            textAlign="center",
+            opacity=0.75,
+        )
+    )
+    return _scene(sid, name, "#ffffff", nodes, duration_ms=5000, transition="fade")
+
+
+_LONG_ITINERARY = _workspace(
+    "Travel Itinerary",
+    "pamphlet",
+    1240,
+    1754,
+    [
+        # Cover.
+        _scene(
+            "scene-n1",
+            "Your Journey",
+            "#0f172a",
+            [
+                _rect("photo", 0, 0, 1240, 1120, "#1e293b", radius=0),
+                _text(
+                    "tagline",
+                    "A day-by-day guide, crafted for your trip.",
+                    100,
+                    1360,
+                    1040,
+                    36,
+                    color="#cbd5e1",
+                    lineHeight=1.3,
+                ),
+                _rect("accent", 100, 1180, 150, 10, "#38bdf8", radius=5),
+                _text(
+                    "eyebrow", "ITINERARY", 100, 1216, 1040, 30, color="#7dd3fc", fontWeight="bold"
+                ),
+                _text(
+                    "title",
+                    "Your Journey,\nDay by Day",
+                    100,
+                    1258,
+                    1040,
+                    92,
+                    color="#ffffff",
+                    fontWeight="bold",
+                    font=_SERIF,
+                    lineHeight=1.04,
+                ),
+                _text(
+                    "photo_hint",
+                    "Drag a cover photo here",
+                    0,
+                    542,
+                    1240,
+                    36,
+                    color="#cbd5e1",
+                    textAlign="center",
+                    opacity=0.75,
+                ),
+            ],
+            duration_ms=5000,
+        ),
+        _day_scene(
+            "scene-n2",
+            "Day 1 · Arrival",
+            "DAY 1",
+            "Arrival & First Impressions",
+            "Settle in, then ease into the city with a sunset stroll along the water.",
+            [
+                "Hotel check-in & orientation",
+                "Waterfront walk at golden hour",
+                "Welcome dinner nearby",
+            ],
+        ),
+        _day_scene(
+            "scene-n3",
+            "Day 2 · Icons",
+            "DAY 2",
+            "Icons & Landmarks",
+            "The must-see sights, timed to beat the crowds and the midday heat.",
+            [
+                "Early start at the main landmark",
+                "Guided old-town circuit",
+                "Rooftop viewpoint at dusk",
+            ],
+        ),
+        _day_scene(
+            "scene-n4",
+            "Day 3 · Coast",
+            "DAY 3",
+            "Coast & Nature",
+            "Trade the city for cliffs, beaches and wide-open air.",
+            ["Coastal cliff walk", "Beach time & swim stop", "Seafood lunch with a view"],
+        ),
+        _day_scene(
+            "scene-n5",
+            "Day 4 · Flavours",
+            "DAY 4",
+            "Food & Culture",
+            "Markets, tastings and the stories behind the plates.",
+            ["Morning market tour", "Hands-on tasting session", "Evening cultural show"],
+        ),
+        _day_scene(
+            "scene-n6",
+            "Day 5 · Beyond",
+            "DAY 5",
+            "A Day Beyond the City",
+            "An easy escape just past the city limits, back by evening.",
+            ["Scenic drive out", "Village & vineyard visit", "Relaxed return at sunset"],
+        ),
+        _day_scene(
+            "scene-n7",
+            "Day 6 · Farewell",
+            "DAY 6",
+            "One Last Highlight",
+            "A final favourite before the journey home.",
+            ["Leisurely late start", "Last-chance highlight", "Departure transfer"],
+        ),
+        # Closing.
+        _scene(
+            "scene-n8",
+            "Safe Travels",
+            "#0f172a",
+            [
+                _rect("accent", 100, 300, 150, 10, "#38bdf8", radius=5),
+                _text(
+                    "title",
+                    "Safe Travels",
+                    100,
+                    340,
+                    1040,
+                    88,
+                    color="#ffffff",
+                    fontWeight="bold",
+                    font=_SERIF,
+                ),
+                _text(
+                    "note",
+                    "We hope this trip is everything you pictured. For changes or questions, "
+                    "your travel agent is one message away.",
+                    100,
+                    500,
+                    1000,
+                    36,
+                    color="#cbd5e1",
+                    lineHeight=1.35,
+                ),
+                _rect("contact_bg", 100, 720, 1040, 160, "#1e293b", radius=16),
+                _text(
+                    "contact",
+                    "Your Agency · hello@example.com · +00 000 000 000",
+                    140,
+                    788,
+                    960,
+                    30,
+                    color="#e2e8f0",
+                ),
+            ],
+            duration_ms=5000,
+        ),
+    ],
+)
+
 # id -> full workspace. Metadata for the Templates list is derived from this.
 TEMPLATE_WORKSPACES: dict[str, dict[str, Any]] = {
     "destination-poster": _POSTER,
     "trip-itinerary": _ITINERARY,
+    "weekend-getaway": _PROMO,
+    "event-announcement": _EVENT,
+    "special-offer": _OFFER,
+    "travel-itinerary": _LONG_ITINERARY,
 }
 
 # Human-facing descriptions for the Templates gallery.
 TEMPLATE_DESCRIPTIONS: dict[str, str] = {
     "destination-poster": "A bold portrait poster: hero photo, headline and a call-to-action.",
     "trip-itinerary": "A printable two-page itinerary: cover + a day-by-day plan with photo spots.",
+    "weekend-getaway": "A square social promo: hero photo, headline and a booking call-to-action.",
+    "event-announcement": "A story-format event invite: photo, date-time chip, venue and tickets.",
+    "special-offer": "A square deal card: discount badge, offer headline and a claim button.",
+    "travel-itinerary": (
+        "A long day-by-day travel itinerary (8 pages): cover, six day pages with photo "
+        "spots, and a closing page — export as a multi-page PDF or a narrated video."
+    ),
 }

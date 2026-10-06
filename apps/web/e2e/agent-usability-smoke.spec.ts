@@ -44,9 +44,9 @@ test("agent opens a saved project in the studio", async ({ page }) => {
   await expect(page).toHaveURL(/\/agent\/studio\?project=\d+/);
   await expect(page.getByTestId("studio-canvas")).toBeVisible();
 
-  // Re-open it from the Projects list.
+  // Re-open it from the Projects list (a table row with an icon action button).
   await page.goto("/agent/projects");
-  const open = page.getByRole("link", { name: /open in studio/i }).first();
+  const open = page.getByRole("button", { name: /open .* in the design studio/i }).first();
   await expect(open).toBeVisible();
   await open.click();
 

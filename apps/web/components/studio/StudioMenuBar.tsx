@@ -11,8 +11,10 @@ import {
   type DesignDoc,
   type LayerMove,
 } from "../../lib/studio/ops";
+import { inlineDesignImages } from "../../lib/studio/inline-images";
 import { renderDesignToPng } from "../../lib/studio/render";
 import { FORMAT_NAMES, FORMAT_PRESETS, type FormatName } from "../../lib/studio/formats";
+import Spinner from "../ui/Spinner";
 
 // A desktop-style application menu bar for the Design Studio: a row of pull-down menus
 // (File · Edit · Insert · Size · View) pinned to the top, the editable document name in the
@@ -153,7 +155,8 @@ export default function StudioMenuBar(props: Props) {
         const href = await renderDesignToPng(design, sceneIndex);
         triggerDownload(href, filenameFor(design.format, "png", page));
       } else if (kind === "pdf") {
-        const blob = await renderPdf(scenesAsPages(design));
+        // Inline photos to data: URLs so the server-side PDF embeds the real images.
+        const blob = await renderPdf(scenesAsPages(await inlineDesignImages(design)));
         triggerBlob(blob, filenameFor(design.format, "pdf"));
       } else {
         const html = await renderEmailHtml(scenesAsPages(design));
@@ -290,9 +293,17 @@ export default function StudioMenuBar(props: Props) {
         className="mx-auto w-full min-w-0 max-w-[22rem] rounded-md border border-transparent bg-transparent px-2 py-1 text-center text-small font-semibold text-walshe-ink hover:border-walshe-line focus:border-walshe-mint focus:bg-walshe-base focus:text-left focus:outline-none"
       />
 
-      {/* Right: autosave status. */}
-      <div className="ml-auto flex flex-none items-center pr-1">
-        {saveMsg && <span className="hidden text-[12px] font-medium text-walshe-grey sm:inline">{saveMsg}</span>}
+      {/* Right: processing indicator (export / video) + autosave status. Always visible, so the
+          animation shows even after the menu that started the export has closed. */}
+      <div className="ml-auto flex flex-none items-center gap-2 pr-1">
+        {exporting || rendering ? (
+          <span role="status" className="inline-flex items-center gap-1.5 rounded-md bg-walshe-teal/10 px-2 py-1 text-[12px] font-medium text-walshe-teal">
+            <Spinner />
+            {rendering ? "Rendering video…" : `Exporting ${exporting!.toUpperCase()}…`}
+          </span>
+        ) : (
+          saveMsg && <span className="hidden text-[12px] font-medium text-walshe-grey sm:inline">{saveMsg}</span>
+        )}
       </div>
     </div>
   );

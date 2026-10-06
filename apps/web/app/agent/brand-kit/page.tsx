@@ -72,7 +72,6 @@ export default function BrandKitPage() {
     <div>
       <PageHeader
         title="Brand kit"
-        description="Your logo, colours and contact details — reused when you personalise designs."
       />
 
       {error && (

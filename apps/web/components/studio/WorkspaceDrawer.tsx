@@ -9,6 +9,8 @@ export interface MediaTile {
   src: string;
   /** Stable catalog/asset id carried onto the canvas node (entry-<id> / asset-<id>). */
   catalogItemId: string;
+  /** Stable storage object key, persisted on the node so its src survives a reload. */
+  objectKey?: string;
   /** Natural placement size on the canvas (keeps the card's aspect). Defaults to a square. */
   width?: number;
   height?: number;
@@ -194,6 +196,7 @@ export default function WorkspaceDrawer({
                               JSON.stringify({
                                 src: t.src,
                                 catalogItemId: t.catalogItemId,
+                                objectKey: t.objectKey,
                                 width: t.width,
                                 height: t.height,
                               }),
