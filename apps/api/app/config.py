@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     instagram_access_token: str | None = None
     ig_user_id: str | None = None
     graph_api_version: str = "v26.0"
+    # A pre-hosted image_url on the publish route bypasses render + upload. Off in live mode unless
+    # explicitly enabled for end-to-end verification; the stub path always accepts it (no egress).
+    instagram_allow_prehosted_url: bool = False
     s3_bucket: str | None = None
     s3_region: str | None = None
     aws_access_key_id: str | None = None

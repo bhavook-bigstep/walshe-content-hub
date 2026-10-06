@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 import app.models.post  # noqa: F401 - register table before create_all
 from app import clock
+from app.config import Settings
 from app.main import create_app
 from app.models.audit import AuditLog
 from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
@@ -27,13 +28,8 @@ AGENT2 = ("agent2@test.local", "test-pass-agent2")
 PROVIDER = ("provider@test.local", "test-pass-prov")
 
 
-@pytest.fixture
-def igclient(settings):
-    from app.routers import instagram
-
-    application = create_app(settings)
-    application.include_router(instagram.router)
-    application.dependency_overrides[clock.now] = lambda: FIXED
+def _seed_db(application) -> None:
+    """agent1 + agent2 + provider + one approved brand-safe composition (id 1), owned by agent1."""
     with application.state.sessionmaker() as db:
         db.add(User(email=AGENT1[0], password_hash=hash_password(AGENT1[1]),
                     role=Role.tourism_agent, tenant_id=1, approved=True))
@@ -50,9 +46,34 @@ def igclient(settings):
         db.flush()
         db.add(Composition(agent_id=agent1.id, format="social", item_ids=[entry.id]))
         db.commit()
+
+
+@pytest.fixture
+def igclient(settings):
+    # create_app already mounts the instagram router; no re-include needed.
+    application = create_app(settings)
+    application.dependency_overrides[clock.now] = lambda: FIXED
+    _seed_db(application)
     with TestClient(application) as c:
         c.app_ = application
         yield c
+
+
+def _live_settings(tmp_path, *, s3=False) -> Settings:
+    """Settings with Instagram configured (live connector path), optionally with S3 configured."""
+    over: dict = {"instagram_access_token": "tok", "ig_user_id": "123"}
+    if s3:
+        over |= {"s3_bucket": "b", "s3_region": "us-east-1",
+                 "aws_access_key_id": "k", "aws_secret_access_key": "x"}
+    return Settings(_env_file=None, database_url=f"sqlite+pysqlite:///{tmp_path}/live.db",
+                    jwt_secret="test-secret-fixed", **over)
+
+
+def _live_application(tmp_path, *, s3=False):
+    application = create_app(_live_settings(tmp_path, s3=s3))
+    application.dependency_overrides[clock.now] = lambda: FIXED
+    _seed_db(application)
+    return application
 
 
 def _headers(c, creds):
@@ -121,3 +142,68 @@ def test_publish_is_agent_only(igclient):
     r = igclient.post("/social/instagram/publish", headers=hp,
                       data={"composition_id": 1, "caption": "x"}, files=_files())
     assert r.status_code == 403
+
+
+# ── Gap fixes: Contract 1 on the live path, no double-publish, live-mode guards ──────────────────
+
+def test_publish_blocked_by_preflight_when_item_unapproved(igclient):
+    """Contract 1 / AC6: a design built from unapproved content must not reach the account."""
+    with igclient.app_.state.sessionmaker() as db:
+        agent1 = db.scalars(select(User).where(User.email == AGENT1[0])).one()
+        provider = db.scalars(select(User).where(User.role == Role.content_provider)).one()
+        bad = CatalogEntry(type=CatalogType.place, title="Draft", destination="Clare",
+                           status=EntryStatus.draft, brand_safe=False, provider_id=provider.id)
+        db.add(bad)
+        db.flush()
+        comp = Composition(agent_id=agent1.id, format="social", item_ids=[bad.id])
+        db.add(comp)
+        db.flush()
+        cid = comp.id
+        db.commit()
+    h = _headers(igclient, AGENT1)
+    r = igclient.post("/social/instagram/publish", headers=h,
+                      data={"composition_id": cid, "caption": "x"}, files=_files())
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["error"] == "preflight_failed"
+
+
+def test_publish_same_composition_twice_conflicts(igclient):
+    """A second publish of an already-published composition is a 409, not a duplicate live post."""
+    h = _headers(igclient, AGENT1)
+    first = igclient.post("/social/instagram/publish", headers=h,
+                          data={"composition_id": 1, "caption": "x"}, files=_files())
+    assert first.status_code == 200, first.text
+    second = igclient.post("/social/instagram/publish", headers=h,
+                           data={"composition_id": 1, "caption": "x"}, files=_files())
+    assert second.status_code == 409, second.text
+
+
+def test_publish_live_rejects_prehosted_image_url(tmp_path, monkeypatch):
+    """In live mode an arbitrary pre-hosted image_url is rejected (render+upload path only)."""
+    from app.routers import instagram as ig_mod
+    from app.social.stub import StubConnector
+
+    # If the gate failed to fire we'd publish via the stub (200) rather than hit the network.
+    monkeypatch.setattr(ig_mod, "get_connector", lambda s: StubConnector())
+    application = _live_application(tmp_path)
+    with TestClient(application) as c:
+        h = _headers(c, AGENT1)
+        r = c.post("/social/instagram/publish", headers=h,
+                   data={"composition_id": 1, "caption": "x", "image_url": "https://x/y.jpg"})
+    assert r.status_code == 422, r.text
+    assert "pre-hosted" in r.text.lower()
+
+
+def test_publish_live_upload_without_s3_returns_503(tmp_path, monkeypatch):
+    """IG configured but S3 not → a clear 503, not a raw 500 from the storage layer."""
+    from app.routers import instagram as ig_mod
+    from app.social.stub import StubConnector
+
+    monkeypatch.setattr(ig_mod, "get_connector", lambda s: StubConnector())
+    application = _live_application(tmp_path, s3=False)
+    with TestClient(application) as c:
+        h = _headers(c, AGENT1)
+        r = c.post("/social/instagram/publish", headers=h,
+                   data={"composition_id": 1, "caption": "x"}, files=_files())
+    assert r.status_code == 503, r.text
+    assert "s3" in r.text.lower() or "hosting" in r.text.lower()

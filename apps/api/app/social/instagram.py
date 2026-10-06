@@ -65,6 +65,17 @@ class InstagramConnector(PublishConnector):
         self._video_poll_interval = video_poll_interval
         self._sleep = sleep
 
+    @staticmethod
+    def _id(resp: httpx.Response) -> str:
+        """Read the ``id`` from a success response; a malformed 200 is a mapped error, not a 500."""
+        try:
+            value = (resp.json() or {}).get("id")
+        except Exception:  # noqa: BLE001 - a non-JSON success body must not crash the publish
+            value = None
+        if not value:
+            raise PublishError("bad_response", "Instagram response had no media id")
+        return str(value)
+
     def _raise(self, resp: httpx.Response) -> None:
         try:
             err = (resp.json() or {}).get("error", {})
@@ -114,7 +125,7 @@ class InstagramConnector(PublishConnector):
         created = self._client.post(f"{self._base}/{uid}/media", data=create_data)
         if created.status_code >= 400:
             self._raise(created)
-        container_id = created.json()["id"]
+        container_id = self._id(created)
 
         # 2. poll until FINISHED
         for attempt in range(max_polls):
@@ -122,7 +133,10 @@ class InstagramConnector(PublishConnector):
                 f"{self._base}/{container_id}",
                 params={"fields": "status_code", "access_token": tok},
             )
-            status_code = (polled.json() or {}).get("status_code")
+            try:
+                status_code = (polled.json() or {}).get("status_code")
+            except Exception:  # noqa: BLE001 - a non-JSON poll body is treated as "not ready yet"
+                status_code = None
             if status_code == "FINISHED":
                 break
             if status_code == "ERROR":
@@ -139,7 +153,7 @@ class InstagramConnector(PublishConnector):
         )
         if published.status_code >= 400:
             self._raise(published)
-        media_id = published.json()["id"]
+        media_id = self._id(published)
 
         # permalink (best-effort; failure here does not fail the publish)
         permalink = None
