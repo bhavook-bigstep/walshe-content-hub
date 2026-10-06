@@ -723,11 +723,15 @@ function StudioEditor() {
             setSceneSelected(false);
             setSelected(null);
           }}
-          onSelect={(scene, nodeId) => setSelected(scene !== null && nodeId ? { scene, nodeId } : null)}
+          onSelect={(scene, nodeId) => {
+            if (nodeId) setSceneSelected(true); // working in a scene re-selects it
+            setSelected(scene !== null && nodeId ? { scene, nodeId } : null);
+          }}
           onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
           selectedNodeId={selected?.nodeId ?? null}
           onActiveSceneRect={setSceneRect}
+          highlightActive={sceneSelected}
         />
       </div>
 

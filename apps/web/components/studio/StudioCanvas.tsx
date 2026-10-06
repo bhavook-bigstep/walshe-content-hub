@@ -50,6 +50,8 @@ export interface StudioCanvasProps {
   onSelectScene?: (sceneIndex: number) => void;
   /** Called when the user clicks the empty workspace (outside every artboard) — deselect. */
   onBackgroundClick?: () => void;
+  /** Whether a scene is currently selected — when false, no artboard is highlighted. */
+  highlightActive?: boolean;
   /** Called when the selected element changes (null when cleared) — drives the Inspector. */
   onSelect?: (sceneIndex: number | null, nodeId: string | null) => void;
   /** The node id currently selected in the app — re-selected after a rebuild so the Inspector
@@ -113,6 +115,7 @@ export default function StudioCanvas({
   selectedNodeId,
   onActiveSceneRect,
   onBackgroundClick,
+  highlightActive = true,
 }: StudioCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dotsRef = useRef<HTMLDivElement>(null);
@@ -476,7 +479,7 @@ export default function StudioCanvas({
 
       design.scenes.forEach((scene, i) => {
         const originX = sceneOriginX(design, i);
-        const active = i === activeScene;
+        const active = i === activeScene && highlightActive;
         // Artboard frame: transparent unless a background colour is set, so the dots show through.
         const artboard = new Rect({
           left: originX,
@@ -566,7 +569,7 @@ export default function StudioCanvas({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [design, activeScene]);
+  }, [design, activeScene, highlightActive]);
 
   return (
     <div
