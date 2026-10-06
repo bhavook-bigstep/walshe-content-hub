@@ -32,3 +32,6 @@ next-env.d.ts
 *.tsbuildinfo
 e2e-results.json
 docs/design/screenshots/
+
+# superpowers scratch (ledgers, review packages)
+.superpowers/
