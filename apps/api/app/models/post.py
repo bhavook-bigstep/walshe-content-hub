@@ -15,6 +15,14 @@ class PostStatus(str, enum.Enum):
     scheduled = "scheduled"
     published = "published"
     failed = "failed"
+    # Campaign lifecycle (design §3). Inc 1 uses draft/pending_approval; the rest are declared now
+    # (the frozen state machine's vocabulary) and exercised in Inc 2.
+    draft = "draft"
+    pending_approval = "pending_approval"
+    approved = "approved"
+    publishing = "publishing"
+    rejected = "rejected"
+    cancelled = "cancelled"
 
 
 class Post(Base):
@@ -22,6 +30,8 @@ class Post(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     composition_id: Mapped[int] = mapped_column(ForeignKey("compositions.id"))
+    # Campaign link (Inc 1). Null = standalone/legacy post (manual /social + /social/instagram).
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("campaigns.id"), nullable=True)
     channel: Mapped[str] = mapped_column(String(50))
     status: Mapped[PostStatus] = mapped_column(
         Enum(PostStatus, native_enum=False), default=PostStatus.scheduled
