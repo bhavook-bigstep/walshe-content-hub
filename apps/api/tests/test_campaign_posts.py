@@ -1,6 +1,7 @@
 """Schedule-into-campaign + edit/reschedule (Inc 1 Tasks 5-6)."""
 
 import io
+from datetime import datetime, timezone
 
 from app.models.composition import Composition
 from app.models.user import Role, User
@@ -49,6 +50,19 @@ def test_schedule_lands_pending_approval_with_media(client):
     body = r.json()
     assert body["status"] == "pending_approval"
     assert body["campaign_id"] == cid and body["media_object_key"]
+
+
+def test_scheduled_at_returned_as_utc_aware_instant(client):
+    # SQLite drops tzinfo; if the API returns a NAIVE string the browser reads it as local time and
+    # buckets the post on the wrong calendar day. The output must carry an explicit UTC offset.
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    # 16 Aug 02:00 +05:30 == 15 Aug 20:30 UTC
+    r = _schedule(client, a, cid, comp, scheduled_at="2026-08-16T02:00:00+05:30")
+    returned = r.json()["scheduled_at"]
+    parsed = datetime.fromisoformat(returned)
+    assert parsed.utcoffset() is not None, f"naive datetime {returned!r} — browser reads it as local"
+    assert parsed == datetime(2026, 8, 15, 20, 30, tzinfo=timezone.utc)
 
 
 def test_schedule_without_time_is_draft(client):

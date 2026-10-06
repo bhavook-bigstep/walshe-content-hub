@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from app.models.post import PostStatus
 
@@ -44,6 +44,16 @@ class CampaignPostOut(BaseModel):
     scheduled_at: datetime | None
     media_object_key: str | None
     model_config = {"from_attributes": True}
+
+    @field_serializer("scheduled_at")
+    def _serialize_scheduled_at(self, value: datetime | None) -> str | None:
+        # scheduled_at is always stored in UTC, but SQLite drops tzinfo so it reads back naive.
+        # Emit an explicit UTC offset so clients (the browser calendar) never read it as local time.
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
 
 
 class CampaignDetailOut(CampaignOut):
