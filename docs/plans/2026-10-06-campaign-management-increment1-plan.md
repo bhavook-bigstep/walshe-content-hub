@@ -23,6 +23,7 @@
 - **Hermetic tests:** `Settings(_env_file=None)` (already in the `settings` fixture), synthetic fixtures, fixed clock via `app.dependency_overrides[clock.now]`; ~90% on changed lines, risk paths first.
 - **Web:** no date library is installed — build the calendar from native `Date`/`Intl`. Use `datetime-local` inputs + `new Date(x).toISOString()` to send and `.toLocaleString()` to display, as `app/agent/social/page.tsx` does. Shared-client methods are thin pass-throughs through `send()`/`json()` with `FormData` passed straight as `body` (no `Content-Type`).
 - **After endpoints exist, regenerate the OpenAPI types** (`pnpm gen:api-types` from repo root) so `packages/shared` carries the new schemas; the `make verify` `api-types-sync` gate enforces this.
+- **Captured media is immutable for publishing.** Inc 1 may replace `media_object_key` while a post is editable (`draft`/`pending_approval`/`rejected`); once Inc 2 introduces `approved`/`publishing`/`published`, media replacement is blocked by the same editable-state rule (`PATCH` → 409). This makes the future publish contract explicit: what Inc 2 publishes is exactly what was captured and last reviewed.
 - **Commits per task**, message ending `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. **Never push.** No new `/REQUIREMENTS.md` ACs in this increment (governance is a separate, user-approved step).
 
 ## Review Focus
