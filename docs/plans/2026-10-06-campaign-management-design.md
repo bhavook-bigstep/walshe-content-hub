@@ -15,6 +15,10 @@ container `status_code` and reframed `publish_container_id` as a correlation han
 token (§8.1); added `PATCH` edit/reschedule semantics (§7.1); added UTC timezone + campaign-window
 rules (§4.1); simplified campaign status to `active`/`completed` (§3); added a live-reconcile
 verification gate (§13.3).*
+*Rev 2026-10-06d (review round 3): explicit `IN_PROGRESS` recovery handling; softened the
+"no-container-id" case (residual duplicate risk, not "no media"); partial-`PATCH` field table (§7.1);
+documented that approving an overdue post is immediately dispatchable (§4); window validation uses the
+submitted offset's local date, not the server's (§4.1). Design frozen.*
 
 ## 1. Context & goal
 
@@ -165,6 +169,12 @@ dispatcher can never pick up the legacy `scheduled` posts from the manual `/soci
 `publishing` (worker died mid-publish) is **not** lost — it is recovered separately by the reaper
 (§8.1).
 
+**Approving an already-due post.** Because eligibility is `approved AND scheduled_at <= now`,
+approval is *not* required to happen before the scheduled time. If a reviewer approves at 10:30 a
+post scheduled for 10:00, it becomes immediately eligible and publishes on the **next worker
+sweep** — approval after the scheduled time is valid, not an error. (The UI should not reject or
+hide the approve action once `scheduled_at` has passed.)
+
 ### Capture-at-schedule (the headless-worker constraint)
 
 The dispatcher runs server-side with **no browser**, so it cannot re-render the Fabric canvas.
@@ -197,8 +207,11 @@ reasons in UTC — no "published 5.5 h off" surprises. A stored per-agent/per-or
 future refinement, not built now (the browser's own timezone is sufficient for the PoC).
 
 **Campaign window.** A campaign post's `scheduled_at` **must fall within the campaign's
-`[starts_on, ends_on]` window**, inclusive, evaluated against the agent's local calendar date; the
-schedule endpoint (and PATCH reschedule) returns **422** otherwise. This is a deliberate PoC
+`[starts_on, ends_on]` window**, inclusive; the schedule endpoint (and `PATCH` reschedule) returns
+**422** otherwise. The window is a calendar-date range, so validation compares the **local calendar
+date of `scheduled_at` derived from the submitted UTC offset** — *not* the server's timezone —
+against `[starts_on, ends_on]`. (Concretely: the client sends the instant with its offset, the API
+derives that instant's local date from the offset, and checks the range.) This is a deliberate PoC
 constraint — if we later want pre-campaign teasers we will relax it explicitly rather than by
 accident.
 
@@ -273,6 +286,15 @@ for the PoC: **editing updates the existing `Post` row in place** (it does not s
   Studio-updated) composition. The `Composition` itself is edited in the Studio, independently.
 - Audited (Contract 3).
 
+Field-by-field (a `PATCH` may carry any subset; every edit clears approval and re-enters review):
+
+| `PATCH` carries | `media_object_key` | `scheduled_at` | approval fields | resulting status |
+| --- | --- | --- | --- | --- |
+| caption only | preserved | preserved | cleared | `pending_approval` |
+| new JPEG | **replaced** (old object left in storage) | preserved | cleared | `pending_approval` |
+| `scheduled_at` | preserved | **updated** (window-validated §4.1) | cleared | `pending_approval` |
+| `scheduled_at: null` (unschedule) | preserved | **cleared** | cleared | `draft` |
+
 ## 8. Background dispatcher (Inc 2) — mirrors the insights worker
 
 Same shape as `_insights_worker` (`apps/api/app/main.py:45-82`): a lifespan `asyncio` task gated by
@@ -336,14 +358,22 @@ sweep, selecting `publishing` rows whose `publish_started_at` is older than
 - `PUBLISHED` → the media already went live before the crash. **Reconcile** the media id / permalink
   (do **not** re-publish) and mark `published`. **No duplicate.**
 - `FINISHED` → the container is ready but was not published; call `publish_container(id)`. Safe.
-- `EXPIRED` / `ERROR`, or **no `publish_container_id`** at all → no live media resulted; **re-create**
-  from the captured image, within the attempt cap. (Containers expire 24 h after creation [2] and we
-  create them at dispatch, so an expired container simply means "start over".)
+- `IN_PROGRESS` → Instagram is still processing the container (e.g. transcoding a Reel). **Leave the
+  row `publishing` and re-check on the next sweep** — do **not** re-create and do **not** fail — until
+  it reaches `FINISHED`/`PUBLISHED`, or the attempt cap / 24 h container expiry is hit. (Exact timing
+  confirmed in the live check, §13.3.)
+- `EXPIRED` / `ERROR` → the container cannot be published; **re-create** from the captured image,
+  within the attempt cap. (Containers expire 24 h after creation [2]; we create them at dispatch, so
+  an expired one just means "start over".)
+- **No `publish_container_id`** at all → container creation may have succeeded at Meta but was not
+  persisted before the crash. Re-create is the PoC fallback — it carries the **small residual
+  duplicate risk** noted below, and is *not* a guarantee that no media exists.
 
 Correctness here rests on a **documented** container status, not on the undocumented behaviour of a
 repeated `media_publish`. The one residual duplicate window is a crash *between* Instagram accepting
 `media_publish` and our commit of `published`, **while the container status has not yet flipped to
-`PUBLISHED`** — kept small and bounded by the attempt cap. **This reconcile path must be smoke-tested
+`PUBLISHED`** — plus the "no persisted container id" case above — both kept small and bounded by the
+attempt cap. **This reconcile path (including the exact `IN_PROGRESS` timing) must be smoke-tested
 against the real Graph API before its acceptance criterion is promoted (§12, §13.3).**
 
 **Bounded retries.** `publish_attempts` is incremented on every claim; past `max_publish_attempts`
@@ -413,19 +443,22 @@ TDD throughout (RED → GREEN), per-task commits (`Co-Authored-By: Claude Opus 4
 - Timezone (§4.1): a `scheduled_at` sent with an offset is stored/compared as the correct UTC
   instant; due-ness (`now_utc >= scheduled_at_utc`) is offset-correct (an IST-entered time does not
   fire 5.5 h early/late).
-- Edit / reschedule (§7.1): `PATCH` allowed in `draft`/`pending_approval`/`rejected` only (409
-  otherwise); a new JPEG replaces `media_object_key`; a changed `scheduled_at` is window-validated;
-  approval fields cleared → back to `pending_approval`; audited.
-- State machine (Inc 2): legal transitions only; `can_review` allow/deny; audit rows written.
+- Edit / reschedule (§7.1): `PATCH` allowed in `draft`/`pending_approval`/`rejected` only (409 in
+  `approved`/`publishing`/`published`); **caption-only preserves `media_object_key` + `scheduled_at`**,
+  a new JPEG replaces `media_object_key`, a changed `scheduled_at` is window-validated,
+  `scheduled_at: null` → `draft`; approval fields cleared → back to `pending_approval`; audited.
+- State machine (Inc 2): legal transitions only; `can_review` allow/deny; audit rows written;
+  **approving a post whose `scheduled_at` is already past makes it eligible on the next sweep** (§4).
 - Dispatcher (Inc 2): picks only `approved && due && campaign_id`; **never** legacy `scheduled`;
   one failing post doesn't abort the sweep; the **atomic conditional-update claim** updates exactly
   one row and a second concurrent sweep gets `rowcount == 0` and skips; stub connector + fixed clock
   → deterministic.
 - Recovery (Inc 2, §8.1): a `publishing` row older than the reaper timeout is resumed by its
   container `status_code` — `PUBLISHED` → reconciles to `published` **without** re-publishing (no
-  duplicate); `FINISHED` → publishes; `EXPIRED`/`ERROR`/no-container → recreates; `publish_attempts
+  duplicate); `FINISHED` → publishes; **`IN_PROGRESS` → stays `publishing`, deferred to the next
+  sweep (not re-created, not failed)**; `EXPIRED`/`ERROR`/no-container → recreates; `publish_attempts
   > max_publish_attempts` → terminal `failed`; the startup sweep reconciles a simulated mid-publish
-  crash. (The stub's `container_status` returns `PUBLISHED` after a publish, so this is hermetic.)
+  crash. (The stub's `container_status` is scriptable per test, so every branch is hermetic.)
 - Analytics (Inc 3): sum across latest-per-post; scoped to the calling agent; empty campaign → zeros.
 - Web: Vitest for the calendar date-bucketing + status chips (pure); one Playwright e2e for
   create-campaign + calendar render.
