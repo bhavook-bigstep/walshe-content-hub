@@ -523,3 +523,9 @@ acceptance:
     web:
       - "apps/web/tests/graphics.test.ts::ships a rich roster of named, moving sprites (AC85)"
       - "apps/web/tests/anim.test.ts::character loops each drive their own channel (AC85)"
+  AC86:
+    tier: P2
+    web:
+      - "apps/web/tests/studio-keys.test.ts::Select tool left-drag on empty space draws a marquee (not a pan)"
+      - "apps/web/tests/studio-keys.test.ts::pressing an element means object interaction (select/move)"
+      - "apps/web/tests/studio-keys.test.ts::Hand tool, Space-hold, Alt-drag or middle button always pan"

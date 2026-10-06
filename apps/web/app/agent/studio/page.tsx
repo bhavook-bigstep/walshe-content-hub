@@ -176,6 +176,8 @@ function StudioEditor() {
   const [rendering, setRendering] = useState(false);
   // The active scene's on-screen rect, so the per-scene edge controls can hug its edges.
   const [sceneRect, setSceneRect] = useState<SceneRect | null>(null);
+  // Workspace tool (CorelDraw-style): "select" rubber-bands a marquee on empty-drag; "hand" pans.
+  const [tool, setTool] = useState<"select" | "hand">("select");
   // Whether a scene is selected (clicking the empty workspace deselects → hides the scene controls).
   const [sceneSelected, setSceneSelected] = useState(true);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
@@ -724,6 +726,19 @@ function StudioEditor() {
   // Cancel any running animation frame on unmount.
   useEffect(() => stopRaf, [stopRaf]);
 
+  // Tool shortcuts (CorelDraw/Figma-style): V = Select, H = Hand. Ignored while typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      if (e.key === "v" || e.key === "V") setTool("select");
+      else if (e.key === "h" || e.key === "H") setTool("hand");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const zoomBtn =
     "grid h-8 w-8 place-items-center rounded-sm text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
@@ -768,7 +783,32 @@ function StudioEditor() {
           selectedNodeId={selected?.nodeId ?? null}
           onActiveSceneRect={setSceneRect}
           highlightActive={sceneSelected}
+          tool={tool}
         />
+
+        {/* Tool switch (CorelDraw-style): Select rubber-bands a marquee; Hand pans. Keys V / H. */}
+        <div className="pointer-events-auto absolute bottom-5 left-5 z-30 flex overflow-hidden rounded-xl border border-walshe-line/70 bg-chrome-bg/95 shadow-lift backdrop-blur-md">
+          <button
+            type="button"
+            aria-label="Select tool"
+            aria-pressed={tool === "select"}
+            title="Select — drag a box to select (V)"
+            onClick={() => setTool("select")}
+            className={`grid h-10 w-10 place-items-center transition-colors ${tool === "select" ? "bg-walshe-teal text-white" : "text-walshe-grey hover:bg-walshe-ink/10"}`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M5 3l15 9-6 1.5L17 20l-2.5 1-3-6.5L7 18z" /></svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Hand tool"
+            aria-pressed={tool === "hand"}
+            title="Hand — drag to pan the workspace (H, or hold Space)"
+            onClick={() => setTool("hand")}
+            className={`grid h-10 w-10 place-items-center border-l border-walshe-line/70 transition-colors ${tool === "hand" ? "bg-walshe-teal text-white" : "text-walshe-grey hover:bg-walshe-ink/10"}`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M18 11V6a1.5 1.5 0 00-3 0M15 6V4.5a1.5 1.5 0 00-3 0V6m0 0V5a1.5 1.5 0 00-3 0v7M9 12V8a1.5 1.5 0 00-3 0v6a6 6 0 006 6h2a6 6 0 006-6v-3" /></svg>
+          </button>
+        </div>
       </div>
 
       {/* Floating sections over the workspace: clicks pass through to the canvas except on panels. */}

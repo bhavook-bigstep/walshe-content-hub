@@ -15,7 +15,7 @@ import {
   type TPointerEventInfo,
 } from "fabric";
 import { nodeToObject } from "../../lib/studio/fabric-nodes";
-import { shouldDeleteSelection } from "../../lib/studio/keys";
+import { pointerMode, shouldDeleteSelection } from "../../lib/studio/keys";
 import { nodeStateAt } from "../../lib/studio/anim";
 import type { DesignDoc } from "../../lib/studio/ops";
 
@@ -67,6 +67,10 @@ export interface StudioCanvasProps {
   onTextEdit?: (sceneIndex: number, nodeId: string, text: string) => void;
   /** Receives imperative zoom/fit controls for the top bar once mounted. */
   onControls?: (controls: StudioControls) => void;
+  /** Active workspace tool. "select" (default): click selects, drag on empty rubber-bands a
+   * marquee over the items inside it. "hand": drag anywhere pans the workspace. Space-hold,
+   * Alt-drag and middle-drag always pan regardless of the tool (CorelDraw-style). */
+  tool?: "select" | "hand";
 }
 
 const DOT_BASE = 26; // dot spacing at 100% zoom (px) — a touch wider than before so it reads cleaner
@@ -120,6 +124,7 @@ export default function StudioCanvas({
   onActiveSceneRect,
   onBackgroundClick,
   highlightActive = true,
+  tool = "select",
 }: StudioCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dotsRef = useRef<HTMLDivElement>(null);
@@ -145,6 +150,8 @@ export default function StudioCanvas({
   selectedNodeIdRef.current = selectedNodeId;
   const sceneRectRef = useRef(onActiveSceneRect);
   sceneRectRef.current = onActiveSceneRect;
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
   // True while the render effect rebuilds the canvas, so the intermediate selection:cleared (from
   // removing objects) does not propagate and clear the app's selection / hide the Inspector.
   const suppressSelRef = useRef(false);
@@ -214,6 +221,14 @@ export default function StudioCanvas({
   }
 
   // Mount once: create the canvas + wire pan/zoom/selection handlers.
+  // Reflect the active tool in the idle cursor (the Hand tool shows a grab cursor).
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    c.defaultCursor = tool === "hand" ? "grab" : "default";
+    c.setCursor(c.defaultCursor);
+  }, [tool]);
+
   useEffect(() => {
     const el = elRef.current;
     const container = containerRef.current;
@@ -224,6 +239,13 @@ export default function StudioCanvas({
       selection: true,
       preserveObjectStacking: true,
       backgroundColor: "",
+      // CorelDraw-style marquee: a dashed teal rectangle that selects only the items fully inside
+      // it (not merely touched), so dragging a box over empty space rubber-band-selects a group.
+      selectionFullyContained: true,
+      selectionColor: "rgba(20, 184, 166, 0.10)",
+      selectionBorderColor: "rgba(13, 148, 136, 0.9)",
+      selectionLineWidth: 1.5,
+      selectionDashArray: [5, 4],
     });
     canvasRef.current = canvas;
     onReady?.(canvas);
@@ -300,7 +322,7 @@ export default function StudioCanvas({
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") {
         spaceHeld = false;
-        canvas.defaultCursor = "default";
+        canvas.defaultCursor = toolRef.current === "hand" ? "grab" : "default";
       }
     };
     // Delete / Backspace removes the selected entities — unless an input or inline text edit is focused.
@@ -325,25 +347,39 @@ export default function StudioCanvas({
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("keydown", onDeleteKey);
 
-    // Pan by dragging empty canvas (or with space / alt / middle button); drag an element to move it.
+    // Pointer model (CorelDraw/Figma-style):
+    //  • Hand tool, Space-hold, Alt-drag or middle button → PAN the workspace.
+    //  • Select tool, left-drag on empty → Fabric's rubber-band MARQUEE (selects items inside it).
+    //  • Click an element → select it; drag it → move it.
+    //  • A click (no drag) on empty space → select the scene under it, or deselect off-artboard.
+    let downOnEmpty = false;
+
     canvas.on("mouse:down", (opt: TPointerEventInfo) => {
       const e = opt.e as MouseEvent;
       downX = e.clientX;
       downY = e.clientY;
-      const onEmpty = !opt.target; // artboards + inactive scenes are non-evented → count as empty
-      if (spaceHeld || e.altKey || e.button === 1 || (e.button === 0 && onEmpty)) {
+      moved = false;
+      downOnEmpty = !opt.target; // artboards + inactive scenes are non-evented → count as empty
+      const mode = pointerMode({
+        tool: toolRef.current,
+        spaceHeld,
+        alt: e.altKey,
+        button: e.button,
+        onEmpty: downOnEmpty,
+      });
+      if (mode === "pan") {
         panning = true;
-        moved = false;
-        canvas.selection = false;
+        canvas.selection = false; // suppress the marquee while panning
         canvas.defaultCursor = "grabbing";
         lastX = e.clientX;
         lastY = e.clientY;
       }
+      // else: leave canvas.selection = true so an empty-space drag draws the marquee.
     });
     canvas.on("mouse:move", (opt: TPointerEventInfo) => {
-      if (!panning) return;
       const e = opt.e as MouseEvent;
       if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > CLICK_SLOP_PX) moved = true;
+      if (!panning) return;
       const vpt = canvas.viewportTransform;
       vpt[4] += e.clientX - lastX;
       vpt[5] += e.clientY - lastY;
@@ -353,13 +389,12 @@ export default function StudioCanvas({
       syncDots();
     });
     canvas.on("mouse:up", (opt: TPointerEventInfo) => {
-      const wasPanning = panning;
       panning = false;
       canvas.selection = true;
-      canvas.defaultCursor = spaceHeld ? "grab" : "default";
-      // A click on empty canvas (pan that never moved) selects the scene under the pointer, or
-      // deselects when the click lands outside every artboard.
-      if (wasPanning && !moved) {
+      canvas.defaultCursor = toolRef.current === "hand" || spaceHeld ? "grab" : "default";
+      // A click (no drag) on empty canvas selects the scene under the pointer, or deselects when it
+      // lands outside every artboard. A drag (marquee or pan) is handled by its own path.
+      if (!moved && downOnEmpty) {
         const pt = canvas.getScenePoint(opt.e);
         const design = designRef.current;
         const step = design.width + SCENE_GAP;
