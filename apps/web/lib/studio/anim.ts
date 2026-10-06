@@ -4,9 +4,9 @@
 // It is intentionally framework-free (no GSAP/DOM), so the EXACT same math drives the live canvas
 // preview (a rAF loop) and the offscreen video frame-capture — guaranteeing export == preview, and
 // keeping it unit-testable and reproducible (Contract 4).
-import { ENTER_TYPES, type AnimKeyframe, type DesignNode, type Easing, type EnterType, type NodeAnimation } from "./ops";
+import type { AnimKeyframe, DesignNode, Easing } from "./ops";
 
-export { ENTER_TYPES, type EnterType };
+export { ENTER_TYPES, enterTrack, type EnterType } from "./ops";
 
 export interface AnimState {
   x: number;
@@ -103,31 +103,3 @@ export function nodeStateAt(node: DesignNode, t: number): AnimState {
   return st;
 }
 
-// ── Entrance presets (authoring sugar) ─────────────────────────────────────────────────────────
-// Generate a keyframe track for a common entrance, anchored at the node's base transform.
-export function enterTrack(
-  node: DesignNode,
-  type: EnterType,
-  startMs: number,
-  durationMs: number,
-  ease: Easing = "easeOut",
-): NodeAnimation {
-  const end = startMs + Math.max(1, durationMs);
-  const from: AnimKeyframe = { t: startMs, opacity: 0 };
-  const to: AnimKeyframe = { t: end, opacity: 1, ease };
-  const dist = 80;
-  if (type === "rise") {
-    from.y = node.y + dist;
-    to.y = node.y;
-  } else if (type === "slide-left") {
-    from.x = node.x + dist;
-    to.x = node.x;
-  } else if (type === "slide-right") {
-    from.x = node.x - dist;
-    to.x = node.x;
-  } else if (type === "scale") {
-    from.scale = 0.6;
-    to.scale = 1;
-  }
-  return { keyframes: [from, to] };
-}

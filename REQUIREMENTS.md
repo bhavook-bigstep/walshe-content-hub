@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.37.0 |
+| **Version** | 2.38.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -572,12 +572,21 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   scene has none. Proof: api (explicit narration fallback; per-cue TTS positioned via adelay/amix) +
   web (set/clear cued lines; legacy-string + bad-cue normalisation).
 
-**Priority tiers** (build order; acceptance reports honestly against all 80):
+- **AC81** — **Built-in graphics, stickers & sprite animations.** The studio's right rail gains a
+  **Graphics** tool (decorative **abstract artifacts** — blob/wave/burst/ring/arch/dot-grid — and
+  **stickers** — star/heart/sparkle/sun/pin/bolt/check/speech) and an **Animated** tool (**prebuilt
+  sprite animations**). Each entity is a self-contained SVG inserted as an image node (renders on
+  the canvas, PNG and video frames); a sprite also carries a ready **animation intent** (entrance +
+  emphasis loop) built into a keyframe track **anchored at its placement** via the AC77 engine.
+  Proof: web (each entity has a usable SVG data URL + unique ids; `addGraphic` inserts the node;
+  a sprite's track is built from its entrance/loop at the placed position).
+
+**Priority tiers** (build order; acceptance reports honestly against all 81):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -616,6 +625,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.38.0 | 2026-10-07 | **Built-in graphics, stickers & sprite animations** (added **AC81**): the right rail gains a **Graphics** tool (abstract artifacts + stickers) and an **Animated** tool (prebuilt sprite animations). Each is a self-contained SVG inserted as an image node (`addGraphic`), rendering on the canvas/PNG/video; a sprite also carries an entrance + loop built into a keyframe track anchored at its placement. All prior ACs stay green. | user + Claude |
 | 2.37.0 | 2026-10-07 | **Scene bars scale to the scene + fix adding narration lines** (⏸G feedback, refines **AC46**/**AC80**): the top/bottom scene bars now lay out at a fixed internal width and are **scaled to exactly the scene's on-screen width** (a CSS transform), so they hug the scene's edges and scale *with* it on zoom — no min-width clamp, no wrapping (zoom in to use them when small). Fixed a bug where **narration lines couldn't be added**: `setSceneNarration`/`narrationCues` dropped blank-text cues, so a freshly-added empty line vanished before it could be typed into. Blank lines are now **kept while editing**; a new `speakableCues` drops blanks + sorts only at video-export time. All prior ACs stay green. | user + Claude |
 | 2.36.0 | 2026-10-07 | **Scene controls: split top/bottom bars, fixed size, full deselect** (⏸G feedback, refines **AC46**): restored the **split** per-scene UI — a top menu (identity + timing) stuck to the scene's top edge and a bottom menu (player + time-cued narration) stuck to its bottom edge, each a subtle dotted box. The bars **follow the scene on pan/zoom but are fixed pixel size** (no scaling). Completed deselect: clicking the empty workspace now also **clears the scene's highlight** on the canvas (not just the bars); clicking a scene or an element re-selects it. All prior ACs stay green. | user + Claude |
 | 2.35.0 | 2026-10-06 | **Scene control panel: fixed-size, dotted box, deselect on empty click** (⏸G feedback, refines **AC46**): the per-scene controls are now one **fixed-size card** — the top menu (identity + timing) and the bottom menu (player + time-cued narration) enclosed together in a **subtle dotted box**, equal width — anchored below the selected scene and following it as it pans, but **no longer resizing as the canvas zooms** (its size is content-driven, not scene-screen-driven). Clicking the **empty workspace** (outside every artboard) now **deselects the scene** and hides the panel; clicking a scene re-selects it. All prior ACs stay green. | user + Claude |

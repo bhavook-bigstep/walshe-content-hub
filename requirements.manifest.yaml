@@ -492,3 +492,10 @@ acceptance:
     web:
       - "apps/web/tests/studio-ops.test.ts::test_set_scene_narration"
       - "apps/web/tests/studio-ops.test.ts::narrationCues keeps blanks for editing; speakableCues drops them for export"
+  AC81:
+    tier: P2
+    web:
+      - "apps/web/tests/graphics.test.ts::every artifact/sticker/sprite has a usable SVG data URL"
+      - "apps/web/tests/graphics.test.ts::addGraphic inserts an image node with the SVG source"
+      - "apps/web/tests/graphics.test.ts::a sprite's animation is built from its entrance + loop, anchored at its placement"
+      - "apps/web/tests/graphics.test.ts::a looping sprite carries the loop"

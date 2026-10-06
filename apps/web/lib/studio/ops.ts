@@ -386,6 +386,39 @@ export function addCatalogImage(
   return next;
 }
 
+/** Add a built-in decorative graphic/sticker/sprite (an image node from an SVG data URL). A sprite
+ * also carries an entrance/loop intent, resolved into a keyframe track anchored at its placement. */
+export function addGraphic(
+  design: DesignDoc,
+  sceneIndex: number,
+  g: { src: string; width: number; height: number; enter?: EnterType | null; loop?: NodeAnimation["loop"] },
+  placement: NodePlacement = {},
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const node: DesignNode = {
+    id: nextId("image", scene),
+    type: "image",
+    x: placement.x ?? DEFAULT_PLACEMENT.x,
+    y: placement.y ?? DEFAULT_PLACEMENT.y,
+    width: placement.width ?? g.width,
+    height: placement.height ?? g.height,
+    src: g.src,
+    ...stylePlacement(placement),
+  };
+  if (g.enter || g.loop) {
+    const keyframes = g.enter ? enterTrack(node, g.enter, 0, 600).keyframes : [];
+    node.anim = {
+      keyframes,
+      ...(g.enter ? { enter: { type: g.enter, startMs: 0, durationMs: 600, ease: "easeOut" as Easing } } : {}),
+      ...(g.loop ? { loop: g.loop } : {}),
+    };
+  }
+  scene.nodes.push(node);
+  return next;
+}
+
 /** Append a blank scene (AC46; also the pamphlet multi-page op, AC9). */
 export function addScene(design: DesignDoc): DesignDoc {
   const next = cloneDesign(design);
@@ -546,6 +579,34 @@ export function updateNode(
     }
     return next;
   });
+}
+
+/** Generate a keyframe track for a common entrance, anchored at the node's base transform. */
+export function enterTrack(
+  node: Pick<DesignNode, "x" | "y">,
+  type: EnterType,
+  startMs: number,
+  durationMs: number,
+  ease: Easing = "easeOut",
+): NodeAnimation {
+  const end = startMs + Math.max(1, durationMs);
+  const from: AnimKeyframe = { t: startMs, opacity: 0 };
+  const to: AnimKeyframe = { t: end, opacity: 1, ease };
+  const dist = 80;
+  if (type === "rise") {
+    from.y = node.y + dist;
+    to.y = node.y;
+  } else if (type === "slide-left") {
+    from.x = node.x + dist;
+    to.x = node.x;
+  } else if (type === "slide-right") {
+    from.x = node.x - dist;
+    to.x = node.x;
+  } else if (type === "scale") {
+    from.scale = 0.6;
+    to.scale = 1;
+  }
+  return { keyframes: [from, to] };
 }
 
 /** Set (or clear, with `undefined`) a node's keyframe animation. Returns the new design. */
