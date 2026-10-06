@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String
+from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -14,6 +14,7 @@ from app.models.base import Base
 class PostStatus(str, enum.Enum):
     scheduled = "scheduled"
     published = "published"
+    failed = "failed"
 
 
 class Post(Base):
@@ -27,3 +28,11 @@ class Post(Base):
     )
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Per-platform post content + publish receipt (Instagram increment 1).
+    platform: Mapped[str] = mapped_column(String(20), default="instagram")
+    caption: Mapped[str] = mapped_column(Text, default="")
+    media_object_key: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    permalink: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")

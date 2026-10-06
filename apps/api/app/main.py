@@ -23,6 +23,7 @@ from app.routers import (
     builder,
     catalog,
     engagement,
+    instagram,
     observability,
     org,
     provider,
@@ -80,6 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(render.router)
     app.include_router(builder.router)
     app.include_router(social.router)
+    app.include_router(instagram.router)
     app.include_router(engagement.router)
     app.include_router(org.router)
     app.include_router(provider.router)

@@ -26,7 +26,10 @@ USERS = {
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
+    # _env_file=None keeps tests hermetic: a local apps/api/.env (e.g. real Instagram/S3 keys for a
+    # live demo) must never leak into the test settings and flip connectors off their stubs.
     return Settings(
+        _env_file=None,
         database_url=f"sqlite+pysqlite:///{tmp_path}/test.db",
         jwt_secret="test-secret-fixed",
         ai_provider="claude",

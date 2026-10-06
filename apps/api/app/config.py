@@ -58,8 +58,38 @@ class Settings(BaseSettings):
     # web origin(s) so the browser may call the API cross-port.
     cors_origins: str = ""
 
+    # --- Instagram publishing (Graph API with Instagram Login) + S3 media hosting ---
+    # Secrets come from the environment only (Contract 2); never stored in the DB or logged.
+    # With no token/user id set, the publish layer falls back to a deterministic stub connector.
+    instagram_access_token: str | None = None
+    ig_user_id: str | None = None
+    graph_api_version: str = "v26.0"
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    # Custom endpoint for S3-compatible stores (Supabase / R2 / MinIO). Empty = AWS S3.
+    s3_endpoint_url: str | None = None
+    # Public read base for a public bucket (e.g. Supabase .../object/public/<bucket>). When set,
+    # uploads return "<base>/<key>"; empty = presigned GET for a private bucket.
+    s3_public_base_url: str | None = None
+    s3_presign_ttl: int = 3600
+
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    def instagram_configured(self) -> bool:
+        """True when a real token + user id are set; else the publish layer uses the stub."""
+        return bool(self.instagram_access_token and self.ig_user_id)
+
+    def s3_configured(self) -> bool:
+        """True only when bucket, region, and both AWS keys are present."""
+        return bool(
+            self.s3_bucket
+            and self.s3_region
+            and self.aws_access_key_id
+            and self.aws_secret_access_key
+        )
 
 
 def get_settings() -> Settings:
