@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { listJobs, type Job } from "../../lib/api";
 import {
   JOB_POLL_MS,
+  JOBS_CHANGED_EVENT,
   highestJobId,
   statusLabel,
   summarizeJobs,
@@ -59,9 +60,14 @@ export default function NotificationBell() {
     }
     void tick();
     const timer = window.setInterval(tick, JOB_POLL_MS);
+    // Refetch immediately when an import is enqueued, so the new job appears the moment Import is
+    // clicked instead of after the next poll (AC74 — see JOBS_CHANGED_EVENT).
+    const onChanged = () => void tick();
+    window.addEventListener(JOBS_CHANGED_EVENT, onChanged);
     return () => {
       alive = false;
       window.clearInterval(timer);
+      window.removeEventListener(JOBS_CHANGED_EVENT, onChanged);
     };
   }, []);
 

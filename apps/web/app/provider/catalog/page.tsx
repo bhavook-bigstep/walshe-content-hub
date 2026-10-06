@@ -17,6 +17,7 @@ import {
   type Entry,
   type GeoData,
 } from "../../../lib/api";
+import { JOBS_CHANGED_EVENT } from "../../../lib/jobs";
 
 // AC54 — the three per-entry sets, shown as a badge so a provider sees each entry's reach.
 const VISIBILITY_STYLES: Record<string, string> = {
@@ -220,6 +221,8 @@ export default function ProviderCatalogPage() {
         onQueued={() => {
           setImportOpen(false);
           // The import runs asynchronously (AC71); the navbar bell announces when drafts are ready.
+          // Tell the bell to re-poll NOW so the new job entry shows the moment Import is clicked.
+          window.dispatchEvent(new Event(JOBS_CHANGED_EVENT));
           // Pre-select the AI filter so a reload surfaces the new drafts the moment the job finishes.
           setFilter("ai");
           void reload();

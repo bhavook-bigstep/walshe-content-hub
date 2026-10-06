@@ -5,6 +5,10 @@ import type { Job } from "./api";
 // How often the bell re-polls the jobs list. Polling (no push transport) is the PoC choice.
 export const JOB_POLL_MS = 10_000;
 
+// Dispatched on `window` right after an import is enqueued so the bell re-polls immediately
+// instead of waiting up to JOB_POLL_MS — the new job then shows the moment Import is clicked.
+export const JOBS_CHANGED_EVENT = "walsh:jobs-changed";
+
 export type JobStatus = "queued" | "running" | "done" | "failed";
 
 export function isTerminal(job: Pick<Job, "status">): boolean {
