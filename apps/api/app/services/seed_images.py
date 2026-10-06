@@ -10,6 +10,12 @@ from __future__ import annotations
 import io
 import math
 import zlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from app.models.catalog import CatalogEntry
 
 RGB = tuple[int, int, int]
 Palette = tuple[RGB, RGB, RGB, list[RGB]]  # (sky_top, sky_bottom, sun, [hill_far, mid, near])
@@ -79,3 +85,31 @@ def scene_png(seed: int, width: int = 1080, height: int = 1350) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
+
+
+def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
+    """Give each entry a deterministic cover image in the configured object store (MinIO in compose,
+    the on-disk store in local dev) and connect it to the entry: sets ``cover_object_key`` and adds
+    an ``Asset`` (so a later decompose turns it into an image item). Idempotent and best-effort — if
+    storage is unavailable the seed still completes (covers are skipped). Used by both seeds."""
+    from app.config import get_settings
+    from app.models.catalog import Asset
+    from app.storage.minio_client import get_storage
+
+    try:
+        storage = get_storage(get_settings())
+    except Exception:
+        return
+    db.flush()  # ensure every entry has an id for the object key
+    for entry in entries:
+        if entry.cover_object_key or entry.assets:
+            continue  # already has media (re-run safe)
+        key = f"catalog/seed/{entry.id}/cover.png"
+        try:
+            storage.put_object(key, scene_png(stable_seed(entry.title)), "image/png")
+        except Exception:
+            continue  # don't point a cover at bytes we failed to store
+        entry.cover_object_key = key
+        entry.cover_content_type = "image/png"
+        db.add(Asset(entry_id=entry.id, object_key=key, content_type="image/png"))
+    db.flush()

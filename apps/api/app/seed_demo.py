@@ -24,6 +24,8 @@ from app.models.engagement import Engagement
 from app.models.post import Post, PostStatus
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
+from app.services.catalog_migration import decompose_entries_to_items
+from app.services.seed_images import seed_covers
 
 _SALT = b"walsh-seed-salt0"  # fixed → deterministic demo credentials (dev only)
 _PASSWORD = "demo-pass-0000"
@@ -260,6 +262,11 @@ def seed_demo(db: Session) -> dict[str, int]:
         db, agent2.id, "City breaks", [by_title["Dublin Lights"], by_title["Titanic Quarter"]]
     )
     _composition(db, agent2.id, "Dublin teaser", [by_title["Dublin Lights"]])
+
+    # Give every entry a real cover image in object storage (MinIO under compose) and connect it to
+    # the entry, then decompose so each cover also becomes an image item for the studio library.
+    seed_covers(db, entries)
+    decompose_entries_to_items(db)
 
     db.commit()
     return {

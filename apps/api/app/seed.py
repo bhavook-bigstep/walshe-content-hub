@@ -12,9 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.clock import now as clock_now
-from app.config import get_settings
 from app.models.catalog import (
-    Asset,
     Catalog,
     CatalogEntry,
     CatalogType,
@@ -29,8 +27,7 @@ from app.models.post import Post, PostStatus
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
 from app.services.catalog_migration import decompose_entries_to_items
-from app.services.seed_images import scene_png, stable_seed
-from app.storage.minio_client import get_storage
+from app.services.seed_images import seed_covers
 
 # A fixed salt keeps seeded password hashes deterministic across runs (dev/demo only).
 _SEED_SALT = b"walsh-seed-salt0"
@@ -245,29 +242,6 @@ _SEED_DISPLAY_NAMES = {
 }
 
 
-def _seed_covers(db: Session, entries: list[CatalogEntry]) -> None:
-    """Give each entry a deterministic cover image in object storage (idempotent). Stores the bytes,
-    sets ``cover_object_key``, and adds an ``Asset`` so decompose turns it into an image item.
-    Best-effort: if storage is unavailable the seed still completes (covers are skipped)."""
-    try:
-        storage = get_storage(get_settings())
-    except Exception:
-        return
-    db.flush()  # ensure every entry has an id for the object key
-    for entry in entries:
-        if entry.cover_object_key or entry.assets:
-            continue  # already has media (re-run safe)
-        key = f"catalog/seed/{entry.id}/cover.png"
-        try:
-            storage.put_object(key, scene_png(stable_seed(entry.title)), "image/png")
-        except Exception:
-            continue  # don't point a cover at bytes we failed to store
-        entry.cover_object_key = key
-        entry.cover_content_type = "image/png"
-        db.add(Asset(entry_id=entry.id, object_key=key, content_type="image/png"))
-    db.flush()
-
-
 def seed(db: Session) -> dict[str, int]:
     """Populate the database idempotently. Returns row counts for verification."""
     tenant = _upsert_tenant(db, "Walsh Tourism Board")
@@ -328,7 +302,7 @@ def seed(db: Session) -> dict[str, int]:
     # AC4/AC17: give every entry a real cover image in object storage (MinIO / the on-disk store),
     # so the catalog is photo-led and the Design Studio has genuine, droppable media. Done before
     # decompose so each cover becomes an image item too.
-    _seed_covers(db, entries)
+    seed_covers(db, entries)
 
     # AC50: decompose each entry's text + assets into first-class items so the catalog library and
     # the studio media picker are populated.
