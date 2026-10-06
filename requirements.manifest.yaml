@@ -514,3 +514,7 @@ acceptance:
       - "apps/api/tests/test_catalog_search.py::test_filter_by_tags_and_org"
     web:
       - "apps/web/tests/shell.test.ts::builds catalog query strings"
+  AC84:
+    tier: P2
+    api:
+      - "apps/api/tests/test_seed_demo.py::test_seed_demo_creates_rich_named_collections"

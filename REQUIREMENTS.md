@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.40.0 |
+| **Version** | 2.41.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -603,12 +603,19 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   entry by a tag/destination/description word; `tags` OR-matches; `org` exact-matches) + web
   (`buildCatalogQuery` serialises `tags` as repeated params and `org`).
 
-**Priority tiers** (build order; acceptance reports honestly against all 83):
+- **AC84** — **Seed collections.** The demo seed creates several named, non-empty collections per
+  agent (Alex: *West coast favourites*, *Honeymoon highlights*, *Festival season*; Sam: *City
+  breaks*, *Winter escapes*, *Heritage & harbours*), each referencing only approved (agent-visible)
+  catalog entries, so a fresh agent workspace opens with real, resolvable collections. Idempotent
+  (upsert by agent+name). Proof: api (both agents have their named collections; each is non-empty
+  and references only approved entries).
+
+**Priority tiers** (build order; acceptance reports honestly against all 84):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -647,6 +654,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.41.0 | 2026-10-07 | **Seed collections** (added **AC84**): the demo seed now creates three named, non-empty collections per agent (Alex: West coast favourites / Honeymoon highlights / Festival season; Sam: City breaks / Winter escapes / Heritage & harbours), each referencing only approved agent-visible entries, so a fresh workspace opens with real collections. Idempotent (upsert by agent+name). All prior ACs stay green. | user + Claude |
 | 2.40.0 | 2026-10-07 | **Catalog search + tag/provider filters** (added **AC83**): the agent catalog's free-text `q` now matches an entry's **full searchable text** (`_entry_text`: title, destination, description, market tags, highlights, custom sections, attribute values) instead of only title/description — fixing searches by tag/city/attribute returning nothing. Added **tag** (`tags`, OR facet) and **provider** (`org`, exact) filters end-to-end (API → shared client `buildCatalogQuery` → UI). The top filter bar now **filters instantly** (debounced text, no Search button) with tag chips + a provider select populated from results. All prior ACs stay green. | user + Claude |
 | 2.39.0 | 2026-10-07 | **Group elements together** (added **AC82**): selecting 2+ elements on a scene can **group** them under one flat, non-nested tag (`groupId`); clicking any member re-selects the whole group so they move/scale/rotate together (member boxes written back from the group transform), and a group takes a **shared entrance + emphasis loop** and **shared style** (opacity) applied to every member. Re-grouping replaces the tag with a fresh id (never nests); **ungroup** clears the tag and keeps styling. New right-panel `GroupPanel`; ops `groupNodes`/`ungroupNodes`/`groupMemberIds`/`setGroupAnim`/`updateGroupStyle`. All prior ACs stay green. | user + Claude |
 | 2.38.0 | 2026-10-07 | **Built-in graphics, stickers & sprite animations** (added **AC81**): the right rail gains a **Graphics** tool (abstract artifacts + stickers) and an **Animated** tool (prebuilt sprite animations). Each is a self-contained SVG inserted as an image node (`addGraphic`), rendering on the canvas/PNG/video; a sprite also carries an entrance + loop built into a keyframe track anchored at its placement. All prior ACs stay green. | user + Claude |

@@ -283,6 +283,18 @@ def seed_demo(db: Session) -> dict[str, int]:
         "West coast favourites",
         [by_title["Cliffs of Moher"], by_title["Wild Atlantic Way"]],
     )
+    _collection(
+        db,
+        agent1.id,
+        "Honeymoon highlights",
+        [by_title["Cliffs of Moher"], by_title["Autumn Escapes"], by_title["Wild Atlantic Way"]],
+    )
+    _collection(
+        db,
+        agent1.id,
+        "Festival season",
+        [by_title["Harbour Festival"], by_title["Dublin Lights"]],
+    )
     launch = _composition(
         db,
         agent1.id,
@@ -303,6 +315,18 @@ def seed_demo(db: Session) -> dict[str, int]:
     )
     _collection(
         db, agent2.id, "City breaks", [by_title["Dublin Lights"], by_title["Titanic Quarter"]]
+    )
+    _collection(
+        db,
+        agent2.id,
+        "Winter escapes",
+        [by_title["Dublin Lights"], by_title["Autumn Escapes"]],
+    )
+    _collection(
+        db,
+        agent2.id,
+        "Heritage & harbours",
+        [by_title["Titanic Quarter"], by_title["Cliffs of Moher"]],
     )
     _composition(db, agent2.id, "Dublin teaser", [by_title["Dublin Lights"]])
 
