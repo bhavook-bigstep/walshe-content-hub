@@ -82,14 +82,33 @@ def _schedule_id(client, headers, comp_factory):
     return cid, r.json()["id"]
 
 
-def test_approve_sets_approved_and_audits(client):
+def test_approve_publishes_immediately(client):
+    # Approve IS the publish decision: one call records the reviewer AND posts (stub) immediately.
     a = auth_header(client, Role.tourism_agent)
-    cid, pid = _schedule_id(client, a, _empty_composition)
+    cid, pid = _schedule_id(client, a, _approved_composition)
     r = client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a)
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "approved"
+    body = r.json()
+    assert body["status"] == "published"
+    assert body["external_id"].startswith("stub-")
+    assert body["approved_by"]  # reviewer recorded
     with client.app.state.sessionmaker() as db:
         assert db.query(AuditLog).filter_by(action="approve", target_type="post").count() == 1
+        assert db.query(AuditLog).filter_by(action="publish", target_type="post").count() == 1
+
+
+def test_approve_blocked_by_preflight_stays_pending(client):
+    # Unapproved content can't reach Instagram (Contract 1 / AC6); approval is refused and the post
+    # stays pending_approval so it can be fixed and re-approved.
+    a = auth_header(client, Role.tourism_agent)
+    cid = _campaign(client, a)
+    comp = _unapproved_composition(client)
+    pid = _schedule(client, a, cid, comp).json()["id"]
+    r = client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a)
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"]["error"] == "preflight_failed"
+    detail = client.get(f"/campaigns/{cid}", headers=a).json()
+    assert detail["posts"][0]["status"] == "pending_approval"
 
 
 def test_reject_sets_rejected_with_note(client):
@@ -103,45 +122,27 @@ def test_reject_sets_rejected_with_note(client):
 
 def test_cannot_approve_a_non_pending_post(client):
     a = auth_header(client, Role.tourism_agent)
-    cid, pid = _schedule_id(client, a, _empty_composition)
-    assert client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a).status_code == 200
-    # already approved -> a second approve is a 409, not a silent re-approve
+    cid, pid = _schedule_id(client, a, _approved_composition)
+    first = client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a)
+    assert first.status_code == 200, first.text  # approved + published
+    # already published -> a second approve is a 409, not a re-publish
     assert client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a).status_code == 409
 
 
 def test_second_agent_cannot_approve_foreign_post(client, second_agent_headers):
     a = auth_header(client, Role.tourism_agent)
-    cid, pid = _schedule_id(client, a, _empty_composition)
+    cid, pid = _schedule_id(client, a, _approved_composition)
     r = client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=second_agent_headers)
     assert r.status_code == 404, r.text  # agent2 does not own the campaign
     # ...but the owner can (proves the 404 above is authz, not a missing route).
     assert client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a).status_code == 200
 
 
-def test_publish_requires_approval_first(client):
+def test_approve_with_missing_capture_is_graceful_409(client):
+    # A restarted in-memory store loses captured bytes; approve must 409 cleanly, not 500.
     a = auth_header(client, Role.tourism_agent)
     cid, pid = _schedule_id(client, a, _approved_composition)
-    r = client.post(f"/campaigns/{cid}/posts/{pid}/publish", headers=a)
-    assert r.status_code == 409, r.text  # still pending_approval
-
-
-def test_approve_then_publish_via_stub(client):
-    a = auth_header(client, Role.tourism_agent)
-    cid, pid = _schedule_id(client, a, _approved_composition)
-    assert client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a).status_code == 200
-    r = client.post(f"/campaigns/{cid}/posts/{pid}/publish", headers=a)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["status"] == "published"
-    assert body["external_id"].startswith("stub-")
-
-
-def test_publish_blocked_by_preflight_when_item_unapproved(client):
-    a = auth_header(client, Role.tourism_agent)
-    cid = _campaign(client, a)
-    comp = _unapproved_composition(client)
-    pid = _schedule(client, a, cid, comp).json()["id"]
-    assert client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a).status_code == 200
-    r = client.post(f"/campaigns/{cid}/posts/{pid}/publish", headers=a)
-    assert r.status_code == 422, r.text
-    assert r.json()["detail"]["error"] == "preflight_failed"
+    client.app.state.storage._objects.clear()
+    r = client.post(f"/campaigns/{cid}/posts/{pid}/approve", headers=a)
+    assert r.status_code == 409, r.text
+    assert "no longer available" in r.text.lower()

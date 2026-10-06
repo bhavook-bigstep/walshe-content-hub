@@ -107,7 +107,18 @@ export class ApiError extends Error {
 async function detailOf(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as { detail?: unknown };
-    if (typeof body.detail === "string") return body.detail;
+    const d = body.detail;
+    if (typeof d === "string") return d;
+    if (d && typeof d === "object") {
+      // Structured guard failures (preflight / publish) — surface the real reason, not a bare 422.
+      const o = d as { error?: string; code?: string; issues?: Array<{ message?: string; fix?: string }> };
+      if (o.error === "preflight_failed" && Array.isArray(o.issues)) {
+        return "Can't publish yet: " + o.issues
+          .map((i) => [i.message, i.fix].filter(Boolean).join(" "))
+          .join(" · ");
+      }
+      if (o.error === "publish_failed") return `Instagram rejected the post (${o.code ?? "error"}).`;
+    }
   } catch {
     /* non-JSON error body */
   }
@@ -607,6 +618,7 @@ export async function patchCampaignPost(
 ): Promise<CampaignPost> {
   return (await (await send(`/campaigns/${id}/posts/${postId}`, { method: "PATCH", body: form })).json()) as CampaignPost;
 }
+/** Approve = publish: one call records the reviewer and posts the creative immediately. */
 export async function approveCampaignPost(id: number, postId: number): Promise<CampaignPost> {
   return (await (await send(`/campaigns/${id}/posts/${postId}/approve`, { method: "POST" })).json()) as CampaignPost;
 }
@@ -614,9 +626,6 @@ export async function rejectCampaignPost(id: number, postId: number, note: strin
   const form = new FormData();
   form.append("note", note);
   return (await (await send(`/campaigns/${id}/posts/${postId}/reject`, { method: "POST", body: form })).json()) as CampaignPost;
-}
-export async function publishCampaignPost(id: number, postId: number): Promise<CampaignPost> {
-  return (await (await send(`/campaigns/${id}/posts/${postId}/publish`, { method: "POST" })).json()) as CampaignPost;
 }
 
 /** Assets need the bearer header, so <img src> cannot hit the API directly: authed fetch -> blob -> object URL. */

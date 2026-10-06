@@ -57,6 +57,7 @@ class CampaignPostOut(BaseModel):
     review_note: str = ""
     external_id: str | None = None
     permalink: str | None = None
+    error: str = ""
     model_config = {"from_attributes": True}
 
     @field_serializer("reviewed_at")

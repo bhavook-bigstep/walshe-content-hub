@@ -407,13 +407,13 @@ acceptance:
   AC66:
     tier: P2
     api:
-      - "apps/api/tests/test_campaign_approval.py::test_approve_sets_approved_and_audits"
+      - "apps/api/tests/test_campaign_approval.py::test_approve_publishes_immediately"
       - "apps/api/tests/test_campaign_approval.py::test_reject_sets_rejected_with_note"
       - "apps/api/tests/test_campaign_approval.py::test_cannot_approve_a_non_pending_post"
       - "apps/api/tests/test_campaign_approval.py::test_second_agent_cannot_approve_foreign_post"
   AC67:
     tier: P2
     api:
-      - "apps/api/tests/test_campaign_approval.py::test_approve_then_publish_via_stub"
-      - "apps/api/tests/test_campaign_approval.py::test_publish_requires_approval_first"
-      - "apps/api/tests/test_campaign_approval.py::test_publish_blocked_by_preflight_when_item_unapproved"
+      - "apps/api/tests/test_campaign_approval.py::test_approve_publishes_immediately"
+      - "apps/api/tests/test_campaign_approval.py::test_approve_blocked_by_preflight_stays_pending"
+      - "apps/api/tests/test_campaign_approval.py::test_approve_with_missing_capture_is_graceful_409"

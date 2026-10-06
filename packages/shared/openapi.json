@@ -973,6 +973,11 @@
             "title": "Composition Id",
             "type": "integer"
           },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
           "external_id": {
             "anyOf": [
               {
@@ -4846,7 +4851,7 @@
     },
     "/campaigns/{campaign_id}/posts/{post_id}/approve": {
       "post": {
-        "description": "Approve a pending post (AC66). PoC self-approval: the owning agent is also the reviewer;\na separate reviewer role (approver != owner) is a backlog item.",
+        "description": "Approve AND publish a pending post in one action (AC66/AC67). PoC self-approval: the owning\nagent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records\nthe reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a\nguard/publish failure nothing is approved and the reason is returned (422/409/503/502).",
         "operationId": "approve_post_campaigns__campaign_id__posts__post_id__approve_post",
         "parameters": [
           {
@@ -4896,63 +4901,6 @@
           }
         ],
         "summary": "Approve Post",
-        "tags": [
-          "campaigns"
-        ]
-      }
-    },
-    "/campaigns/{campaign_id}/posts/{post_id}/publish": {
-      "post": {
-        "description": "Publish an approved post to Instagram (AC67) via the shared publish path (preflight + dedup\n+ receipt). Live posting is this explicit user action; it stays on the stub without keys.",
-        "operationId": "publish_post_campaigns__campaign_id__posts__post_id__publish_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "title": "Campaign Id",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "path",
-            "name": "post_id",
-            "required": true,
-            "schema": {
-              "title": "Post Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignPostOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Publish Post",
         "tags": [
           "campaigns"
         ]

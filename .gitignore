@@ -52,3 +52,6 @@ docs/sample/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Local dev asset store (ASSET_DIR) — runtime captures, never committed
+apps/api/.assets/

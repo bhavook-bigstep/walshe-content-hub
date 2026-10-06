@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.23.0 |
+| **Version** | 2.23.1 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -456,19 +456,24 @@ Campaign scheduling & live publishing (v2.23.0):
 - **AC66** — **Post approval gate (self-approval, PoC).** A scheduled post sits in
   `pending_approval`; the **owning agent approves or rejects** it — a deliberate PoC simplification
   of the design's *approver ≠ owner* principle (a separate reviewer person/role is a backlog item).
-  Approve → `approved` (records approver + time); reject → `rejected` with a reason; both are
-  **audited** (Contract 3 / AC37). Only the owner may act; a non-owner gets a 404; a non-pending
-  post is a 409. Proof: pytest asserts the approve/reject transitions + audit rows, a non-owner
-  cannot approve, and a non-pending post is a 409.
-- **AC67** — **Live Instagram publish.** An approved post publishes to a real Instagram account via
-  the Graph API connector selected from env (AC16-style abstraction; deterministic stub with no
-  keys → hermetic tests). Publish **enforces preflight (AC34)**, **blocks a duplicate publish** of a
-  composition, hosts the captured image at a public URL (S3), and stores the receipt (media id +
-  permalink); a publish failure records `failed` + a classified error. Live posting is an
-  **explicit user action** and **supersedes, for Instagram, the AC14 “simulated” wording and the
-  deferred live-posting note** (other channels stay simulated). Proof: pytest asserts an approved
-  post publishes via the stub (receipt stored), publish is blocked until approved, and preflight
-  blocks unapproved content; a real post is a manual, user-triggered check.
+  **Approval is the publish decision: one action** records the reviewer (approver + time), audits
+  it, and publishes the post immediately (AC67) — there is no separate publish step. Reject →
+  `rejected` with a reason (audited, editable again). Only the owner may act; a non-owner gets a
+  404; a non-pending post is a 409; when approval's publish is refused the post stays
+  `pending_approval` (nothing is approved). Proof: pytest asserts approve-publishes + reject
+  transitions + audit rows, a non-owner cannot approve, and a non-pending post is a 409.
+- **AC67** — **Live Instagram publish (triggered by approval).** Approving a post publishes it to a
+  real Instagram account via the Graph API connector selected from env (AC16-style abstraction;
+  deterministic stub with no keys → hermetic tests). Publish **enforces preflight (AC34)**, **blocks
+  a duplicate publish** of a composition, hosts the captured image at a public URL (S3), and stores
+  the receipt (media id + permalink); a publish failure records `failed` + a classified error, and
+  a missing captured image is a clean 409 (not a 500). Publishing is driven by the agent's approval
+  (the explicit action) and **supersedes, for Instagram, the AC14 “simulated” wording and the
+  deferred live-posting note** (other channels stay simulated). The scheduled time is a **planning
+  slot** on the calendar; **auto-publishing at a future scheduled time needs a background worker and
+  is a backlog item** — in the PoC approval posts immediately. Proof: pytest asserts approval
+  publishes via the stub (receipt stored), preflight blocks unapproved content (post stays pending),
+  and a missing capture returns 409; a real post is a manual, user-triggered check.
 
 **Priority tiers** (build order; acceptance reports honestly against all 67):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
@@ -503,6 +508,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.23.1 | 2026-10-06 | **Approve = publish (one action) + robustness** (user feedback during demo): AC66/AC67 refined so **approving a post publishes it immediately** — the separate "Publish" step/button is removed (approval is the decision). A **missing captured image** now returns a clean 409 instead of a 500, and captures should persist via `ASSET_DIR` (the in-memory store is wiped on restart). The preflight reason is surfaced to the UI. The scheduled time is a planning slot; auto-publish-at-future-time is explicitly a background-worker backlog item. All prior ACs stay green. | user + Claude |
 | 2.23.0 | 2026-10-06 | **Campaign scheduling & live Instagram publishing** (branch `feat/instagram-pipeline`): added **AC65** (campaign management — create campaigns + schedule posts with capture-at-schedule; agent-scoped lifecycle), **AC66** (post approval gate — **PoC self-approval** by the owning agent, approve/reject audited; a separate reviewer person/role is a backlog item), **AC67** (**live Instagram publish** of an approved post via the env-selected Graph API connector / deterministic stub, enforcing preflight (AC34) + duplicate-block + S3 hosting + receipt). AC67 **supersedes — for Instagram only — the AC14 "simulated" wording and the deferred live-posting note**; other channels stay simulated. Live posting remains an explicit user action and nothing ships outward without approval. All prior ACs stay green. | user + Claude |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |

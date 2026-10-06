@@ -396,31 +396,12 @@ export interface paths {
         put?: never;
         /**
          * Approve Post
-         * @description Approve a pending post (AC66). PoC self-approval: the owning agent is also the reviewer;
-         *     a separate reviewer role (approver != owner) is a backlog item.
+         * @description Approve AND publish a pending post in one action (AC66/AC67). PoC self-approval: the owning
+         *     agent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records
+         *     the reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a
+         *     guard/publish failure nothing is approved and the reason is returned (422/409/503/502).
          */
         post: operations["approve_post_campaigns__campaign_id__posts__post_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/campaigns/{campaign_id}/posts/{post_id}/publish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Publish Post
-         * @description Publish an approved post to Instagram (AC67) via the shared publish path (preflight + dedup
-         *     + receipt). Live posting is this explicit user action; it stays on the stub without keys.
-         */
-        post: operations["publish_post_campaigns__campaign_id__posts__post_id__publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1932,6 +1913,11 @@ export interface components {
             caption: string;
             /** Composition Id */
             composition_id: number;
+            /**
+             * Error
+             * @default
+             */
+            error: string;
             /** External Id */
             external_id?: string | null;
             /** Id */
@@ -3817,38 +3803,6 @@ export interface operations {
         };
     };
     approve_post_campaigns__campaign_id__posts__post_id__approve_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: number;
-                post_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignPostOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    publish_post_campaigns__campaign_id__posts__post_id__publish_post: {
         parameters: {
             query?: never;
             header?: never;

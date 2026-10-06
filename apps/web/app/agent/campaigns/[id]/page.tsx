@@ -7,7 +7,7 @@ import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar"
 import PageHeader from "../../../../components/ui/PageHeader";
 import {
   ApiError, approveCampaignPost, deleteCampaign, getCampaign, getProject, listProjects,
-  patchCampaignPost, publishCampaignPost, rejectCampaignPost, scheduleCampaignPost,
+  patchCampaignPost, rejectCampaignPost, scheduleCampaignPost,
   type CampaignDetail, type CampaignPost, type Project,
 } from "../../../../lib/api";
 import {
@@ -99,19 +99,25 @@ export default function CampaignDetailPage() {
     setRejectNote("");
   }
 
-  // Approve / reject / publish a post from the drawer. Each refreshes the drawer to the returned
-  // post (so its available actions update) and reloads the calendar (so the status chip updates).
+  // Approve (= publish) or reject a post from the drawer. Afterwards the drawer + calendar are
+  // refreshed from the server so the new state shows even when the publish failed (post → failed).
   async function runPostAction(action: () => Promise<CampaignPost>) {
     if (!selected) return;
+    const pid = selected.id;
     setBusy(true);
     setError(null);
     try {
       setSelected(await action());
-      await reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not update the post.");
     } finally {
       setBusy(false);
+      const fresh = await getCampaign(id).catch(() => null);
+      if (fresh) {
+        setCampaign(fresh);
+        const p = fresh.posts?.find((x) => x.id === pid);
+        if (p) setSelected(p);
+      }
     }
   }
 
@@ -135,6 +141,10 @@ export default function CampaignDetailPage() {
       setBusy(false);
     }
   }
+
+  // A post can be edited before it goes out, and a failed publish can be fixed + re-approved.
+  const editable = selected != null
+    && ["draft", "pending_approval", "rejected", "failed"].includes(selected.status);
 
   return (
     <div>
@@ -267,11 +277,15 @@ export default function CampaignDetailPage() {
                   )}
                 </p>
               )}
+              {selected.status === "failed" && (
+                <p className="mt-2 text-small text-walshe-danger">
+                  Publish failed{selected.error ? `: ${selected.error}` : ""}. Edit &amp; re-approve to retry.
+                </p>
+              )}
             </div>
 
-            {/* Editing is only allowed before approval (server rejects edits once approved). */}
-            {(selected.status === "draft" || selected.status === "pending_approval"
-              || selected.status === "rejected") && (
+            {/* Editing is allowed before it goes out (and on a failed post, to fix + retry). */}
+            {editable && (
               <>
                 <label className="flex flex-col gap-1.5">
                   <span className="label">Caption</span>
@@ -294,39 +308,35 @@ export default function CampaignDetailPage() {
               </label>
             )}
 
-            <div className="mt-auto flex flex-wrap gap-3 border-t border-walshe-line pt-4">
-              {(selected.status === "draft" || selected.status === "pending_approval"
-                || selected.status === "rejected") && (
-                <>
+            {/* Decision first (Approve = publish / Reject / Close), then editing below it. */}
+            <div className="mt-auto flex flex-col gap-3 border-t border-walshe-line pt-4">
+              <div className="flex flex-wrap gap-3">
+                {selected.status === "pending_approval" && (
+                  <>
+                    <button type="button" className="btn-primary h-12" disabled={busy}
+                            onClick={() => void runPostAction(() => approveCampaignPost(id, selected.id))}>
+                      {busy ? "Publishing…" : "Approve & publish"}
+                    </button>
+                    <button type="button" className="btn-ghost h-12 text-walshe-danger" disabled={busy}
+                            onClick={() => void runPostAction(() => rejectCampaignPost(id, selected.id, rejectNote))}>
+                      Reject
+                    </button>
+                  </>
+                )}
+                <button type="button" className="btn-ghost h-12" onClick={() => setSelected(null)}>
+                  {selected.status === "published" ? "Close" : "Cancel"}
+                </button>
+              </div>
+              {editable && (
+                <div className="flex flex-wrap gap-3">
                   <button type="button" className="btn-secondary h-12" disabled={busy}
                           onClick={() => void onSaveEdit(false)}>Save changes</button>
                   {selected.scheduled_at && (
                     <button type="button" className="btn-ghost h-12" disabled={busy}
                             onClick={() => void onSaveEdit(true)}>Unschedule</button>
                   )}
-                </>
+                </div>
               )}
-              {selected.status === "pending_approval" && (
-                <>
-                  <button type="button" className="btn-primary h-12" disabled={busy}
-                          onClick={() => void runPostAction(() => approveCampaignPost(id, selected.id))}>
-                    {busy ? "Working…" : "Approve"}
-                  </button>
-                  <button type="button" className="btn-ghost h-12 text-walshe-danger" disabled={busy}
-                          onClick={() => void runPostAction(() => rejectCampaignPost(id, selected.id, rejectNote))}>
-                    Reject
-                  </button>
-                </>
-              )}
-              {selected.status === "approved" && (
-                <button type="button" className="btn-primary h-12" disabled={busy}
-                        onClick={() => void runPostAction(() => publishCampaignPost(id, selected.id))}>
-                  {busy ? "Publishing…" : "Publish to Instagram"}
-                </button>
-              )}
-              <button type="button" className="btn-ghost h-12" onClick={() => setSelected(null)}>
-                Cancel
-              </button>
             </div>
           </aside>
         </div>

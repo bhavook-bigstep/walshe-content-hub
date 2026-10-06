@@ -202,7 +202,8 @@ def create_campaign_post(
     return CampaignPostOut.model_validate(post)
 
 
-_EDITABLE = {PostStatus.draft, PostStatus.pending_approval, PostStatus.rejected}
+# A failed publish is editable too, so the agent can fix + reschedule it (→ pending) and retry.
+_EDITABLE = {PostStatus.draft, PostStatus.pending_approval, PostStatus.rejected, PostStatus.failed}
 
 
 @router.patch("/{campaign_id}/posts/{post_id}", response_model=CampaignPostOut)
@@ -270,7 +271,13 @@ def edit_post(
     return CampaignPostOut.model_validate(post)
 
 
-# ── Approval gate (AC66) + live publish (AC67) ───────────────────────────────────────────────────
+# ── Approval gate + publish (AC66/AC67) ──────────────────────────────────────────────────────────
+#
+# Approve IS the publish decision (one action): approving a pending post records the approver and
+# publishes it immediately through the shared path. There is no separate "publish" step — the PoC
+# has no background worker, so there is nothing to defer a future-scheduled post TO; the scheduled
+# time is a planning slot on the calendar, and approval posts now. Deferred publish-at-time is a
+# scheduler-worker follow-up.
 
 
 def _campaign_post(db: Session, campaign: Campaign, post_id: int) -> Post:
@@ -280,16 +287,39 @@ def _campaign_post(db: Session, campaign: Campaign, post_id: int) -> Post:
     return post
 
 
+def _captured_bytes(storage: Storage, post: Post) -> bytes | None:
+    """Read the image captured at schedule time; a clean 409 (not a 500) if it is gone.
+
+    The dev in-memory store is wiped on restart, so a post scheduled in a previous process has a
+    media_object_key but no bytes. Set ASSET_DIR (filesystem) so captures survive restarts.
+    """
+    if not post.media_object_key:
+        return None
+    try:
+        data, _ = storage.get_object(post.media_object_key)
+        return data
+    except (KeyError, FileNotFoundError) as err:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "The captured image for this post is no longer available — edit the post to re-capture "
+            "it (set ASSET_DIR so captures persist across restarts).",
+        ) from err
+
+
 @router.post("/{campaign_id}/posts/{post_id}/approve", response_model=CampaignPostOut)
 def approve_post(
     campaign_id: int,
     post_id: int,
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(get_storage),
     now: datetime = Depends(clock.now),
 ) -> CampaignPostOut:
-    """Approve a pending post (AC66). PoC self-approval: the owning agent is also the reviewer;
-    a separate reviewer role (approver != owner) is a backlog item."""
+    """Approve AND publish a pending post in one action (AC66/AC67). PoC self-approval: the owning
+    agent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records
+    the reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a
+    guard/publish failure nothing is approved and the reason is returned (422/409/503/502)."""
     campaign = _owned_campaign(db, campaign_id, user)
     post = _campaign_post(db, campaign, post_id)
     if post.status != PostStatus.pending_approval:
@@ -297,13 +327,20 @@ def approve_post(
             status.HTTP_409_CONFLICT,
             f"Only a pending_approval post can be approved (is '{post.status.value}')",
         )
-    post.status = PostStatus.approved
+    comp = db.get(Composition, post.composition_id)
+    if comp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
+
+    media_bytes = _captured_bytes(storage, post)
+    # Record the reviewer now; if a guard below rejects (422/409/503) the session rolls back and the
+    # post stays pending_approval. On a connector failure the publish path commits it as `failed`.
     post.approved_by = user.id
     post.reviewed_at = now
     post.review_note = ""
     audit.record(db, actor_id=user.id, action="approve", target_type="post", target_id=post.id)
-    db.commit()
-    db.refresh(post)
+    publish_svc.publish_post(
+        db, settings, now, user=user, post=post, composition=comp, media_bytes=media_bytes
+    )
     return CampaignPostOut.model_validate(post)
 
 
@@ -331,35 +368,4 @@ def reject_post(
     audit.record(db, actor_id=user.id, action="reject", target_type="post", target_id=post.id)
     db.commit()
     db.refresh(post)
-    return CampaignPostOut.model_validate(post)
-
-
-@router.post("/{campaign_id}/posts/{post_id}/publish", response_model=CampaignPostOut)
-def publish_post(
-    campaign_id: int,
-    post_id: int,
-    user: User = Depends(_agent_only),
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
-    storage: Storage = Depends(get_storage),
-    now: datetime = Depends(clock.now),
-) -> CampaignPostOut:
-    """Publish an approved post to Instagram (AC67) via the shared publish path (preflight + dedup
-    + receipt). Live posting is this explicit user action; it stays on the stub without keys."""
-    campaign = _owned_campaign(db, campaign_id, user)
-    post = _campaign_post(db, campaign, post_id)
-    if post.status != PostStatus.approved:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"Only an approved post can be published (is '{post.status.value}')",
-        )
-    comp = db.get(Composition, post.composition_id)
-    if comp is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
-    media_bytes: bytes | None = None
-    if post.media_object_key:
-        media_bytes, _ = storage.get_object(post.media_object_key)
-    publish_svc.publish_post(
-        db, settings, now, user=user, post=post, composition=comp, media_bytes=media_bytes
-    )
     return CampaignPostOut.model_validate(post)
