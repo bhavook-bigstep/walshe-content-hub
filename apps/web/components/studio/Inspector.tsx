@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { enterTrack } from "../../lib/studio/anim";
+import { useEffect, useRef, useState } from "react";
+import { enterTrack, nodeStateAt } from "../../lib/studio/anim";
 import {
   EASINGS,
   ENTER_TYPES,
+  type AnimKeyframe,
   type DesignNode,
   type Easing,
   type EnterType,
@@ -30,6 +31,9 @@ interface Props {
   onLayer: (move: LayerMove) => void;
   /** Set (or clear) the selected element's keyframe animation. */
   onAnim: (anim: NodeAnimation | undefined) => void;
+  /** The scene's duration + the current preview playhead (ms), for the keyframe track. */
+  sceneDurationMs: number;
+  playheadMs: number;
 }
 
 const ENTER_LABEL: Record<EnterType | "none", string> = {
@@ -134,6 +138,153 @@ const field =
 const iconBtn =
   "grid h-8 w-8 place-items-center rounded-md border border-walshe-line text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
+function NumBox({ label, value, onChange }: { label: string; value: number | undefined; onChange: (v: number) => void }) {
+  return (
+    <label className="flex items-center gap-0.5" title={label}>
+      <span className="text-walshe-grey">{label}</span>
+      <input
+        type="number"
+        value={value ?? 0}
+        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        aria-label={label}
+        className="h-6 w-12 rounded border border-walshe-line bg-walshe-base px-1 text-right text-[11px] text-walshe-ink focus:border-walshe-mint focus:outline-none"
+      />
+    </label>
+  );
+}
+
+// A compact dope-sheet: a draggable keyframe track + an editable keyframe list. Editing raw
+// keyframes builds a custom track (motion paths etc.) — superseding the entrance preset.
+function KeyframeEditor({
+  node,
+  onAnim,
+  sceneDurationMs,
+  playheadMs,
+}: {
+  node: DesignNode;
+  onAnim: Props["onAnim"];
+  sceneDurationMs: number;
+  playheadMs: number;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragT = useRef<number | null>(null); // the t of the keyframe currently being dragged
+  const kfs = (node.anim?.keyframes ?? []).slice().sort((a, b) => a.t - b.t);
+  const dur = Math.max(1, sceneDurationMs);
+
+  function commit(next: AnimKeyframe[]) {
+    const sorted = next.slice().sort((a, b) => a.t - b.t);
+    const loop = node.anim?.loop;
+    onAnim(sorted.length > 0 || loop ? { keyframes: sorted, loop } : undefined);
+  }
+  function patchKf(i: number, patch: Partial<AnimKeyframe>) {
+    commit(kfs.map((k, idx) => (idx === i ? { ...k, ...patch } : k)));
+  }
+  function timeFromX(clientX: number): number {
+    const r = trackRef.current?.getBoundingClientRect();
+    if (!r) return 0;
+    return Math.round(Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * dur);
+  }
+  function addAt(t: number) {
+    const st = nodeStateAt(node, t);
+    const kf: AnimKeyframe = {
+      t: Math.round(t),
+      x: Math.round(st.x),
+      y: Math.round(st.y),
+      scale: Math.round(st.scale * 100) / 100,
+      rotation: Math.round(st.rotation),
+      opacity: Math.round(st.opacity * 100) / 100,
+      ease: "easeInOut",
+    };
+    commit([...kfs.filter((k) => Math.abs(k.t - kf.t) > 20), kf]);
+  }
+
+  useEffect(() => {
+    function move(e: PointerEvent) {
+      if (dragT.current === null) return;
+      const idx = kfs.findIndex((k) => k.t === dragT.current);
+      if (idx < 0) return;
+      const t = timeFromX(e.clientX);
+      dragT.current = t;
+      patchKf(idx, { t });
+    }
+    function up() {
+      dragT.current = null;
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kfs]);
+
+  return (
+    <div className="space-y-2 border-t border-walshe-line/70 pt-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">Keyframes</span>
+        <button
+          type="button"
+          onClick={() => addAt(playheadMs)}
+          className="rounded-md border border-walshe-line px-2 py-1 text-[11px] font-medium text-walshe-ink transition-colors hover:bg-walshe-ink/10"
+        >
+          + at {(playheadMs / 1000).toFixed(1)}s
+        </button>
+      </div>
+      {/* Dope-sheet track: diamonds = keyframes (drag to retime); double-click to add; line = playhead. */}
+      <div
+        ref={trackRef}
+        onDoubleClick={(e) => addAt(timeFromX(e.clientX))}
+        className="relative h-7 rounded-md border border-walshe-line bg-walshe-stone/40"
+      >
+        <div
+          className="pointer-events-none absolute bottom-0 top-0 w-px bg-walshe-teal/70"
+          style={{ left: `${(Math.min(playheadMs, dur) / dur) * 100}%` }}
+        />
+        {kfs.map((k, i) => (
+          <button
+            key={i}
+            type="button"
+            title={`${(k.t / 1000).toFixed(2)}s — drag to move`}
+            onPointerDown={(e) => {
+              dragT.current = k.t;
+              (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+            }}
+            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-ew-resize rounded-[2px] border border-white bg-walshe-teal shadow"
+            style={{ left: `${(Math.min(k.t, dur) / dur) * 100}%` }}
+          />
+        ))}
+      </div>
+      {kfs.length === 0 ? (
+        <p className="text-[11px] text-walshe-grey">
+          Scrub the timeline, then “+ at …” to drop a keyframe (or double-click the track). Move the
+          element and add keyframes at different times to build a motion path.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {kfs.map((k, i) => (
+            <div key={i} className="flex items-center gap-1.5 text-[11px]">
+              <span className="w-9 tabular-nums text-walshe-grey">{(k.t / 1000).toFixed(2)}s</span>
+              <NumBox label="X" value={k.x} onChange={(v) => patchKf(i, { x: v })} />
+              <NumBox label="Y" value={k.y} onChange={(v) => patchKf(i, { y: v })} />
+              <NumBox label="%" value={Math.round((k.scale ?? 1) * 100)} onChange={(v) => patchKf(i, { scale: v / 100 })} />
+              <NumBox label="°" value={Math.round(k.rotation ?? 0)} onChange={(v) => patchKf(i, { rotation: v })} />
+              <button
+                type="button"
+                aria-label="Delete keyframe"
+                onClick={() => commit(kfs.filter((_, idx) => idx !== i))}
+                className="ml-auto grid h-6 w-6 place-items-center rounded text-walshe-danger transition-colors hover:bg-walshe-danger/10"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // A small chequerboard, shown when a colour is transparent (and on the Transparent toggle).
 const CHECKER: React.CSSProperties = {
   backgroundColor: "#fff",
@@ -192,7 +343,7 @@ function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => 
 }
 
 /** The selected-element Inspector: type-specific styling controls + layer/duplicate/delete. */
-export default function Inspector({ node, onChange, onDuplicate, onDelete, onLayer, onAnim }: Props) {
+export default function Inspector({ node, onChange, onDuplicate, onDelete, onLayer, onAnim, sceneDurationMs, playheadMs }: Props) {
   if (!node) {
     return <p className="px-1 py-6 text-center text-small text-walshe-grey">Select an element to style it.</p>;
   }
@@ -341,6 +492,8 @@ export default function Inspector({ node, onChange, onDuplicate, onDelete, onLay
       </div>
 
       <AnimControls node={node} onAnim={onAnim} />
+
+      <KeyframeEditor node={node} onAnim={onAnim} sceneDurationMs={sceneDurationMs} playheadMs={playheadMs} />
 
       <div className="flex items-center justify-between gap-2 border-t border-walshe-line/70 pt-2.5">
         <div className="flex gap-1.5">

@@ -68,7 +68,9 @@ def build_scene_script(items: Sequence[dict[str, Any]]) -> Scenes:
     for i, item in enumerate(list(items)[:MAX_ITEMS]):
         title = str(item.get("title") or item.get("name") or f"Scene {i + 1}").strip()[:MAX_TEXT]
         caption = str(item.get("description") or item.get("text") or "").strip()[:MAX_TEXT]
-        narration = f"{title}. {caption}".strip() if caption else title
+        # An explicit per-scene narration script wins; otherwise fall back to title + caption.
+        explicit = str(item.get("narration") or "").strip()[:600]
+        narration = explicit or (f"{title}. {caption}".strip() if caption else title)
         ms = item.get("duration_ms")
         duration = (
             clamp_duration(float(ms) / 1000.0) if isinstance(ms, (int, float)) else SCENE_SECONDS

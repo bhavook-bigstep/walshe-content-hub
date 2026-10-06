@@ -21,6 +21,11 @@ interface Props {
   durationMs: number;
   onTogglePlay: () => void;
   onScrub: (timeMs: number) => void;
+  /** Voiceover: a per-scene narration script + a global on/off for the exported video. */
+  narrate: boolean;
+  onToggleNarrate: () => void;
+  narration: string;
+  onNarrationChange: (text: string) => void;
 }
 
 /**
@@ -44,6 +49,10 @@ export default function TimelineDrawer({
   durationMs,
   onTogglePlay,
   onScrub,
+  narrate,
+  onToggleNarrate,
+  narration,
+  onNarrationChange,
 }: Props) {
   return (
     // Anchored just below the menu bar, centred, sliding vertically. Closed → shift up by exactly
@@ -61,8 +70,12 @@ export default function TimelineDrawer({
             <rect x="3" y="7" width="5" height="10" rx="1" /><rect x="10" y="7" width="5" height="10" rx="1" /><rect x="17" y="7" width="4" height="10" rx="1" />
           </svg>
           <h2 className="text-small font-bold text-walshe-ink">Timeline</h2>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
             {videoMsg && <span className="text-[12px] text-walshe-grey">{videoMsg}</span>}
+            <label className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-walshe-ink" title="Read each scene's narration script aloud in the video">
+              <input type="checkbox" checked={narrate} onChange={onToggleNarrate} className="accent-walshe-teal" />
+              Voiceover
+            </label>
             <button type="button" onClick={onGenerateVideo} disabled={rendering} className="btn-secondary inline-flex items-center gap-2">
               {rendering && <Spinner />}
               {rendering ? "Rendering…" : "Generate video"}
@@ -100,8 +113,23 @@ export default function TimelineDrawer({
           </span>
         </div>
 
-        {/* Body: the ordered scene timeline. */}
+        {/* Body: per-scene narration script + the ordered scene timeline. */}
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <label className="mb-4 block">
+            <span className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">
+              Narration — Scene {activeScene + 1}
+              {!narrate && <span className="font-normal normal-case text-walshe-grey/80">enable Voiceover to use</span>}
+            </span>
+            <textarea
+              value={narration}
+              onChange={(e) => onNarrationChange(e.target.value)}
+              rows={2}
+              maxLength={600}
+              placeholder="What the voiceover says over this scene…"
+              aria-label={`Narration for scene ${activeScene + 1}`}
+              className="w-full resize-y rounded-md border border-walshe-line bg-walshe-base p-2 text-small text-walshe-ink focus:border-walshe-mint focus:outline-none"
+            />
+          </label>
           <SceneControls design={design} activeScene={activeScene} onChange={onChange} onSelectScene={onSelectScene} />
         </div>
       </aside>

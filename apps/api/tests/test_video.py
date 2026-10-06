@@ -528,3 +528,14 @@ def test_video_frames_route(client, agent_headers, provider_headers, monkeypatch
         "scenes": [{"duration_ms": 1000, "transition": "none", "frames": ["http://x/a.jpg"]}],
     }
     assert client.post("/render/video-frames", headers=agent_headers, json=bad).status_code == 503
+
+
+def test_scene_script_uses_explicit_narration():
+    scenes = build_scene_script(
+        [
+            {"title": "T", "description": "C", "narration": "A custom voiceover line."},
+            {"title": "U", "description": ""},
+        ]
+    )
+    assert scenes[0].narration == "A custom voiceover line."  # explicit script wins
+    assert scenes[1].narration == "U"  # falls back to title when no script/caption

@@ -2133,6 +2133,11 @@ export interface components {
             /** Frames */
             frames: string[];
             /**
+             * Narration
+             * @default
+             */
+            narration: string;
+            /**
              * Title
              * @default
              */

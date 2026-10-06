@@ -16,6 +16,7 @@ import {
   newDesign,
   removeScene,
   renameScene,
+  setSceneNarration,
   reorderScene,
   resizeNode,
   scenesAsPages,
@@ -208,9 +209,24 @@ describe("studio scene ops", () => {
     expect(r1.scenes[0].name).toBe("Intro");
     expect(() => setSceneDuration(three, "no-scene", 1000)).toThrow(/not found/);
 
+    // setSceneNarration sets a script and clears it when blank.
+    const n1 = setSceneNarration(three, "scene-n1", "Welcome to the tour.");
+    expect(n1.scenes[0].narration).toBe("Welcome to the tour.");
+    expect(setSceneNarration(n1, "scene-n1", "   ").scenes[0].narration).toBeUndefined();
+
     // clampSceneDuration handles non-finite input.
     expect(clampSceneDuration(Number.NaN)).toBe(DEFAULT_SCENE_DURATION_MS);
     expect(clampSceneDuration(3000)).toBe(3000);
+  });
+
+  it("test_set_scene_narration", () => {
+    const three = addScene(addScene(newDesign("social")));
+    const withScript = setSceneNarration(three, "scene-n2", "Over this scene, we say hello.");
+    expect(withScript.scenes[1].narration).toBe("Over this scene, we say hello.");
+    // Other scenes are untouched; a blank script clears it; original is not mutated.
+    expect(withScript.scenes[0].narration).toBeUndefined();
+    expect(setSceneNarration(withScript, "scene-n2", "").scenes[1].narration).toBeUndefined();
+    expect(three.scenes[1].narration).toBeUndefined();
   });
 
   it("test_migrate_legacy_pages_to_scenes", () => {

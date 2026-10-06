@@ -54,6 +54,7 @@ import {
   reorderNode,
   resizeNode,
   setNodeAnim,
+  setSceneNarration,
   updateNode,
   type DesignDoc,
   type DesignNode,
@@ -168,6 +169,8 @@ function StudioEditor() {
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
+  // Add a voiceover (TTS) to the exported video, reading each scene's narration script.
+  const [narrate, setNarrate] = useState(false);
   // Editable project name (rename).
   const [nameDraft, setNameDraft] = useState("");
   const params = useSearchParams();
@@ -508,10 +511,11 @@ function StudioEditor() {
       const sceneFrames = await renderDesignFrames(design, EXPORT_FPS);
       const body = {
         fps: EXPORT_FPS,
-        narrate: false,
+        narrate,
         scenes: design.scenes.map((s, i) => ({
           title: s.name,
           caption: (s.nodes.find((n) => n.type === "text" && n.text?.trim())?.text ?? "").slice(0, 200),
+          narration: (s.narration ?? "").slice(0, 600),
           duration_ms: s.durationMs,
           transition: s.transition,
           frames: sceneFrames[i].frames,
@@ -772,6 +776,13 @@ function StudioEditor() {
           durationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
           onTogglePlay={togglePlay}
           onScrub={scrub}
+          narrate={narrate}
+          onToggleNarrate={() => setNarrate((n) => !n)}
+          narration={design.scenes[sceneIndex]?.narration ?? ""}
+          onNarrationChange={(text) => {
+            const id = design.scenes[sceneIndex]?.id;
+            if (id) setDesign((d) => setSceneNarration(d, id, text));
+          }}
         />
 
         {/* Right tool rail: creation tools only (icons + hover names). */}
@@ -798,6 +809,8 @@ function StudioEditor() {
               onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
               onLayer={layerSelected}
               onAnim={animSelected}
+              sceneDurationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
+              playheadMs={playhead}
             />
           </div>
         )}

@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.32.0 |
+| **Version** | 2.33.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -555,13 +555,26 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   bytes (`data:` URLs) composed from approved assets — never file paths, never a network fetch
   (Contracts 1/2); deterministic given the design (Contract 4). Proof: api (frame-clip command
   shape, per-scene sequence + stitch, the agent-only route decodes frames and rejects non-`data:`).
+- **AC79** — **Keyframe / dope-sheet editor.** Beyond the entrance presets, an element's animation
+  can be authored as a **custom keyframe track**: the Inspector shows a **dope-sheet** — a draggable
+  keyframe track (diamonds the agent drags to **retime**, double-click to add) plus an editable
+  keyframe list (per-keyframe time · x · y · scale · rotation, add/delete). "Add keyframe at the
+  playhead" captures the element's current state, so scrubbing + adding keyframes builds a **custom
+  motion path** (editing keyframes supersedes the preset). The engine (AC77) plays the track —
+  multi-point motion paths, scale/rotation ramps — regardless of keyframe order. Proof: web
+  (3-point polyline motion path, scale/rotation interpolation, out-of-order sort, custom-track op).
+- **AC80** — **Per-scene narration script.** Each scene carries an optional **narration** script
+  (stored on the scene). The Timeline exposes a per-scene narration field and a **Voiceover**
+  toggle (off by default); when on, the video export sends each scene's script and the render lays
+  **TTS narration** under that scene (an explicit script overrides the title/caption fallback).
+  Proof: api (explicit narration wins over the fallback) + web (set/clear the scene script).
 
-**Priority tiers** (build order; acceptance reports honestly against all 78):
+**Priority tiers** (build order; acceptance reports honestly against all 80):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -600,6 +613,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.33.0 | 2026-10-06 | **Keyframe/dope-sheet editor + per-scene narration (phase 3)** (added **AC79**, **AC80**): the Inspector gained a **dope-sheet** — a draggable keyframe track (retime by dragging the diamonds, double-click to add) plus an editable keyframe list (time · x · y · scale · rotation, add/delete) and "+ at playhead" (captures the element's current state) — so agents author **custom motion paths** beyond the entrance presets; editing keyframes supersedes the preset and the AC77 engine plays the track. Each scene also gained an optional **narration script** (stored on the scene) with a Timeline field and a **Voiceover** toggle (off by default); when on, the video lays per-scene **TTS** under each clip (an explicit script overrides the title/caption fallback). All prior ACs stay green. | user + Claude |
 | 2.32.0 | 2026-10-06 | **WYSIWYG frame-capture video export (phase 2)** (added **AC78**): "Generate video" no longer stitches catalog covers with synthesised captions (which rendered as empty colour screens on ffmpeg builds without `drawtext`). It now **rasterises each scene's animation frame-by-frame in the browser** — the same Fabric renderer + the AC77 engine — and posts the JPEG frames to a new `POST /render/video-frames`; the server sequences each scene's frames into an H.264 clip and **stitches them with the scenes' transitions** (optional TTS narration, off by default). The MP4 is exactly the animated preview. Frames are inert `data:` image bytes (no file paths, no network fetch); the frame-encode path reuses the ultrafast/stitch machinery. Regenerated the API types for the new endpoint. All prior ACs stay green. | user + Claude |
 | 2.31.0 | 2026-10-06 | **Scene animation — keyframe model + engine + timeline preview (phase 1)** (added **AC77**): elements now carry a declarative, JSON keyframe **animation** on their node (`{keyframes:[{t,x,y,scale,rotation,opacity,ease}], enter?, loop?}`), stored in the workspace scenes. A pure, deterministic **engine** (`lib/studio/anim.ts` `nodeStateAt`) interpolates the track — motion paths, size/opacity/rotation, entrance presets (fade/rise/slide/scale) and pulse/bob emphasis — and the **same engine** drives the live canvas preview: the Timeline gained a **play/scrub transport** that animates the Fabric objects, and the Inspector gained **Animation** controls (entrance type/start/duration/easing + emphasis). The chosen mechanism is in-boundary (no cloud/egress), with the workspace JSON as the single source of truth; phase 2 will reuse this engine for WYSIWYG video frame-capture export. All prior ACs stay green. | user + Claude |
 | 2.30.0 | 2026-10-06 | **Video renders on ffmpeg builds without `drawtext` + export progress spinner** (fixes within **AC13**/**AC47**, enhances **AC12**): "Generate video" failed (500 → "Video rendering unavailable") on ffmpeg builds that omit the `drawtext` filter (e.g. a minimal Homebrew ffmpeg). The renderer now **probes the binary once and degrades gracefully** — when `drawtext` is absent it drops the burned-in title/caption overlay and still produces the MP4 (captions remain in the sidecar `.srt`). Also added a **circular processing spinner** shown in the always-visible menu bar (and on the Timeline button) while a PNG/PDF/HTML export or a video render is in progress. All prior ACs stay green. | user + Claude |

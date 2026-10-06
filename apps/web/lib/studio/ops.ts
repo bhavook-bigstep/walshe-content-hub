@@ -157,6 +157,8 @@ export interface Scene extends DesignPage {
   durationMs: number;
   /** transition INTO the next scene */
   transition: TransitionKind;
+  /** optional voiceover script read over this scene when the video is narrated */
+  narration?: string;
 }
 
 export interface DesignDoc {
@@ -420,6 +422,16 @@ export function setSceneTransition(
 /** Rename a scene (AC46). */
 export function renameScene(design: DesignDoc, sceneId: string, name: string): DesignDoc {
   return mapScene(design, sceneId, (s) => ({ ...s, name }));
+}
+
+/** Set (or clear, with an empty string) a scene's voiceover narration script. */
+export function setSceneNarration(design: DesignDoc, sceneId: string, narration: string): DesignDoc {
+  return mapScene(design, sceneId, (s) => {
+    const next = { ...s };
+    if (narration.trim()) next.narration = narration;
+    else delete next.narration;
+    return next;
+  });
 }
 
 function mapNode(

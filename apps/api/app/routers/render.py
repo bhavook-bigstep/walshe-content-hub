@@ -145,6 +145,7 @@ def _decode_frame(data_url: str) -> bytes | None:
 class FrameScene(BaseModel):
     title: str = Field(default="", max_length=200)
     caption: str = Field(default="", max_length=200)
+    narration: str = Field(default="", max_length=600)
     duration_ms: int = Field(ge=0, le=60000)
     transition: Literal["none", "fade", "slide-left", "zoom"] = "none"
     frames: list[str] = Field(min_length=1, max_length=900)
@@ -180,6 +181,7 @@ def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)
                     {
                         "title": s.title,
                         "description": s.caption,
+                        "narration": s.narration,
                         "duration_ms": s.duration_ms,
                         "transition": s.transition,
                     }

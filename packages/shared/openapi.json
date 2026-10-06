@@ -1759,6 +1759,12 @@
             "title": "Frames",
             "type": "array"
           },
+          "narration": {
+            "default": "",
+            "maxLength": 600,
+            "title": "Narration",
+            "type": "string"
+          },
           "title": {
             "default": "",
             "maxLength": 200,
