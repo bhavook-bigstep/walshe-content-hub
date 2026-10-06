@@ -1124,12 +1124,12 @@ export interface paths {
         };
         /**
          * Get Workspace
-         * @description The structured workspace (AC64), resolved: references expanded to live entries + assets.
+         * @description The structured workspace (AC75), resolved: references expanded to live entries + assets.
          */
         get: operations["get_workspace_me_projects__project_id__workspace_get"];
         /**
          * Save Workspace
-         * @description Autosave the whole workspace (AC64). Validates references (visible entries, owned assets),
+         * @description Autosave the whole workspace (AC75). Validates references (visible entries, owned assets),
          *     bumps the version, and keeps item_ids/design in sync for the compat resolve/export paths.
          */
         put: operations["save_workspace_me_projects__project_id__workspace_put"];

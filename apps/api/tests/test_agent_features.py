@@ -97,7 +97,7 @@ def test_collection_drops_expired_references(client, provider_headers, agent_hea
 
 
 def test_project_from_collection_seeds_workspace(client, provider_headers, agent_headers) -> None:
-    # AC64 — creating a project from a collection seeds reference_content.collections,
+    # AC75 — creating a project from a collection seeds reference_content.collections,
     # and GET /workspace returns it resolved (collection entries with their items).
     e1 = _visible_entry(client, provider_headers, "WS one")
     e2 = _visible_entry(client, provider_headers, "WS two")
@@ -126,7 +126,7 @@ def test_project_from_collection_seeds_workspace(client, provider_headers, agent
 
 
 def test_workspace_refs_carry_media_links(client, provider_headers, agent_headers, app) -> None:
-    # AC64 — the stored reference_content entries carry the entry's media links (S3/MinIO keys),
+    # AC75 — the stored reference_content entries carry the entry's media links (S3/MinIO keys),
     # so the workspace is self-contained. We inspect the persisted workspace JSON directly.
     from app.models.composition import Composition
 
@@ -155,7 +155,7 @@ def test_workspace_refs_carry_media_links(client, provider_headers, agent_header
 
 
 def test_workspace_put_validates_and_bumps_version(client, provider_headers, agent_headers) -> None:
-    # AC64 — PUT saves the whole workspace, bumps the version, and drops invalid references.
+    # AC75 — PUT saves the whole workspace, bumps the version, and drops invalid references.
     e1 = _visible_entry(client, provider_headers, "Keep me")
     pid = client.post(
         "/me/projects", headers=agent_headers, json={"name": "Blank", "format": "social"}
@@ -194,7 +194,7 @@ def test_workspace_put_validates_and_bumps_version(client, provider_headers, age
 
 
 def test_workspace_migrates_legacy_project(client, agent_headers, app) -> None:
-    # AC64 — a project saved before workspaces migrates on read from its item_ids/design.
+    # AC75 — a project saved before workspaces migrates on read from its item_ids/design.
     from app.models.composition import Composition
 
     pid = client.post(

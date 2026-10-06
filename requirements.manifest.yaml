@@ -392,7 +392,7 @@ acceptance:
     tier: P2
     e2e:
       - "apps/web/e2e/agent-workspace-smoke.spec.ts::agent: open entry modal, save to collection, manage it, start a project"
-  AC64:
+  AC75:
     tier: P2
     api:
       - "apps/api/tests/test_agent_features.py::test_project_from_collection_seeds_workspace"

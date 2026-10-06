@@ -356,11 +356,11 @@ export async function getProject(id: number): Promise<Project> {
 export async function getProjectResolved(id: number): Promise<ProjectResolved> {
   return (await (await send(`/me/projects/${id}/resolved`)).json()) as ProjectResolved;
 }
-/** The structured workspace (AC64), resolved: references expanded to live entries + assets. */
+/** The structured workspace (AC75), resolved: references expanded to live entries + assets. */
 export async function getWorkspace(id: number): Promise<WorkspaceResolved> {
   return (await (await send(`/me/projects/${id}/workspace`)).json()) as WorkspaceResolved;
 }
-/** Autosave the whole workspace (AC64); returns it re-resolved with the bumped version. */
+/** Autosave the whole workspace (AC75); returns it re-resolved with the bumped version. */
 export async function saveWorkspace(id: number, body: WorkspaceIn): Promise<WorkspaceResolved> {
   return (await (
     await send(`/me/projects/${id}/workspace`, { ...json(body), method: "PUT" })
