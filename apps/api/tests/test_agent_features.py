@@ -33,8 +33,12 @@ def _visible_entry(client, provider_headers, title: str) -> int:
         "/catalog",
         headers=provider_headers,
         json={
-            "catalog_id": cid, "type": "event", "title": title, "description": "d",
-            "destination": "Galway", "visibility": "public",
+            "catalog_id": cid,
+            "type": "event",
+            "title": title,
+            "description": "d",
+            "destination": "Galway",
+            "visibility": "public",
         },
     )
     assert r.status_code == 201, r.text
@@ -59,9 +63,12 @@ def test_collections_crud(client, provider_headers, agent_headers) -> None:
     # Save a second visible entry via the add endpoint; a bogus id is rejected.
     add = client.post(f"/me/collections/{cid}/items", headers=agent_headers, json={"entry_id": e2})
     assert add.status_code == 200 and set(add.json()["item_ids"]) == {e1, e2}
-    assert client.post(
-        f"/me/collections/{cid}/items", headers=agent_headers, json={"entry_id": 999999}
-    ).status_code == 404
+    assert (
+        client.post(
+            f"/me/collections/{cid}/items", headers=agent_headers, json={"entry_id": 999999}
+        ).status_code
+        == 404
+    )
 
     # Resolve → both entries present, nothing dropped.
     resolved = client.get(f"/me/collections/{cid}/resolved", headers=agent_headers).json()
@@ -96,18 +103,53 @@ def test_collection_drops_expired_references(client, provider_headers, agent_hea
     assert resolved["items"] == [] and resolved["dropped_item_ids"] == [eid]
 
 
+def test_project_from_template_seeds_workspace(client, agent_headers) -> None:
+    # AC62/AC64 — a template IS a workspace; using one seeds the whole project workspace (scenes +
+    # format), and the studio loads it via the normal GET /workspace path.
+    templates = client.get("/me/design-templates", headers=agent_headers).json()
+    assert templates, "built-in templates present"
+    t = next(x for x in templates if x["id"] == "destination-poster")
+
+    created = client.post(
+        "/me/projects",
+        headers=agent_headers,
+        json={"name": "My poster", "template_id": t["id"]},
+    )
+    assert created.status_code == 201, created.text
+    pid = created.json()["id"]
+    assert created.json()["format"] == "story"  # template format overrides the default
+
+    ws = client.get(f"/me/projects/{pid}/workspace", headers=agent_headers).json()
+    assert ws["metadata"]["name"] == "My poster"
+    assert ws["metadata"]["format"] == "story"
+    assert len(ws["scenes"]) == 1
+    assert any(n["type"] == "text" for n in ws["scenes"][0]["nodes"])
+
+    # Save/reopen fidelity: edit a styled node, PUT the whole workspace, reload → change persists
+    # exactly (the workspace engine stores scenes verbatim, styling included).
+    ws["scenes"][0]["nodes"][0]["fontSize"] = 123
+    ws["scenes"][0]["nodes"][0]["fontWeight"] = "bold"
+    saved = client.put(f"/me/projects/{pid}/workspace", headers=agent_headers, json=ws)
+    assert saved.status_code == 200, saved.text
+    reloaded = client.get(f"/me/projects/{pid}/workspace", headers=agent_headers).json()
+    node = reloaded["scenes"][0]["nodes"][0]
+    assert node["fontSize"] == 123 and node["fontWeight"] == "bold"
+
+
 def test_project_from_collection_seeds_workspace(client, provider_headers, agent_headers) -> None:
     # AC75 — creating a project from a collection seeds reference_content.collections,
     # and GET /workspace returns it resolved (collection entries with their items).
     e1 = _visible_entry(client, provider_headers, "WS one")
     e2 = _visible_entry(client, provider_headers, "WS two")
     cid = client.post(
-        "/me/collections", headers=agent_headers,
+        "/me/collections",
+        headers=agent_headers,
         json={"name": "Trip", "item_ids": [e1, e2]},
     ).json()["id"]
 
     created = client.post(
-        "/me/projects", headers=agent_headers,
+        "/me/projects",
+        headers=agent_headers,
         json={"name": "From trip", "format": "story", "collection_id": cid},
     )
     assert created.status_code == 201, created.text
@@ -142,7 +184,8 @@ def test_workspace_refs_carry_media_links(client, provider_headers, agent_header
         "/me/collections", headers=agent_headers, json={"name": "Media", "item_ids": [eid]}
     ).json()["id"]
     pid = client.post(
-        "/me/projects", headers=agent_headers,
+        "/me/projects",
+        headers=agent_headers,
         json={"name": "Media proj", "collection_id": cid},
     ).json()["id"]
 
@@ -162,17 +205,21 @@ def test_workspace_put_validates_and_bumps_version(client, provider_headers, age
     ).json()["id"]
 
     put = client.put(
-        f"/me/projects/{pid}/workspace", headers=agent_headers,
+        f"/me/projects/{pid}/workspace",
+        headers=agent_headers,
         json={
             "metadata": {"name": "Edited", "format": "social", "width": 1080, "height": 1080},
             "reference_content": {
-                "collections": [{
-                    "collection_id": 0, "name": "Picks",
-                    "entries": [
-                        {"entry_id": e1, "title": "Keep me", "type": "event"},
-                        {"entry_id": 999999, "title": "Ghost", "type": "event"},
-                    ],
-                }],
+                "collections": [
+                    {
+                        "collection_id": 0,
+                        "name": "Picks",
+                        "entries": [
+                            {"entry_id": e1, "title": "Keep me", "type": "event"},
+                            {"entry_id": 999999, "title": "Ghost", "type": "event"},
+                        ],
+                    }
+                ],
                 "uploads": [{"asset_id": 123456, "object_key": "nope"}],
                 "generated": [],
             },
@@ -198,7 +245,8 @@ def test_workspace_migrates_legacy_project(client, agent_headers, app) -> None:
     from app.models.composition import Composition
 
     pid = client.post(
-        "/me/projects", headers=agent_headers,
+        "/me/projects",
+        headers=agent_headers,
         json={"name": "Legacy", "format": "pamphlet", "design": {"scenes": [{"id": "old"}]}},
     ).json()["id"]
 

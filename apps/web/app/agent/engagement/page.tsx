@@ -41,7 +41,6 @@ export default function AgentEngagementPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Engagement" }]}
         title="Engagement"
-        description="Impressions, clicks and engagement for published posts (seeded sample data)."
       />
 
       {error && (

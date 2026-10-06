@@ -33,6 +33,10 @@ export const MIN_SCENE_DURATION_MS = 500;
 export const MAX_SCENE_DURATION_MS = 15000;
 export const DEFAULT_TRANSITION: TransitionKind = "fade";
 
+export type FontWeight = "normal" | "bold";
+export type FontStyle = "normal" | "italic";
+export type TextAlign = "left" | "center" | "right";
+
 export interface DesignNode {
   readonly id: string;
   readonly type: NodeType;
@@ -46,11 +50,57 @@ export interface DesignNode {
   shape?: ShapeKind;
   /** fill/stroke/background colour */
   color?: string;
-  /** image nodes only — the served catalog asset URL */
+  /** image nodes only — the served catalog asset URL (ephemeral blob/data; re-resolved on open) */
   src?: string;
   /** image nodes only — provenance back to the approved catalog entry */
   catalogItemId?: string;
+  /** image nodes only — the stable storage object key, used to re-resolve `src` after reload */
+  objectKey?: string;
+
+  // ---- Styling (optional; sensible defaults applied at render) ----
+  /** text: font size in px */
+  fontSize?: number;
+  /** text: font family */
+  fontFamily?: string;
+  /** text: normal | bold */
+  fontWeight?: FontWeight;
+  /** text: normal | italic */
+  fontStyle?: FontStyle;
+  /** text: horizontal alignment */
+  textAlign?: TextAlign;
+  /** text: line height multiplier */
+  lineHeight?: number;
+  /** all nodes: 0..1 */
+  opacity?: number;
+  /** all nodes: rotation in degrees */
+  angle?: number;
+  /** shape/image: corner radius in px (rect + image frames) */
+  radius?: number;
+  /** shape: stroke colour (outline) */
+  stroke?: string;
+  /** shape: stroke width in px */
+  strokeWidth?: number;
 }
+
+/** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
+export type NodeStyle = Pick<
+  DesignNode,
+  | "color"
+  | "text"
+  | "shape"
+  | "src"
+  | "fontSize"
+  | "fontFamily"
+  | "fontWeight"
+  | "fontStyle"
+  | "textAlign"
+  | "lineHeight"
+  | "opacity"
+  | "angle"
+  | "radius"
+  | "stroke"
+  | "strokeWidth"
+>;
 
 /** The base page shape the server PDF/HTML export consumes (a list of these). */
 export interface DesignPage {
@@ -83,6 +133,29 @@ export interface NodePlacement {
   width?: number;
   height?: number;
   color?: string;
+  // Optional styling the creator may set up front (templates use these heavily).
+  fontSize?: number;
+  fontFamily?: string;
+  fontWeight?: FontWeight;
+  fontStyle?: FontStyle;
+  textAlign?: TextAlign;
+  lineHeight?: number;
+  opacity?: number;
+  angle?: number;
+  radius?: number;
+  stroke?: string;
+  strokeWidth?: number;
+}
+
+/** Copy only the defined styling fields from a placement onto a new node. */
+function stylePlacement(p: NodePlacement): Partial<DesignNode> {
+  const out: Partial<DesignNode> = {};
+  const keys = [
+    "fontSize", "fontFamily", "fontWeight", "fontStyle", "textAlign", "lineHeight",
+    "opacity", "angle", "radius", "stroke", "strokeWidth",
+  ] as const;
+  for (const k of keys) if (p[k] !== undefined) (out as Record<string, unknown>)[k] = p[k];
+  return out;
 }
 
 const DEFAULT_PLACEMENT = { x: 64, y: 64, width: 320, height: 96 } as const;
@@ -181,6 +254,7 @@ export function addText(
     height: placement.height ?? DEFAULT_PLACEMENT.height,
     color: placement.color ?? "#111111",
     text,
+    ...stylePlacement(placement),
   });
   return next;
 }
@@ -203,6 +277,7 @@ export function addShape(
     width: placement.width ?? 200,
     height: placement.height ?? 200,
     color: placement.color ?? "#2563eb",
+    ...stylePlacement(placement),
   });
   return next;
 }
@@ -223,7 +298,7 @@ export function setBackground(design: DesignDoc, sceneIndex: number, color: stri
 export function addCatalogImage(
   design: DesignDoc,
   sceneIndex: number,
-  image: { src: string; catalogItemId: string },
+  image: { src: string; catalogItemId: string; objectKey?: string },
   placement: NodePlacement = {},
 ): DesignDoc {
   assertScene(design, sceneIndex);
@@ -238,6 +313,9 @@ export function addCatalogImage(
     height: placement.height ?? 480,
     src: image.src,
     catalogItemId: image.catalogItemId,
+    // Persist the stable object key so the (ephemeral) blob src can be re-resolved on reopen.
+    ...(image.objectKey ? { objectKey: image.objectKey } : {}),
+    ...stylePlacement(placement),
   });
   return next;
 }
@@ -372,6 +450,62 @@ export function editText(
     }
     return { ...n, text };
   });
+}
+
+/** Patch a node's style (colour, font, stroke, radius, opacity, rotation, …). Geometry and
+ * identity are never written here — use move/resize for those. Undefined patch keys clear a prop. */
+export function updateNode(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  patch: Partial<NodeStyle>,
+): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    const next = { ...n };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete (next as Record<string, unknown>)[k];
+      else (next as Record<string, unknown>)[k] = v;
+    }
+    return next;
+  });
+}
+
+/** Duplicate a node on the same scene, offset slightly, placed just above the original. Returns
+ * the new design; the copy gets a fresh unique id. */
+export function duplicateNode(design: DesignDoc, sceneIndex: number, nodeId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const idx = scene.nodes.findIndex((n) => n.id === nodeId);
+  if (idx === -1) throw new Error(`node ${nodeId} not found on scene ${sceneIndex}`);
+  const src = scene.nodes[idx];
+  const copy: DesignNode = { ...src, id: nextId(src.type, scene), x: src.x + 24, y: src.y + 24 };
+  scene.nodes.splice(idx + 1, 0, copy);
+  return next;
+}
+
+export type LayerMove = "forward" | "backward" | "front" | "back";
+
+/** Reorder a node within its scene's z-stack (array order = paint order; last = top). */
+export function reorderNode(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  move: LayerMove,
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const nodes = next.scenes[sceneIndex].nodes;
+  const i = nodes.findIndex((n) => n.id === nodeId);
+  if (i === -1) throw new Error(`node ${nodeId} not found on scene ${sceneIndex}`);
+  const [n] = nodes.splice(i, 1);
+  const to =
+    move === "front" ? nodes.length
+    : move === "back" ? 0
+    : move === "forward" ? Math.min(nodes.length, i + 1)
+    : Math.max(0, i - 1);
+  nodes.splice(to, 0, n);
+  return next;
 }
 
 /**

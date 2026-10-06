@@ -55,15 +55,26 @@ describe("storyboard → video request", () => {
     expect(scene.item_id).toBe(7);
   });
 
-  it("handles non-numeric and unknown catalog ids safely", () => {
-    // A non-numeric catalogItemId (the manual-ops id style) yields item_id null, title = scene name.
-    let nonNumeric = newDesign("social");
-    nonNumeric = addCatalogImage(nonNumeric, 0, { src: "/a.png", catalogItemId: "entry-123" });
-    const [a] = designToVideoScenes(nonNumeric, ITEMS);
-    expect(a.item_id).toBeNull();
-    expect(a.title).toBe("Scene 1");
+  it("resolves an entry-<id> image to its catalog entry id (the scene photo)", () => {
+    // Placed media is tagged `entry-<id>`; the scene photo is that entry's cover (item_id = 7).
+    let d = newDesign("social");
+    d = addCatalogImage(d, 0, { src: "blob:x", catalogItemId: "entry-7" });
+    const [scene] = designToVideoScenes(d, ITEMS);
+    expect(scene.item_id).toBe(7);
+    expect(scene.title).toBe("Harbour Festival");
+  });
 
-    // A numeric id that isn't in the supplied items still sends item_id (server re-checks visibility).
+  it("ignores item-/asset- media (not catalog entries) → no scene photo", () => {
+    let d = newDesign("social");
+    d = addCatalogImage(d, 0, { src: "blob:x", catalogItemId: "item-5" });
+    d = addScene(d);
+    d = addCatalogImage(d, 1, { src: "blob:y", catalogItemId: "asset-9" });
+    const scenes = designToVideoScenes(d, ITEMS);
+    expect(scenes[0].item_id).toBeNull();
+    expect(scenes[1].item_id).toBeNull();
+  });
+
+  it("accepts a legacy bare numeric id (server re-checks visibility)", () => {
     let unknown = newDesign("social");
     unknown = addCatalogImage(unknown, 0, { src: "/a.png", catalogItemId: "999" });
     const [b] = designToVideoScenes(unknown, ITEMS);

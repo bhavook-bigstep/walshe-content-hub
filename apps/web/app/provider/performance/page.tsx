@@ -35,7 +35,6 @@ export default function ProviderPerformancePage() {
     <div>
       <PageHeader
         title="Performance"
-        description="How agents use your content across the trade."
       />
 
       {error ? (

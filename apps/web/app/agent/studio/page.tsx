@@ -6,9 +6,10 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { Canvas } from "fabric";
 import type { StudioControls } from "../../../components/studio/StudioCanvas";
 import type { BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
-import SceneControls from "../../../components/studio/SceneControls";
 import StudioBottomDock from "../../../components/studio/StudioBottomDock";
 import StudioRightRail from "../../../components/studio/StudioRightRail";
+import StudioMenuBar from "../../../components/studio/StudioMenuBar";
+import TimelineDrawer from "../../../components/studio/TimelineDrawer";
 import type { CatalogImageOption } from "../../../components/studio/Toolbar";
 import WorkspaceDrawer, {
   MEDIA_DND_TYPE,
@@ -38,33 +39,30 @@ import {
   type WorkspaceResolved,
 } from "../../../lib/api";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
+import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
 import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import {
   addCatalogImage,
-  addShape,
-  addText,
   deleteNode,
+  duplicateNode,
+  editText,
   migrateDesign,
   moveNode,
   newDesign,
+  reorderNode,
   resizeNode,
-  setBackground,
+  updateNode,
   type DesignDoc,
+  type DesignNode,
+  type LayerMove,
+  type NodeStyle,
 } from "../../../lib/studio/ops";
+import Inspector from "../../../components/studio/Inspector";
 
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
 
-// Synthetic placeholder asset (inline SVG) standing in for an approved catalog image.
-const SEED_IMAGE =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480"><rect width="480" height="480" fill="#93c5fd"/></svg>',
-  );
-const CATALOG_IMAGES: readonly CatalogImageOption[] = [
-  { catalogItemId: "seed-1", label: "Sample", src: SEED_IMAGE },
-];
 
 // Map an approved catalog entry to the panel item shape; its cover (or first asset) becomes the
 // image, resolved from the MinIO/S3 object key via the authed asset gate.
@@ -128,12 +126,10 @@ function assetToRef(a: UserAsset): AssetRef {
   };
 }
 
+// A fresh design starts empty (a blank artboard) — the agent adds their own content, or opens a
+// template/collection that brings its own.
 function seeded(format: FormatName): DesignDoc {
-  let d = newDesign(format);
-  d = setBackground(d, 0, "#fef3c7");
-  d = addShape(d, 0, "ellipse", { x: 600, y: 120, width: 240, height: 240, color: "#f97316" });
-  d = addText(d, 0, "Discover Ireland", { x: 64, y: 64, width: 480 });
-  return d;
+  return newDesign(format);
 }
 
 export default function StudioPage() {
@@ -146,11 +142,12 @@ export default function StudioPage() {
 
 function StudioEditor() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
+  // The selected element (for the Inspector). Scene-scoped by index + node id.
+  const [selected, setSelected] = useState<{ scene: number; nodeId: string } | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
   // AC63 — the studio's usable media = the project's collection items + local uploads + AI media,
   // never the whole catalog. `mediaReload` bumps to re-pull after an upload/generate.
-  const [catalogImages, setCatalogImages] = useState<CatalogImageOption[]>([...CATALOG_IMAGES]);
   const [mediaReload, setMediaReload] = useState(0);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [addCollectionOpen, setAddCollectionOpen] = useState(false);
@@ -162,10 +159,11 @@ function StudioEditor() {
   const [workspace, setWorkspace] = useState<WorkspaceResolved | null>(null);
   const [project, setProject] = useState<{ id: number; name: string } | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [videoMsg, setVideoMsg] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
   const [storyboardOpen, setStoryboardOpen] = useState(false);
+  // Editable project name (rename).
+  const [nameDraft, setNameDraft] = useState("");
   const params = useSearchParams();
   const router = useRouter();
   const projectId = params.get("project");
@@ -215,7 +213,7 @@ function StudioEditor() {
                   urls.push(src);
                   const id = `item-${it.id}`;
                   imgs.push({ catalogItemId: id, label: it.title || e.title, src });
-                  tiles.push({ key: id, label: it.title || e.title, src, catalogItemId: id });
+                  tiles.push({ key: id, label: it.title || e.title, src, catalogItemId: id, objectKey: it.object_key });
                 } catch {
                   /* item image optional */
                 }
@@ -242,7 +240,7 @@ function StudioEditor() {
                 urls.push(src);
                 const id = `asset-${a.asset_id}`;
                 imgs.push({ catalogItemId: id, label: a.title || a.source, src });
-                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id });
+                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id, objectKey: a.object_key });
               } catch {
                 /* asset optional */
               }
@@ -258,7 +256,7 @@ function StudioEditor() {
         return;
       }
       setPanelItems(items);
-      setCatalogImages(imgs.length ? imgs : [...CATALOG_IMAGES]);
+      void imgs;
       setGallery(groups);
     }
     void load();
@@ -286,17 +284,25 @@ function StudioEditor() {
     const pid = projectId;
     const tid = params.get("template");
     if (pid) {
+      let cancelled = false;
       getProject(Number(pid))
-        .then((p) => {
+        .then(async (p) => {
+          if (cancelled) return;
           setProject({ id: p.id, name: p.name });
           // Migrate the stored design into the canonical scenes[] shape (handles legacy pages[]).
           const migrated = migrateDesign(p.design);
-          if (migrated) {
-            setDesign(migrated);
-            setSceneIndex(0);
-          }
+          if (!migrated) return;
+          setSceneIndex(0);
+          setDesign(migrated);
+          // Placed media stored an ephemeral blob: URL that is dead now; re-resolve each image from
+          // its stable object key so the media reappears (AC75).
+          const resolved = await resolveDesignImageSrcs(migrated, fetchAssetObjectUrl);
+          if (!cancelled) setDesign(resolved);
         })
         .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
     } else if (tid) {
       listDesignTemplates()
         .then((templates) => {
@@ -308,43 +314,50 @@ function StudioEditor() {
         })
         .catch(() => {});
     }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  async function saveProject() {
-    setSaveMsg(null);
-    setSaving(true);
-    try {
-      if (project && project.id > 0 && workspace) {
-        // AC75 — autosave the whole structured workspace (references + scenes); bumps the version.
+  // Keep the rename field in sync when a different project opens.
+  useEffect(() => {
+    setNameDraft(project?.name ?? "");
+  }, [project?.id]);
+
+  // Debounced autosave: whenever the design changes, persist the whole workspace (scenes + name).
+  // No manual "Save" button — the workspace engine stores it (AC75).
+  useEffect(() => {
+    if (!(project && project.id > 0 && workspace)) return;
+    const timer = setTimeout(async () => {
+      try {
         const saved = await saveWorkspace(project.id, toWorkspaceIn(workspace, design));
         setWorkspace(saved);
-        setSaveMsg("Saved.");
-      } else if (project && project.id > 0) {
-        // Fallback for a project opened before its workspace resolved.
-        await updateProject(project.id, { design: design as unknown as Record<string, unknown> });
-        setSaveMsg("Saved.");
-      } else {
-        // A template draft / blank canvas: create the project (seeds a workspace server-side),
-        // then load that workspace so further saves go through the structured path.
-        const name = (project?.name || "Untitled project").replace(" (template)", "");
-        const created = await createProject({
-          name,
-          format: design.format,
-          design: design as unknown as Record<string, unknown>,
-        });
-        setProject({ id: created.id, name: created.name });
-        try {
-          setWorkspace(await getWorkspace(created.id));
-        } catch {
-          /* workspace loads lazily on next render */
-        }
-        setSaveMsg("Saved to Projects.");
+        setSaveMsg("Saved");
+      } catch {
+        /* a transient failure retries on the next edit */
       }
-    } catch {
-      setSaveMsg("Could not save.");
-    } finally {
-      setSaving(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [design]);
+
+  // Rename the current project (workspace). Persists immediately for a saved project.
+  async function commitRename() {
+    const name = nameDraft.trim();
+    if (!project || !name || name === project.name) {
+      setNameDraft(project?.name ?? "");
+      return;
+    }
+    setProject({ ...project, name });
+    // Also update the workspace metadata name: the autosave sends metadata.name, and the server
+    // sets project.name from it — without this, the next autosave reverts the rename to the stale
+    // workspace name (AC75).
+    setWorkspace((w) => (w ? { ...w, metadata: { ...w.metadata, name } } : w));
+    if (project.id > 0) {
+      try {
+        await updateProject(project.id, { name });
+      } catch {
+        /* keep the local name; next autosave carries it */
+      }
     }
   }
 
@@ -405,7 +418,12 @@ function StudioEditor() {
         const off = (n % 8) * 28;
         placement = { x: 80 + off, y: 80 + off, width: w, height: h };
       }
-      return addCatalogImage(d, sceneIndex, { src: tile.src, catalogItemId: tile.catalogItemId }, placement);
+      return addCatalogImage(
+        d,
+        sceneIndex,
+        { src: tile.src, catalogItemId: tile.catalogItemId, objectKey: tile.objectKey },
+        placement,
+      );
     });
   }
 
@@ -417,11 +435,15 @@ function StudioEditor() {
       const t = JSON.parse(raw) as {
         src: string;
         catalogItemId: string;
+        objectKey?: string;
         width?: number;
         height?: number;
       };
       const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
-      placeTile({ key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, width: t.width, height: t.height }, pt);
+      placeTile(
+        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, width: t.width, height: t.height },
+        pt,
+      );
     } catch {
       /* ignore a malformed payload */
     }
@@ -519,6 +541,54 @@ function StudioEditor() {
         return d; // already gone
       }
     });
+    setSelected((s) => (s && s.nodeId === nodeId ? null : s));
+  }
+
+  // The currently-selected node (resolved from the live design), for the Inspector.
+  const selectedNode: DesignNode | null =
+    (selected && design.scenes[selected.scene]?.nodes.find((n) => n.id === selected.nodeId)) || null;
+
+  function patchSelected(patch: Partial<NodeStyle>) {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return updateNode(d, selected.scene, selected.nodeId, patch);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  function onTextEdit(scene: number, nodeId: string, text: string) {
+    setDesign((d) => {
+      try {
+        return editText(d, scene, nodeId, text);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  function duplicateSelected() {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return duplicateNode(d, selected.scene, selected.nodeId);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  function layerSelected(move: LayerMove) {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return reorderNode(d, selected.scene, selected.nodeId, move);
+      } catch {
+        return d;
+      }
+    });
   }
 
   const zoomBtn =
@@ -545,6 +615,8 @@ function StudioEditor() {
           onNodeChange={onNodeChange}
           onNodeDelete={onNodeDelete}
           onSelectScene={setSceneIndex}
+          onSelect={(scene, nodeId) => setSelected(scene !== null && nodeId ? { scene, nodeId } : null)}
+          onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
         />
       </div>
@@ -565,82 +637,73 @@ function StudioEditor() {
           onGenerate={() => setMediaOpen(true)}
         />
 
-        {/* Slim top bar: title · Storyboard drawer toggle · Generate video · Save. */}
-        <div className="pointer-events-auto absolute left-3 right-3 top-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/85 px-3 py-2 shadow-xl backdrop-blur-md lg:right-20">
-          <h1 className="text-h3 text-[1.0625rem] font-bold text-walshe-ink">Design Studio</h1>
-          {project && (
-            <span className="hidden text-small text-walshe-grey sm:inline">
-              · Editing <span className="font-semibold text-walshe-ink">{project.name}</span>
-            </span>
-          )}
-          <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
-          <button
-            type="button"
-            onClick={() => setStoryboardOpen((o) => !o)}
-            aria-expanded={storyboardOpen}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-small font-semibold transition-colors ${
-              storyboardOpen
-                ? "border-walshe-teal bg-walshe-teal text-white"
-                : "border-walshe-line bg-walshe-stone/60 text-walshe-ink hover:bg-walshe-ink/10"
-            }`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M4 4h16v16H4zM4 9h16M4 15h16M9 4v16M15 4v16" />
-            </svg>
-            Storyboard
-            <span className="grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-walshe-teal px-1 text-[11px] font-bold text-white">
-              {design.scenes.length}
-            </span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${storyboardOpen ? "rotate-180" : ""}`} aria-hidden>
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          <div className="ml-auto flex items-center gap-2">
-            {videoMsg && <span className="hidden text-small font-medium text-walshe-grey sm:inline">{videoMsg}</span>}
-            <button type="button" onClick={() => setMediaOpen(true)} className="btn-secondary">
-              Add media
-            </button>
-            <button
-              type="button"
-              onClick={() => void generateVideo()}
-              disabled={rendering}
-              className="btn-secondary"
-            >
-              {rendering ? "Rendering…" : "Generate video"}
-            </button>
-            {saveMsg && <span className="hidden text-small font-medium text-walshe-green sm:inline">{saveMsg}</span>}
-            <button type="button" onClick={saveProject} disabled={saving} className="btn-primary">
-              {saving ? "Saving…" : project && project.id > 0 ? "Save project" : "Save to projects"}
-            </button>
-          </div>
-        </div>
-
-        {/* Storyboard top drawer (scenes) — slides down from the top bar. When closed it must not
-            capture pointer events (an invisible overlay would otherwise swallow canvas pan/zoom). */}
-        <div
-          className={`absolute left-3 right-3 top-[4.5rem] origin-top transition-all duration-200 lg:right-20 ${
-            storyboardOpen ? "pointer-events-auto opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
-          }`}
-          aria-hidden={!storyboardOpen}
-        >
-          <div className="max-h-[48vh] overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
-            <SceneControls
-              design={design}
-              activeScene={sceneIndex}
-              onChange={setDesign}
-              onSelectScene={setSceneIndex}
-            />
-          </div>
-        </div>
-
-        {/* Right icon rail: creation tools + export. */}
-        <StudioRightRail
+        {/* Desktop-style application menu bar: File · Edit · Insert · Size · View, the editable
+            document name, and autosave status — the one always-showing bar at the top. */}
+        <StudioMenuBar
           design={design}
           sceneIndex={sceneIndex}
           onChange={setDesign}
+          name={nameDraft}
+          onNameChange={setNameDraft}
+          onNameCommit={() => void commitRename()}
+          saveMsg={saveMsg}
           onPickFormat={pickFormat}
-          catalogImages={catalogImages}
+          hasSelection={Boolean(selected)}
+          onDuplicate={duplicateSelected}
+          onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
+          onLayer={layerSelected}
+          onAddMedia={() => setMediaOpen(true)}
+          onZoomIn={() => controlsRef.current?.zoomIn()}
+          onZoomOut={() => controlsRef.current?.zoomOut()}
+          onFit={() => controlsRef.current?.fit()}
+          mediaOpen={drawerOpen}
+          onToggleMedia={() => setDrawerOpen((o) => !o)}
+          timelineOpen={storyboardOpen}
+          onToggleTimeline={() => setStoryboardOpen((o) => !o)}
+          onGenerateVideo={() => void generateVideo()}
+          rendering={rendering}
         />
+
+        {/* Timeline top drawer (scenes + video) — mirrors the left media drawer, sliding top→bottom
+            from a semicircle handle under the menu bar. */}
+        <TimelineDrawer
+          open={storyboardOpen}
+          onToggle={() => setStoryboardOpen((o) => !o)}
+          design={design}
+          activeScene={sceneIndex}
+          onChange={setDesign}
+          onSelectScene={setSceneIndex}
+          onGenerateVideo={() => void generateVideo()}
+          rendering={rendering}
+          videoMsg={videoMsg}
+        />
+
+        {/* Right tool rail: creation tools only (icons + hover names). */}
+        <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />
+
+        {/* Inspector: appears when an element is selected, styling controls for it. */}
+        {selectedNode && (
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-small font-bold text-walshe-ink">Edit element</h2>
+              <button
+                type="button"
+                aria-label="Deselect"
+                onClick={() => setSelected(null)}
+                className="grid h-7 w-7 place-items-center rounded-md text-walshe-grey transition-colors hover:bg-walshe-ink/10 hover:text-walshe-ink"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+            <Inspector
+              node={selectedNode}
+              onChange={patchSelected}
+              onDuplicate={duplicateSelected}
+              onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
+              onLayer={layerSelected}
+            />
+          </div>
+        )}
 
         {/* Zoom / fit — bottom-right, shifted left to clear the Q/A assistant button. */}
         <div className="pointer-events-auto absolute bottom-4 right-24 flex items-center rounded-lg border border-walshe-line/70 bg-chrome-bg/90 px-0.5 shadow-xl backdrop-blur-md">

@@ -115,7 +115,6 @@ export default function AgentCatalogPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Catalog" }]}
         title="Catalog"
-        description="Search verified destination content and save what you like to a collection."
       />
 
       <form onSubmit={onSearch} role="search" className="card mb-6 flex flex-wrap items-end gap-3 p-4">

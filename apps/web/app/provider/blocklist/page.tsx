@@ -62,7 +62,6 @@ export default function BlocklistPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/provider" }, { label: "Off-limits" }]}
         title="Off-limits"
-        description="Flag a subject or place off-limits. Any content that mentions it is hidden from every agent — in the catalog, search and the Design Studio."
       />
 
       <form onSubmit={onAdd} className="card mb-6 flex flex-wrap items-end gap-3 p-4">

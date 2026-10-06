@@ -1836,14 +1836,33 @@ export interface components {
         };
         /** DesignTemplate */
         DesignTemplate: {
+            /**
+             * Background
+             * @default
+             */
+            background: string;
             /** Description */
             description: string;
             /** Format */
             format: string;
+            /**
+             * Height
+             * @default 1080
+             */
+            height: number;
             /** Id */
             id: string;
             /** Name */
             name: string;
+            /** Nodes */
+            nodes?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Width
+             * @default 1080
+             */
+            width: number;
         };
         /**
          * DisplayStatus
@@ -2393,6 +2412,8 @@ export interface components {
             item_ids?: number[];
             /** Name */
             name: string;
+            /** Template Id */
+            template_id?: string | null;
         };
         /** ProjectOut */
         ProjectOut: {

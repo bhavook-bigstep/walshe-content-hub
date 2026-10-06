@@ -1126,6 +1126,11 @@
       },
       "DesignTemplate": {
         "properties": {
+          "background": {
+            "default": "",
+            "title": "Background",
+            "type": "string"
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -1134,6 +1139,11 @@
             "title": "Format",
             "type": "string"
           },
+          "height": {
+            "default": 1080,
+            "title": "Height",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1141,6 +1151,19 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "width": {
+            "default": 1080,
+            "title": "Width",
+            "type": "integer"
           }
         },
         "required": [
@@ -2463,6 +2486,17 @@
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
           }
         },
         "required": [

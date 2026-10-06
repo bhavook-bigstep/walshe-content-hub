@@ -44,6 +44,10 @@ export interface StudioCanvasProps {
   onNodeDelete?: (sceneIndex: number, nodeId: string) => void;
   /** Called when the user clicks a scene on the canvas — make it active. */
   onSelectScene?: (sceneIndex: number) => void;
+  /** Called when the selected element changes (null when cleared) — drives the Inspector. */
+  onSelect?: (sceneIndex: number | null, nodeId: string | null) => void;
+  /** Called when the user finishes editing a text node inline (double-click → type → blur). */
+  onTextEdit?: (sceneIndex: number, nodeId: string, text: string) => void;
   /** Receives imperative zoom/fit controls for the top bar once mounted. */
   onControls?: (controls: StudioControls) => void;
 }
@@ -81,6 +85,8 @@ export default function StudioCanvas({
   onNodeChange,
   onNodeDelete,
   onSelectScene,
+  onSelect,
+  onTextEdit,
   onControls,
 }: StudioCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +97,10 @@ export default function StudioCanvas({
   changeRef.current = onNodeChange;
   const deleteRef = useRef(onNodeDelete);
   deleteRef.current = onNodeDelete;
+  const selectNodeRef = useRef(onSelect);
+  selectNodeRef.current = onSelect;
+  const textEditRef = useRef(onTextEdit);
+  textEditRef.current = onTextEdit;
   const selectRef = useRef(onSelectScene);
   selectRef.current = onSelectScene;
   const designRef = useRef(design);
@@ -270,6 +280,25 @@ export default function StudioCanvas({
       zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
       canvas.zoomToPoint(new Point(e.offsetX, e.offsetY), zoom);
       syncDots();
+    });
+
+    // Report the selected node so the Inspector can edit it.
+    const reportSelection = () => {
+      const o = canvas.getActiveObject() as TaggedObject | undefined;
+      if (o && o.nodeId && o.sceneIndex !== undefined) selectNodeRef.current?.(o.sceneIndex, o.nodeId);
+      else selectNodeRef.current?.(null, null);
+    };
+    canvas.on("selection:created", reportSelection);
+    canvas.on("selection:updated", reportSelection);
+    canvas.on("selection:cleared", () => selectNodeRef.current?.(null, null));
+
+    // Inline text editing: double-click a text node, type, blur → sync back to the model (only on
+    // exit, so no mid-type re-render interrupts the edit).
+    canvas.on("text:editing:exited", (opt) => {
+      const obj = opt.target as (TaggedObject & { text?: string }) | undefined;
+      if (obj && obj.nodeId && obj.sceneIndex !== undefined) {
+        textEditRef.current?.(obj.sceneIndex, obj.nodeId, obj.text ?? "");
+      }
     });
 
     canvas.on("object:modified", (opt) => {

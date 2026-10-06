@@ -28,7 +28,6 @@ export default function ProviderHomePage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/provider" }, { label: "Overview" }]}
         title="Provider home"
-        description="Publish verified destination content and control who may use it."
         action={
           <Link href="/provider/catalog" className="btn-primary">
             Open catalog
