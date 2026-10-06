@@ -275,6 +275,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Campaigns */
+        get: operations["list_campaigns_campaigns_get"];
+        put?: never;
+        /** Create Campaign */
+        post: operations["create_campaign_campaigns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/campaigns/{campaign_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Campaign */
+        get: operations["get_campaign_campaigns__campaign_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/campaigns/{campaign_id}/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Campaign Post
+         * @description Create a campaign post, optionally scheduled; captures the rendered JPEG now (design §4).
+         */
+        post: operations["create_campaign_post_campaigns__campaign_id__posts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/campaigns/{campaign_id}/posts/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit Post */
+        patch: operations["edit_post_campaigns__campaign_id__posts__post_id__patch"];
+        trace?: never;
+    };
     "/catalog": {
         parameters: {
             query?: never;
@@ -1424,6 +1496,39 @@ export interface components {
             /** Term */
             term: string;
         };
+        /** Body_create_campaign_post_campaigns__campaign_id__posts_post */
+        Body_create_campaign_post_campaigns__campaign_id__posts_post: {
+            /**
+             * Caption
+             * @default
+             */
+            caption: string;
+            /** Composition Id */
+            composition_id: number;
+            /** Image */
+            image: string;
+            /** Scheduled At */
+            scheduled_at?: string | null;
+        };
+        /** Body_edit_post_campaigns__campaign_id__posts__post_id__patch */
+        Body_edit_post_campaigns__campaign_id__posts__post_id__patch: {
+            /** Caption */
+            caption?: string | null;
+            /**
+             * Clear Caption
+             * @default false
+             */
+            clear_caption: boolean;
+            /** Image */
+            image?: string | null;
+            /** Scheduled At */
+            scheduled_at?: string | null;
+            /**
+             * Unschedule
+             * @default false
+             */
+            unschedule: boolean;
+        };
         /** Body_publish_social_instagram_publish_post */
         Body_publish_social_instagram_publish_post: {
             /**
@@ -1502,6 +1607,105 @@ export interface components {
             primary_color?: string | null;
             /** Website */
             website?: string | null;
+        };
+        /** CampaignCreate */
+        CampaignCreate: {
+            /** Destination */
+            destination?: string | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Name */
+            name: string;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** CampaignDetailOut */
+        CampaignDetailOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Destination */
+            destination: string | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Post Count
+             * @default 0
+             */
+            post_count: number;
+            /** Posts */
+            posts?: components["schemas"]["CampaignPostOut"][];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
+        };
+        /** CampaignOut */
+        CampaignOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Destination */
+            destination: string | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Post Count
+             * @default 0
+             */
+            post_count: number;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
+        };
+        /** CampaignPostOut */
+        CampaignPostOut: {
+            /** Campaign Id */
+            campaign_id: number | null;
+            /** Caption */
+            caption: string;
+            /** Composition Id */
+            composition_id: number;
+            /** Id */
+            id: number;
+            /** Media Object Key */
+            media_object_key: string | null;
+            /** Platform */
+            platform: string;
+            /** Scheduled At */
+            scheduled_at: string | null;
+            status: components["schemas"]["PostStatus"];
         };
         /**
          * CatalogCreate
@@ -2111,7 +2315,7 @@ export interface components {
          * PostStatus
          * @enum {string}
          */
-        PostStatus: "scheduled" | "published" | "failed";
+        PostStatus: "scheduled" | "published" | "failed" | "draft" | "pending_approval" | "approved" | "publishing" | "rejected" | "cancelled";
         /** PreflightIssueOut */
         PreflightIssueOut: {
             /** Code */
@@ -2942,6 +3146,161 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreativePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_campaigns_campaigns_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"][];
+                };
+            };
+        };
+    };
+    create_campaign_campaigns_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_campaign_campaigns__campaign_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_campaign_post_campaigns__campaign_id__posts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_campaign_post_campaigns__campaign_id__posts_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_post_campaigns__campaign_id__posts__post_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_edit_post_campaigns__campaign_id__posts__post_id__patch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPostOut"];
                 };
             };
             /** @description Validation Error */
