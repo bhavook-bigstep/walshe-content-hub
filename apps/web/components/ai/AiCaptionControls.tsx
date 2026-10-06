@@ -6,10 +6,11 @@ import { appendHashtags } from "../../lib/ai/caption";
 
 type Pending = "caption" | "keywords" | null;
 
-// One steady, action-specific status line (no rapid word-switching) shown while the model works.
-const STATUS: Record<"caption" | "keywords", string> = {
-  caption: "Writing your caption…",
-  keywords: "Finding hashtags…",
+// A playful, steady status while the model works: one word per action that stays put (no rapid
+// word-switching), plus what it's actually doing — e.g. "Grooving — writing your caption…".
+const STATUS: Record<"caption" | "keywords", { word: string; task: string }> = {
+  caption: { word: "Grooving", task: "writing your caption" },
+  keywords: { word: "Digging", task: "finding your hashtags" },
 };
 
 /**
@@ -71,13 +72,14 @@ export default function AiCaptionControls({
           Generate keywords
         </button>
         {pending && (
-          <span className="inline-flex items-center gap-2 text-small text-walshe-grey"
+          <span className="inline-flex items-center gap-1.5 text-small text-walshe-grey"
                 role="status" aria-live="polite">
             <span
               className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-walshe-line border-t-walshe-green"
               aria-hidden
             />
-            {STATUS[pending]}
+            <span className="animate-pulse font-semibold text-walshe-green">{STATUS[pending].word}</span>
+            <span>— {STATUS[pending].task}…</span>
           </span>
         )}
       </div>

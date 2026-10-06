@@ -6,6 +6,7 @@ import {
   coversDay,
   dayKey,
   HOURS,
+  layoutWeekBars,
   localDateKey,
   minutesSinceMidnight,
   monthCells,
@@ -142,5 +143,52 @@ describe("coversDay", () => {
     expect(coversDay(c, new Date(2026, 9, 9))).toBe(true);
     expect(coversDay(c, new Date(2026, 9, 7))).toBe(false);
     expect(coversDay(c, new Date(2026, 9, 10))).toBe(false);
+  });
+});
+
+describe("layoutWeekBars", () => {
+  // Mon..Sun of 5–11 Oct 2026 (a full in-month week; col0=Mon 5 … col6=Sun 11).
+  const fullWeek = weekDays(new Date(2026, 9, 5));
+  const range = (id: number, name: string, s: string, e: string) =>
+    ({ id, name, starts_on: s, ends_on: e });
+
+  it("produces one bar spanning the contiguous columns a range covers", () => {
+    // Tue 6 Oct → Fri 9 Oct = cols 1..4.
+    const { bars, laneCount } = layoutWeekBars(fullWeek, [range(1, "Launch", "2026-10-06", "2026-10-09")]);
+    expect(laneCount).toBe(1);
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toMatchObject({ id: 1, name: "Launch", startCol: 1, span: 4, lane: 0 });
+  });
+
+  it("stacks overlapping campaigns into separate lanes", () => {
+    const { bars, laneCount } = layoutWeekBars(fullWeek, [
+      range(1, "A", "2026-10-05", "2026-10-07"), // cols 0..2
+      range(2, "B", "2026-10-06", "2026-10-08"), // cols 1..3 — overlaps A
+    ]);
+    expect(laneCount).toBe(2);
+    const lanes = Object.fromEntries(bars.map((b) => [b.id, b.lane]));
+    expect(lanes[1]).not.toBe(lanes[2]);
+  });
+
+  it("packs non-overlapping campaigns onto the same lane", () => {
+    const { laneCount } = layoutWeekBars(fullWeek, [
+      range(1, "A", "2026-10-05", "2026-10-06"), // cols 0..1
+      range(2, "B", "2026-10-09", "2026-10-10"), // cols 4..5 — no overlap
+    ]);
+    expect(laneCount).toBe(1);
+  });
+
+  it("excludes padding days and clamps a range that starts before the month", () => {
+    // First week of October 2026 = [null,null,null, Oct1(Thu), Oct2, Oct3, Oct4].
+    const firstWeek = monthCells(2026, 9).slice(0, 7);
+    // Range 28 Sep → 2 Oct: only the in-month cols (Oct1=col3, Oct2=col4) count; nulls excluded.
+    const { bars } = layoutWeekBars(firstWeek, [range(1, "Early", "2026-09-28", "2026-10-02")]);
+    expect(bars[0]).toMatchObject({ startCol: 3, span: 2 });
+  });
+
+  it("omits a campaign that does not touch the week", () => {
+    const { bars, laneCount } = layoutWeekBars(fullWeek, [range(1, "Later", "2026-10-20", "2026-10-25")]);
+    expect(bars).toHaveLength(0);
+    expect(laneCount).toBe(0);
   });
 });

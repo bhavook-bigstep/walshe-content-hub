@@ -50,10 +50,13 @@ export default function CampaignsPage() {
         </p>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(340px,1fr)_1.7fr] lg:items-start">
-        {/* Left column: create a campaign + the list of campaigns. */}
-        <div className="space-y-6">
-          <form onSubmit={onCreate} className="card space-y-4 p-6" aria-busy={busy}>
+      {/* The calendar (right) defines the row height; the left column's content is absolutely
+          positioned on lg so it never grows the row — the campaign list scrolls to fit instead. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(340px,1fr)_1.7fr]">
+        {/* Left column: create a campaign (fixed) + the list of campaigns (scrolls on lg). */}
+        <div className="relative">
+          <div className="flex flex-col gap-6 lg:absolute lg:inset-0">
+          <form onSubmit={onCreate} className="card space-y-4 p-6 lg:shrink-0" aria-busy={busy}>
             <label className="flex flex-col gap-1.5">
               <span className="label">Campaign name</span>
               <input className="field" aria-label="Campaign name" value={name}
@@ -81,34 +84,37 @@ export default function CampaignsPage() {
             </button>
           </form>
 
-          {campaigns === null ? (
-            <div className="space-y-4">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="card h-24 animate-pulse bg-walshe-stone/60" aria-hidden />
-              ))}
-            </div>
-          ) : campaigns.length === 0 ? (
-            <div className="card p-8 text-center text-walshe-grey">No campaigns yet.</div>
-          ) : (
-            <ul className="space-y-4">
-              {campaigns.map((c) => (
-                <li key={c.id} className="card card-hover p-5">
-                  <Link href={`/agent/campaigns/${c.id}`} className="block">
-                    <div className="eyebrow text-[11px] capitalize">{c.status} · {c.destination ?? "—"}</div>
-                    <h3 className="mt-2 text-h3 text-walshe-ink">{c.name}</h3>
-                    <p className="mt-1 text-small text-walshe-grey">
-                      {c.starts_on} → {c.ends_on} · {c.post_count} post{c.post_count === 1 ? "" : "s"}
-                    </p>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+            {campaigns === null ? (
+              <div className="space-y-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="card h-24 animate-pulse bg-walshe-stone/60" aria-hidden />
+                ))}
+              </div>
+            ) : campaigns.length === 0 ? (
+              <div className="card p-8 text-center text-walshe-grey">No campaigns yet.</div>
+            ) : (
+              <ul className="space-y-4">
+                {campaigns.map((c) => (
+                  <li key={c.id} className="card card-hover p-5">
+                    <Link href={`/agent/campaigns/${c.id}`} className="block">
+                      <div className="eyebrow text-[11px] capitalize">{c.status} · {c.destination ?? "—"}</div>
+                      <h3 className="mt-2 text-h3 text-walshe-ink">{c.name}</h3>
+                      <p className="mt-1 text-small text-walshe-grey">
+                        {c.starts_on} → {c.ends_on} · {c.post_count} post{c.post_count === 1 ? "" : "s"}
+                      </p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          </div>
         </div>
 
-        {/* Right column: the campaigns calendar (sticky so it stays in view while the list scrolls).
-            Always rendered — an empty calendar is still the planning surface before any campaign. */}
-        <div className="lg:sticky lg:top-6">
+        {/* Right column: the campaigns calendar defines the row height (the left column scrolls to
+            match it). Always rendered — an empty calendar is still the planning surface. */}
+        <div>
           <CampaignsCalendar campaigns={campaigns ?? []} />
         </div>
       </div>

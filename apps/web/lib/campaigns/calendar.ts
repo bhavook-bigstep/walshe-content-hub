@@ -104,3 +104,63 @@ export function coversDay(range: { starts_on: string; ends_on: string }, day: Da
   const k = dayKey(day);
   return range.starts_on <= k && k <= range.ends_on;
 }
+
+// ── Month overview: continuous campaign bars across a week ───────────────────────────────────────
+
+export interface CampaignRange {
+  id: number;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+}
+
+// A campaign drawn as ONE continuous bar within a single week row of the month grid.
+export interface WeekBar {
+  id: number;
+  name: string;
+  startCol: number; // 0 (Mon) … 6 (Sun)
+  span: number; // number of columns the bar covers, 1 … 7
+  lane: number; // vertical stacking row, 0-based
+}
+
+export interface WeekLayout {
+  bars: WeekBar[];
+  laneCount: number;
+}
+
+// Lay out campaigns as spanning bars across ONE week of the month grid, so a multi-day campaign
+// reads as a single joined bar rather than a chip repeated on every day it covers.
+//
+// `week` is 7 cells (Date | null — nulls are padding days outside the displayed month). In-month
+// days within a week are always contiguous (padding only ever sits at a month's leading/trailing
+// edge), so each campaign yields at most one bar per week: the run of in-month columns its
+// inclusive [starts_on, ends_on] range covers, clamped to the week. Bars are packed into lanes
+// (greedy, earliest-start first) so overlapping campaigns stack without colliding.
+export function layoutWeekBars(week: (Date | null)[], campaigns: CampaignRange[]): WeekLayout {
+  const bars: WeekBar[] = [];
+  for (const c of campaigns) {
+    let startCol = -1;
+    let endCol = -1;
+    for (let i = 0; i < week.length; i++) {
+      const day = week[i];
+      if (day && coversDay(c, day)) {
+        if (startCol === -1) startCol = i;
+        endCol = i;
+      }
+    }
+    if (startCol === -1) continue; // range does not touch this week
+    bars.push({ id: c.id, name: c.name, startCol, span: endCol - startCol + 1, lane: 0 });
+  }
+
+  // Greedy first-fit lane packing. Sorting by start column (longer bar first on ties) keeps the
+  // assignment stable and uses the fewest lanes for a given set of intervals.
+  bars.sort((a, b) => a.startCol - b.startCol || b.span - a.span || a.id - b.id);
+  const laneNextFree: number[] = []; // first column each lane is free from (exclusive end of its last bar)
+  for (const bar of bars) {
+    let lane = 0;
+    while (lane < laneNextFree.length && laneNextFree[lane] > bar.startCol) lane++;
+    bar.lane = lane;
+    laneNextFree[lane] = bar.startCol + bar.span;
+  }
+  return { bars, laneCount: laneNextFree.length };
+}
