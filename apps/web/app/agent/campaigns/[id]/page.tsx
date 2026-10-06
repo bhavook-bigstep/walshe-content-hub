@@ -1,13 +1,13 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar";
 import PageHeader from "../../../../components/ui/PageHeader";
 import {
   ApiError, getCampaign, getProject, listProjects, patchCampaignPost, scheduleCampaignPost,
   type CampaignDetail, type CampaignPost, type Project,
 } from "../../../../lib/api";
-import { bucketByLocalDay, monthCells, STATUS_CHIP } from "../../../../lib/campaigns/calendar";
 import {
   buildCampaignPatchForm, buildCampaignPostForm, CAMPAIGN_PLATFORMS, localInputToOffsetISO,
 } from "../../../../lib/campaigns/form";
@@ -15,7 +15,6 @@ import { migrateDesign } from "../../../../lib/studio/ops";
 import { renderDesignToJpegBlob } from "../../../../lib/studio/render";
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const cellKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 // ISO → datetime-local value (viewer's local time), to prefill the edit form.
 function isoToLocalInput(iso: string | null): string {
@@ -51,25 +50,6 @@ export default function CampaignDetailPage() {
       if (p[0]) setProjectId(String(p[0].id));
     }).catch(() => {});
   }, []);
-
-  const byDay = useMemo(() => bucketByLocalDay(campaign?.posts ?? []), [campaign]);
-
-  // Month navigation bounded to the campaign window (campaigns can span months).
-  const [view, setView] = useState<{ year: number; month: number } | null>(null);
-  useEffect(() => {
-    if (campaign && !view) {
-      const s = new Date(campaign.starts_on);
-      setView({ year: s.getFullYear(), month: s.getMonth() });
-    }
-  }, [campaign, view]);
-  const idx = (y: number, m: number) => y * 12 + m;
-  const bStart = campaign ? new Date(campaign.starts_on) : null;
-  const bEnd = campaign ? new Date(campaign.ends_on) : null;
-  const canPrev = !!(view && bStart && idx(view.year, view.month) > idx(bStart.getFullYear(), bStart.getMonth()));
-  const canNext = !!(view && bEnd && idx(view.year, view.month) < idx(bEnd.getFullYear(), bEnd.getMonth()));
-  const shift = (d: number) =>
-    setView((v) => (v ? { year: v.year + Math.floor((v.month + d) / 12), month: ((v.month + d) % 12 + 12) % 12 } : v));
-  const cells = view ? monthCells(view.year, view.month) : [];
 
   async function onSchedule(e: React.FormEvent) {
     e.preventDefault();
@@ -163,44 +143,16 @@ export default function CampaignDetailPage() {
         </button>
       </form>
 
-      <section className="card p-5" aria-label="Calendar" data-testid="campaign-calendar">
-        <div className="mb-3 flex items-center justify-between">
-          <button type="button" className="btn-ghost" disabled={!canPrev} onClick={() => shift(-1)}>
-            ← Prev
-          </button>
-          <span className="font-semibold text-walshe-ink">
-            {view
-              ? new Date(view.year, view.month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })
-              : ""}
-          </span>
-          <button type="button" className="btn-ghost" disabled={!canNext} onClick={() => shift(1)}>
-            Next →
-          </button>
-        </div>
-        <div className="mb-3 grid grid-cols-7 gap-2 text-small text-walshe-grey">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d}>{d}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-2">
-          {cells.map((cell, i) => {
-            if (!cell) return <div key={`pad-${i}`} className="min-h-20 rounded-sm bg-walshe-stone/30" aria-hidden />;
-            const key = cellKey(cell);
-            const posts = byDay.get(key) ?? [];
-            const inWindow = !!campaign && key >= campaign.starts_on && key <= campaign.ends_on;
-            return (
-              <div key={key}
-                   className={`min-h-20 rounded-sm border border-walshe-line p-1.5 ${inWindow ? "" : "opacity-40"}`}>
-                <div className="text-[11px] text-walshe-grey">{cell.getDate()}</div>
-                {posts.map((p) => (
-                  <button key={p.id} type="button" onClick={() => openEdit(p)}
-                    className={`mt-1 block w-full truncate rounded px-1 text-left text-[11px] ${STATUS_CHIP[p.status] ?? ""}`}>
-                    {p.caption || `Post #${p.id}`}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      {campaign && (
+        <CampaignCalendar
+          posts={campaign.posts ?? []}
+          onSelectPost={(pid) => {
+            const p = campaign.posts?.find((x) => x.id === pid);
+            if (p) openEdit(p);
+          }}
+          initialDate={new Date(campaign.starts_on)}
+        />
+      )}
 
       {selected && (
         <section className="card mt-6 p-5" aria-label="Edit post" data-testid="edit-post-panel">
