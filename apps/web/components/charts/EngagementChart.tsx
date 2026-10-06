@@ -43,7 +43,13 @@ export default function EngagementChart({
   const max = Math.max(1, ...points.flatMap((p) => series.map((s) => val(p, s.key))));
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
-  const x = (i: number) => PAD.left + (points.length <= 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
+  // Grouped bars: posts are categories (identity + magnitude), NOT a time series — so bars, not a
+  // connecting line (which read as a trend/decline). One shared y-axis (no dual axis).
+  const slotW = plotW / Math.max(1, points.length);
+  const groupW = slotW * 0.62;
+  const barGap = 2; // 2px surface gap between adjacent bars (dataviz marks spec)
+  const barW = Math.max(6, (groupW - barGap * (series.length - 1)) / series.length);
+  const slotCenter = (i: number) => PAD.left + (i + 0.5) * slotW;
   const y = (v: number) => PAD.top + plotH - (v / max) * plotH;
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
 
@@ -121,18 +127,39 @@ export default function EngagementChart({
             );
           })}
           {points.map((p, i) => (
-            <text key={p.label} x={x(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="rgb(var(--walshe-grey))">
-              {p.label.replace("Post ", "")}
+            <text key={p.label} x={slotCenter(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="rgb(var(--walshe-grey))">
+              {p.label}
             </text>
           ))}
-          {series.map((s) => {
-            const pts = points.map((p, i) => `${x(i)},${y(val(p, s.key))}`).join(" ");
+          {points.map((p, i) => {
+            const groupStart = slotCenter(i) - groupW / 2;
             return (
-              <g key={s.key}>
-                <polyline points={pts} fill="none" stroke={s.color} strokeWidth={2} />
-                {points.map((p, i) => (
-                  <g key={p.label}>{marker(s.marker, x(i), y(val(p, s.key)), s.color)}</g>
-                ))}
+              <g key={p.label}>
+                {series.map((s, j) => {
+                  const v = val(p, s.key);
+                  const bx = groupStart + j * (barW + barGap);
+                  const by = y(v);
+                  const bh = Math.max(0, PAD.top + plotH - by);
+                  return (
+                    <g key={s.key}>
+                      <rect x={bx} y={by} width={barW} height={bh} rx={3} fill={s.color}>
+                        <title>{`${p.label} · ${s.label}: ${v.toLocaleString("en-US")}`}</title>
+                      </rect>
+                      {v > 0 && (
+                        <text
+                          x={bx + barW / 2}
+                          y={by - 4}
+                          textAnchor="middle"
+                          fontSize="10"
+                          fill="rgb(var(--walshe-ink))"
+                          className="tabular-nums"
+                        >
+                          {v.toLocaleString("en-US")}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             );
           })}

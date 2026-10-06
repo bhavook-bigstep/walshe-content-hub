@@ -11,7 +11,7 @@ against the dev database with ``make seed-demo`` (or ``uv run python -m app.seed
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -20,8 +20,6 @@ from app.clock import now as clock_now
 from app.models.agent_features import BrandKit, Collection
 from app.models.catalog import CatalogEntry, CatalogType, EntryStatus, Season
 from app.models.composition import Composition
-from app.models.engagement import Engagement
-from app.models.post import Post, PostStatus
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
 
@@ -172,20 +170,6 @@ def _composition(db: Session, agent_id: int, name: str, item_ids: list[int]) -> 
     return c
 
 
-def _published_post(db: Session, composition_id: int, metrics: dict) -> None:
-    post = db.execute(
-        select(Post).where(Post.composition_id == composition_id, Post.channel == "facebook")
-    ).scalar_one_or_none()
-    when = datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)
-    if post is None:
-        post = Post(composition_id=composition_id, channel="facebook")
-        db.add(post)
-    post.status = PostStatus.published
-    post.scheduled_at = when
-    post.published_at = when
-    db.flush()
-    if db.execute(select(Engagement.id).where(Engagement.post_id == post.id)).first() is None:
-        db.add(Engagement(post_id=post.id, platform="instagram", metrics=metrics, fetched_at=when))
 
 
 def seed_demo(db: Session) -> dict[str, int]:
@@ -238,17 +222,11 @@ def seed_demo(db: Session) -> dict[str, int]:
         "West coast favourites",
         [by_title["Cliffs of Moher"], by_title["Wild Atlantic Way"]],
     )
-    launch = _composition(
+    _composition(
         db,
         agent1.id,
         "Galway launch post",
         [by_title["Harbour Festival"], by_title["Cliffs of Moher"]],
-    )
-    _published_post(
-        db,
-        launch.id,
-        {"reach": 1200, "views": 1200, "likes": 90, "comments": 12,
-         "saved": 20, "shares": 8, "total_interactions": 130},
     )
 
     # Agent 2 (Sam): city-breaks focus, a brand kit, a collection + a draft project.

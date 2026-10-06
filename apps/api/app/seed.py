@@ -6,7 +6,7 @@ same row counts — safe to re-run against the dev stack. Uses only synthetic, n
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -23,7 +23,7 @@ from app.models.catalog import (
 )
 from app.models.composition import Composition
 from app.models.engagement import Engagement
-from app.models.post import Post, PostStatus
+from app.models.post import Post
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
 from app.services.catalog_migration import decompose_entries_to_items
@@ -210,45 +210,8 @@ def _upsert_composition(db: Session, agent_id: int, name: str, item_ids: list[in
     return comp
 
 
-_SEED_CHANNEL = "facebook"
-_SEED_PUBLISHED_AT = datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)  # fixed => deterministic
-# Synthetic Instagram-shaped metrics (one snapshot) so the demo dashboard looks alive.
-_SEED_METRICS = {
-    "reach": 1200,
-    "views": 1200,
-    "likes": 90,
-    "comments": 12,
-    "saved": 20,
-    "shares": 8,
-    "total_interactions": 130,
-}
-
-
-def _upsert_post_with_engagement(db: Session, composition_id: int) -> None:
-    post = db.execute(
-        select(Post).where(Post.composition_id == composition_id, Post.channel == _SEED_CHANNEL)
-    ).scalar_one_or_none()
-    if post is None:
-        post = Post(
-            composition_id=composition_id,
-            channel=_SEED_CHANNEL,
-            status=PostStatus.published,
-            scheduled_at=_SEED_PUBLISHED_AT,
-            published_at=_SEED_PUBLISHED_AT,
-        )
-        db.add(post)
-        db.flush()
-    has_metrics = db.execute(select(Engagement.id).where(Engagement.post_id == post.id)).first()
-    if has_metrics is None:
-        db.add(
-            Engagement(
-                post_id=post.id,
-                platform="instagram",
-                metrics=dict(_SEED_METRICS),
-                fetched_at=_SEED_PUBLISHED_AT,
-            )
-        )
-
+# No seeded engagement/posts: the dashboard shows real metrics only (its designed empty state
+# until an agent actually publishes), rather than synthetic numbers that read as a real result.
 
 _SEED_DISPLAY_NAMES = {
     Role.super_admin: "Walsh Admin",
@@ -307,12 +270,8 @@ def seed(db: Session) -> dict[str, int]:
 
     # A healthy composition (current items) and one that will fail preflight (holds the expired
     # "Trade Showcase") so the pre-send check (AC34) has something to catch in the demo.
-    launch_comp = _upsert_composition(
-        db, agent.id, "Galway launch post", [entries[0].id, entries[1].id]
-    )
+    _upsert_composition(db, agent.id, "Galway launch post", [entries[0].id, entries[1].id])
     _upsert_composition(db, agent.id, "Trade Showcase teaser", [entries[2].id])
-
-    _upsert_post_with_engagement(db, launch_comp.id)
 
     # AC50: decompose each entry's text + assets into first-class items so the catalog library and
     # the studio media picker are populated.

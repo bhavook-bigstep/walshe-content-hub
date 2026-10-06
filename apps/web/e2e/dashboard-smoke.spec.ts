@@ -10,7 +10,7 @@ test("agent dashboard widgets", async ({ page }) => {
   await expect(page.getByTestId("stat-tile").first()).toBeVisible({ timeout: 15000 });
   expect(await page.getByTestId("stat-tile").count()).toBeGreaterThanOrEqual(4);
   await expect(page.getByText("Approved content", { exact: true })).toBeVisible();
-  // A real chart renders under its heading.
-  await expect(page.getByRole("heading", { name: /reach & interactions by post/i })).toBeVisible();
-  await expect(page.getByTestId("engagement-chart")).toBeVisible();
+  // No seeded engagement — the dashboard shows its *designed* empty state (a titled card with a
+  // CTA, not a bare table). The real chart renders once an agent publishes and metrics arrive.
+  await expect(page.getByRole("heading", { name: /no engagement yet/i })).toBeVisible();
 });
