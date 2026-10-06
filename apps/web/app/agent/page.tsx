@@ -102,7 +102,9 @@ export default function AgentHomePage() {
           )}
       </section>
       {!loading && (
-        <p className="-mt-6 mb-8 text-small text-walshe-grey">Figures shown are seeded sample data.</p>
+        <p className="-mt-6 mb-8 text-small text-walshe-grey">
+          Live Instagram metrics across your published posts — updated as engagement comes in.
+        </p>
       )}
 
       {/* Suggested next posts (AC40) — content worth sending, so the agent never starts from blank. */}
