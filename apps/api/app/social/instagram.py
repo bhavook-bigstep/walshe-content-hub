@@ -34,6 +34,8 @@ _SUBCODE: dict[int, tuple[str, bool]] = {
 # Top-level error.code -> (our code, retryable) for errors without a mapped subcode.
 _CODE: dict[int, tuple[str, bool]] = {
     190: ("token_expired", False),
+    200: ("access_blocked", False),  # "API access blocked" — app dev-mode / missing permission
+    10: ("permission_denied", False),  # app lacks the permission for this call
     4: ("rate_limited", True),
     9: ("rate_limited", True),
     17: ("rate_limited", True),

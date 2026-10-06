@@ -94,6 +94,16 @@ def test_publish_token_expired_maps_190():
     assert ei.value.code == "token_expired"
 
 
+def test_publish_api_access_blocked_maps_200():
+    # Meta code 200 ("API access blocked" — app dev-mode / missing content-publish permission).
+    # Must surface a clear, non-retryable reason, not the vague "unknown".
+    t = _Transport([(400, {"error": {"code": 200, "message": "API access blocked."}})])
+    with pytest.raises(PublishError) as ei:
+        InstagramConnector(_settings(), transport=t).publish(image_url="https://x", caption="hi")
+    assert ei.value.code == "access_blocked"
+    assert ei.value.retryable is False
+
+
 def test_publish_requires_image_url():
     with pytest.raises(PublishError) as ei:
         InstagramConnector(_settings()).publish(image_url=None, caption="hi")
