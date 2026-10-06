@@ -93,3 +93,111 @@ def test_second_agent_cannot_schedule_into_foreign_campaign(client, second_agent
     cid, comp = _campaign(client, a), _make_composition(client)  # both owned by agent A
     r = _schedule(client, second_agent_headers, cid, comp)       # agent B
     assert r.status_code == 404  # Review Focus #2 (404 before the composition is even checked)
+
+
+# ---- Task 6: PATCH edit / reschedule ----
+def _post_id(client, a, cid, comp):
+    return _schedule(client, a, cid, comp).json()["id"]
+
+
+def test_patch_caption_only_preserves_media_and_schedule(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    before = client.get(f"/campaigns/{cid}", headers=a).json()["posts"][0]
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"caption": "Updated"}, headers=a)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["caption"] == "Updated"
+    assert body["media_object_key"] == before["media_object_key"]
+    assert body["scheduled_at"] == before["scheduled_at"]
+    assert body["status"] == "pending_approval"
+
+
+def test_patch_empty_caption_clears_caption(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    # An empty multipart value is indistinguishable from an absent one in FastAPI's Form, so
+    # clearing uses the explicit clear_caption flag (mirrors unschedule).
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"clear_caption": "true"}, headers=a)
+    assert r.status_code == 200 and r.json()["caption"] == ""
+
+
+def test_patch_reschedule_validates_window(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    ok = client.patch(f"/campaigns/{cid}/posts/{pid}",
+                      data={"scheduled_at": "2026-08-20T09:00:00+00:00"}, headers=a)
+    assert ok.status_code == 200 and ok.json()["status"] == "pending_approval"
+    bad = client.patch(f"/campaigns/{cid}/posts/{pid}",
+                       data={"scheduled_at": "2026-09-09T09:00:00+00:00"}, headers=a)
+    assert bad.status_code == 422
+
+
+def test_patch_unschedule_moves_to_draft(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"unschedule": "true"}, headers=a)
+    assert r.status_code == 200 and r.json()["status"] == "draft"
+    assert r.json()["scheduled_at"] is None
+
+
+def test_patch_blocked_on_non_editable_status(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    SessionLocal = client.app.state.sessionmaker
+    with SessionLocal() as db:
+        from app.models.post import Post, PostStatus
+        p = db.get(Post, pid)
+        p.status = PostStatus.published
+        db.commit()
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"caption": "x"}, headers=a)
+    assert r.status_code == 409
+
+
+def test_patch_empty_is_422(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={}, headers=a)
+    assert r.status_code == 422
+
+
+def test_patch_invalid_schedule_with_image_writes_nothing(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    before = client.get(f"/campaigns/{cid}", headers=a).json()["posts"][0]
+    storage = client.app.state.storage
+    n_before = len(storage._objects)  # InMemoryStorage in tests
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}",
+                     data={"scheduled_at": "2026-09-09T09:00:00+00:00"},   # out of window
+                     files={"image": ("new.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=a)
+    assert r.status_code == 422
+    assert len(storage._objects) == n_before                              # no orphan object
+    after = client.get(f"/campaigns/{cid}", headers=a).json()["posts"][0]
+    assert after["media_object_key"] == before["media_object_key"]        # row untouched
+    assert after["status"] == before["status"]
+
+
+def test_patch_unschedule_and_scheduled_at_both_422(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}",
+                     data={"unschedule": "true", "scheduled_at": "2026-08-20T09:00:00+00:00"},
+                     headers=a)
+    assert r.status_code == 422
+
+
+def test_second_agent_cannot_patch_foreign_post(client, second_agent_headers):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"caption": "x"},
+                     headers=second_agent_headers)
+    assert r.status_code == 404  # Review Focus #2

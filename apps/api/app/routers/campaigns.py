@@ -178,3 +178,72 @@ def create_campaign_post(
     db.commit()
     db.refresh(post)
     return CampaignPostOut.model_validate(post)
+
+
+_EDITABLE = {PostStatus.draft, PostStatus.pending_approval, PostStatus.rejected}
+
+
+@router.patch("/{campaign_id}/posts/{post_id}", response_model=CampaignPostOut)
+def edit_post(
+    campaign_id: int,
+    post_id: int,
+    caption: str | None = Form(None),
+    clear_caption: bool = Form(False),
+    scheduled_at: str | None = Form(None),
+    unschedule: bool = Form(False),
+    image: UploadFile | None = File(None),
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+    now: datetime = Depends(clock.now),
+) -> CampaignPostOut:
+    campaign = _owned_campaign(db, campaign_id, user)
+    post = db.get(Post, post_id)
+    if post is None or post.campaign_id != campaign.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Post not found")
+    if post.status not in _EDITABLE:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Cannot edit a post in '{post.status.value}'")
+    if (caption is None and not clear_caption and scheduled_at is None
+            and not unschedule and image is None):
+        raise HTTPException(422, "At least one change is required")
+
+    # ---- 1. Validate EVERYTHING before writing a byte or mutating the row ----
+    # (otherwise an invalid schedule after an image upload leaves an orphaned object).
+    # An empty multipart form value is indistinguishable from an absent one in FastAPI's `Form`,
+    # so clearing a caption to "" uses the explicit `clear_caption` flag (like `unschedule`).
+    if unschedule and scheduled_at is not None:
+        raise HTTPException(422, "Pass either scheduled_at or unschedule, not both")
+    if caption is not None and clear_caption:
+        raise HTTPException(422, "Pass either caption or clear_caption, not both")
+    if caption is not None:
+        _validate_caption(caption)
+    data = _read_jpeg(image) if image is not None else None
+    new_sched_utc: datetime | None = None
+    if scheduled_at is not None:
+        dt = _parse_scheduled_at(scheduled_at)
+        if not within_campaign_window(dt, campaign.starts_on, campaign.ends_on):
+            raise HTTPException(422, "scheduled_at is outside the campaign window")
+        new_sched_utc = dt.astimezone(timezone.utc)
+
+    # ---- 2. All checks passed — now write (object first, then the row) ----
+    if clear_caption:
+        post.caption = ""
+    elif caption is not None:
+        post.caption = caption
+    if data is not None:
+        key = f"campaign-posts/{post.id}/{uuid4().hex}.jpg"
+        storage.put_object(key, data, "image/jpeg")
+        post.media_object_key = key  # old object left in storage (orphan cleanup out of PoC scope)
+    if unschedule:
+        post.scheduled_at = None
+        post.status = PostStatus.draft
+    elif scheduled_at is not None:
+        post.scheduled_at = new_sched_utc
+        post.status = PostStatus.pending_approval
+    # Inc 2 also clears approval fields here (approved_by/reviewed_at/review_note) once added.
+
+    audit.record(db, actor_id=user.id, action="edit", target_type="post", target_id=post.id)
+    db.commit()
+    db.refresh(post)
+    return CampaignPostOut.model_validate(post)
