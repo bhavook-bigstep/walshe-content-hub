@@ -30,6 +30,21 @@ test("agent: open entry modal, save to collection, manage it, start a project", 
   await expect(page).toHaveURL(/\/agent\/studio\?project=\d+/);
 });
 
+// Dialogs opened from far down a scrolled page must sit in the viewport, not at the top of the
+// scrolled content (regression: the `.page-enter` transform pinned `fixed` overlays to it).
+test("save dialog opens in the viewport when the catalog is scrolled", async ({ page }) => {
+  await login(page, "agent@example.test", /\/agent$/);
+  await page.goto("/agent/catalog");
+
+  const last = page.getByRole("button", { name: /save to collection/i }).last();
+  await last.scrollIntoViewIfNeeded();
+  await last.click();
+  const save = page.getByRole("dialog", { name: /save .* to a collection/i });
+  await expect(save).toBeInViewport();
+  await page.keyboard.press("Escape");
+  await expect(save).toHaveCount(0);
+});
+
 test("templates show Preview and Use", async ({ page }) => {
   await login(page, "agent@example.test", /\/agent$/);
   await page.goto("/agent/templates");
