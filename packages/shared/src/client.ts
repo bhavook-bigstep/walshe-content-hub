@@ -9,6 +9,9 @@ export type EntryContentUpdate = Schemas["EntryContentUpdate"];
 export type CustomSection = Schemas["CustomSection"];
 export type ContentTemplates = Schemas["ContentTemplates"];
 export type TemplateField = Schemas["TemplateField"];
+export type GeoData = Schemas["GeoData"];
+export type GeoCountry = Schemas["GeoCountry"];
+export type Season = Schemas["Season"];
 export type MediaItem = Schemas["MediaItem"];
 export type TeamMember = Schemas["TeamMember"];
 export type TeamInvite = Schemas["TeamInvite"];
@@ -70,6 +73,10 @@ export function configureClient(opts: {
 
 export interface CatalogQuery {
   destination?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  season?: Season;
   type?: CatalogType;
   q?: string;
 }
@@ -124,6 +131,10 @@ function json(body: unknown): RequestInit {
 export function buildCatalogQuery(p: CatalogQuery): string {
   const qs = new URLSearchParams();
   if (p.destination) qs.set("destination", p.destination);
+  if (p.country) qs.set("country", p.country);
+  if (p.state) qs.set("state", p.state);
+  if (p.city) qs.set("city", p.city);
+  if (p.season) qs.set("season", p.season);
   if (p.type) qs.set("type", p.type);
   if (p.q) qs.set("q", p.q);
   const s = qs.toString();
@@ -162,6 +173,15 @@ export async function updateOrganization(body: OrganizationUpdateInput): Promise
   return (await (await send("/me/organization", init)).json()) as Organization;
 }
 
+/** Upload the org logo (jpg/jpeg/png); returns the updated organization (AC58). */
+export async function uploadOrgLogo(file: File): Promise<Organization> {
+  const form = new FormData();
+  form.append("file", file);
+  return (await (
+    await send("/me/organization/logo", { method: "POST", body: form })
+  ).json()) as Organization;
+}
+
 export async function me(): Promise<User> {
   return (await (await send("/auth/me")).json()) as User;
 }
@@ -174,13 +194,119 @@ export async function getEntry(id: number): Promise<Entry> {
   return (await (await send(`/catalog/${id}`)).json()) as Entry;
 }
 
+/** Edit an entry's content (AC29) — title, location, season, etc. Only provided fields change. */
+export async function updateEntry(id: number, body: EntryContentUpdate): Promise<Entry> {
+  return (await (await send(`/catalog/${id}`, { ...json(body), method: "PUT" })).json()) as Entry;
+}
+/** Delete an entry (audited, Contract 3). */
+export async function deleteEntry(id: number): Promise<void> {
+  await send(`/catalog/${id}`, { method: "DELETE" });
+}
 export async function createEntry(body: EntryCreate): Promise<Entry> {
   return (await (await send("/catalog", json(body))).json()) as Entry;
+}
+
+// Catalog library (AC49).
+export type Catalog = Schemas["CatalogOut"];
+export type CatalogCreate = Schemas["CatalogCreate"];
+export type CatalogUpdate = Schemas["CatalogUpdate"];
+export type CatalogVisibility = Catalog["visibility"];
+export type AgentRef = Schemas["AgentRef"];
+
+export async function listCatalogs(): Promise<Catalog[]> {
+  return (await (await send("/catalogs")).json()) as Catalog[];
+}
+export async function createCatalog(body: CatalogCreate): Promise<Catalog> {
+  return (await (await send("/catalogs", json(body))).json()) as Catalog;
+}
+export async function updateCatalog(id: number, body: CatalogUpdate): Promise<Catalog> {
+  return (await (await send(`/catalogs/${id}`, { ...json(body), method: "PATCH" })).json()) as Catalog;
+}
+export async function shareCatalog(id: number, shared_agent_ids: number[]): Promise<Catalog> {
+  const init = { ...json({ shared_agent_ids }), method: "PUT" };
+  return (await (await send(`/catalogs/${id}/share`, init)).json()) as Catalog;
+}
+export async function listAccessibleCatalogs(): Promise<Catalog[]> {
+  return (await (await send("/catalogs/accessible")).json()) as Catalog[];
+}
+
+// The provider's single catalog (AC49).
+export async function getMyCatalog(): Promise<Catalog> {
+  return (await (await send("/catalogs/mine")).json()) as Catalog;
+}
+export async function updateMyCatalog(body: CatalogUpdate): Promise<Catalog> {
+  return (await (await send("/catalogs/mine", { ...json(body), method: "PATCH" })).json()) as Catalog;
+}
+export async function shareMyCatalog(shared_agent_ids: number[]): Promise<Catalog> {
+  const init = { ...json({ shared_agent_ids }), method: "PUT" };
+  return (await (await send("/catalogs/mine/share", init)).json()) as Catalog;
+}
+/** Invite a tourism agent (by email) to the catalog's private entries (AC54). */
+export async function inviteAgent(email: string): Promise<Catalog> {
+  return (await (await send("/catalogs/mine/invite", json({ email }))).json()) as Catalog;
+}
+/** Remove an invited agent from the catalog (AC54). */
+export async function uninviteAgent(agentId: number): Promise<Catalog> {
+  return (await (await send(`/catalogs/mine/invite/${agentId}`, { method: "DELETE" })).json()) as Catalog;
+}
+export async function listMyEntries(): Promise<Entry[]> {
+  return (await (await send("/catalogs/mine/entries")).json()) as Entry[];
+}
+export async function listCatalogEntries(catalogId: number): Promise<Entry[]> {
+  return (await (await send(`/catalogs/${catalogId}/entries`)).json()) as Entry[];
+}
+
+// Entry items (AC50).
+export type Item = Schemas["ItemOut"];
+export async function listItems(entryId: number): Promise<Item[]> {
+  return (await (await send(`/catalog/${entryId}/items`)).json()) as Item[];
+}
+export async function addTextItem(
+  entryId: number,
+  body: { text: string; title?: string; order?: number },
+): Promise<Item> {
+  return (await (await send(`/catalog/${entryId}/items/text`, json(body))).json()) as Item;
+}
+export async function uploadMediaItem(entryId: number, file: File, title = ""): Promise<Item> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", title);
+  return (await (await send(`/catalog/${entryId}/items/media`, { method: "POST", body: form })).json()) as Item;
+}
+export async function deleteItem(entryId: number, itemId: number): Promise<void> {
+  await send(`/catalog/${entryId}/items/${itemId}`, { method: "DELETE" });
+}
+
+/** Entry cover photo (AC52): upload a raster image as the entry's card image. */
+export async function uploadEntryCover(
+  entryId: number,
+  file: File,
+): Promise<{ cover_object_key: string; content_type: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  return (await (
+    await send(`/catalog/${entryId}/cover`, { method: "POST", body: form })
+  ).json()) as { cover_object_key: string; content_type: string };
+}
+
+/** Entry cover photo (AC52): generate the card image from a prompt via the configured image model. */
+export async function generateEntryCover(
+  entryId: number,
+  prompt: string,
+): Promise<{ cover_object_key: string; content_type: string }> {
+  return (await (
+    await send(`/catalog/${entryId}/cover/generate`, json({ prompt }))
+  ).json()) as { cover_object_key: string; content_type: string };
 }
 
 /** Self-describing structured-field schema per content type (AC29). */
 export async function getContentTemplates(): Promise<ContentTemplates> {
   return (await (await send("/catalog/templates", {}, false)).json()) as ContentTemplates;
+}
+
+/** Curated country/state/city hierarchy + fixed season list for forms + filters (AC53). */
+export async function getGeo(): Promise<GeoData> {
+  return (await (await send("/catalog/geo", {}, false)).json()) as GeoData;
 }
 
 /** Edit an entry's structured content (AC29). */

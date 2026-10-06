@@ -12,7 +12,10 @@ type Turn =
 
 const PROMPTS = ["Find events in Galway", "What should I post this week?", "Places on the Wild Atlantic Way"];
 
-export default function AssistantWidget() {
+export default function AssistantWidget({ role = "tourism_agent" }: { role?: string }) {
+  // Where the "start a design" suggestion links — the studio for an agent, the catalog for a
+  // provider (who has no studio). AC57.
+  const suggestionHref = role === "content_provider" ? "/provider/catalog" : "/agent/studio";
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
@@ -127,7 +130,7 @@ export default function AssistantWidget() {
                       </ul>
                     )}
                     {t.suggestion && (
-                      <Link href="/agent/studio" onClick={() => setOpen(false)} className="btn-secondary w-fit text-[12px]">
+                      <Link href={suggestionHref} onClick={() => setOpen(false)} className="btn-secondary w-fit text-[12px]">
                         {t.suggestion.label} →
                       </Link>
                     )}

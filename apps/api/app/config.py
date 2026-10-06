@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
 
+    # AI image generation (AC52): the provider + model used to generate entry cover art and the
+    # agent media library's images. Defaults to Gemini 2.5 Flash Image (aka "nano-banana"); with no
+    # GEMINI_API_KEY it falls back to a deterministic solid-colour stub (no egress, hermetic tests)
+    # — see app.ai.images.generate_image.
+    ai_image_provider: str = "gemini"
+    ai_image_model: str = "gemini-2.5-flash-image"
+
     # Observability (AC45). LangSmith tracing is OFF by default — no key, no egress, hermetic tests.
     # Set LANGSMITH_API_KEY (+ optional LANGSMITH_PROJECT) to export the agent loop + creative plan
     # + provider calls to LangSmith. The in-app trace store always records a content-free run row.

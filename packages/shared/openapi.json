@@ -75,6 +75,16 @@
               }
             ],
             "title": "Valid From"
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntryVisibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "AccessUpdate",
@@ -115,6 +125,46 @@
           "role"
         ],
         "title": "AdminCreateUserRequest",
+        "type": "object"
+      },
+      "AgentInvite": {
+        "description": "Invite an agent to a catalog's private entries by email (AC54).",
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "AgentInvite",
+        "type": "object"
+      },
+      "AgentRef": {
+        "description": "An invited agent, resolved for display (AC54).",
+        "properties": {
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ],
+        "title": "AgentRef",
         "type": "object"
       },
       "AgentRunOut": {
@@ -351,6 +401,20 @@
         "title": "Body_publish_social_instagram_publish_post",
         "type": "object"
       },
+      "Body_upload_cover_catalog__entry_id__cover_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_cover_catalog__entry_id__cover_post",
+        "type": "object"
+      },
       "Body_upload_image_catalog__entry_id__image_post": {
         "properties": {
           "file": {
@@ -363,6 +427,60 @@
           "file"
         ],
         "title": "Body_upload_image_catalog__entry_id__image_post",
+        "type": "object"
+      },
+      "Body_upload_logo_me_organization_logo_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_logo_me_organization_logo_post",
+        "type": "object"
+      },
+      "Body_upload_media_item_catalog__entry_id__items_media_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_media_item_catalog__entry_id__items_media_post",
+        "type": "object"
+      },
+      "Body_upload_media_me_library_upload_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_media_me_library_upload_post",
         "type": "object"
       },
       "BrandKitOut": {
@@ -509,6 +627,99 @@
         "title": "BrandKitUpdate",
         "type": "object"
       },
+      "CatalogCreate": {
+        "description": "Provider creates a catalog (AC49).",
+        "properties": {
+          "category": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Category",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/CatalogVisibility",
+            "default": "private"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CatalogCreate",
+        "type": "object"
+      },
+      "CatalogOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "entry_count": {
+            "default": 0,
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "invited_agents": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AgentRef"
+            },
+            "title": "Invited Agents",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "integer"
+          },
+          "shared_agent_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Shared Agent Ids",
+            "type": "array"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/CatalogVisibility"
+          }
+        },
+        "required": [
+          "id",
+          "provider_id",
+          "name",
+          "category",
+          "visibility"
+        ],
+        "title": "CatalogOut",
+        "type": "object"
+      },
+      "CatalogShareUpdate": {
+        "description": "Set the agent ids a private catalog is shared with (AC49).",
+        "properties": {
+          "shared_agent_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Shared Agent Ids",
+            "type": "array"
+          }
+        },
+        "title": "CatalogShareUpdate",
+        "type": "object"
+      },
       "CatalogType": {
         "enum": [
           "event",
@@ -518,6 +729,57 @@
           "itinerary"
         ],
         "title": "CatalogType",
+        "type": "string"
+      },
+      "CatalogUpdate": {
+        "description": "Rename / re-categorise / re-publish a catalog (AC49). Only provided fields change.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogVisibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "CatalogUpdate",
+        "type": "object"
+      },
+      "CatalogVisibility": {
+        "description": "A catalog's distribution gate (AC49): public = every agent; private = only shared agents.",
+        "enum": [
+          "public",
+          "private"
+        ],
+        "title": "CatalogVisibility",
         "type": "string"
       },
       "ClaimSourceOut": {
@@ -881,6 +1143,30 @@
             ],
             "title": "Attributes"
           },
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
           "custom_sections": {
             "anyOf": [
               {
@@ -947,6 +1233,28 @@
             ],
             "title": "Market Tags"
           },
+          "season": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Season"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
           "title": {
             "anyOf": [
               {
@@ -959,6 +1267,16 @@
               }
             ],
             "title": "Title"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "EntryContentUpdate",
@@ -970,6 +1288,29 @@
             "additionalProperties": true,
             "title": "Attributes",
             "type": "object"
+          },
+          "catalog_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Id"
+          },
+          "city": {
+            "default": "",
+            "maxLength": 120,
+            "title": "City",
+            "type": "string"
+          },
+          "country": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Country",
+            "type": "string"
           },
           "custom_sections": {
             "items": {
@@ -1015,6 +1356,22 @@
             "title": "Market Tags",
             "type": "array"
           },
+          "season": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Season"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "default": "",
+            "maxLength": 120,
+            "title": "State",
+            "type": "string"
+          },
           "title": {
             "maxLength": 300,
             "minLength": 1,
@@ -1035,6 +1392,10 @@
               }
             ],
             "title": "Valid From"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/EntryVisibility",
+            "default": "draft"
           }
         },
         "required": [
@@ -1064,6 +1425,37 @@
           "brand_safe": {
             "title": "Brand Safe",
             "type": "boolean"
+          },
+          "catalog_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Id"
+          },
+          "city": {
+            "default": "",
+            "title": "City",
+            "type": "string"
+          },
+          "country": {
+            "default": "",
+            "title": "Country",
+            "type": "string"
+          },
+          "cover_object_key": {
+            "default": "",
+            "title": "Cover Object Key",
+            "type": "string"
+          },
+          "created_by_email": {
+            "default": "",
+            "title": "Created By Email",
+            "type": "string"
           },
           "custom_sections": {
             "default": [],
@@ -1108,12 +1500,25 @@
             "title": "Id",
             "type": "integer"
           },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
           "market_tags": {
             "items": {
               "type": "string"
             },
             "title": "Market Tags",
             "type": "array"
+          },
+          "org_name": {
+            "default": "",
+            "title": "Org Name",
+            "type": "string"
           },
           "provider_id": {
             "title": "Provider Id",
@@ -1122,6 +1527,21 @@
           "review_reason": {
             "default": "",
             "title": "Review Reason",
+            "type": "string"
+          },
+          "season": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Season"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "default": "",
+            "title": "State",
             "type": "string"
           },
           "status": {
@@ -1145,6 +1565,10 @@
               }
             ],
             "title": "Valid From"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/EntryVisibility",
+            "default": "draft"
           }
         },
         "required": [
@@ -1172,6 +1596,99 @@
         ],
         "title": "EntryStatus",
         "type": "string"
+      },
+      "EntryVisibility": {
+        "description": "Per-entry distribution within a catalog (AC54): the three sets a provider sorts entries into.\n\ndraft   = work in progress, visible to no agent (the default for a new entry);\npublic  = visible to every agent;\nprivate = visible only to the agents invited on the entry's catalog (``shared_agent_ids``).",
+        "enum": [
+          "draft",
+          "public",
+          "private"
+        ],
+        "title": "EntryVisibility",
+        "type": "string"
+      },
+      "GenerateRequest": {
+        "description": "Ask the AI layer to generate an image + text into the user's Agent storage (AC51).",
+        "properties": {
+          "prompt": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "GenerateRequest",
+        "type": "object"
+      },
+      "GeoCountry": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "states": {
+            "items": {
+              "$ref": "#/components/schemas/GeoState"
+            },
+            "title": "States",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "states"
+        ],
+        "title": "GeoCountry",
+        "type": "object"
+      },
+      "GeoData": {
+        "description": "Curated location hierarchy + the fixed season list for the catalog forms + filters (AC53).",
+        "properties": {
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/GeoCountry"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/SeasonOption"
+            },
+            "title": "Seasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "countries",
+          "seasons"
+        ],
+        "title": "GeoData",
+        "type": "object"
+      },
+      "GeoState": {
+        "properties": {
+          "cities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cities",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "cities"
+        ],
+        "title": "GeoState",
+        "type": "object"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1264,6 +1781,69 @@
           "display_status"
         ],
         "title": "ItemCardOut",
+        "type": "object"
+      },
+      "ItemKind": {
+        "description": "The kind of a first-class entry item (AC50).",
+        "enum": [
+          "text",
+          "image",
+          "video"
+        ],
+        "title": "ItemKind",
+        "type": "string"
+      },
+      "ItemOut": {
+        "description": "A first-class entry item (AC50) — one text block or one media file.",
+        "properties": {
+          "alt": {
+            "default": "",
+            "title": "Alt",
+            "type": "string"
+          },
+          "content_type": {
+            "default": "",
+            "title": "Content Type",
+            "type": "string"
+          },
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          },
+          "object_key": {
+            "default": "",
+            "title": "Object Key",
+            "type": "string"
+          },
+          "order": {
+            "default": 0,
+            "title": "Order",
+            "type": "integer"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "entry_id",
+          "kind"
+        ],
+        "title": "ItemOut",
         "type": "object"
       },
       "KnowledgeOut": {
@@ -2017,6 +2597,36 @@
         "title": "ScheduleRequest",
         "type": "object"
       },
+      "Season": {
+        "description": "The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter.",
+        "enum": [
+          "spring",
+          "summer",
+          "autumn",
+          "winter",
+          "year_round"
+        ],
+        "title": "Season",
+        "type": "string"
+      },
+      "SeasonOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "SeasonOption",
+        "type": "object"
+      },
       "SendBackRequest": {
         "description": "Reviewer returns an entry to its owner with a reason (AC35 / FR-14).",
         "properties": {
@@ -2144,6 +2754,32 @@
         "title": "TemplateField",
         "type": "object"
       },
+      "TextItemCreate": {
+        "properties": {
+          "order": {
+            "default": 0,
+            "title": "Order",
+            "type": "integer"
+          },
+          "text": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextItemCreate",
+        "type": "object"
+      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -2161,6 +2797,57 @@
         ],
         "title": "TokenResponse",
         "type": "object"
+      },
+      "UserAssetOut": {
+        "description": "A user's own stored asset (AC51) — uploaded (``local``) or generated (``agent``).",
+        "properties": {
+          "content_type": {
+            "default": "",
+            "title": "Content Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ItemKind"
+          },
+          "object_key": {
+            "default": "",
+            "title": "Object Key",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/UserAssetSource"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "kind"
+        ],
+        "title": "UserAssetOut",
+        "type": "object"
+      },
+      "UserAssetSource": {
+        "description": "Origin of a user-storage asset (AC51): user upload, or AI-service generation.",
+        "enum": [
+          "local",
+          "agent"
+        ],
+        "title": "UserAssetSource",
+        "type": "string"
       },
       "UserOut": {
         "properties": {
@@ -2534,7 +3221,7 @@
     },
     "/assistant": {
       "post": {
-        "description": "Ask the grounded Content Assistant (AC38/AC39). It only ever speaks about visible content.",
+        "description": "Ask the grounded Content Assistant (AC38/39/57). It only ever speaks about content the\ncaller may browse — an agent's visible set, or a provider's own catalog.",
         "operationId": "assistant_assistant_post",
         "requestBody": {
           "content": {
@@ -3061,6 +3748,70 @@
           },
           {
             "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "season",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Season"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Season"
+            }
+          },
+          {
+            "in": "query",
             "name": "type",
             "required": false,
             "schema": {
@@ -3173,6 +3924,28 @@
         ]
       }
     },
+    "/catalog/geo": {
+      "get": {
+        "description": "Curated country → state → city hierarchy + the fixed season list (AC53) that powers the\nNew-entry location dropdowns and the agent catalog's location/season filters.",
+        "operationId": "geo_reference_catalog_geo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeoData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Geo Reference",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/catalog/templates": {
       "get": {
         "description": "Self-describing schema of the structured fields per content type (AC29).",
@@ -3235,7 +4008,8 @@
         ]
       },
       "get": {
-        "operationId": "get_for_agent_catalog__entry_id__get",
+        "description": "Fetch one entry (with its items). The owning provider sees their own; an agent sees it only\nif visible to them (Contract 1). A hidden/unknown entry looks like missing (C1/AC36).",
+        "operationId": "get_entry_catalog__entry_id__get",
         "parameters": [
           {
             "in": "path",
@@ -3274,7 +4048,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get For Agent",
+        "summary": "Get Entry",
         "tags": [
           "catalog"
         ]
@@ -3391,6 +4165,130 @@
         ]
       }
     },
+    "/catalog/{entry_id}/cover": {
+      "post": {
+        "description": "Set the entry's cover photo from an uploaded raster image (AC52).",
+        "operationId": "upload_cover_catalog__entry_id__cover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_cover_catalog__entry_id__cover_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Upload Cover Catalog  Entry Id  Cover Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Cover",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/cover/generate": {
+      "post": {
+        "description": "Generate the entry's cover photo from a prompt via the configured image model (AC52).",
+        "operationId": "generate_cover_catalog__entry_id__cover_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Generate Cover Catalog  Entry Id  Cover Generate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Cover",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
     "/catalog/{entry_id}/image": {
       "post": {
         "operationId": "upload_image_catalog__entry_id__image_post",
@@ -3452,6 +4350,225 @@
         ]
       }
     },
+    "/catalog/{entry_id}/items": {
+      "get": {
+        "operationId": "list_items_catalog__entry_id__items_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ItemOut"
+                  },
+                  "title": "Response List Items Catalog  Entry Id  Items Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Items",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/items/media": {
+      "post": {
+        "description": "Add an image or video media item to an entry (AC50). Stored in the provider's media store.",
+        "operationId": "upload_media_item_catalog__entry_id__items_media_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_item_catalog__entry_id__items_media_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Upload Media Item Catalog  Entry Id  Items Media Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Media Item",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/items/text": {
+      "post": {
+        "operationId": "add_text_item_catalog__entry_id__items_text_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Text Item",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/catalog/{entry_id}/items/{item_id}": {
+      "delete": {
+        "operationId": "delete_item_catalog__entry_id__items__item_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "title": "Item Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Item",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/catalog/{entry_id}/send-back": {
       "post": {
         "description": "Return an entry to its owner with a reason (AC35 / FR-14).\n\nA provider may send back only their own entry; a super admin may send back any. The entry drops\nto ``draft`` with the reason recorded (shown to the owner) and re-enters review on resubmit.",
@@ -3507,6 +4624,559 @@
         "summary": "Send Back",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/catalogs": {
+      "get": {
+        "operationId": "list_own_catalogs_catalogs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogOut"
+                  },
+                  "title": "Response List Own Catalogs Catalogs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Own Catalogs",
+        "tags": [
+          "catalogs"
+        ]
+      },
+      "post": {
+        "operationId": "create_catalog_catalogs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/accessible": {
+      "get": {
+        "description": "Catalogs an agent may browse: every public one + the private ones shared with them (AC49).\nThe single catalog-level gate — entry/item reads then flow through services/visibility.",
+        "operationId": "list_accessible_catalogs_catalogs_accessible_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogOut"
+                  },
+                  "title": "Response List Accessible Catalogs Catalogs Accessible Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Accessible Catalogs",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine": {
+      "get": {
+        "description": "The provider's single catalog (AC49), created on first access.",
+        "operationId": "get_my_catalog_catalogs_mine_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get My Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      },
+      "patch": {
+        "operationId": "update_my_catalog_catalogs_mine_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update My Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/entries": {
+      "get": {
+        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.",
+        "operationId": "list_my_entries_catalogs_mine_entries_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntryOut"
+                  },
+                  "title": "Response List My Entries Catalogs Mine Entries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List My Entries",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/invite": {
+      "post": {
+        "description": "Invite a tourism agent (by email) to this catalog's private entries (AC54).",
+        "operationId": "invite_agent_catalogs_mine_invite_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentInvite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Invite Agent",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/invite/{agent_id}": {
+      "delete": {
+        "description": "Remove an invited agent from this catalog (AC54).",
+        "operationId": "uninvite_agent_catalogs_mine_invite__agent_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Uninvite Agent",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/mine/share": {
+      "put": {
+        "operationId": "share_my_catalog_catalogs_mine_share_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogShareUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Share My Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/{catalog_id}": {
+      "delete": {
+        "operationId": "delete_catalog_catalogs__catalog_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      },
+      "patch": {
+        "operationId": "update_catalog_catalogs__catalog_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Catalog",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/{catalog_id}/entries": {
+      "get": {
+        "description": "Browse a catalog's entries + their items (AC50/AC54). A provider sees their own catalog's\nentries (every set); an agent sees only the entries visible to them (public, or private when\ninvited), with expiry/off-limits applied via the visibility choke-point. A catalog with nothing\nvisible to the agent looks like missing (404), so its existence can't be probed.",
+        "operationId": "list_catalog_entries_catalogs__catalog_id__entries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EntryOut"
+                  },
+                  "title": "Response List Catalog Entries Catalogs  Catalog Id  Entries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Catalog Entries",
+        "tags": [
+          "catalogs"
+        ]
+      }
+    },
+    "/catalogs/{catalog_id}/share": {
+      "put": {
+        "description": "Set the agents a private catalog is shared with (AC49). Only real tourism agents are kept.",
+        "operationId": "share_catalog_catalogs__catalog_id__share_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogShareUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Share Catalog",
+        "tags": [
+          "catalogs"
         ]
       }
     },
@@ -3911,6 +5581,210 @@
         ]
       }
     },
+    "/me/library": {
+      "get": {
+        "description": "List the caller's own assets, optionally filtered by source (Local / Agent). Owner-scoped.",
+        "operationId": "list_media_me_library_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UserAssetSource"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserAssetOut"
+                  },
+                  "title": "Response List Media Me Library Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Media",
+        "tags": [
+          "me-library"
+        ]
+      }
+    },
+    "/me/library/generate": {
+      "post": {
+        "description": "Generate an image + text into your Agent storage (AC51). Image comes from the configured\nimage model (AC52), with a deterministic stub fallback when no key is set — image + text only;\nno generated video/animation (that comes from sprites).",
+        "operationId": "generate_me_library_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserAssetOut"
+                  },
+                  "title": "Response Generate Me Library Generate Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate",
+        "tags": [
+          "me-library"
+        ]
+      }
+    },
+    "/me/library/text": {
+      "post": {
+        "description": "Save a text snippet into your Local storage (AC51).",
+        "operationId": "add_text_me_library_text_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Text",
+        "tags": [
+          "me-library"
+        ]
+      }
+    },
+    "/me/library/upload": {
+      "post": {
+        "description": "Upload an image or video into your Local storage (AC51).",
+        "operationId": "upload_media_me_library_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_me_library_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Media",
+        "tags": [
+          "me-library"
+        ]
+      }
+    },
     "/me/media": {
       "get": {
         "description": "Every image/asset across this provider's catalog entries, in one place (AC29).",
@@ -4007,6 +5881,53 @@
           }
         ],
         "summary": "Update Organization",
+        "tags": [
+          "organization"
+        ]
+      }
+    },
+    "/me/organization/logo": {
+      "post": {
+        "description": "Upload the org logo (jpg/jpeg/png) → store it + point ``logo_url`` at the served asset.",
+        "operationId": "upload_logo_me_organization_logo_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_logo_me_organization_logo_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Logo",
         "tags": [
           "organization"
         ]

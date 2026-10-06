@@ -101,9 +101,14 @@ def test_assistant_never_surfaces_hidden_content(client, provider_headers, agent
     assert all(i["id"] != blocked_id for i in r.json()["items"])
 
 
-def test_assistant_is_agent_only(client, provider_headers, admin_headers):
-    for headers in (provider_headers, admin_headers):
-        assert client.post("/assistant", headers=headers, json={"message": "hi"}).status_code == 403
+def test_assistant_roles(client, provider_headers, admin_headers, agent_headers):
+    # AC57 — the chat assistant is open to agents + providers, but not admins.
+    def code(headers):
+        return client.post("/assistant", headers=headers, json={"message": "hi"}).status_code
+
+    assert code(agent_headers) == 200
+    assert code(provider_headers) == 200
+    assert code(admin_headers) == 403
 
 
 # ----------------------------------------------------------------- AC39 NL search
@@ -336,3 +341,14 @@ def test_suggestions_exclude_draft_and_off_limits(client, provider_headers, agen
     assert "Good Pick" in titles
     assert "Draft Pick" not in titles
     assert "Volcano Pick" not in titles
+
+
+def test_provider_assistant_grounds_in_own_catalog(client, provider_headers):
+    """AC57 — the chat assistant is available to providers and grounds in their OWN catalog,
+    including a draft entry that agents would never see."""
+    _entry(client, provider_headers, title="Dingle Trail", destination="Kerry", approve=False)
+    r = client.post(
+        "/assistant", headers=provider_headers, json={"message": "find Dingle in Kerry"}
+    )
+    assert r.status_code == 200, r.text
+    assert any(i["title"] == "Dingle Trail" for i in r.json()["items"])

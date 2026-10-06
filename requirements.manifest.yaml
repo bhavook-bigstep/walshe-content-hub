@@ -169,7 +169,8 @@ acceptance:
       - "apps/api/tests/test_inventory.py::test_content_templates_schema"
       - "apps/api/tests/test_inventory.py::test_media_team_and_performance"
     e2e:
-      - "apps/web/e2e/inventory-smoke.spec.ts::provider creates a structured entry with a custom section"
+      - "apps/web/e2e/inventory-smoke.spec.ts::provider creates an entry and adds a text item"
+      - "apps/web/e2e/entry-edit-smoke.spec.ts::provider edits then deletes an entry"
   # --- v2.4.0 Workspace usability (features wired end-to-end) ---
   AC31:
     tier: P2
@@ -187,7 +188,6 @@ acceptance:
   AC33:
     tier: P2
     api:
-      - "apps/api/tests/test_lifecycle.py::test_expired_absent_from_agent_catalog_and_search"
       - "apps/api/tests/test_lifecycle.py::test_expired_dropped_from_projects_and_schedule"
       - "apps/api/tests/test_lifecycle.py::test_master_edit_flags_in_use_copies"
   # --- v2.6.0 Product-framework increment 2: trust, approval & audit ---
@@ -226,7 +226,7 @@ acceptance:
     api:
       - "apps/api/tests/test_assistant.py::test_assistant_grounds_reply_in_visible_items"
       - "apps/api/tests/test_assistant.py::test_assistant_never_surfaces_hidden_content"
-      - "apps/api/tests/test_assistant.py::test_assistant_is_agent_only"
+      - "apps/api/tests/test_assistant.py::test_assistant_roles"
       - "apps/api/tests/test_assistant.py::test_real_provider_reply_must_stay_grounded"
     e2e:
       - "apps/web/e2e/assistant-smoke.spec.ts::agent asks the assistant and gets a grounded reply"
@@ -302,3 +302,69 @@ acceptance:
     e2e:
       - "apps/web/e2e/studio-interaction-smoke.spec.ts::pan and zoom move the studio viewport; zoom control clears the assistant"
       - "apps/web/e2e/studio-interaction-smoke.spec.ts::selecting an entity and pressing Delete removes it"
+  AC49:
+    tier: P2
+    api:
+      - "apps/api/tests/test_catalogs.py::test_catalog_crud_and_share"
+      - "apps/api/tests/test_catalogs.py::test_catalog_gating"
+      - "apps/api/tests/test_catalogs.py::test_migrate_entries_to_catalogs"
+    e2e:
+      - "apps/web/e2e/catalog-library-smoke.spec.ts::provider sets an entry's visibility to public"
+  AC50:
+    tier: P2
+    api:
+      - "apps/api/tests/test_items.py::test_entry_items_crud_browse_and_serving"
+      - "apps/api/tests/test_items.py::test_private_catalog_browse_hidden_from_unshared_agent"
+      - "apps/api/tests/test_items.py::test_decompose_entries_to_items"
+  AC51:
+    tier: P2
+    api:
+      - "apps/api/tests/test_user_media.py::test_upload_text_generate_list_and_owner_scope"
+      - "apps/api/tests/test_user_media.py::test_generated_image_is_deterministic"
+  AC52:
+    tier: P2
+    api:
+      - "apps/api/tests/test_ai_images.py::test_stub_is_deterministic_and_is_a_png"
+      - "apps/api/tests/test_ai_images.py::test_gemini_used_when_key_present"
+      - "apps/api/tests/test_ai_images.py::test_gemini_failure_falls_back_to_stub"
+      - "apps/api/tests/test_entry_cover.py::test_upload_cover_sets_key_and_is_served_to_a_visible_agent"
+      - "apps/api/tests/test_entry_cover.py::test_generate_cover_sets_key_deterministically"
+      - "apps/api/tests/test_entry_cover.py::test_cover_upload_rejects_unsupported_type_and_guards_ownership"
+      - "apps/api/tests/test_entry_cover.py::test_cover_hidden_from_an_agent_without_catalog_access"
+  AC53:
+    tier: P2
+    api:
+      - "apps/api/tests/test_catalog_location.py::test_geo_reference_endpoint_exposes_hierarchy_and_seasons"
+      - "apps/api/tests/test_catalog_location.py::test_entry_stores_structured_location_and_season"
+      - "apps/api/tests/test_catalog_location.py::test_agent_filters_by_location_and_season"
+  AC54:
+    tier: P2
+    api:
+      - "apps/api/tests/test_entry_visibility.py::test_entry_defaults_to_draft_and_is_hidden"
+      - "apps/api/tests/test_entry_visibility.py::test_public_entry_reaches_every_agent"
+      - "apps/api/tests/test_entry_visibility.py::test_private_entry_only_for_invited_agents"
+      - "apps/api/tests/test_entry_visibility.py::test_set_access_moves_entry_between_sets_and_audits_unpublish"
+      - "apps/api/tests/test_catalogs.py::test_catalog_gating"
+    e2e:
+      - "apps/web/e2e/catalog-library-smoke.spec.ts::provider sets an entry's visibility to public"
+  AC55:
+    tier: P2
+    api:
+      - "apps/api/tests/test_lifecycle.py::test_expired_shown_greyed_but_not_usable"
+      - "apps/api/tests/test_lifecycle.py::test_display_status_derived_from_clock"
+      - "apps/api/tests/test_catalogs.py::test_expired_entry_in_public_catalog_is_shown_greyed"
+  AC56:
+    tier: P2
+    api:
+      - "apps/api/tests/test_entry_provenance.py::test_entry_records_creator_and_org"
+  AC57:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_assistant_roles"
+      - "apps/api/tests/test_assistant.py::test_provider_assistant_grounds_in_own_catalog"
+  AC58:
+    tier: P2
+    api:
+      - "apps/api/tests/test_profile.py::test_provider_uploads_org_logo_and_it_is_served"
+    e2e:
+      - "apps/web/e2e/organization-smoke.spec.ts::organization page hosts profile, invite-agents and team"

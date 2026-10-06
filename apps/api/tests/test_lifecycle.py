@@ -62,12 +62,15 @@ def test_display_status_derived_from_clock():
     assert display_status(EntryStatus.approved, expires, T0 + timedelta(days=11)) == (
         DisplayStatus.expired
     )
-    # Non-approved stored statuses pass through regardless of dates.
+    # Withdrawn passes through; an entry with no expiry keeps its stored status (lives forever).
     assert display_status(EntryStatus.withdrawn, None, T0) == DisplayStatus.withdrawn
-    assert (
-        display_status(EntryStatus.draft, expires, T0 + timedelta(days=11)) == DisplayStatus.draft
-    )
+    assert display_status(EntryStatus.draft, None, T0) == DisplayStatus.draft
     assert display_status(EntryStatus.in_review, None, T0) == DisplayStatus.in_review
+    # Expiry now applies to ANY (non-withdrawn) status (AC55): a past-expiry draft reads expired.
+    assert (
+        display_status(EntryStatus.draft, expires, T0 + timedelta(days=11))
+        == DisplayStatus.expired
+    )
     # No expiry -> always plain approved; the predicate agrees.
     assert display_status(EntryStatus.approved, None, T0) == DisplayStatus.approved
     assert is_expired(None, T0) is False
@@ -120,26 +123,39 @@ def test_validity_window_rejected_when_inverted(client, provider_headers):
 # --------------------------------------------------------------------------- AC33
 
 
-def test_expired_absent_from_agent_catalog_and_search(client, provider_headers, agent_headers, app):
-    """An expired entry drops from the agent catalog + search on its own, and GET -> 404."""
+def test_expired_shown_greyed_but_not_usable(client, provider_headers, agent_headers, app):
+    """AC55 — an expired entry STAYS in the agent catalog + search (shown greyed via
+    display_status=expired) and is still viewable, but is dropped from the usable/build path."""
     expires = T0 + timedelta(days=1)
     _fix_clock(app, T0)
     entry_id = _create_approved_entry(client, provider_headers, expires_at=expires)
 
-    # Before expiry: visible in list, search, and direct GET.
-    assert any(e["id"] == entry_id for e in client.get("/catalog", headers=agent_headers).json())
+    # Before expiry: present and not yet expired.
+    before = client.get("/catalog", headers=agent_headers).json()
+    row = next(e for e in before if e["id"] == entry_id)
+    assert row["display_status"] != "expired"
+
+    # After expiry: still present in list + search, now marked expired, and GET still 200.
+    _fix_clock(app, T0 + timedelta(days=2))
+    row = next(
+        (e for e in client.get("/catalog", headers=agent_headers).json() if e["id"] == entry_id),
+        None,
+    )
+    assert row is not None and row["display_status"] == "expired"
     assert any(
         e["id"] == entry_id for e in client.get("/catalog?q=Harbour", headers=agent_headers).json()
     )
     assert client.get(f"/catalog/{entry_id}", headers=agent_headers).status_code == 200
 
-    # After expiry (same data, clock moved): absent everywhere, GET indistinguishable from missing.
-    _fix_clock(app, T0 + timedelta(days=2))
-    assert all(e["id"] != entry_id for e in client.get("/catalog", headers=agent_headers).json())
-    assert all(
-        e["id"] != entry_id for e in client.get("/catalog?q=Harbour", headers=agent_headers).json()
+    # But NOT usable: the build path drops the expired item (404 when nothing visible remains).
+    assert (
+        client.post(
+            "/builder/design",
+            headers=agent_headers,
+            json={"prompt": "promote it", "item_ids": [entry_id]},
+        ).status_code
+        == 404
     )
-    assert client.get(f"/catalog/{entry_id}", headers=agent_headers).status_code == 404
 
 
 def test_expired_dropped_from_projects_and_schedule(client, provider_headers, agent_headers, app):

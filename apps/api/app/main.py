@@ -27,8 +27,10 @@ from app.routers import (
     blocklist,
     builder,
     catalog,
+    catalogs,
     engagement,
     instagram,
+    me_media,
     observability,
     org,
     provider,
@@ -125,7 +127,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(admin.router)
     app.include_router(catalog.router)
+    app.include_router(catalogs.router)
     app.include_router(assets.router)
+    app.include_router(me_media.router)
     app.include_router(render.router)
     app.include_router(builder.router)
     app.include_router(social.router)

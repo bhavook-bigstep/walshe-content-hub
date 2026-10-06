@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.clock import now as clock_now
 from app.models.agent_features import BrandKit, Collection
-from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
+from app.models.catalog import CatalogEntry, CatalogType, EntryStatus, Season
 from app.models.composition import Composition
 from app.models.engagement import Engagement
 from app.models.post import Post, PostStatus
@@ -86,10 +86,24 @@ _ATTRS: dict[CatalogType, dict] = {
         "venue": "Docklands",
         "expected_attendance": 40000,
     },
-    CatalogType.place: {"region": "Wild Atlantic Way", "best_season": "Spring, Summer"},
+    CatalogType.place: {"region": "Wild Atlantic Way"},
     CatalogType.offer: {"price_from": 899, "currency": "EUR", "valid_until": "2026-11-30"},
     CatalogType.itinerary: {"duration_days": 7, "difficulty": "Easy"},
     CatalogType.opportunity: {"deadline": "2026-05-31", "commission": "12%"},
+}
+
+# Structured location + season per entry (AC53), from the curated geo hierarchy (app/geo.py).
+# title -> (country, state, city, season)
+_LOCATION: dict[str, tuple[str, str, str, Season]] = {
+    "Harbour Festival": ("Ireland", "Galway", "Galway City", Season.summer),
+    "Cliffs of Moher": ("Ireland", "Clare", "Doolin", Season.year_round),
+    "Wild Atlantic Way": ("Ireland", "Mayo", "Westport", Season.summer),
+    "Autumn Escapes": ("Ireland", "Kerry", "Killarney", Season.autumn),
+    "Titanic Quarter": ("United Kingdom", "Northern Ireland", "Belfast", Season.year_round),
+    "Dublin Lights": ("Ireland", "Dublin", "Dublin", Season.winter),
+    "Trade Showcase": ("Ireland", "Dublin", "Dublin", Season.autumn),
+    "Winter Warmers": ("Ireland", "Donegal", "Bundoran", Season.winter),
+    "Spring Food Fair": ("Ireland", "Cork", "Cork", Season.spring),
 }
 
 
@@ -105,6 +119,8 @@ def _entry(db: Session, provider_id: int, spec, now: datetime) -> CatalogEntry:
         db.add(e)
     e.type = type_
     e.destination = dest
+    country, state, city, season = _LOCATION.get(title, ("Ireland", dest, "", None))
+    e.country, e.state, e.city, e.season = country, state, city, season
     e.description = (
         f"A verified {type_.value} in {dest}, ready for agents to personalise and share."
     )

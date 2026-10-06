@@ -23,6 +23,9 @@ from app.observability.tracing import elapsed_ms, monotonic_ms
 router = APIRouter(tags=["assistant"])
 
 _agent_only = require_role(Role.tourism_agent)
+# The chat assistant (AC57) is available to agents AND providers; each is grounded in the content
+# they may browse (visibility.entries_for_actor). /me/suggestions + /knowledge stay agent-only.
+_assistant_roles = require_role(Role.tourism_agent, Role.content_provider)
 
 
 class AssistantRequest(BaseModel):
@@ -63,11 +66,12 @@ def _cards(items: list[ItemCard]) -> list[ItemCardOut]:
 def assistant(
     body: AssistantRequest,
     db: Session = Depends(get_db),
-    agent: User = Depends(_agent_only),
+    agent: User = Depends(_assistant_roles),
     settings: Settings = Depends(get_settings),
     now: datetime = Depends(clock.now),
 ) -> AssistantOut:
-    """Ask the grounded Content Assistant (AC38/AC39). It only ever speaks about visible content."""
+    """Ask the grounded Content Assistant (AC38/39/57). It only ever speaks about content the
+    caller may browse — an agent's visible set, or a provider's own catalog."""
     provider = get_provider(settings)
     start = monotonic_ms()
     ls = settings.langsmith_enabled()

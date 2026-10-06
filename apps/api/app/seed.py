@@ -12,12 +12,21 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.clock import now as clock_now
-from app.models.catalog import CatalogEntry, CatalogType, EntryStatus
+from app.models.catalog import (
+    Catalog,
+    CatalogEntry,
+    CatalogType,
+    CatalogVisibility,
+    EntryStatus,
+    EntryVisibility,
+    Season,
+)
 from app.models.composition import Composition
 from app.models.engagement import Engagement
 from app.models.post import Post, PostStatus
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
+from app.services.catalog_migration import decompose_entries_to_items
 
 # A fixed salt keeps seeded password hashes deterministic across runs (dev/demo only).
 _SEED_SALT = b"walsh-seed-salt0"
@@ -36,6 +45,23 @@ _SEED_ENTRIES = [
     (CatalogType.itinerary, "Wild Atlantic Way", "Mayo"),
 ]
 
+# Structured location + season per entry (AC53) — values come from the curated geo hierarchy
+# (app/geo.py) so the agent catalog's cascading filters have real, matching options.
+# title -> (country, state, city, season)
+_SEED_LOCATION: dict[str, tuple[str, str, str, Season]] = {
+    "Harbour Festival": ("Ireland", "Galway", "Galway City", Season.summer),
+    "Cliffs of Moher": ("Ireland", "Clare", "Doolin", Season.year_round),
+    "Trade Showcase": ("Ireland", "Dublin", "Dublin", Season.autumn),
+    "Autumn Package": ("Ireland", "Kerry", "Killarney", Season.autumn),
+    "Wild Atlantic Way": ("Ireland", "Mayo", "Westport", Season.summer),
+}
+
+# Per-entry distribution (AC54): most of the demo catalog is public; "Autumn Package" is private
+# to showcase the invited-agents set (the seeded agent is invited on the catalog below).
+_SEED_VISIBILITY: dict[str, EntryVisibility] = {
+    "Autumn Package": EntryVisibility.private,
+}
+
 # Structured template attributes per type (AC29) — synthetic but schema-correct.
 _SEED_ATTRIBUTES: dict[CatalogType, dict] = {
     CatalogType.event: {
@@ -46,7 +72,6 @@ _SEED_ATTRIBUTES: dict[CatalogType, dict] = {
     },
     CatalogType.place: {
         "region": "Wild Atlantic Way",
-        "best_season": "Spring, Summer",
         "latitude": 52.9719,
         "longitude": -9.4261,
     },
@@ -92,33 +117,64 @@ def _upsert_user(db: Session, email: str, role: Role, tenant_id: int | None) -> 
     return user
 
 
+def _upsert_catalog(db: Session, provider_id: int, display_name: str) -> Catalog:
+    """The provider's single public catalog (AC49) — one per provider, public so every agent can
+    browse it in the demo. Idempotent: matched by provider, so re-running the seed reuses it."""
+    catalog = db.execute(
+        select(Catalog).where(Catalog.provider_id == provider_id).order_by(Catalog.id)
+    ).scalars().first()
+    if catalog is None:
+        catalog = Catalog(
+            provider_id=provider_id,
+            name=f"{display_name} catalog",
+            category="Destination content",
+            visibility=CatalogVisibility.public,
+            shared_agent_ids=[],
+        )
+        db.add(catalog)
+        db.flush()
+    return catalog
+
+
 def _upsert_entry(
     db: Session,
     provider_id: int,
+    catalog_id: int,
     type_: CatalogType,
     title: str,
     destination: str,
     *,
     valid_from: datetime | None,
     expires_at: datetime | None,
+    created_by_email: str = "",
+    org_name: str = "",
 ) -> CatalogEntry:
     entry = db.execute(
         select(CatalogEntry).where(
             CatalogEntry.provider_id == provider_id, CatalogEntry.title == title
         )
     ).scalar_one_or_none()
+    country, state, city, season = _SEED_LOCATION.get(title, ("Ireland", destination, "", None))
     if entry is None:
         entry = CatalogEntry(
             type=type_,
             title=title,
             description=f"Seeded {type_.value} in {destination}.",
             destination=destination,
+            country=country,
+            state=state,
+            city=city,
+            season=season,
+            visibility=_SEED_VISIBILITY.get(title, EntryVisibility.public),
             market_tags=["leisure"],
             status=EntryStatus.approved,
             brand_safe=True,
             valid_from=valid_from,
             expires_at=expires_at,
             provider_id=provider_id,
+            created_by_email=created_by_email,
+            org_name=org_name,
+            catalog_id=catalog_id,
             attributes=_SEED_ATTRIBUTES.get(type_, {}),
             highlights=[
                 f"Signature {type_.value} on the Wild Atlantic Way",
@@ -227,18 +283,27 @@ def seed(db: Session) -> dict[str, int]:
         "Harbour Festival": (t - timedelta(days=30), t + timedelta(days=5)),
         "Trade Showcase": (t - timedelta(days=40), t - timedelta(days=10)),
     }
+    # AC49: the provider owns a single public catalog; every seeded entry lives in it.
+    catalog = _upsert_catalog(db, provider.id, provider.display_name or "Dana Walsh")
     entries = [
         _upsert_entry(
             db,
             provider.id,
+            catalog.id,
             type_,
             title,
             dest,
             valid_from=_SEED_VALIDITY.get(title, (t - timedelta(days=30), None))[0],
             expires_at=_SEED_VALIDITY.get(title, (t - timedelta(days=30), None))[1],
+            created_by_email=provider.email,
+            org_name=tenant.name,
         )
         for type_, title, dest in _SEED_ENTRIES
     ]
+
+    # AC54: invite the demo agent on the catalog so the one private entry ("Autumn Package") is
+    # visible to them — showcasing the invited-agents set alongside the public set.
+    catalog.shared_agent_ids = [agent.id]
 
     # A healthy composition (current items) and one that will fail preflight (holds the expired
     # "Trade Showcase") so the pre-send check (AC34) has something to catch in the demo.
@@ -248,6 +313,10 @@ def seed(db: Session) -> dict[str, int]:
     _upsert_composition(db, agent.id, "Trade Showcase teaser", [entries[2].id])
 
     _upsert_post_with_engagement(db, launch_comp.id)
+
+    # AC50: decompose each entry's text + assets into first-class items so the catalog library and
+    # the studio media picker are populated.
+    decompose_entries_to_items(db)
 
     db.commit()
 

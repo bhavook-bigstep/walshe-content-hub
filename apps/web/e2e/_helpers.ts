@@ -1,4 +1,21 @@
-import { type Page, expect } from "@playwright/test";
+import { type Locator, type Page, expect } from "@playwright/test";
+
+// Pick a value from a custom <Select> (components/ui/Select): open the trigger by its accessible
+// name, then click the option. `scope` is a page or a dialog/region locator.
+export async function chooseOption(
+  scope: Page | Locator,
+  label: string,
+  optionText: string | RegExp,
+): Promise<void> {
+  await scope.getByRole("button", { name: label }).click();
+  await scope.getByRole("option", { name: optionText }).click();
+}
+
+// Expand a collapsed <CollapsibleSection> (components/ui/CollapsibleSection) by its title, so its
+// fields become visible. The EntryForm collapses location/details/etc. by default.
+export async function expandSection(scope: Page | Locator, title: string | RegExp): Promise<void> {
+  await scope.getByRole("button", { name: title }).click();
+}
 
 // The e2e API now sends real CORS headers for the web origin (CORS_ORIGINS in playwright.config),
 // so the browser calls it directly. This is a no-op kept for call-site compatibility — no brittle
