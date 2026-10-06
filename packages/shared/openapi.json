@@ -316,28 +316,6 @@
         "title": "AuditOut",
         "type": "object"
       },
-      "AutoCatalogResult": {
-        "description": "Result of an Auto-Catalog import (AC64–AC67): draft entries generated from one document.",
-        "properties": {
-          "count": {
-            "title": "Count",
-            "type": "integer"
-          },
-          "entries": {
-            "items": {
-              "$ref": "#/components/schemas/EntryOut"
-            },
-            "title": "Entries",
-            "type": "array"
-          }
-        },
-        "required": [
-          "count",
-          "entries"
-        ],
-        "title": "AutoCatalogResult",
-        "type": "object"
-      },
       "BlocklistCreate": {
         "properties": {
           "term": {
@@ -1847,6 +1825,65 @@
           "kind"
         ],
         "title": "ItemOut",
+        "type": "object"
+      },
+      "JobOut": {
+        "description": "An async import job (AC71) as seen by the provider's bell + jobs list (AC74).\n\nContent-free: status + a safe summary only (never document text, keys or raw PII).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "drafts_created": {
+            "title": "Drafts Created",
+            "type": "integer"
+          },
+          "entry_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Entry Ids",
+            "type": "array"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "filename",
+          "status",
+          "drafts_created",
+          "entry_ids",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "JobOut",
         "type": "object"
       },
       "KnowledgeOut": {
@@ -5304,7 +5341,7 @@
     },
     "/me/auto-catalog/import": {
       "post": {
-        "description": "Import a document into 1..N AI-generated draft entries (AC64–AC67).\n\nValidates type + size at the boundary (AC64), extracts via the AC16 seam (AC65), structures into\ndraft entries with full field inference (AC66), and persists them as hidden drafts with the\nAI-created marker in the provider's catalog (AC67/AC68).",
+        "description": "Accept a document and schedule an async import (AC71).\n\nValidates type + size at the boundary (AC64), reads the bytes (the ``UploadFile`` is closed once\nthe 202 returns), enqueues a ``Job`` and schedules the extraction as a background task. The work\n— AC16 seam extraction (AC65), image extraction (AC72), tool-call draft creation (AC73) — runs\nafter the response; this endpoint never blocks on the LLM.",
         "operationId": "import_document_me_auto_catalog_import_post",
         "requestBody": {
           "content": {
@@ -5317,11 +5354,11 @@
           "required": true
         },
         "responses": {
-          "201": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AutoCatalogResult"
+                  "$ref": "#/components/schemas/JobOut"
                 }
               }
             },
@@ -5778,6 +5815,37 @@
         "summary": "Design Templates",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/me/jobs": {
+      "get": {
+        "description": "List the provider's own import jobs, newest first — backs the navbar bell (AC74).\n\nOwner-scoped (a provider never sees another's jobs); content-free (status + a safe summary).",
+        "operationId": "list_jobs_me_jobs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobOut"
+                  },
+                  "title": "Response List Jobs Me Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Jobs",
+        "tags": [
+          "auto-catalog"
         ]
       }
     },

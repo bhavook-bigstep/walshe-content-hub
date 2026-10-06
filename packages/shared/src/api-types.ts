@@ -779,11 +779,12 @@ export interface paths {
         put?: never;
         /**
          * Import Document
-         * @description Import a document into 1..N AI-generated draft entries (AC64–AC67).
+         * @description Accept a document and schedule an async import (AC71).
          *
-         *     Validates type + size at the boundary (AC64), extracts via the AC16 seam (AC65), structures into
-         *     draft entries with full field inference (AC66), and persists them as hidden drafts with the
-         *     AI-created marker in the provider's catalog (AC67/AC68).
+         *     Validates type + size at the boundary (AC64), reads the bytes (the ``UploadFile`` is closed once
+         *     the 202 returns), enqueues a ``Job`` and schedules the extraction as a background task. The work
+         *     — AC16 seam extraction (AC65), image extraction (AC72), tool-call draft creation (AC73) — runs
+         *     after the response; this endpoint never blocks on the LLM.
          */
         post: operations["import_document_me_auto_catalog_import_post"];
         delete?: never;
@@ -915,6 +916,28 @@ export interface paths {
         };
         /** Design Templates */
         get: operations["design_templates_me_design_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jobs
+         * @description List the provider's own import jobs, newest first — backs the navbar bell (AC74).
+         *
+         *     Owner-scoped (a provider never sees another's jobs); content-free (status + a safe summary).
+         */
+        get: operations["list_jobs_me_jobs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1450,16 +1473,6 @@ export interface components {
             target_id: number;
             /** Target Type */
             target_type: string;
-        };
-        /**
-         * AutoCatalogResult
-         * @description Result of an Auto-Catalog import (AC64–AC67): draft entries generated from one document.
-         */
-        AutoCatalogResult: {
-            /** Count */
-            count: number;
-            /** Entries */
-            entries: components["schemas"]["EntryOut"][];
         };
         /** BlocklistCreate */
         BlocklistCreate: {
@@ -2057,6 +2070,41 @@ export interface components {
              * @default
              */
             title: string;
+        };
+        /**
+         * JobOut
+         * @description An async import job (AC71) as seen by the provider's bell + jobs list (AC74).
+         *
+         *     Content-free: status + a safe summary only (never document text, keys or raw PII).
+         */
+        JobOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Drafts Created */
+            drafts_created: number;
+            /** Entry Ids */
+            entry_ids: number[];
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /** Filename */
+            filename: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** KnowledgeOut */
         KnowledgeOut: {
@@ -4001,12 +4049,12 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AutoCatalogResult"];
+                    "application/json": components["schemas"]["JobOut"];
                 };
             };
             /** @description Validation Error */
@@ -4304,6 +4352,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DesignTemplate"][];
+                };
+            };
+        };
+    };
+    list_jobs_me_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"][];
                 };
             };
         };

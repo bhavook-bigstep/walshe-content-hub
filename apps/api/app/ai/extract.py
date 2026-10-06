@@ -36,6 +36,7 @@ SUPPORTED_CONTENT_TYPES = frozenset({PDF_CONTENT_TYPE, *IMAGE_CONTENT_TYPES})
 
 _MAX_ENTRIES = 25  # bound a single document's output (PoC is one synchronous document)
 _MAX_TEXT = 20_000  # cap the text handed to the model / heuristic
+_MAX_IMAGES = 25  # bound how many embedded images a single document contributes
 
 # Keyword → content type, scanned in priority order so the most specific wins.
 _TYPE_KEYWORDS: list[tuple[CatalogType, tuple[str, ...]]] = [
@@ -88,6 +89,62 @@ def extract_text_from_pdf(data: bytes) -> str:
     return "\n".join(p.strip() for p in parts if p.strip()).strip()
 
 
+# Map a PyMuPDF image ``ext`` to a servable raster content-type; unknown/active types are dropped.
+_IMAGE_EXT_TO_TYPE = {
+    "png": "image/png",
+    "jpeg": "image/jpeg",
+    "jpg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "bmp": "image/bmp",
+}
+
+
+def extract_images_from_pdf(data: bytes) -> list[tuple[bytes, str]]:
+    """Pull embedded raster images from a PDF with PyMuPDF (AC72) as ``(bytes, content_type)``.
+
+    Deduplicated by xref. Returns ``[]`` if PyMuPDF is unavailable or the file can't be parsed
+    inertly — never raises, so a PDF with no usable image degrades cleanly (no cover). Only known
+    raster types are returned; anything else (vector/active content) is skipped (parsed inertly).
+    """
+    try:
+        import pymupdf
+    except Exception:  # pragma: no cover - pymupdf missing from the toolchain
+        logger.info("pymupdf unavailable; skipping PDF image extraction")
+        return []
+    images: list[tuple[bytes, str]] = []
+    try:
+        doc = pymupdf.open(stream=data, filetype="pdf")
+        seen: set[int] = set()
+        for page in doc:
+            for info in page.get_images(full=True):
+                xref = info[0]
+                if xref in seen:
+                    continue
+                seen.add(xref)
+                extracted = doc.extract_image(xref)
+                content_type = _IMAGE_EXT_TO_TYPE.get((extracted.get("ext") or "").lower())
+                payload = extracted.get("image")
+                if content_type and payload:
+                    images.append((payload, content_type))
+                if len(images) >= _MAX_IMAGES:
+                    return images
+    except Exception:
+        logger.info("could not extract images from the uploaded PDF; continuing with none")
+        return images
+    return images
+
+
+def document_images(filename: str, content_type: str, data: bytes) -> list[tuple[bytes, str]]:
+    """Candidate images for the document (AC72): embedded images for a PDF; for a direct PNG/JPEG
+    upload, the file itself is the single candidate. Returns ``(bytes, content_type)`` pairs."""
+    if content_type == PDF_CONTENT_TYPE:
+        return extract_images_from_pdf(data)
+    if content_type in IMAGE_CONTENT_TYPES:
+        return [(data, content_type)]
+    return []
+
+
 def document_text(filename: str, content_type: str, data: bytes) -> str:
     """The clean text fed to the model/heuristic: PDF text for PDFs; for images, a filename cue only
     (no OCR in this PoC). Never includes raw bytes."""
@@ -113,10 +170,15 @@ def _extract_instruction(text: str) -> str:
 
 
 def _extract_facts(text: str, provider: AIProvider) -> str:
-    """Stage 1: ask the provider to distil facts from the locally-extracted text. The stub (and any
-    empty response) falls back to the local text, which is already grounded + deterministic."""
+    """Stage 1: ask the provider to distil facts from the locally-extracted text. The stub, an empty
+    response, or a provider failure (timeout/network/HTTP) falls back to the local text, which is
+    already grounded + deterministic — a flaky provider must never 500 the import (AC70)."""
     if provider.name != "stub" and text.strip():
-        completion = provider.complete(_extract_instruction(text), max_tokens=1500)
+        try:
+            completion = provider.complete(_extract_instruction(text), max_tokens=1500)
+        except Exception:  # noqa: BLE001 - any provider error degrades to the local text
+            logger.info("stage-1 provider call failed; falling back to local text")
+            return text
         distilled = (completion.text or "").strip()
         if distilled:
             return distilled[:_MAX_TEXT]
@@ -140,9 +202,14 @@ def _structure_instruction(facts: str) -> str:
 
 def _structure_entries(facts: str, provider: AIProvider) -> list[dict[str, Any]]:
     """Stage 2: map facts → normalized entry dicts. Real providers go via the model + JSON parse;
-    the stub (or an unusable response) uses the deterministic heuristic over the same facts text."""
+    the stub, an unusable response, or a provider failure (timeout/network/HTTP) uses the
+    deterministic heuristic over the same facts text — a flaky provider must never 500 (AC70)."""
     if provider.name != "stub" and facts.strip():
-        completion = provider.complete(_structure_instruction(facts), max_tokens=2048)
+        try:
+            completion = provider.complete(_structure_instruction(facts), max_tokens=2048)
+        except Exception:  # noqa: BLE001 - any provider error degrades to the heuristic
+            logger.info("stage-2 provider call failed; falling back to heuristic")
+            return _heuristic_entries(facts)
         parsed = _parse_entries(completion.text)
         if parsed:
             return parsed

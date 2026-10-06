@@ -89,6 +89,27 @@ def _import(client, headers, data: bytes, filename="doc.pdf", content_type="appl
     )
 
 
+def _job(client, headers, job_id: int) -> dict:
+    jobs = client.get("/me/jobs", headers=headers).json()
+    return next(j for j in jobs if j["id"] == job_id)
+
+
+def _run_import(client, headers, data: bytes, filename="doc.pdf", content_type="application/pdf"):
+    """POST the async import (AC71), assert it is accepted (202), and return
+    ``(finished_job, created_entries)``.
+
+    The TestClient drains the background task synchronously, so by the time the POST returns the job
+    is terminal and its draft entries are persisted — the test can read them straight back."""
+    res = _import(client, headers, data, filename, content_type)
+    assert res.status_code == 202, res.text
+    job = res.json()
+    final = _job(client, headers, job["id"])
+    assert final["status"] == "done", final
+    mine = {e["id"]: e for e in client.get("/catalogs/mine/entries", headers=headers).json()}
+    entries = [mine[i] for i in final["entry_ids"] if i in mine]
+    return final, entries
+
+
 # ------------------------------------------------------------------------------------------ AC64
 
 
@@ -155,12 +176,11 @@ def test_entries_infer_fields_and_drop_ungrounded():
 
 def test_generated_entries_are_drafts_invisible_to_agents(client, provider_headers, agent_headers):
     pdf = _pdf("Dingle Food Festival\nType: event\nLocation: Dingle\nA seafood celebration.")
-    res = _import(client, provider_headers, pdf)
-    assert res.status_code == 201, res.text
-    body = res.json()
-    assert body["count"] >= 1
-    generated_ids = {e["id"] for e in body["entries"]}
-    for e in body["entries"]:
+    job, entries = _run_import(client, provider_headers, pdf)
+    assert job["drafts_created"] >= 1
+    assert len(entries) == job["drafts_created"]
+    generated_ids = {e["id"] for e in entries}
+    for e in entries:
         assert e["visibility"] == "draft"
         assert e["status"] == "draft"
         assert e["brand_safe"] is False
@@ -180,8 +200,8 @@ def test_generated_entries_are_drafts_invisible_to_agents(client, provider_heade
 
 def test_ai_created_marker_and_filter(client, provider_headers):
     pdf = _pdf("Clifden Arts Festival\nType: event\nLocation: Clifden\nAn arts week.")
-    gen = _import(client, provider_headers, pdf).json()
-    generated_ids = {e["id"] for e in gen["entries"]}
+    _, gen_entries = _run_import(client, provider_headers, pdf)
+    generated_ids = {e["id"] for e in gen_entries}
 
     cid = client.get("/catalogs/mine", headers=provider_headers).json()["id"]
     manual = client.post(
@@ -211,8 +231,8 @@ def test_ai_created_marker_and_filter(client, provider_headers):
 
 def test_generated_draft_edited_and_published(client, provider_headers, agent_headers):
     pdf = _pdf("Westport Food Festival\nType: event\nLocation: Westport\nA food weekend.")
-    gen = _import(client, provider_headers, pdf).json()
-    entry_id = gen["entries"][0]["id"]
+    _, gen_entries = _run_import(client, provider_headers, pdf)
+    entry_id = gen_entries[0]["id"]
 
     # Reuse the existing entry editor (AC29) to review/correct the generated draft.
     edited = client.put(
@@ -247,8 +267,8 @@ def test_determinism_and_no_pii_in_logs(client, provider_headers, caplog):
     marker = "PII-SECRET-TOKEN-998877"
     doc = _pdf(f"{marker} Festival\nType: event\nLocation: Galway City")
     with caplog.at_level(logging.INFO):
-        res = _import(client, provider_headers, doc)
-    assert res.status_code == 201, res.text
+        job, _entries = _run_import(client, provider_headers, doc)
+    assert job["status"] == "done"
     assert marker not in caplog.text
 
 
@@ -406,11 +426,10 @@ def test_corrupt_pdf_degrades_to_empty_text(client, provider_headers):
     junk = b"%PDF-1.4\nthis is not a real pdf \x00\x01\x02 garbage bytes"
     assert document_text("broken.pdf", "application/pdf", junk) == ""
 
-    res = _import(client, provider_headers, junk, "broken.pdf", "application/pdf")
-    assert res.status_code == 201, res.text
-    body = res.json()
-    assert body["count"] == 0
-    assert body["entries"] == []
+    job, entries = _run_import(client, provider_headers, junk, "broken.pdf", "application/pdf")
+    assert job["status"] == "done"
+    assert job["drafts_created"] == 0
+    assert entries == []
 
 
 # ------------------------------------------------------------ image import (AC65)
@@ -427,11 +446,11 @@ def test_image_import_yields_draft(client, provider_headers):
     stem = document_text("dingle-food-festival.png", "image/png", _PNG_1x1)
     assert stem == "dingle food festival"
 
-    res = _import(client, provider_headers, _PNG_1x1, "dingle-food-festival.png", "image/png")
-    assert res.status_code == 201, res.text
-    body = res.json()
-    assert body["count"] >= 1
-    entry = body["entries"][0]
+    job, entries = _run_import(
+        client, provider_headers, _PNG_1x1, "dingle-food-festival.png", "image/png"
+    )
+    assert job["drafts_created"] >= 1
+    entry = entries[0]
     assert entry["ai_created"] is True
     assert entry["visibility"] == "draft"
     assert "festival" in entry["title"].lower()

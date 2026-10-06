@@ -22,7 +22,7 @@ class GeminiProvider(AIProvider):
             params={"key": self._api_key},
             headers={"content-type": "application/json"},
             json={"contents": [{"parts": [{"text": prompt}]}]},
-            timeout=30.0,
+            timeout=60.0,
         )
         resp.raise_for_status()
         data = resp.json()

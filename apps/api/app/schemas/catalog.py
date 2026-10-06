@@ -19,6 +19,7 @@ from app.models.catalog import (
 
 if TYPE_CHECKING:
     from app.models.catalog import Catalog, CatalogEntry
+    from app.models.jobs import Job
 
 
 class ItemOut(BaseModel):
@@ -324,3 +325,35 @@ class AutoCatalogResult(BaseModel):
 
     count: int
     entries: list[EntryOut]
+
+
+class JobOut(BaseModel):
+    """An async import job (AC71) as seen by the provider's bell + jobs list (AC74).
+
+    Content-free: status + a safe summary only (never document text, keys or raw PII)."""
+
+    id: int
+    kind: str
+    filename: str
+    status: str
+    drafts_created: int
+    entry_ids: list[int]
+    error: str = ""
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_job(cls, job: "Job") -> "JobOut":
+        return cls(
+            id=job.id,
+            kind=job.kind,
+            filename=job.filename,
+            status=job.status.value,
+            drafts_created=job.drafts_created,
+            entry_ids=list(job.entry_ids or []),
+            error=job.error,
+            created_at=job.created_at,
+            updated_at=job.updated_at,
+        )

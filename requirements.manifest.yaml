@@ -420,3 +420,19 @@ acceptance:
     tier: P2
     api:
       - "apps/api/tests/test_auto_catalog.py::test_determinism_and_no_pii_in_logs"
+  AC71:
+    tier: P2
+    api:
+      - "apps/api/tests/test_auto_catalog_async.py::test_import_returns_202_and_job_lists_done"
+  AC72:
+    tier: P2
+    api:
+      - "apps/api/tests/test_auto_catalog_async.py::test_pdf_images_extracted_to_storage_and_attached"
+  AC73:
+    tier: P2
+    api:
+      - "apps/api/tests/test_auto_catalog_async.py::test_tool_ops_validated_drafts_only"
+  AC74:
+    tier: P2
+    web:
+      - "apps/web/tests/jobs.test.ts::counts in-progress jobs and unseen terminal jobs"

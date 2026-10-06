@@ -103,6 +103,14 @@ export default function ProviderCatalogPage() {
     setEntries(await listMyEntries().catch(() => []));
   }
   useEffect(() => {
+    // Honor the notification-bell deep link (AC74): ?ai_created=true lands on the AI-created drafts.
+    try {
+      if (new URLSearchParams(window.location.search).get("ai_created") === "true") {
+        setFilter("ai");
+      }
+    } catch {
+      /* no window / malformed query — fall back to the default "all" filter */
+    }
     void reload();
     void getContentTemplates()
       .then(setTemplates)
@@ -209,9 +217,11 @@ export default function ProviderCatalogPage() {
       <ImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={(n) => {
+        onQueued={() => {
           setImportOpen(false);
-          if (n > 0) setFilter("ai");
+          // The import runs asynchronously (AC71); the navbar bell announces when drafts are ready.
+          // Pre-select the AI filter so a reload surfaces the new drafts the moment the job finishes.
+          setFilter("ai");
           void reload();
         }}
       />
@@ -219,15 +229,16 @@ export default function ProviderCatalogPage() {
   );
 }
 
-// AC64–AC67 — upload a document; the Auto-Catalog agent turns it into draft entries to review.
+// AC71 — upload a document; the Auto-Catalog agent runs asynchronously and turns it into draft
+// entries to review. Import returns immediately (202); the navbar bell announces completion (AC74).
 function ImportDialog({
   open,
   onClose,
-  onImported,
+  onQueued,
 }: {
   open: boolean;
   onClose: () => void;
-  onImported: (count: number) => void;
+  onQueued: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -238,9 +249,9 @@ function ImportDialog({
     setBusy(true);
     setError(null);
     try {
-      const result = await importAutoCatalog(file);
+      await importAutoCatalog(file);
       setFile(null);
-      onImported(result.count);
+      onQueued();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
     } finally {
@@ -252,8 +263,9 @@ function ImportDialog({
     <Dialog title="Import from document" open={open} onClose={onClose}>
       <div className="space-y-4">
         <p className="text-small text-walshe-grey">
-          Upload a PDF, PNG or JPEG. The Auto-Catalog agent extracts the content and creates draft
-          entries you can review, edit and then publish. Nothing is shown to agents until you publish.
+          Upload a PDF, PNG or JPEG. The Auto-Catalog agent runs in the background and creates draft
+          entries you can review, edit and then publish — the bell in the top bar tells you when
+          they are ready. Nothing is shown to agents until you publish.
         </p>
         <input
           type="file"

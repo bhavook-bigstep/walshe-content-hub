@@ -257,14 +257,21 @@ export async function listMyEntries(aiCreated?: boolean): Promise<Entry[]> {
   return (await (await send(`/catalogs/mine/entries${qs}`)).json()) as Entry[];
 }
 
-export type AutoCatalogResult = Schemas["AutoCatalogResult"];
-/** Auto-Catalog import (AC64–AC67): upload a PDF/PNG/JPEG → 1..N AI-generated draft entries. */
-export async function importAutoCatalog(file: File): Promise<AutoCatalogResult> {
+export type Job = Schemas["JobOut"];
+/**
+ * Auto-Catalog import (AC71): upload a PDF/PNG/JPEG and get back the queued **Job** (202). The
+ * extraction → draft-entry work runs asynchronously; poll {@link listJobs} for its status.
+ */
+export async function importAutoCatalog(file: File): Promise<Job> {
   const form = new FormData();
   form.append("file", file);
   return (await (
     await send("/me/auto-catalog/import", { method: "POST", body: form })
-  ).json()) as AutoCatalogResult;
+  ).json()) as Job;
+}
+/** The provider's own import jobs, newest first — backs the navbar notification bell (AC74). */
+export async function listJobs(): Promise<Job[]> {
+  return (await (await send("/me/jobs")).json()) as Job[];
 }
 export async function listCatalogEntries(catalogId: number): Promise<Entry[]> {
   return (await (await send(`/catalogs/${catalogId}/entries`)).json()) as Entry[];

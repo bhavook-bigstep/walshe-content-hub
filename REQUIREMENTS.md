@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.22.0 |
+| **Version** | 2.23.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -468,12 +468,36 @@ document into draft catalog entries the provider reviews and publishes. All prio
   boundary is mocked/stubbed in every test; no secret or raw-document PII is written to logs or error
   messages. Proof: reproducibility test + review.
 
-**Priority tiers** (build order; acceptance reports honestly against all 70):
+### Auto-Catalog Agent v2 (provider) — AC71–AC74
+
+Charter v2: `docs/plans/2026-10-06-auto-catalog-agent-charter.md` (⏸G feedback). Async jobs, image
+extraction, LLM tool-call insert, and a notification bell. All prior ACs stay green.
+
+- **AC71** — **Async import job.** `POST /me/auto-catalog/import` validates the upload at the boundary
+  (AC64), **enqueues an owner-scoped `Job`** (`queued → running → done | failed`) and returns **202**
+  with the job id *without* blocking on the LLM; extraction runs in a background task. `GET /me/jobs`
+  lists the provider's jobs with status + a result summary (drafts created, or an error with no
+  secret/PII). Deterministic/mocked in tests. Proof: unit (job lifecycle + 202) + e2e.
+- **AC72** — **Image extraction → MinIO.** Embedded images are extracted from PDFs (**PyMuPDF**),
+  uploaded via the existing storage seam under an entry/asset key, and referenced by object key (served
+  by the existing media route). No usable image → no cover (clean). Parsed inertly. A directly-uploaded
+  PNG/JPEG is itself the candidate image. Proof: unit (synthetic PDF with an image) + e2e.
+- **AC73** — **LLM tool-call entry creation + image attach.** The agent runs a tool-use loop exposing
+  `create_entries(entries_json)` + `attach_image(entry_ref, image_ref)`; the **server validates** each
+  call (valid type, grounded fields, real extracted image ref) before persisting and drops
+  invalid/ungrounded calls — entries stay **drafts** (Contract 1). With no key/stub a deterministic
+  fallback creates entries + attaches images by page/order (Contract 4). Proof: unit (tool dispatch +
+  validation + stub determinism) + e2e.
+- **AC74** — **Navbar notification bell.** The provider app shell shows a notification bell that polls
+  `GET /me/jobs`, badges in-progress/just-completed jobs, and opens a list of recent jobs with status +
+  a link to the drafts a finished job created. Empty/loading/error states handled. Proof: e2e.
+
+**Priority tiers** (build order; acceptance reports honestly against all 74):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -512,6 +536,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.23.0 | 2026-10-06 | **Auto-Catalog Agent v2 — async jobs, images, tool-call insert, notifications** (`/oneshot-poc:run`, ⏸G feedback, charter v2 `docs/plans/2026-10-06-auto-catalog-agent-charter.md`): added **AC71–AC74** — the import now runs **asynchronously** as an owner-scoped **Job** (202 + `GET /me/jobs`; in-process background task, no queue), the agent **extracts embedded images** from PDFs (PyMuPDF) into MinIO and attaches them to drafts, entry creation + image attach go through an **LLM tool-call loop** the server validates before inserting (deterministic heuristic fallback with no key), and the provider shell gains a **notification bell** polling `/me/jobs`. Also folds in the live-⏸G **provider-failure fallback** fix (extract.py both stages degrade on timeout/error; Gemini timeout 30→60s) with a regression test. All prior ACs stay green. | user + Claude |
 | 2.22.0 | 2026-10-06 | **Auto-Catalog Agent (provider)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-auto-catalog-agent-charter.md`): added **AC64–AC70** — a provider uploads a document (PDF/PNG/JPEG, 25 MB cap, type-validated), the AI seam (AC16) **extracts** tourism info (PDF text pulled locally; deterministic stub with no key), and an agent turns it into **1..N draft entries** with full field inference (type/title/description/location/season/per-type attributes/highlights/tags). Entries save as **drafts** in the provider's catalog — invisible to agents (Contract 1) — carry an **AI-created marker** (filterable), and are reviewed/edited in the existing editor then published **public/private** via AC54. Deterministic in tests; no secrets/PII logged. All prior ACs stay green. | user + Claude |
 | 2.21.0 | 2026-10-06 | **Agent workspace: Catalog + Collections (accurate + redesigned)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-agent-workspace-charter.md`): added **AC59** (catalog = search/query library; primary action **Save to collection** as a validated reference; removed the dead "Add to composition"), **AC60** (collections **resolve** against the live catalog + a detail view: see items, remove, rename, Open in Design Studio), **AC61** (clicking an entry opens an item-detail modal, in catalog + collections), **AC62** (templates **Preview + Use on hover**), **AC63** (a studio **project starts from a collection**; usable media = collection items + Local uploads + AI library, not the whole catalog). Reordered the agent sidebar. Redesigned both pages within the design system. All prior ACs stay green. | user + Claude |
 | 2.20.0 | 2026-10-06 | **Provider assistant + org logo upload + UX cleanup** (⏸G feedback): added **AC57** — the grounded chat assistant now serves **providers** (grounded in their own catalog via `entries_for_actor`); and **AC58** — **org logo upload** (jpg/jpeg/png) replacing the URL field, served through the asset gate. Also: the entry **Edit** now uses the same form as create (edits everything — type/visibility/location/season/attributes/expiry) via a shared `EntryForm`; form sections (location/details/cover/expiry) **collapse by default** for a cleaner form; **Team** + **Invite agents** moved into the **Organization** page (removed Team from the sidebar and Invite from the Catalog); **Off-limits** removed from the provider sidebar (backend + route retained for now). All prior ACs stay green. | user + Claude |
