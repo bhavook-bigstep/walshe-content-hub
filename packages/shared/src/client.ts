@@ -607,6 +607,17 @@ export async function patchCampaignPost(
 ): Promise<CampaignPost> {
   return (await (await send(`/campaigns/${id}/posts/${postId}`, { method: "PATCH", body: form })).json()) as CampaignPost;
 }
+export async function approveCampaignPost(id: number, postId: number): Promise<CampaignPost> {
+  return (await (await send(`/campaigns/${id}/posts/${postId}/approve`, { method: "POST" })).json()) as CampaignPost;
+}
+export async function rejectCampaignPost(id: number, postId: number, note: string): Promise<CampaignPost> {
+  const form = new FormData();
+  form.append("note", note);
+  return (await (await send(`/campaigns/${id}/posts/${postId}/reject`, { method: "POST", body: form })).json()) as CampaignPost;
+}
+export async function publishCampaignPost(id: number, postId: number): Promise<CampaignPost> {
+  return (await (await send(`/campaigns/${id}/posts/${postId}/publish`, { method: "POST" })).json()) as CampaignPost;
+}
 
 /** Assets need the bearer header, so <img src> cannot hit the API directly: authed fetch -> blob -> object URL. */
 export async function fetchAssetObjectUrl(key: string): Promise<string> {

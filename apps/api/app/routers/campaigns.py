@@ -10,7 +10,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app import audit, clock
-from app.deps import get_db, require_role
+from app.config import Settings
+from app.deps import get_db, get_settings, require_role
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.composition import Composition
 from app.models.post import Post, PostStatus
@@ -22,6 +23,7 @@ from app.schemas.campaign import (
     CampaignPostOut,
 )
 from app.services.campaign_schedule import within_campaign_window
+from app.social import publish as publish_svc
 from app.storage.minio_client import Storage
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -265,4 +267,99 @@ def edit_post(
     audit.record(db, actor_id=user.id, action="edit", target_type="post", target_id=post.id)
     db.commit()
     db.refresh(post)
+    return CampaignPostOut.model_validate(post)
+
+
+# ── Approval gate (AC66) + live publish (AC67) ───────────────────────────────────────────────────
+
+
+def _campaign_post(db: Session, campaign: Campaign, post_id: int) -> Post:
+    post = db.get(Post, post_id)
+    if post is None or post.campaign_id != campaign.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Post not found")
+    return post
+
+
+@router.post("/{campaign_id}/posts/{post_id}/approve", response_model=CampaignPostOut)
+def approve_post(
+    campaign_id: int,
+    post_id: int,
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    now: datetime = Depends(clock.now),
+) -> CampaignPostOut:
+    """Approve a pending post (AC66). PoC self-approval: the owning agent is also the reviewer;
+    a separate reviewer role (approver != owner) is a backlog item."""
+    campaign = _owned_campaign(db, campaign_id, user)
+    post = _campaign_post(db, campaign, post_id)
+    if post.status != PostStatus.pending_approval:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Only a pending_approval post can be approved (is '{post.status.value}')",
+        )
+    post.status = PostStatus.approved
+    post.approved_by = user.id
+    post.reviewed_at = now
+    post.review_note = ""
+    audit.record(db, actor_id=user.id, action="approve", target_type="post", target_id=post.id)
+    db.commit()
+    db.refresh(post)
+    return CampaignPostOut.model_validate(post)
+
+
+@router.post("/{campaign_id}/posts/{post_id}/reject", response_model=CampaignPostOut)
+def reject_post(
+    campaign_id: int,
+    post_id: int,
+    note: str = Form(""),
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    now: datetime = Depends(clock.now),
+) -> CampaignPostOut:
+    """Reject a pending post with a reason (AC66); it drops to rejected and is editable again."""
+    campaign = _owned_campaign(db, campaign_id, user)
+    post = _campaign_post(db, campaign, post_id)
+    if post.status != PostStatus.pending_approval:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Only a pending_approval post can be rejected (is '{post.status.value}')",
+        )
+    post.status = PostStatus.rejected
+    post.approved_by = None
+    post.reviewed_at = now
+    post.review_note = note
+    audit.record(db, actor_id=user.id, action="reject", target_type="post", target_id=post.id)
+    db.commit()
+    db.refresh(post)
+    return CampaignPostOut.model_validate(post)
+
+
+@router.post("/{campaign_id}/posts/{post_id}/publish", response_model=CampaignPostOut)
+def publish_post(
+    campaign_id: int,
+    post_id: int,
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(get_storage),
+    now: datetime = Depends(clock.now),
+) -> CampaignPostOut:
+    """Publish an approved post to Instagram (AC67) via the shared publish path (preflight + dedup
+    + receipt). Live posting is this explicit user action; it stays on the stub without keys."""
+    campaign = _owned_campaign(db, campaign_id, user)
+    post = _campaign_post(db, campaign, post_id)
+    if post.status != PostStatus.approved:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Only an approved post can be published (is '{post.status.value}')",
+        )
+    comp = db.get(Composition, post.composition_id)
+    if comp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
+    media_bytes: bytes | None = None
+    if post.media_object_key:
+        media_bytes, _ = storage.get_object(post.media_object_key)
+    publish_svc.publish_post(
+        db, settings, now, user=user, post=post, composition=comp, media_bytes=media_bytes
+    )
     return CampaignPostOut.model_validate(post)

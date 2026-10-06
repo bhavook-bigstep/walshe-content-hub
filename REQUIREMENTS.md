@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.22.0 |
+| **Version** | 2.23.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -444,12 +444,39 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   Agent-only, ownership-scoped. Proof: api (seed-from-collection, PUT validation + version bump,
   legacy migration).
 
-**Priority tiers** (build order; acceptance reports honestly against all 64):
+Campaign scheduling & live publishing (v2.23.0):
+
+- **AC65** — **Campaign management.** A Tourism Agent creates **campaigns** (name, optional
+  destination, start/end window) and schedules posts into a campaign from a saved project,
+  **capturing the rendered creative at schedule time**; a post carries a lifecycle status
+  (`draft → pending_approval → approved → published`, plus `rejected`/`cancelled`). Campaigns and
+  their posts are **agent-scoped** (an agent sees only their own). Proof: pytest asserts
+  create/list/detail are agent-scoped and a scheduled post captures media + enters
+  `pending_approval`.
+- **AC66** — **Post approval gate (self-approval, PoC).** A scheduled post sits in
+  `pending_approval`; the **owning agent approves or rejects** it — a deliberate PoC simplification
+  of the design's *approver ≠ owner* principle (a separate reviewer person/role is a backlog item).
+  Approve → `approved` (records approver + time); reject → `rejected` with a reason; both are
+  **audited** (Contract 3 / AC37). Only the owner may act; a non-owner gets a 404; a non-pending
+  post is a 409. Proof: pytest asserts the approve/reject transitions + audit rows, a non-owner
+  cannot approve, and a non-pending post is a 409.
+- **AC67** — **Live Instagram publish.** An approved post publishes to a real Instagram account via
+  the Graph API connector selected from env (AC16-style abstraction; deterministic stub with no
+  keys → hermetic tests). Publish **enforces preflight (AC34)**, **blocks a duplicate publish** of a
+  composition, hosts the captured image at a public URL (S3), and stores the receipt (media id +
+  permalink); a publish failure records `failed` + a classified error. Live posting is an
+  **explicit user action** and **supersedes, for Instagram, the AC14 “simulated” wording and the
+  deferred live-posting note** (other channels stay simulated). Proof: pytest asserts an approved
+  post publishes via the stub (receipt stored), publish is blocked until approved, and preflight
+  blocks unapproved content; a real post is a manual, user-triggered check.
+
+**Priority tiers** (build order; acceptance reports honestly against all 67):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · workspace-engine = AC64 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · workspace-engine = AC64 · campaigns = AC65,66,67
+(all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -476,6 +503,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.23.0 | 2026-10-06 | **Campaign scheduling & live Instagram publishing** (branch `feat/instagram-pipeline`): added **AC65** (campaign management — create campaigns + schedule posts with capture-at-schedule; agent-scoped lifecycle), **AC66** (post approval gate — **PoC self-approval** by the owning agent, approve/reject audited; a separate reviewer person/role is a backlog item), **AC67** (**live Instagram publish** of an approved post via the env-selected Graph API connector / deterministic stub, enforcing preflight (AC34) + duplicate-block + S3 hosting + receipt). AC67 **supersedes — for Instagram only — the AC14 "simulated" wording and the deferred live-posting note**; other channels stay simulated. Live posting remains an explicit user action and nothing ships outward without approval. All prior ACs stay green. | user + Claude |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
 | 2.1.0 | 2026-10-02 | **Account provisioning**: added **AC24** (hybrid registration) — public agent self-register, Super-Admin-provisioned providers with org/tenant + approval, role-escalation prevented. Enables creating the three roles through the product rather than only the seed. All prior ACs stay green. | user + Claude |

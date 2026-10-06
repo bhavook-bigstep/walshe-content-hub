@@ -6,8 +6,9 @@ import AiCaptionControls from "../../../../components/ai/AiCaptionControls";
 import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar";
 import PageHeader from "../../../../components/ui/PageHeader";
 import {
-  ApiError, deleteCampaign, getCampaign, getProject, listProjects, patchCampaignPost,
-  scheduleCampaignPost, type CampaignDetail, type CampaignPost, type Project,
+  ApiError, approveCampaignPost, deleteCampaign, getCampaign, getProject, listProjects,
+  patchCampaignPost, publishCampaignPost, rejectCampaignPost, scheduleCampaignPost,
+  type CampaignDetail, type CampaignPost, type Project,
 } from "../../../../lib/api";
 import {
   buildCampaignPatchForm, buildCampaignPostForm, CAMPAIGN_PLATFORMS, localInputToOffsetISO,
@@ -39,6 +40,7 @@ export default function CampaignDetailPage() {
   const [selected, setSelected] = useState<CampaignPost | null>(null);
   const [editCaption, setEditCaption] = useState("");
   const [editWhen, setEditWhen] = useState("");
+  const [rejectNote, setRejectNote] = useState("");
 
   const reload = useCallback(
     () => getCampaign(id).then(setCampaign)
@@ -94,6 +96,23 @@ export default function CampaignDetailPage() {
     setSelected(p);
     setEditCaption(p.caption);
     setEditWhen(isoToLocalInput(p.scheduled_at));
+    setRejectNote("");
+  }
+
+  // Approve / reject / publish a post from the drawer. Each refreshes the drawer to the returned
+  // post (so its available actions update) and reloads the calendar (so the status chip updates).
+  async function runPostAction(action: () => Promise<CampaignPost>) {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setSelected(await action());
+      await reload();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not update the post.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onSaveEdit(unschedule: boolean) {
@@ -220,7 +239,7 @@ export default function CampaignDetailPage() {
                       aria-label="Close">✕</button>
             </div>
 
-            {/* The post being edited — its platform, status and current caption. */}
+            {/* The post being edited — its platform, status, caption, and review/publish result. */}
             <div className="rounded-sm border border-walshe-line bg-walshe-stone/40 p-4">
               <div className="eyebrow text-[11px] capitalize">
                 {selected.platform} · {selected.status.replace(/_/g, " ")}
@@ -233,24 +252,78 @@ export default function CampaignDetailPage() {
                   Scheduled for {new Date(selected.scheduled_at).toLocaleString()}
                 </p>
               )}
+              {selected.status === "rejected" && selected.review_note && (
+                <p className="mt-2 text-small text-walshe-danger">Rejected: {selected.review_note}</p>
+              )}
+              {selected.status === "published" && (
+                <p className="mt-2 text-small text-walshe-ink">
+                  Published
+                  {selected.permalink && (
+                    <>
+                      {" — "}
+                      <a href={selected.permalink} target="_blank" rel="noreferrer"
+                         className="font-semibold text-walshe-teal underline">view on Instagram</a>
+                    </>
+                  )}
+                </p>
+              )}
             </div>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="label">Caption</span>
-              <textarea className="field min-h-24 w-full resize-y" aria-label="Edit caption" rows={4}
-                        value={editCaption} onChange={(e) => setEditCaption(e.target.value)} />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="label">When</span>
-              <input type="datetime-local" className="field" aria-label="Edit scheduled at"
-                     value={editWhen} onChange={(e) => setEditWhen(e.target.value)} />
-            </label>
+            {/* Editing is only allowed before approval (server rejects edits once approved). */}
+            {(selected.status === "draft" || selected.status === "pending_approval"
+              || selected.status === "rejected") && (
+              <>
+                <label className="flex flex-col gap-1.5">
+                  <span className="label">Caption</span>
+                  <textarea className="field min-h-24 w-full resize-y" aria-label="Edit caption" rows={4}
+                            value={editCaption} onChange={(e) => setEditCaption(e.target.value)} />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="label">When</span>
+                  <input type="datetime-local" className="field" aria-label="Edit scheduled at"
+                         value={editWhen} onChange={(e) => setEditWhen(e.target.value)} />
+                </label>
+              </>
+            )}
+
+            {selected.status === "pending_approval" && (
+              <label className="flex flex-col gap-1.5">
+                <span className="label">Reject reason (optional)</span>
+                <input className="field" aria-label="Reject reason" value={rejectNote}
+                       onChange={(e) => setRejectNote(e.target.value)} />
+              </label>
+            )}
 
             <div className="mt-auto flex flex-wrap gap-3 border-t border-walshe-line pt-4">
-              <button type="button" className="btn-primary h-12" disabled={busy}
-                      onClick={() => void onSaveEdit(false)}>Save changes</button>
-              <button type="button" className="btn-secondary h-12" disabled={busy}
-                      onClick={() => void onSaveEdit(true)}>Unschedule</button>
+              {(selected.status === "draft" || selected.status === "pending_approval"
+                || selected.status === "rejected") && (
+                <>
+                  <button type="button" className="btn-secondary h-12" disabled={busy}
+                          onClick={() => void onSaveEdit(false)}>Save changes</button>
+                  {selected.scheduled_at && (
+                    <button type="button" className="btn-ghost h-12" disabled={busy}
+                            onClick={() => void onSaveEdit(true)}>Unschedule</button>
+                  )}
+                </>
+              )}
+              {selected.status === "pending_approval" && (
+                <>
+                  <button type="button" className="btn-primary h-12" disabled={busy}
+                          onClick={() => void runPostAction(() => approveCampaignPost(id, selected.id))}>
+                    {busy ? "Working…" : "Approve"}
+                  </button>
+                  <button type="button" className="btn-ghost h-12 text-walshe-danger" disabled={busy}
+                          onClick={() => void runPostAction(() => rejectCampaignPost(id, selected.id, rejectNote))}>
+                    Reject
+                  </button>
+                </>
+              )}
+              {selected.status === "approved" && (
+                <button type="button" className="btn-primary h-12" disabled={busy}
+                        onClick={() => void runPostAction(() => publishCampaignPost(id, selected.id))}>
+                  {busy ? "Publishing…" : "Publish to Instagram"}
+                </button>
+              )}
               <button type="button" className="btn-ghost h-12" onClick={() => setSelected(null)}>
                 Cancel
               </button>

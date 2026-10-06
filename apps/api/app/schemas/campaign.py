@@ -51,7 +51,22 @@ class CampaignPostOut(BaseModel):
     status: PostStatus
     scheduled_at: datetime | None
     media_object_key: str | None
+    # Approval gate (AC66) + publish receipt (AC67).
+    approved_by: int | None = None
+    reviewed_at: datetime | None = None
+    review_note: str = ""
+    external_id: str | None = None
+    permalink: str | None = None
     model_config = {"from_attributes": True}
+
+    @field_serializer("reviewed_at")
+    def _serialize_reviewed_at(self, value: datetime | None) -> str | None:
+        # Same UTC-marking as scheduled_at: SQLite drops tzinfo on read-back.
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
 
     @field_serializer("scheduled_at")
     def _serialize_scheduled_at(self, value: datetime | None) -> str | None:

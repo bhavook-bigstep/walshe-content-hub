@@ -385,6 +385,68 @@ export interface paths {
         patch: operations["edit_post_campaigns__campaign_id__posts__post_id__patch"];
         trace?: never;
     };
+    "/campaigns/{campaign_id}/posts/{post_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Post
+         * @description Approve a pending post (AC66). PoC self-approval: the owning agent is also the reviewer;
+         *     a separate reviewer role (approver != owner) is a backlog item.
+         */
+        post: operations["approve_post_campaigns__campaign_id__posts__post_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/campaigns/{campaign_id}/posts/{post_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Post
+         * @description Publish an approved post to Instagram (AC67) via the shared publish path (preflight + dedup
+         *     + receipt). Live posting is this explicit user action; it stays on the stub without keys.
+         */
+        post: operations["publish_post_campaigns__campaign_id__posts__post_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/campaigns/{campaign_id}/posts/{post_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Post
+         * @description Reject a pending post with a reason (AC66); it drops to rejected and is editable again.
+         */
+        post: operations["reject_post_campaigns__campaign_id__posts__post_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog": {
         parameters: {
             query?: never;
@@ -1712,6 +1774,14 @@ export interface components {
             /** Image Url */
             image_url?: string | null;
         };
+        /** Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post */
+        Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post: {
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
         /** Body_upload_cover_catalog__entry_id__cover_post */
         Body_upload_cover_catalog__entry_id__cover_post: {
             /** File */
@@ -1854,18 +1924,31 @@ export interface components {
         };
         /** CampaignPostOut */
         CampaignPostOut: {
+            /** Approved By */
+            approved_by?: number | null;
             /** Campaign Id */
             campaign_id: number | null;
             /** Caption */
             caption: string;
             /** Composition Id */
             composition_id: number;
+            /** External Id */
+            external_id?: string | null;
             /** Id */
             id: number;
             /** Media Object Key */
             media_object_key: string | null;
+            /** Permalink */
+            permalink?: string | null;
             /** Platform */
             platform: string;
+            /**
+             * Review Note
+             * @default
+             */
+            review_note: string;
+            /** Reviewed At */
+            reviewed_at?: string | null;
             /** Scheduled At */
             scheduled_at: string | null;
             status: components["schemas"]["PostStatus"];
@@ -3710,6 +3793,106 @@ export interface operations {
         requestBody?: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_edit_post_campaigns__campaign_id__posts__post_id__patch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_post_campaigns__campaign_id__posts__post_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_post_campaigns__campaign_id__posts__post_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_post_campaigns__campaign_id__posts__post_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post"];
             };
         };
         responses: {

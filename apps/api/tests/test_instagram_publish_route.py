@@ -180,11 +180,11 @@ def test_publish_same_composition_twice_conflicts(igclient):
 
 def test_publish_live_rejects_prehosted_image_url(tmp_path, monkeypatch):
     """In live mode an arbitrary pre-hosted image_url is rejected (render+upload path only)."""
-    from app.routers import instagram as ig_mod
+    from app.social import publish as publish_svc
     from app.social.stub import StubConnector
 
     # If the gate failed to fire we'd publish via the stub (200) rather than hit the network.
-    monkeypatch.setattr(ig_mod, "get_connector", lambda s: StubConnector())
+    monkeypatch.setattr(publish_svc, "get_connector", lambda s: StubConnector())
     application = _live_application(tmp_path)
     with TestClient(application) as c:
         h = _headers(c, AGENT1)
@@ -196,10 +196,10 @@ def test_publish_live_rejects_prehosted_image_url(tmp_path, monkeypatch):
 
 def test_publish_live_upload_without_s3_returns_503(tmp_path, monkeypatch):
     """IG configured but S3 not → a clear 503, not a raw 500 from the storage layer."""
-    from app.routers import instagram as ig_mod
+    from app.social import publish as publish_svc
     from app.social.stub import StubConnector
 
-    monkeypatch.setattr(ig_mod, "get_connector", lambda s: StubConnector())
+    monkeypatch.setattr(publish_svc, "get_connector", lambda s: StubConnector())
     application = _live_application(tmp_path, s3=False)
     with TestClient(application) as c:
         h = _headers(c, AGENT1)

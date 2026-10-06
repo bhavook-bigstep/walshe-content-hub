@@ -46,3 +46,8 @@ class Post(Base):
     external_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     permalink: Mapped[str | None] = mapped_column(String(500), nullable=True)
     error: Mapped[str] = mapped_column(Text, default="")
+
+    # Approval gate (AC66). self-approval in the PoC: the owning agent is also the reviewer.
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_note: Mapped[str] = mapped_column(Text, default="")

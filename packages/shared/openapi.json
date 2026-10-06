@@ -544,6 +544,17 @@
         "title": "Body_publish_social_instagram_publish_post",
         "type": "object"
       },
+      "Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post": {
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "title": "Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post",
+        "type": "object"
+      },
       "Body_upload_cover_catalog__entry_id__cover_post": {
         "properties": {
           "file": {
@@ -932,6 +943,17 @@
       },
       "CampaignPostOut": {
         "properties": {
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
           "campaign_id": {
             "anyOf": [
               {
@@ -951,6 +973,17 @@
             "title": "Composition Id",
             "type": "integer"
           },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -966,9 +999,36 @@
             ],
             "title": "Media Object Key"
           },
+          "permalink": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permalink"
+          },
           "platform": {
             "title": "Platform",
             "type": "string"
+          },
+          "review_note": {
+            "default": "",
+            "title": "Review Note",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
           },
           "scheduled_at": {
             "anyOf": [
@@ -4779,6 +4839,186 @@
           }
         ],
         "summary": "Edit Post",
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/campaigns/{campaign_id}/posts/{post_id}/approve": {
+      "post": {
+        "description": "Approve a pending post (AC66). PoC self-approval: the owning agent is also the reviewer;\na separate reviewer role (approver != owner) is a backlog item.",
+        "operationId": "approve_post_campaigns__campaign_id__posts__post_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "title": "Campaign Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "title": "Post Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Approve Post",
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/campaigns/{campaign_id}/posts/{post_id}/publish": {
+      "post": {
+        "description": "Publish an approved post to Instagram (AC67) via the shared publish path (preflight + dedup\n+ receipt). Live posting is this explicit user action; it stays on the stub without keys.",
+        "operationId": "publish_post_campaigns__campaign_id__posts__post_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "title": "Campaign Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "title": "Post Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Publish Post",
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/campaigns/{campaign_id}/posts/{post_id}/reject": {
+      "post": {
+        "description": "Reject a pending post with a reason (AC66); it drops to rejected and is editable again.",
+        "operationId": "reject_post_campaigns__campaign_id__posts__post_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "title": "Campaign Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "title": "Post Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reject Post",
         "tags": [
           "campaigns"
         ]
