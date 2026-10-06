@@ -2263,6 +2263,8 @@ export interface components {
             item_ids?: number[];
             /** Name */
             name: string;
+            /** Template Id */
+            template_id?: string | null;
         };
         /** ProjectOut */
         ProjectOut: {

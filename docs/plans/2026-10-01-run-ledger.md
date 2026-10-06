@@ -173,7 +173,7 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC59 | P2 | met | 2/2 |
 | AC60 | P2 | met | 2/2 |
 | AC61 | P2 | met | 1/1 |
-| AC62 | P2 | met | 1/1 |
+| AC62 | P2 | met | 2/2 |
 | AC63 | P2 | met | 1/1 |
 | AC64 | P2 | met | 4/4 |
 

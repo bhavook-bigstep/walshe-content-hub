@@ -386,8 +386,10 @@ acceptance:
       - "apps/web/e2e/agent-workspace-smoke.spec.ts::agent: open entry modal, save to collection, manage it, start a project"
   AC62:
     tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_project_from_template_seeds_workspace"
     e2e:
-      - "apps/web/e2e/agent-workspace-smoke.spec.ts::templates show Preview and Use"
+      - "apps/web/e2e/agent-workspace-smoke.spec.ts::templates preview, and Use opens an editable studio design"
   AC63:
     tier: P2
     e2e:

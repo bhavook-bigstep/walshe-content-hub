@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.22.0 |
+| **Version** | 2.23.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -425,8 +425,15 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   Collection — opens a read-only modal showing **all of the entry's information**: its structured
   type details, season, validity (valid-from / expiry), markets, highlights, custom sections,
   provenance (provider + org), and its items (text/image/video). Proof: e2e.
-- **AC62** — **Templates: Preview + Use on hover.** A template card reveals **Preview** (opens a
-  preview) and **Use** (opens it in the studio) on hover, instead of opening on click. Proof: e2e.
+- **AC62** — **Templates are real, editable starting designs.** A template card reveals **Preview**
+  and **Use** on hover. A template **is a full Workspace** (`{metadata, reference_content, scenes}`) —
+  the same shape the workspace engine loads — so **Use** creates a project seeded from the template's
+  workspace and opens it in the studio, fully editable (styled text, shapes, photo-frame placeholders).
+  Two built-ins ship: a **Destination Poster** (story) and a **Trip Itinerary** (pamphlet, 2 pages).
+  Proof: api (template → project seeds the workspace; save/reopen round-trips) + e2e (Use → studio
+  canvas shows the template's elements). The Design Studio supports per-element customization
+  (font/size/weight/italic/align, fill & outline, corner radius, opacity, layer order, duplicate,
+  inline text edit) and a coordinate-accurate PDF export that matches the canvas.
 - **AC63** — **Studio project from a collection; scoped media.** A **new project is started from a
   collection** (from the collection detail); the studio's usable media is the **project's collection
   items + the agent's Local uploads + AI-generated** media (via `/me/library`) — the whole catalog is
@@ -488,6 +495,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.23.0 | 2026-10-06 | **Workable Templates + Design Studio customization** (enhances **AC62**): a template is now a full **Workspace** JSON (`{metadata, reference_content, scenes}`) the engine loads directly — **Use** creates a project seeded from it and opens it fully editable. Two Canva-style built-ins ship (Destination Poster · Trip Itinerary). The Design Studio gained per-element **customization** (font family/size/bold/italic/align/line-height, fill & outline colour + width, corner radius, opacity, rotation), new ops (update/duplicate/layer-order), an **Inspector** panel on selection, **inline text editing**, and a **coordinate-accurate PDF export** (positions + styling + shapes, replacing the one-line-per-node dump). PNG export was already WYSIWYG via the shared renderer. All prior ACs stay green. | user + Claude |
 | 2.22.0 | 2026-10-06 | **Structured Workspace (single studio input + autosave)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-ai-builder-optimize-charter.md` v2.0): added **AC64** — a project stores one structured **workspace** `{metadata, reference_content:{collections,uploads,generated}, scenes}` holding **references only**; `GET /me/projects/{id}/workspace` returns it resolved, `PUT` autosaves the whole object (validates visible-entry/owned-asset references, drops stale, bumps `metadata.version`); creating a project from a collection seeds `reference_content.collections`; old projects migrate on read; the Design Studio reads the resolved workspace as its single input (builder grounding + placeable media) and autosaves it; `item_ids`/`design` kept as a derived/compat view. All prior ACs stay green. | user + Claude |
 | 2.21.0 | 2026-10-06 | **Agent workspace: Catalog + Collections (accurate + redesigned)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-agent-workspace-charter.md`): added **AC59** (catalog = search/query library; primary action **Save to collection** as a validated reference; removed the dead "Add to composition"), **AC60** (collections **resolve** against the live catalog + a detail view: see items, remove, rename, Open in Design Studio), **AC61** (clicking an entry opens an item-detail modal, in catalog + collections), **AC62** (templates **Preview + Use on hover**), **AC63** (a studio **project starts from a collection**; usable media = collection items + Local uploads + AI library, not the whole catalog). Reordered the agent sidebar. Redesigned both pages within the design system. All prior ACs stay green. | user + Claude |
 | 2.20.0 | 2026-10-06 | **Provider assistant + org logo upload + UX cleanup** (⏸G feedback): added **AC57** — the grounded chat assistant now serves **providers** (grounded in their own catalog via `entries_for_actor`); and **AC58** — **org logo upload** (jpg/jpeg/png) replacing the URL field, served through the asset gate. Also: the entry **Edit** now uses the same form as create (edits everything — type/visibility/location/season/attributes/expiry) via a shared `EntryForm`; form sections (location/details/cover/expiry) **collapse by default** for a cleaner form; **Team** + **Invite agents** moved into the **Organization** page (removed Team from the sidebar and Invite from the Catalog); **Off-limits** removed from the provider sidebar (backend + route retained for now). All prior ACs stay green. | user + Claude |

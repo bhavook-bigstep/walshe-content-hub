@@ -38,6 +38,60 @@ def test_pdf_and_html_from_design(client, agent_headers):
     assert resp.content.startswith(b"%PDF")
 
 
+def test_pdf_renders_styled_layout_at_design_size():
+    # AC12/AC62 — the renderer is coordinate-accurate: the page is the design's own pixel size and
+    # styled text + shapes + image frames + background all render into a valid PDF.
+    design = {
+        "width": 1080,
+        "height": 1350,
+        "pages": [
+            {
+                "background": "#0f766e",
+                "nodes": [
+                    {
+                        "type": "text",
+                        "text": "Hello\nWorld",
+                        "x": 80,
+                        "y": 120,
+                        "width": 920,
+                        "fontSize": 72,
+                        "fontWeight": "bold",
+                        "textAlign": "center",
+                        "color": "#ffffff",
+                    },
+                    {
+                        "type": "shape",
+                        "shape": "rect",
+                        "x": 80,
+                        "y": 400,
+                        "width": 320,
+                        "height": 120,
+                        "color": "#f59e0b",
+                        "radius": 24,
+                    },
+                    {
+                        "type": "shape",
+                        "shape": "ellipse",
+                        "x": 500,
+                        "y": 400,
+                        "width": 120,
+                        "height": 120,
+                        "color": "#38bdf8",
+                        "stroke": "#0b3d3a",
+                        "strokeWidth": 6,
+                    },
+                    {"type": "image", "x": 80, "y": 600, "width": 400, "height": 300, "radius": 16},
+                ],
+            }
+        ],
+    }
+    pdf = design_to_pdf(design)
+    assert pdf.startswith(b"%PDF")
+    assert _count_pdf_pages(pdf) == 1
+    # The page MediaBox carries the design's pixel size (1080x1350).
+    assert b"1080 1350" in pdf
+
+
 def test_email_html_escapes_markup():
     # A catalog/agent-controlled string must never inject live markup into the export.
     payload = "<script>alert(1)</script> & <b>bold</b>"

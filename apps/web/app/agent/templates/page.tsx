@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Dialog from "../../../components/ui/Dialog";
 import PageHeader from "../../../components/ui/PageHeader";
-import { listDesignTemplates, type DesignTemplate } from "../../../lib/api";
+import { createProject, listDesignTemplates, type DesignTemplate } from "../../../lib/api";
 
 // Preset starting points for the Design Studio (AC28). Agent-only; the API re-checks the role.
 function messageOf(e: unknown): string {
@@ -40,6 +39,23 @@ export default function TemplatesPage() {
     void load();
   }, [load]);
 
+  const [using, setUsing] = useState<string | null>(null);
+  // Using a template creates a project seeded from its full workspace, then opens it in the studio;
+  // the workspace engine loads the template's scenes like any other project.
+  const useTemplate = useCallback(
+    async (t: DesignTemplate) => {
+      setUsing(t.id);
+      try {
+        const project = await createProject({ name: t.name, format: t.format, template_id: t.id });
+        router.push(`/agent/studio?project=${project.id}`);
+      } catch (e) {
+        setError(messageOf(e));
+        setUsing(null);
+      }
+    },
+    [router],
+  );
+
   const loading = templates === null;
 
   return (
@@ -68,7 +84,9 @@ export default function TemplatesPage() {
               {/* AC62 — hover reveals Preview + Use instead of opening on click. */}
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 bg-walshe-ink/60 opacity-0 backdrop-blur-sm transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
                 <button type="button" className="btn-secondary" onClick={() => setPreview(t)}>Preview</button>
-                <Link href={`/agent/studio?template=${t.id}`} className="btn-primary">Use</Link>
+                <button type="button" className="btn-primary" disabled={using === t.id} onClick={() => void useTemplate(t)}>
+                  {using === t.id ? "Opening…" : "Use"}
+                </button>
               </div>
             </div>
           ))}
@@ -87,7 +105,9 @@ export default function TemplatesPage() {
             <p className="text-small text-walshe-grey">{preview.description}</p>
             <div className="flex justify-end gap-2">
               <button type="button" className="btn-ghost" onClick={() => setPreview(null)}>Close</button>
-              <button type="button" className="btn-primary" onClick={() => router.push(`/agent/studio?template=${preview.id}`)}>Use template</button>
+              <button type="button" className="btn-primary" disabled={using === preview.id} onClick={() => void useTemplate(preview)}>
+                {using === preview.id ? "Opening…" : "Use template"}
+              </button>
             </div>
           </div>
         </Dialog>

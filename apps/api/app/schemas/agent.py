@@ -14,6 +14,8 @@ class ProjectCreate(BaseModel):
     design: dict = Field(default_factory=dict)
     # AC64 — seed the workspace's reference_content from this collection (optional).
     collection_id: int | None = None
+    # Seed the whole workspace (scenes + metadata) from a built-in template (optional).
+    template_id: str | None = None
 
 
 # ---- AC64: structured Workspace (metadata + reference_content + scenes) ----

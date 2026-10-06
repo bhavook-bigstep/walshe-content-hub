@@ -45,13 +45,21 @@ import {
   addShape,
   addText,
   deleteNode,
+  duplicateNode,
+  editText,
   migrateDesign,
   moveNode,
   newDesign,
+  reorderNode,
   resizeNode,
   setBackground,
+  updateNode,
   type DesignDoc,
+  type DesignNode,
+  type LayerMove,
+  type NodeStyle,
 } from "../../../lib/studio/ops";
+import Inspector from "../../../components/studio/Inspector";
 
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
@@ -146,6 +154,8 @@ export default function StudioPage() {
 
 function StudioEditor() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
+  // The selected element (for the Inspector). Scene-scoped by index + node id.
+  const [selected, setSelected] = useState<{ scene: number; nodeId: string } | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
   // AC63 — the studio's usable media = the project's collection items + local uploads + AI media,
@@ -519,6 +529,54 @@ function StudioEditor() {
         return d; // already gone
       }
     });
+    setSelected((s) => (s && s.nodeId === nodeId ? null : s));
+  }
+
+  // The currently-selected node (resolved from the live design), for the Inspector.
+  const selectedNode: DesignNode | null =
+    (selected && design.scenes[selected.scene]?.nodes.find((n) => n.id === selected.nodeId)) || null;
+
+  function patchSelected(patch: Partial<NodeStyle>) {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return updateNode(d, selected.scene, selected.nodeId, patch);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  function onTextEdit(scene: number, nodeId: string, text: string) {
+    setDesign((d) => {
+      try {
+        return editText(d, scene, nodeId, text);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  function duplicateSelected() {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return duplicateNode(d, selected.scene, selected.nodeId);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  function layerSelected(move: LayerMove) {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return reorderNode(d, selected.scene, selected.nodeId, move);
+      } catch {
+        return d;
+      }
+    });
   }
 
   const zoomBtn =
@@ -545,6 +603,8 @@ function StudioEditor() {
           onNodeChange={onNodeChange}
           onNodeDelete={onNodeDelete}
           onSelectScene={setSceneIndex}
+          onSelect={(scene, nodeId) => setSelected(scene !== null && nodeId ? { scene, nodeId } : null)}
+          onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
         />
       </div>
@@ -641,6 +701,30 @@ function StudioEditor() {
           onPickFormat={pickFormat}
           catalogImages={catalogImages}
         />
+
+        {/* Inspector: appears when an element is selected, styling controls for it. */}
+        {selectedNode && (
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-small font-bold text-walshe-ink">Edit element</h2>
+              <button
+                type="button"
+                aria-label="Deselect"
+                onClick={() => setSelected(null)}
+                className="grid h-7 w-7 place-items-center rounded-md text-walshe-grey transition-colors hover:bg-walshe-ink/10 hover:text-walshe-ink"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </div>
+            <Inspector
+              node={selectedNode}
+              onChange={patchSelected}
+              onDuplicate={duplicateSelected}
+              onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
+              onLayer={layerSelected}
+            />
+          </div>
+        )}
 
         {/* Zoom / fit — bottom-right, shifted left to clear the Q/A assistant button. */}
         <div className="pointer-events-auto absolute bottom-4 right-24 flex items-center rounded-lg border border-walshe-line/70 bg-chrome-bg/90 px-0.5 shadow-xl backdrop-blur-md">
