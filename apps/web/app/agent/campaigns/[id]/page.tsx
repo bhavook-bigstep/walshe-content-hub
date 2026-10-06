@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import AiCaptionControls from "../../../../components/ai/AiCaptionControls";
 import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar";
 import PageHeader from "../../../../components/ui/PageHeader";
 import {
@@ -132,6 +133,11 @@ export default function CampaignDetailPage() {
           <span className="label">Caption</span>
           <input className="field" aria-label="Caption" value={caption}
                  onChange={(e) => setCaption(e.target.value)} />
+          <AiCaptionControls
+            compositionId={projectId ? Number(projectId) : null}
+            caption={caption}
+            onCaptionChange={setCaption}
+          />
         </label>
         <label className="flex flex-col gap-1">
           <span className="label">When</span>
