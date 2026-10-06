@@ -1640,10 +1640,14 @@ export interface components {
         BrandKitOut: {
             /** Accent Color */
             accent_color: string;
+            /** Body Font */
+            body_font: string;
             /** Contact Email */
             contact_email: string | null;
             /** Contact Name */
             contact_name: string | null;
+            /** Heading Font */
+            heading_font: string;
             /** Logo Url */
             logo_url: string | null;
             /** Primary Color */
@@ -1655,10 +1659,14 @@ export interface components {
         BrandKitUpdate: {
             /** Accent Color */
             accent_color?: string | null;
+            /** Body Font */
+            body_font?: string | null;
             /** Contact Email */
             contact_email?: string | null;
             /** Contact Name */
             contact_name?: string | null;
+            /** Heading Font */
+            heading_font?: string | null;
             /** Logo Url */
             logo_url?: string | null;
             /** Primary Color */

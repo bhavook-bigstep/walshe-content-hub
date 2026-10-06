@@ -529,3 +529,9 @@ acceptance:
       - "apps/web/tests/studio-keys.test.ts::Select tool left-drag on empty space draws a marquee (not a pan)"
       - "apps/web/tests/studio-keys.test.ts::pressing an element means object interaction (select/move)"
       - "apps/web/tests/studio-keys.test.ts::Hand tool, Space-hold, Alt-drag or middle button always pan"
+  AC87:
+    tier: P2
+    web:
+      - "apps/web/tests/brand-apply.test.ts::recolours headings/body/shapes and sets the brand fonts + a tinted background"
+      - "apps/web/tests/brand-apply.test.ts::injects the contact block on the first scene, brand-styled"
+      - "apps/web/tests/brand-apply.test.ts::is deterministic and idempotent (re-applying yields the same design)"

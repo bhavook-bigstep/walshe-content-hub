@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { enterTrack, nodeStateAt } from "../../lib/studio/anim";
+import { FONTS } from "../../lib/studio/fonts";
 import {
   EASINGS,
   ENTER_TYPES,
@@ -17,13 +18,6 @@ import {
 } from "../../lib/studio/ops";
 
 // Web-safe / default-stack families so the canvas (and PNG export) actually render them.
-const FONTS: { label: string; value: string }[] = [
-  { label: "Sans (Inter)", value: "'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif" },
-  { label: "Serif", value: "Georgia, 'Times New Roman', serif" },
-  { label: "Display", value: "'Arial Black', Impact, sans-serif" },
-  { label: "Rounded", value: "'Trebuchet MS', Verdana, sans-serif" },
-  { label: "Mono", value: "'Courier New', ui-monospace, monospace" },
-];
 
 interface Props {
   node: DesignNode | null;

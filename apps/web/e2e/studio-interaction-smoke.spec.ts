@@ -23,19 +23,19 @@ test("pan and zoom move the studio viewport; zoom control clears the assistant",
   const panXY = async () => (await canvas.getAttribute("data-pan"))!.split(",").map(Number);
   const zoom = async () => Number(await canvas.getAttribute("data-zoom"));
 
-  // Pan: with the Hand tool, dragging the canvas translates the viewport by the drag delta
-  // (+140, +90). (In the default Select tool a left-drag on empty space draws a marquee instead;
-  // the Hand tool — like Space / Alt / middle button — pans. AC86.)
-  await page.getByRole("button", { name: "Hand tool" }).click();
+  // Pan: with the Hand tool (keyboard "h"), dragging the canvas translates the viewport by the drag
+  // delta (+140, +90). (In the default Select tool a plain left-drag on empty space draws a marquee
+  // instead; the Hand tool — like Space / middle button — pans. AC86.)
+  await page.keyboard.press("h");
   const [bx, by] = await panXY();
   await page.mouse.move(px, py);
   await page.mouse.down();
   await page.mouse.move(px + 140, py + 90, { steps: 8 });
   await page.mouse.up();
+  await page.keyboard.press("v"); // back to the default Select tool
   const [ax, ay] = await panXY();
   expect(Math.abs(ax - bx - 140)).toBeLessThanOrEqual(3);
   expect(Math.abs(ay - by - 90)).toBeLessThanOrEqual(3);
-  await page.getByRole("button", { name: "Select tool" }).click(); // back to the default tool
 
   // Zoom: scrolling up over the canvas zooms in (zoom increases).
   const zBefore = await zoom();

@@ -560,6 +560,8 @@ def update_brand_kit(
         "logo_url",
         "primary_color",
         "accent_color",
+        "heading_font",
+        "body_font",
         "contact_name",
         "contact_email",
         "website",

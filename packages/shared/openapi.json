@@ -509,6 +509,10 @@
             "title": "Accent Color",
             "type": "string"
           },
+          "body_font": {
+            "title": "Body Font",
+            "type": "string"
+          },
           "contact_email": {
             "anyOf": [
               {
@@ -530,6 +534,10 @@
               }
             ],
             "title": "Contact Name"
+          },
+          "heading_font": {
+            "title": "Heading Font",
+            "type": "string"
           },
           "logo_url": {
             "anyOf": [
@@ -562,6 +570,8 @@
           "logo_url",
           "primary_color",
           "accent_color",
+          "heading_font",
+          "body_font",
           "contact_name",
           "contact_email",
           "website"
@@ -582,6 +592,18 @@
               }
             ],
             "title": "Accent Color"
+          },
+          "body_font": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Font"
           },
           "contact_email": {
             "anyOf": [
@@ -606,6 +628,18 @@
               }
             ],
             "title": "Contact Name"
+          },
+          "heading_font": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading Font"
           },
           "logo_url": {
             "anyOf": [

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import PageHeader from "../../../components/ui/PageHeader";
 import { getBrandKit, updateBrandKit, type BrandKit } from "../../../lib/api";
+import { FONTS } from "../../../lib/studio/fonts";
 
 // The agent's reusable brand (logo, colours, contact) applied when personalising designs (AC28).
 function messageOf(e: unknown): string {
@@ -16,6 +17,8 @@ export default function BrandKitPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#000000");
   const [accentColor, setAccentColor] = useState("#000000");
+  const [headingFont, setHeadingFont] = useState("display");
+  const [bodyFont, setBodyFont] = useState("sans");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [website, setWebsite] = useState("");
@@ -31,6 +34,8 @@ export default function BrandKitPage() {
       setLogoUrl(kit.logo_url ?? "");
       setPrimaryColor(kit.primary_color);
       setAccentColor(kit.accent_color);
+      setHeadingFont(kit.heading_font);
+      setBodyFont(kit.body_font);
       setContactName(kit.contact_name ?? "");
       setContactEmail(kit.contact_email ?? "");
       setWebsite(kit.website ?? "");
@@ -55,6 +60,8 @@ export default function BrandKitPage() {
         logo_url: logoUrl.trim() || null,
         primary_color: primaryColor,
         accent_color: accentColor,
+        heading_font: headingFont,
+        body_font: bodyFont,
         contact_name: contactName.trim() || null,
         contact_email: contactEmail.trim() || null,
         website: website.trim() || null,
@@ -137,6 +144,35 @@ export default function BrandKitPage() {
                 />
               </div>
             </div>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <label className="block">
+              <span className="label">Heading font</span>
+              <select
+                value={headingFont}
+                onChange={(e) => setHeadingFont(e.target.value)}
+                className="field"
+                style={{ fontFamily: FONTS.find((f) => f.key === headingFont)?.value }}
+              >
+                {FONTS.map((f) => (
+                  <option key={f.key} value={f.key} style={{ fontFamily: f.value }}>{f.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="label">Body font</span>
+              <select
+                value={bodyFont}
+                onChange={(e) => setBodyFont(e.target.value)}
+                className="field"
+                style={{ fontFamily: FONTS.find((f) => f.key === bodyFont)?.value }}
+              >
+                {FONTS.map((f) => (
+                  <option key={f.key} value={f.key} style={{ fontFamily: f.value }}>{f.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <label className="block">

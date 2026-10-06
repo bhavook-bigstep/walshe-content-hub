@@ -22,6 +22,7 @@ import {
   createProject,
   fetchAssetObjectUrl,
   generateLibraryMedia,
+  getBrandKit,
   getProject,
   getWorkspace,
   listCollections,
@@ -32,12 +33,14 @@ import {
   updateProject,
   uploadLibraryMedia,
   type AssetRef,
+  type BrandKit,
   type Collection,
   type Entry,
   type UserAsset,
   type WorkspaceIn,
   type WorkspaceResolved,
 } from "../../../lib/api";
+import { applyBrandKit } from "../../../lib/studio/branding";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
 import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
 import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
@@ -178,6 +181,9 @@ function StudioEditor() {
   const [sceneRect, setSceneRect] = useState<SceneRect | null>(null);
   // Workspace tool (CorelDraw-style): "select" rubber-bands a marquee on empty-drag; "hand" pans.
   const [tool, setTool] = useState<"select" | "hand">("select");
+  // The agent's brand kit, fetched lazily on first apply — powers one-click "Apply brand kit" (AC87).
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
+  const [brandBusy, setBrandBusy] = useState(false);
   // Whether a scene is selected (clicking the empty workspace deselects → hides the scene controls).
   const [sceneSelected, setSceneSelected] = useState(true);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
@@ -726,6 +732,37 @@ function StudioEditor() {
   // Cancel any running animation frame on unmount.
   useEffect(() => stopRaf, [stopRaf]);
 
+  // One-click apply of the brand kit's aesthetics (palette · fonts · logo · contact). The kit is
+  // fetched lazily on first click and cached, so no on-mount request races the canvas setup.
+  const applyBrand = useCallback(async () => {
+    setBrandBusy(true);
+    try {
+      let kit = brandKit;
+      if (!kit) {
+        kit = await getBrandKit();
+        setBrandKit(kit);
+      }
+      setDesign((d) =>
+        applyBrandKit(d, {
+          primary: kit!.primary_color,
+          accent: kit!.accent_color,
+          headingFont: kit!.heading_font,
+          bodyFont: kit!.body_font,
+          logo: kit!.logo_url ? { src: kit!.logo_url } : undefined,
+          contact: {
+            name: kit!.contact_name ?? undefined,
+            email: kit!.contact_email ?? undefined,
+            website: kit!.website ?? undefined,
+          },
+        }),
+      );
+    } catch {
+      /* brand kit unavailable — leave the design unchanged */
+    } finally {
+      setBrandBusy(false);
+    }
+  }, [brandKit]);
+
   // Tool shortcuts (CorelDraw/Figma-style): V = Select, H = Hand. Ignored while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -785,6 +822,22 @@ function StudioEditor() {
           highlightActive={sceneSelected}
           tool={tool}
         />
+
+        {/* One-click brand kit: palette · fonts · logo · contact applied across the design (AC87).
+            The kit is fetched lazily on click (caching afterwards) so it never races canvas init. */}
+        <button
+          type="button"
+          onClick={applyBrand}
+          title="Apply your brand kit's colours, fonts, logo and contact to this design"
+          className="pointer-events-auto absolute bottom-20 left-5 z-30 flex items-center gap-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/95 px-3.5 py-2.5 text-small font-semibold text-walshe-ink shadow-lift backdrop-blur-md transition-colors hover:bg-walshe-ink/5 disabled:opacity-60"
+          disabled={brandBusy}
+        >
+          <span className="flex -space-x-1" aria-hidden>
+            <span className="h-4 w-4 rounded-full border border-white" style={{ background: brandKit?.primary_color ?? "#0E6B5E" }} />
+            <span className="h-4 w-4 rounded-full border border-white" style={{ background: brandKit?.accent_color ?? "#F3C96B" }} />
+          </span>
+          {brandBusy ? "Applying…" : "Apply brand kit"}
+        </button>
 
         {/* Tool switch (CorelDraw-style): Select rubber-bands a marquee; Hand pans. Keys V / H. */}
         <div className="pointer-events-auto absolute bottom-5 left-5 z-30 flex overflow-hidden rounded-xl border border-walshe-line/70 bg-chrome-bg/95 shadow-lift backdrop-blur-md">
