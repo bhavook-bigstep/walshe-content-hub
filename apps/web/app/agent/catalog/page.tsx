@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import CatalogThumb from "../../../components/catalog/CatalogThumb";
 import EntryDetailModal from "../../../components/catalog/EntryDetailModal";
+import Dialog from "../../../components/ui/Dialog";
 import PageHeader from "../../../components/ui/PageHeader";
 import Select from "../../../components/ui/Select";
 import {
@@ -301,43 +302,33 @@ function SaveModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-walshe-deep/50 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={`Save ${entry.title} to a collection`}
-        className="flex max-h-[88vh] w-full max-w-md flex-col rounded-lg border border-walshe-line bg-walshe-base shadow-lift"
-        onClick={(ev) => ev.stopPropagation()}>
-        <div className="flex flex-none items-center justify-between border-b border-walshe-line px-5 py-3.5">
-          <h2 className="text-h3 text-walshe-ink">Save to a collection</h2>
-          <button type="button" aria-label="Close dialog" onClick={onClose} className="text-walshe-grey hover:text-walshe-ink">✕</button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {collections.length > 0 && (
-            <ul className="mb-4 space-y-2" aria-label="Your collections">
-              {collections.map((c) => {
-                const has = c.item_ids.includes(entry.id);
-                return (
-                  <li key={c.id}>
-                    <button type="button" disabled={busy || has} onClick={() => addToExisting(c)}
-                      className="flex w-full items-center justify-between rounded-lg border border-walshe-line px-4 py-2.5 text-left text-small hover:bg-walshe-ink/5 disabled:opacity-60">
-                      <span className="font-medium text-walshe-ink">{c.name}</span>
-                      <span className="text-walshe-grey">{has ? "Saved ✓" : `${c.item_ids.length} items`}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <form onSubmit={createAndAdd} className="border-t border-walshe-line pt-4">
-            <label className="block">
-              <span className="label">New collection name</span>
-              <input className="field h-11" value={name} onChange={(e) => setName(e.target.value)} aria-label="New collection name" placeholder="e.g. West coast picks" />
-            </label>
-            {error && <p role="alert" className="mt-2 text-small text-walshe-danger">{error}</p>}
-            <button type="submit" className="btn-primary mt-3" disabled={busy || !name.trim()}>
-              {busy ? "Saving…" : "Create & save"}
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
+    <Dialog title="Save to a collection" ariaLabel={`Save ${entry.title} to a collection`} size="md" open onClose={onClose}>
+      {collections.length > 0 && (
+        <ul className="mb-4 space-y-2" aria-label="Your collections">
+          {collections.map((c) => {
+            const has = c.item_ids.includes(entry.id);
+            return (
+              <li key={c.id}>
+                <button type="button" disabled={busy || has} onClick={() => addToExisting(c)}
+                  className="flex w-full items-center justify-between rounded-lg border border-walshe-line px-4 py-2.5 text-left text-small hover:bg-walshe-ink/5 disabled:opacity-60">
+                  <span className="font-medium text-walshe-ink">{c.name}</span>
+                  <span className="text-walshe-grey">{has ? "Saved ✓" : `${c.item_ids.length} items`}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <form onSubmit={createAndAdd} className="border-t border-walshe-line pt-4">
+        <label className="block">
+          <span className="label">New collection name</span>
+          <input className="field h-11" value={name} onChange={(e) => setName(e.target.value)} aria-label="New collection name" placeholder="e.g. West coast picks" />
+        </label>
+        {error && <p role="alert" className="mt-2 text-small text-walshe-danger">{error}</p>}
+        <button type="submit" className="btn-primary mt-3" disabled={busy || !name.trim()}>
+          {busy ? "Saving…" : "Create & save"}
+        </button>
+      </form>
+    </Dialog>
   );
 }
