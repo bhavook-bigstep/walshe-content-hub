@@ -14,8 +14,9 @@ test("agent builds a multi-scene storyboard and generates a video", async ({ pag
   await page.goto("/agent/studio");
   await expect(page.getByTestId("studio-canvas")).toBeVisible();
 
-  // Open the Timeline top drawer, which starts with a single scene.
-  await page.getByRole("button", { name: /Timeline/ }).click();
+  // Open the Timeline top drawer (its semicircle handle under the menu bar), which starts with a
+  // single scene.
+  await page.getByRole("button", { name: "Open timeline" }).click();
   const scenePanel = page.getByLabel("Scenes");
   await expect(scenePanel.getByText(/1 scene/)).toBeVisible();
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from app.media.html_export import design_to_email_html
-from app.media.pdf import design_to_pdf
+from app.media.pdf import _is_transparent, design_to_pdf
 
 DESIGN = {
     "pages": [
@@ -90,6 +90,61 @@ def test_pdf_renders_styled_layout_at_design_size():
     assert _count_pdf_pages(pdf) == 1
     # The page MediaBox carries the design's pixel size (1080x1350).
     assert b"1080 1350" in pdf
+
+
+def test_is_transparent_recognises_the_keyword():
+    assert _is_transparent("transparent")
+    assert _is_transparent("  Transparent ")
+    assert not _is_transparent("#ffffff")
+    assert not _is_transparent("")
+    assert not _is_transparent(None)
+
+
+def test_pdf_handles_transparent_colours():
+    # A transparent background, a transparent-fill rect kept visible by its outline, and transparent
+    # text all render to a valid PDF without falling back to an opaque default colour.
+    design = {
+        "width": 800,
+        "height": 600,
+        "pages": [
+            {
+                "background": "transparent",
+                "nodes": [
+                    {
+                        "type": "text",
+                        "text": "Invisible",
+                        "x": 40,
+                        "y": 40,
+                        "width": 400,
+                        "color": "transparent",
+                    },
+                    {
+                        "type": "shape",
+                        "shape": "rect",
+                        "x": 40,
+                        "y": 120,
+                        "width": 200,
+                        "height": 120,
+                        "color": "transparent",
+                        "stroke": "#0b3d3a",
+                        "strokeWidth": 4,
+                    },
+                    {
+                        "type": "shape",
+                        "shape": "ellipse",
+                        "x": 300,
+                        "y": 120,
+                        "width": 120,
+                        "height": 120,
+                        "color": "transparent",
+                    },
+                ],
+            }
+        ],
+    }
+    pdf = design_to_pdf(design)
+    assert pdf.startswith(b"%PDF")
+    assert _count_pdf_pages(pdf) == 1
 
 
 def test_email_html_escapes_markup():

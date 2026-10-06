@@ -6,11 +6,10 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { Canvas } from "fabric";
 import type { StudioControls } from "../../../components/studio/StudioCanvas";
 import type { BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
-import SceneControls from "../../../components/studio/SceneControls";
 import StudioBottomDock from "../../../components/studio/StudioBottomDock";
 import StudioRightRail from "../../../components/studio/StudioRightRail";
-import FormatPicker from "../../../components/studio/FormatPicker";
-import ExportMenu from "../../../components/studio/ExportMenu";
+import StudioMenuBar from "../../../components/studio/StudioMenuBar";
+import TimelineDrawer from "../../../components/studio/TimelineDrawer";
 import type { CatalogImageOption } from "../../../components/studio/Toolbar";
 import WorkspaceDrawer, {
   MEDIA_DND_TYPE,
@@ -162,16 +161,14 @@ function StudioEditor() {
   const [videoMsg, setVideoMsg] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
   const [storyboardOpen, setStoryboardOpen] = useState(false);
-  // Editable project name (rename) + the top-bar export dropdown.
+  // Editable project name (rename).
   const [nameDraft, setNameDraft] = useState("");
-  const [exportOpen, setExportOpen] = useState(false);
   const params = useSearchParams();
   const router = useRouter();
   const projectId = params.get("project");
   const hasProject = Boolean(projectId);
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
-  const exportRef = useRef<HTMLDivElement>(null);
 
   // Load the usable media from the project's structured workspace (AC64): collection entries
   // (builder grounding + placeable images) + the project's own uploads/generated assets. The whole
@@ -315,16 +312,6 @@ function StudioEditor() {
   useEffect(() => {
     setNameDraft(project?.name ?? "");
   }, [project?.id]);
-
-  // Close the top-bar Export dropdown on an outside click.
-  useEffect(() => {
-    if (!exportOpen) return;
-    const onDown = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
-    };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [exportOpen]);
 
   // Debounced autosave: whenever the design changes, persist the whole workspace (scenes + name).
   // No manual "Save" button — the workspace engine stores it (AC64).
@@ -627,83 +614,46 @@ function StudioEditor() {
           onGenerate={() => setMediaOpen(true)}
         />
 
-        {/* Always-showing top bar: editable name · Timeline toggle · [spacer] · Format · Export. */}
-        <div className="pointer-events-auto absolute left-3 right-3 top-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/85 px-3 py-2 shadow-xl backdrop-blur-md lg:right-20">
-          <input
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={() => void commitRename()}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-            aria-label="Project name"
-            placeholder="Untitled project"
-            className="min-w-[8rem] max-w-[18rem] rounded-md border border-transparent bg-transparent px-2 py-1 text-small font-semibold text-walshe-ink hover:border-walshe-line focus:border-walshe-mint focus:bg-walshe-base focus:outline-none"
-          />
-          <span aria-hidden className="hidden h-7 w-px bg-walshe-line sm:block" />
-          {/* Timeline drawer toggle. */}
-          <button
-            type="button"
-            onClick={() => setStoryboardOpen((o) => !o)}
-            aria-expanded={storyboardOpen}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-small font-semibold transition-colors ${
-              storyboardOpen
-                ? "border-walshe-teal bg-walshe-teal text-white"
-                : "border-walshe-line bg-walshe-stone/60 text-walshe-ink hover:bg-walshe-ink/10"
-            }`}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <rect x="3" y="7" width="5" height="10" rx="1" /><rect x="10" y="7" width="5" height="10" rx="1" /><rect x="17" y="7" width="4" height="10" rx="1" />
-            </svg>
-            Timeline
-            <span className="grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-walshe-teal px-1 text-[11px] font-bold text-white">
-              {design.scenes.length}
-            </span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${storyboardOpen ? "rotate-180" : ""}`} aria-hidden>
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          <div className="ml-auto flex items-center gap-2">
-            {saveMsg && <span className="hidden text-[12px] font-medium text-walshe-grey sm:inline">{saveMsg}</span>}
-            {/* Screen size / format. */}
-            <FormatPicker value={design.format} onChange={pickFormat} />
-            {/* Export dropdown (always reachable in the top bar). */}
-            <div className="relative" ref={exportRef}>
-              <button type="button" onClick={() => setExportOpen((o) => !o)} aria-expanded={exportOpen} className="btn-secondary">
-                Export
-              </button>
-              {exportOpen && (
-                <div className="absolute right-0 top-11 z-10 w-64 rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
-                  <ExportMenu design={design} sceneIndex={sceneIndex} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Desktop-style application menu bar: File · Edit · Insert · Size · View, the editable
+            document name, and autosave status — the one always-showing bar at the top. */}
+        <StudioMenuBar
+          design={design}
+          sceneIndex={sceneIndex}
+          onChange={setDesign}
+          name={nameDraft}
+          onNameChange={setNameDraft}
+          onNameCommit={() => void commitRename()}
+          saveMsg={saveMsg}
+          onPickFormat={pickFormat}
+          hasSelection={Boolean(selected)}
+          onDuplicate={duplicateSelected}
+          onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
+          onLayer={layerSelected}
+          onAddMedia={() => setMediaOpen(true)}
+          onZoomIn={() => controlsRef.current?.zoomIn()}
+          onZoomOut={() => controlsRef.current?.zoomOut()}
+          onFit={() => controlsRef.current?.fit()}
+          mediaOpen={drawerOpen}
+          onToggleMedia={() => setDrawerOpen((o) => !o)}
+          timelineOpen={storyboardOpen}
+          onToggleTimeline={() => setStoryboardOpen((o) => !o)}
+          onGenerateVideo={() => void generateVideo()}
+          rendering={rendering}
+        />
 
-        {/* Timeline top drawer (scenes + video) — slides down like the left media drawer. */}
-        <div
-          className={`absolute left-3 right-3 top-[4.5rem] origin-top transition-all duration-200 lg:right-20 ${
-            storyboardOpen ? "pointer-events-auto opacity-100" : "pointer-events-none -translate-y-2 opacity-0"
-          }`}
-          aria-hidden={!storyboardOpen}
-        >
-          <div className="max-h-[48vh] overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-small font-bold text-walshe-ink">Timeline</h2>
-              <div className="flex items-center gap-2">
-                {videoMsg && <span className="text-[12px] text-walshe-grey">{videoMsg}</span>}
-                <button type="button" onClick={() => void generateVideo()} disabled={rendering} className="btn-secondary">
-                  {rendering ? "Rendering…" : "Generate video"}
-                </button>
-              </div>
-            </div>
-            <SceneControls
-              design={design}
-              activeScene={sceneIndex}
-              onChange={setDesign}
-              onSelectScene={setSceneIndex}
-            />
-          </div>
-        </div>
+        {/* Timeline top drawer (scenes + video) — mirrors the left media drawer, sliding top→bottom
+            from a semicircle handle under the menu bar. */}
+        <TimelineDrawer
+          open={storyboardOpen}
+          onToggle={() => setStoryboardOpen((o) => !o)}
+          design={design}
+          activeScene={sceneIndex}
+          onChange={setDesign}
+          onSelectScene={setSceneIndex}
+          onGenerateVideo={() => void generateVideo()}
+          rendering={rendering}
+          videoMsg={videoMsg}
+        />
 
         {/* Right tool rail: creation tools only (icons + hover names). */}
         <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />

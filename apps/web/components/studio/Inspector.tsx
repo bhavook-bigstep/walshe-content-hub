@@ -26,18 +26,44 @@ const field =
 const iconBtn =
   "grid h-8 w-8 place-items-center rounded-md border border-walshe-line text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
+// A small chequerboard, shown when a colour is transparent (and on the Transparent toggle).
+const CHECKER: React.CSSProperties = {
+  backgroundColor: "#fff",
+  backgroundImage:
+    "linear-gradient(45deg,#c9c9c9 25%,transparent 25%),linear-gradient(-45deg,#c9c9c9 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#c9c9c9 75%),linear-gradient(-45deg,transparent 75%,#c9c9c9 75%)",
+  backgroundSize: "8px 8px",
+  backgroundPosition: "0 0,0 4px,4px -4px,-4px 0",
+};
+
 function Swatch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const transparent = (value ?? "").trim().toLowerCase() === "transparent";
   return (
-    <label className="relative inline-grid h-8 w-10 cursor-pointer place-items-center overflow-hidden rounded-md border border-walshe-line">
-      <span className="pointer-events-none absolute inset-1 rounded" style={{ background: value }} />
-      <input
-        type="color"
-        value={/^#([0-9a-f]{6})$/i.test(value) ? value : "#000000"}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 cursor-pointer opacity-0"
-        aria-label="Colour"
-      />
-    </label>
+    <div className="flex items-center gap-1.5">
+      {/* The colour picker. Picking any colour clears a transparent value. */}
+      <label className="relative inline-grid h-8 w-10 cursor-pointer place-items-center overflow-hidden rounded-md border border-walshe-line">
+        <span className="pointer-events-none absolute inset-1 rounded" style={transparent ? CHECKER : { background: value }} />
+        <input
+          type="color"
+          value={/^#([0-9a-f]{6})$/i.test(value) ? value : "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 cursor-pointer opacity-0"
+          aria-label="Colour"
+        />
+      </label>
+      {/* Transparent toggle: sets the colour to none (chequerboard = transparent). */}
+      <button
+        type="button"
+        title="Transparent"
+        aria-label="Transparent"
+        aria-pressed={transparent}
+        onClick={() => onChange("transparent")}
+        className={`grid h-8 w-8 place-items-center overflow-hidden rounded-md border transition-colors ${
+          transparent ? "border-walshe-teal ring-2 ring-walshe-teal/40" : "border-walshe-line hover:bg-walshe-ink/10"
+        }`}
+      >
+        <span className="h-4 w-4 rounded-sm border border-walshe-line" style={CHECKER} />
+      </button>
+    </div>
   );
 }
 

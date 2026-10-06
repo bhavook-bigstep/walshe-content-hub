@@ -27,6 +27,11 @@ def _color(value: Any, default: str = "#111111") -> Color:
         return HexColor(default)
 
 
+def _is_transparent(value: Any) -> bool:
+    """A colour the user explicitly set to none — drawn as nothing, not as a fallback colour."""
+    return str(value or "").strip().lower() == "transparent"
+
+
 def _font(node: dict[str, Any]) -> str:
     """Map a web font family + weight/style to one of reportlab's standard-14 fonts."""
     fam = str(node.get("fontFamily", "")).lower()
@@ -49,7 +54,7 @@ def _font(node: dict[str, Any]) -> str:
 
 def _draw_text(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None:
     text = str(node.get("text", ""))
-    if not text:
+    if not text or _is_transparent(node.get("color")):
         return
     size = float(node.get("fontSize", 48) or 48)
     line_h = float(node.get("lineHeight", 1.16) or 1.16) * size
@@ -81,28 +86,32 @@ def _draw_shape(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None
     fill = _color(node.get("color", "#2563eb"), "#2563eb")
     stroke = node.get("stroke")
     stroke_w = float(node.get("strokeWidth", 0) or 0)
+    has_fill = not _is_transparent(node.get("color"))
     pdf.saveState()
     pdf.setFillAlpha(float(node.get("opacity", 1) or 1))
     pdf.setStrokeAlpha(float(node.get("opacity", 1) or 1))
     pdf.setFillColor(fill)
-    has_stroke = bool(stroke) and stroke_w > 0
+    has_stroke = bool(stroke) and stroke_w > 0 and not _is_transparent(stroke)
     if has_stroke:
         pdf.setStrokeColor(_color(stroke, "#000000"))
         pdf.setLineWidth(stroke_w)
     shape = node.get("shape")
     bottom = page_h - y - h
+    fill_flag = 1 if has_fill else 0
     if shape == "ellipse":
-        pdf.ellipse(x, bottom, x + w, bottom + h, stroke=1 if has_stroke else 0, fill=1)
+        pdf.ellipse(x, bottom, x + w, bottom + h, stroke=1 if has_stroke else 0, fill=fill_flag)
     elif shape == "line":
-        pdf.setStrokeColor(_color(stroke or node.get("color"), "#111111"))
-        pdf.setLineWidth(stroke_w or 4)
-        pdf.line(x, page_h - y, x + w, page_h - (y + h))
+        line_color = stroke or node.get("color")
+        if not _is_transparent(line_color):
+            pdf.setStrokeColor(_color(line_color, "#111111"))
+            pdf.setLineWidth(stroke_w or 4)
+            pdf.line(x, page_h - y, x + w, page_h - (y + h))
     else:
         radius = float(node.get("radius", 0) or 0)
         if radius > 0:
-            pdf.roundRect(x, bottom, w, h, radius, stroke=1 if has_stroke else 0, fill=1)
+            pdf.roundRect(x, bottom, w, h, radius, stroke=1 if has_stroke else 0, fill=fill_flag)
         else:
-            pdf.rect(x, bottom, w, h, stroke=1 if has_stroke else 0, fill=1)
+            pdf.rect(x, bottom, w, h, stroke=1 if has_stroke else 0, fill=fill_flag)
     pdf.restoreState()
 
 
@@ -135,7 +144,7 @@ def design_to_pdf(design: dict[str, Any]) -> bytes:
 
     for page in pages:
         bg = page.get("background")
-        if bg:
+        if bg and not _is_transparent(bg):
             pdf.setFillColor(_color(bg, "#ffffff"))
             pdf.rect(0, 0, width, height, stroke=0, fill=1)
         for node in page.get("nodes", []):

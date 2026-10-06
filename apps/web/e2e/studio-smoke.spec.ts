@@ -27,28 +27,28 @@ test("studio smoke", async ({ page }) => {
   await nav.getByRole("link", { name: "Design Studio" }).click();
   await expect(page.getByTestId("studio-canvas")).toBeVisible();
 
-  // Pick a format (top bar).
-  const format = page.getByLabel("Format", { exact: true });
-  const options = await format.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-  await format.selectOption(options[0]);
+  // Pick a format (menu bar → Size menu).
+  await page.getByRole("button", { name: "Size" }).click();
+  await page.getByRole("menuitem", { name: /Social image/ }).click();
 
   // Add a text element (right-rail Text tool → Heading preset).
   await page.getByRole("button", { name: "Text", exact: true }).click();
   await page.getByRole("button", { name: "Heading", exact: true }).click();
   await expect(page.locator("canvas").first()).toBeVisible();
 
-  // Export (top bar dropdown).
-  await page.getByRole("button", { name: "Export", exact: true }).click();
+  // Export PNG (menu bar → File menu).
+  await page.getByRole("button", { name: "File" }).click();
   const [png] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Export PNG" }).click(),
+    page.getByRole("menuitem", { name: "Export as PNG" }).click(),
   ]);
   expect(png.suggestedFilename()).toMatch(/\.png$/);
 
   // Export PDF (server render) and assert the %PDF magic.
+  await page.getByRole("button", { name: "File" }).click();
   const [pdf] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Export PDF" }).click(),
+    page.getByRole("menuitem", { name: "Export as PDF" }).click(),
   ]);
   expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
   const stream = await pdf.createReadStream();
