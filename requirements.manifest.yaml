@@ -491,4 +491,4 @@ acceptance:
       - "apps/api/tests/test_video.py::test_render_frames_lays_cued_narration"
     web:
       - "apps/web/tests/studio-ops.test.ts::test_set_scene_narration"
-      - "apps/web/tests/studio-ops.test.ts::narrationCues normalises a legacy string and bad cues"
+      - "apps/web/tests/studio-ops.test.ts::narrationCues keeps blanks for editing; speakableCues drops them for export"

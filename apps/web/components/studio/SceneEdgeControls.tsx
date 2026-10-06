@@ -43,9 +43,12 @@ interface Props {
 
 const iconBtn =
   "grid h-8 w-8 place-items-center rounded-lg text-walshe-ink transition-colors hover:bg-walshe-ink/10 disabled:cursor-not-allowed disabled:opacity-40";
-// Each bar is a subtle dotted box, fixed pixel size (never scales with the canvas zoom).
+// Each bar is a subtle dotted box. It lays out at a fixed internal design width (NAT_W) and is then
+// scaled to the scene's on-screen width — so it hugs the scene's edges and scales *with* the scene
+// (zoom in to use it when small), never clamped or wrapped.
+const NAT_W = 640;
 const barBox =
-  "pointer-events-auto absolute z-30 -translate-x-1/2 rounded-xl border-2 border-dashed border-walshe-grey/35 bg-chrome-bg/95 shadow-xl backdrop-blur-md";
+  "pointer-events-auto absolute z-30 whitespace-nowrap rounded-xl border-2 border-dashed border-walshe-grey/35 bg-chrome-bg/95 shadow-xl backdrop-blur-md";
 
 const TRANSITION_LABEL: Record<TransitionKind, string> = {
   none: "Cut",
@@ -73,15 +76,15 @@ export default function SceneEdgeControls({
   narrate,
   onToggleNarrate,
 }: Props) {
-  // Measure the bars (fixed, content-driven) so they can be clamped on screen.
+  // Measure each bar's natural (unscaled, at NAT_W) height so the scaled bars can be kept on screen.
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [topH, setTopH] = useState(46);
-  const [bottomH, setBottomH] = useState(104);
+  const [topNatH, setTopNatH] = useState(46);
+  const [bottomNatH, setBottomNatH] = useState(150);
   useLayoutEffect(() => {
     const ro = new ResizeObserver(() => {
-      if (topRef.current) setTopH(topRef.current.offsetHeight);
-      if (bottomRef.current) setBottomH(bottomRef.current.offsetHeight);
+      if (topRef.current) setTopNatH(topRef.current.offsetHeight);
+      if (bottomRef.current) setBottomNatH(bottomRef.current.offsetHeight);
     });
     if (topRef.current) ro.observe(topRef.current);
     if (bottomRef.current) ro.observe(bottomRef.current);
@@ -95,14 +98,16 @@ export default function SceneEdgeControls({
   const cues = narrationCues(scene);
   const setCues = (next: NarrationCue[]) => upd((d) => setSceneNarration(d, scene.id, next));
 
-  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1200;
+  // The bars match the scene's width and scale with it (NAT_W is the internal layout width). They
+  // stick to the scene's top/bottom edges but are clamped so they never hide under the menu bar
+  // (44px) or off the bottom — otherwise they'd be unclickable.
   const viewportH = typeof window !== "undefined" ? window.innerHeight : 900;
-  const boxW = Math.min(viewportW * 0.92, 720);
-  const centerX = Math.min(Math.max(rect.left + rect.width / 2, boxW / 2 + 8), viewportW - boxW / 2 - 8);
-  // Stick to the scene's top + bottom edges (reposition with the scene), clamped on screen. Fixed size.
-  const clampY = (y: number, h: number) => Math.min(Math.max(y, 52), viewportH - h - 10);
-  const topBarTop = clampY(rect.top - topH - 10, topH);
-  const bottomBarTop = clampY(rect.top + rect.height + 10, bottomH);
+  const centerX = rect.left + rect.width / 2;
+  const scale = rect.width / NAT_W;
+  const gap = 10 * scale;
+  const MENU = 48;
+  const topAnchorBottom = Math.max(rect.top - gap, MENU + topNatH * scale);
+  const bottomAnchorTop = Math.min(rect.top + rect.height + gap, viewportH - 8 - bottomNatH * scale);
   const isLast = sceneIndex >= design.scenes.length - 1;
   const t = Math.min(playhead, durationMs);
 
@@ -111,8 +116,14 @@ export default function SceneEdgeControls({
       {/* ── TOP edge: identity + timing ─────────────────────────────────────────────── */}
       <div
         ref={topRef}
-        className={`${barBox} flex flex-wrap items-center justify-center gap-1.5 px-3 py-1.5`}
-        style={{ left: centerX, top: topBarTop, width: boxW }}
+        className={`${barBox} flex items-center justify-center gap-1.5 px-3 py-1.5`}
+        style={{
+          left: centerX,
+          top: topAnchorBottom,
+          width: NAT_W,
+          transform: `translateX(-50%) translateY(-100%) scale(${scale})`,
+          transformOrigin: "center bottom",
+        }}
       >
         <input
           value={scene.name}
@@ -172,7 +183,13 @@ export default function SceneEdgeControls({
       <div
         ref={bottomRef}
         className={`${barBox} flex flex-col gap-2 px-3 py-2.5`}
-        style={{ left: centerX, top: bottomBarTop, width: boxW }}
+        style={{
+          left: centerX,
+          top: bottomAnchorTop,
+          width: NAT_W,
+          transform: `translateX(-50%) scale(${scale})`,
+          transformOrigin: "center top",
+        }}
       >
         <div className="flex items-center gap-2.5">
           <button

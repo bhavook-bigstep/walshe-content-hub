@@ -50,9 +50,9 @@ import {
   editText,
   migrateDesign,
   moveNode,
-  narrationCues,
   newDesign,
   reorderNode,
+  speakableCues,
   resizeNode,
   setNodeAnim,
   updateNode,
@@ -518,10 +518,7 @@ function StudioEditor() {
         scenes: design.scenes.map((s, i) => ({
           title: s.name,
           caption: (s.nodes.find((n) => n.type === "text" && n.text?.trim())?.text ?? "").slice(0, 200),
-          narration: narrationCues(s)
-            .slice()
-            .sort((a, b) => a.atMs - b.atMs)
-            .map((c) => ({ at_ms: c.atMs, text: c.text.slice(0, 300) })),
+          narration: speakableCues(s).map((c) => ({ at_ms: c.atMs, text: c.text.slice(0, 300) })),
           duration_ms: s.durationMs,
           transition: s.transition,
           frames: sceneFrames[i].frames,

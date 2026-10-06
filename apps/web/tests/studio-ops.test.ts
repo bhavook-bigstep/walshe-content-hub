@@ -18,6 +18,7 @@ import {
   narrationCues,
   renameScene,
   setSceneNarration,
+  speakableCues,
   reorderScene,
   resizeNode,
   scenesAsPages,
@@ -210,10 +211,11 @@ describe("studio scene ops", () => {
     expect(r1.scenes[0].name).toBe("Intro");
     expect(() => setSceneDuration(three, "no-scene", 1000)).toThrow(/not found/);
 
-    // setSceneNarration sets time-cued lines and clears them when all blank.
+    // setSceneNarration sets time-cued lines; a blank line is kept (to type into); [] clears.
     const n1 = setSceneNarration(three, "scene-n1", [{ atMs: 0, text: "Welcome." }]);
     expect(n1.scenes[0].narration).toEqual([{ atMs: 0, text: "Welcome." }]);
-    expect(setSceneNarration(n1, "scene-n1", [{ atMs: 0, text: "  " }]).scenes[0].narration).toBeUndefined();
+    expect(setSceneNarration(n1, "scene-n1", [{ atMs: 0, text: "  " }]).scenes[0].narration).toEqual([{ atMs: 0, text: "  " }]);
+    expect(setSceneNarration(n1, "scene-n1", []).scenes[0].narration).toBeUndefined();
 
     // clampSceneDuration handles non-finite input.
     expect(clampSceneDuration(Number.NaN)).toBe(DEFAULT_SCENE_DURATION_MS);
@@ -225,18 +227,21 @@ describe("studio scene ops", () => {
     const cues = [{ atMs: 0, text: "Hello." }, { atMs: 1500, text: "Now, the harbour." }];
     const withScript = setSceneNarration(three, "scene-n2", cues);
     expect(withScript.scenes[1].narration).toEqual(cues);
-    // Blank-only lines are dropped; other scenes untouched; original not mutated.
-    expect(setSceneNarration(three, "scene-n2", [{ atMs: 0, text: "x" }, { atMs: 10, text: " " }]).scenes[1].narration)
-      .toEqual([{ atMs: 0, text: "x" }]);
+    // Blank lines are KEPT (so a new line can be typed into); clamps time; original not mutated.
+    expect(setSceneNarration(three, "scene-n2", [{ atMs: 0, text: "x" }, { atMs: -5, text: "" }]).scenes[1].narration)
+      .toEqual([{ atMs: 0, text: "x" }, { atMs: 0, text: "" }]);
     expect(withScript.scenes[0].narration).toBeUndefined();
     expect(setSceneNarration(withScript, "scene-n2", []).scenes[1].narration).toBeUndefined();
     expect(three.scenes[1].narration).toBeUndefined();
   });
 
-  it("narrationCues normalises a legacy string and bad cues", () => {
+  it("narrationCues keeps blanks for editing; speakableCues drops them for export", () => {
     expect(narrationCues({ narration: "legacy line" as unknown as never })).toEqual([{ atMs: 0, text: "legacy line" }]);
     expect(narrationCues({ narration: undefined })).toEqual([]);
-    expect(narrationCues({ narration: [{ atMs: -5, text: "a" }, { atMs: 3, text: " " }] })).toEqual([{ atMs: 0, text: "a" }]);
+    // Edit view keeps the blank line (clamps a negative time); export view drops it and sorts.
+    const raw = { narration: [{ atMs: 3000, text: "b" }, { atMs: -5, text: " " }, { atMs: 1000, text: "a" }] };
+    expect(narrationCues(raw)).toEqual([{ atMs: 3000, text: "b" }, { atMs: 0, text: " " }, { atMs: 1000, text: "a" }]);
+    expect(speakableCues(raw)).toEqual([{ atMs: 1000, text: "a" }, { atMs: 3000, text: "b" }]);
   });
 
   it("test_migrate_legacy_pages_to_scenes", () => {

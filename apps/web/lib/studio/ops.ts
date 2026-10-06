@@ -167,12 +167,22 @@ export interface Scene extends DesignPage {
   narration?: NarrationCue[];
 }
 
-/** Normalise a scene's narration to cues (handles the legacy single-string form). */
+/** Normalise a scene's narration to cues (handles the legacy single-string form). Keeps blank-text
+ * cues so a line can be added and typed into; drop blanks at export via `speakableCues`. */
 export function narrationCues(scene: Pick<Scene, "narration">): NarrationCue[] {
   const n = scene.narration as NarrationCue[] | string | undefined;
   if (!n) return [];
   if (typeof n === "string") return n.trim() ? [{ atMs: 0, text: n }] : [];
-  return n.filter((c) => c && c.text?.trim()).map((c) => ({ atMs: Math.max(0, c.atMs | 0), text: c.text }));
+  return n
+    .filter((c) => c && typeof c.text === "string")
+    .map((c) => ({ atMs: Math.max(0, Math.round(c.atMs) || 0), text: c.text }));
+}
+
+/** The cues that actually get spoken: narration lines with non-blank text, in time order. */
+export function speakableCues(scene: Pick<Scene, "narration">): NarrationCue[] {
+  return narrationCues(scene)
+    .filter((c) => c.text.trim())
+    .sort((a, b) => a.atMs - b.atMs);
 }
 
 export interface DesignDoc {
@@ -438,9 +448,10 @@ export function renameScene(design: DesignDoc, sceneId: string, name: string): D
   return mapScene(design, sceneId, (s) => ({ ...s, name }));
 }
 
-/** Set a scene's time-cued narration lines (empty/blank-only clears it). */
+/** Set a scene's time-cued narration lines. Blank lines are kept (so a new line can be typed into);
+ * an empty list clears the narration. */
 export function setSceneNarration(design: DesignDoc, sceneId: string, cues: NarrationCue[]): DesignDoc {
-  const kept = cues.filter((c) => c.text.trim()).map((c) => ({ atMs: Math.max(0, Math.round(c.atMs)), text: c.text }));
+  const kept = cues.map((c) => ({ atMs: Math.max(0, Math.round(c.atMs) || 0), text: c.text }));
   return mapScene(design, sceneId, (s) => {
     const next = { ...s };
     if (kept.length) next.narration = kept;
