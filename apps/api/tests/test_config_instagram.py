@@ -29,3 +29,18 @@ def test_s3_configured_requires_all_four_values():
         aws_secret_access_key="x",
     )
     assert full.s3_configured() is True
+
+
+def test_insights_sync_defaults():
+    s = Settings(_env_file=None)
+    assert s.insights_sync_enabled is False
+    assert s.insights_sync_interval_seconds == 600
+    assert s.insights_max_age_days == 30
+
+
+def test_account_token_returns_env_token():
+    from app.social.token import account_token
+
+    s = Settings(_env_file=None, instagram_access_token="tok", ig_user_id="1")
+    assert account_token(s) == "tok"
+    assert account_token(Settings(_env_file=None)) is None

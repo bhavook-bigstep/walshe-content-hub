@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     s3_public_base_url: str | None = None
     s3_presign_ttl: int = 3600
 
+    # --- Engagement insights sync ---
+    # Off by default so tests/plain runs stay hermetic; real runs set INSIGHTS_SYNC_ENABLED=true.
+    insights_sync_enabled: bool = False
+    insights_sync_interval_seconds: int = 600  # 10 min
+    insights_max_age_days: int = 30  # scheduled sweep only polls posts newer than this
+
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
