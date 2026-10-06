@@ -74,7 +74,7 @@ test("agent catalog has no horizontal scroll on mobile", async ({ page }) => {
   await loginAsAgent(page);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/agent/catalog");
-  await expect(page.getByRole("heading", { name: "Catalog", level: 1 })).toBeVisible();
+  await expect(page.getByRole("search")).toBeVisible();
   expect(await hasNoHorizontalScroll(page)).toBe(true);
 });
 

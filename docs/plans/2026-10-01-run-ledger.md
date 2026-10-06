@@ -170,7 +170,13 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC56 | P2 | met | 1/1 |
 | AC57 | P2 | met | 2/2 |
 | AC58 | P2 | met | 2/2 |
+| AC59 | P2 | met | 2/2 |
+| AC60 | P2 | met | 2/2 |
+| AC61 | P2 | met | 1/1 |
+| AC62 | P2 | met | 1/1 |
+| AC63 | P2 | met | 1/1 |
+| AC64 | P2 | met | 4/4 |
 
-**Totals:** 58 met · 0 partial · 0 missing · 58 total.
+**Totals:** 64 met · 0 partial · 0 missing · 64 total.
 
 <!-- END GENERATED ACCEPTANCE MATRIX -->

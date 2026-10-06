@@ -32,6 +32,23 @@ next-env.d.ts
 *.tsbuildinfo
 e2e-results.json
 docs/design/screenshots/
-
 # superpowers scratch (ledgers, review packages)
 .superpowers/
+.claude/worktrees/
+
+# Isolated second instance (start-app-alt.sh)
+.next-alt/
+apps/web/.next-alt/
+*.log
+
+# Dev on-disk asset stores (start-app*.sh)
+apps/api/.dev-assets/
+apps/api/.dev-assets-alt/
+
+# Local reference material (not part of the repo)
+docs/sample/
+
+# SQLite sidecar files
+*.db-journal
+*.db-wal
+*.db-shm

@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     token_ttl_seconds: int = 60 * 60 * 8
 
-    # MinIO / object storage (real backend used only when configured)
+    # Object storage. Precedence (see app.storage.minio_client.get_storage):
+    #   asset_dir  → a persistent on-disk store (local dev: seed + API share one directory)
+    #   minio_*    → a MinIO/S3 bucket (compose / prod)
+    #   neither    → an in-memory store (hermetic tests only)
+    asset_dir: str | None = None
     minio_endpoint: str | None = None
     minio_access_key: str | None = None
     minio_secret_key: str | None = None

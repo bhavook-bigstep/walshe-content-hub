@@ -17,9 +17,21 @@ export type TeamMember = Schemas["TeamMember"];
 export type TeamInvite = Schemas["TeamInvite"];
 export type Performance = Schemas["PerformanceOut"];
 export type Project = Schemas["ProjectOut"];
+export type ProjectResolved = Schemas["ProjectResolved"];
 export type ProjectCreate = Schemas["ProjectCreate"];
 export type ProjectUpdate = Schemas["ProjectUpdate"];
+export type WorkspaceResolved = Schemas["WorkspaceResolved"];
+export type WorkspaceIn = Schemas["WorkspaceIn"];
+export type WorkspaceMetadata = Schemas["WorkspaceMetadata"];
+export type ReferenceContent = Schemas["ReferenceContent"];
+export type WorkspaceCollection = Schemas["WorkspaceCollection"];
+export type ResolvedReferenceContent = Schemas["ResolvedReferenceContent"];
+export type ResolvedCollection = Schemas["ResolvedCollection"];
+export type AssetRef = Schemas["AssetRef"];
+export type EntryRef = Schemas["EntryRef"];
 export type Collection = Schemas["CollectionOut"];
+export type CollectionResolved = Schemas["CollectionResolved"];
+export type UserAsset = Schemas["UserAssetOut"];
 export type CollectionCreate = Schemas["CollectionCreate"];
 export type CollectionUpdate = Schemas["CollectionUpdate"];
 export type BrandKit = Schemas["BrandKitOut"];
@@ -341,6 +353,20 @@ export async function listProjects(): Promise<Project[]> {
 export async function getProject(id: number): Promise<Project> {
   return (await (await send(`/me/projects/${id}`)).json()) as Project;
 }
+/** A project's items resolved against the live catalog (its source collection's entries). */
+export async function getProjectResolved(id: number): Promise<ProjectResolved> {
+  return (await (await send(`/me/projects/${id}/resolved`)).json()) as ProjectResolved;
+}
+/** The structured workspace (AC64), resolved: references expanded to live entries + assets. */
+export async function getWorkspace(id: number): Promise<WorkspaceResolved> {
+  return (await (await send(`/me/projects/${id}/workspace`)).json()) as WorkspaceResolved;
+}
+/** Autosave the whole workspace (AC64); returns it re-resolved with the bumped version. */
+export async function saveWorkspace(id: number, body: WorkspaceIn): Promise<WorkspaceResolved> {
+  return (await (
+    await send(`/me/projects/${id}/workspace`, { ...json(body), method: "PUT" })
+  ).json()) as WorkspaceResolved;
+}
 export async function createProject(body: ProjectCreate): Promise<Project> {
   return (await (await send("/me/projects", json(body))).json()) as Project;
 }
@@ -362,6 +388,39 @@ export async function updateCollection(id: number, body: CollectionUpdate): Prom
 }
 export async function deleteCollection(id: number): Promise<void> {
   await send(`/me/collections/${id}`, { method: "DELETE" });
+}
+/** A collection resolved against the live catalog (AC60): current visible entries + dropped refs. */
+export async function resolveCollection(id: number): Promise<CollectionResolved> {
+  return (await (await send(`/me/collections/${id}/resolved`)).json()) as CollectionResolved;
+}
+/** Save an entry reference into a collection (AC59). */
+export async function addCollectionItem(id: number, entryId: number): Promise<Collection> {
+  return (await (
+    await send(`/me/collections/${id}/items`, json({ entry_id: entryId }))
+  ).json()) as Collection;
+}
+/** Remove a saved entry reference from a collection (AC59). */
+export async function removeCollectionItem(id: number, entryId: number): Promise<Collection> {
+  return (await (
+    await send(`/me/collections/${id}/items/${entryId}`, { method: "DELETE" })
+  ).json()) as Collection;
+}
+
+// Per-user media library (AC51): Local (uploaded) + Agent (AI-generated). Fuels the studio picker.
+export async function listMyLibrary(source?: "local" | "agent"): Promise<UserAsset[]> {
+  const qs = source ? `?source=${source}` : "";
+  return (await (await send(`/me/library${qs}`)).json()) as UserAsset[];
+}
+export async function uploadLibraryMedia(file: File, title = ""): Promise<UserAsset> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", title);
+  return (await (
+    await send("/me/library/upload", { method: "POST", body: form })
+  ).json()) as UserAsset;
+}
+export async function generateLibraryMedia(prompt: string): Promise<UserAsset[]> {
+  return (await (await send("/me/library/generate", json({ prompt }))).json()) as UserAsset[];
 }
 
 export async function getBrandKit(): Promise<BrandKit> {

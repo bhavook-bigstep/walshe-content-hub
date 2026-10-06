@@ -22,6 +22,8 @@ from app.models.catalog import CatalogEntry, CatalogType, EntryStatus, Season
 from app.models.composition import Composition
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
+from app.services.catalog_migration import decompose_entries_to_items
+from app.services.seed_images import seed_covers
 
 _SALT = b"walsh-seed-salt0"  # fixed → deterministic demo credentials (dev only)
 _PASSWORD = "demo-pass-0000"
@@ -104,6 +106,55 @@ _LOCATION: dict[str, tuple[str, str, str, Season]] = {
     "Spring Food Fair": ("Ireland", "Cork", "Cork", Season.spring),
 }
 
+# Real editorial copy per entry so the demo catalog reads like genuine content.
+_CONTENT: dict[str, dict] = {
+    "Harbour Festival": {
+        "description": "A week of waterfront music, street theatre and seafood on Galway's historic"
+        " docks, drawing crowds from across the west of Ireland.",
+        "highlights": ["Live harbourside music", "Seafood and craft markets", "Family daytime"],
+    },
+    "Cliffs of Moher": {
+        "description": "Rising 214 metres above the Atlantic, the Cliffs of Moher are Ireland's"
+        " most visited natural attraction, with views to the Aran Islands and the open ocean.",
+        "highlights": ["214m sea cliffs", "O'Brien's Tower", "Coastal walking trails"],
+    },
+    "Wild Atlantic Way": {
+        "description": "A seven-day self-drive along Ireland's western seaboard, from Galway's bays"
+        " through Connemara to the cliffs and islands of Mayo.",
+        "highlights": ["Flexible self-drive", "Connemara and Achill Island", "Curated local stays"],
+    },
+    "Autumn Escapes": {
+        "description": "A short autumn break in Killarney with guided Ring of Kerry touring and"
+        " National Park walks as the hills turn gold.",
+        "highlights": ["Ring of Kerry touring", "Killarney National Park", "Nights with breakfast"],
+    },
+    "Titanic Quarter": {
+        "description": "Belfast's regenerated waterfront, home to Titanic Belfast, the slipways"
+        " where the ship was built and the restored SS Nomadic.",
+        "highlights": ["Titanic Belfast exhibition", "Original slipways", "SS Nomadic tender ship"],
+    },
+    "Dublin Lights": {
+        "description": "A winter light trail through Dublin's streets and Georgian squares, with"
+        " installations, markets and late-night culture.",
+        "highlights": ["City-centre light trail", "Winter markets", "Late-night museums"],
+    },
+    "Trade Showcase": {
+        "description": "An invitation-only trade showcase connecting Irish destination partners"
+        " with international travel agents ahead of the new season.",
+        "highlights": ["Meet suppliers", "Pre-scheduled meetings", "Commission deals"],
+    },
+    "Winter Warmers": {
+        "description": "A cosy winter offer on the Donegal coast, pairing storm-watching walks with"
+        " open fires and local seafood.",
+        "highlights": ["Storm-watching walks", "Open fires and seafood", "Short winter stays"],
+    },
+    "Spring Food Fair": {
+        "description": "A spring celebration of Cork's food scene, with producer markets, tastings"
+        " and chef demonstrations across the city.",
+        "highlights": ["Producer markets", "Tastings and demos", "Cork city venues"],
+    },
+}
+
 
 def _entry(db: Session, provider_id: int, spec, now: datetime) -> CatalogEntry:
     type_, title, dest, status, vf, ex = spec
@@ -119,22 +170,16 @@ def _entry(db: Session, provider_id: int, spec, now: datetime) -> CatalogEntry:
     e.destination = dest
     country, state, city, season = _LOCATION.get(title, ("Ireland", dest, "", None))
     e.country, e.state, e.city, e.season = country, state, city, season
-    e.description = (
-        f"A verified {type_.value} in {dest}, ready for agents to personalise and share."
-    )
+    content = _CONTENT.get(title, {})
+    e.description = content.get("description", f"{title} in {city or state or country}.")
     e.market_tags = ["leisure", "trade"]
     e.status = status
     e.brand_safe = status == EntryStatus.approved
     e.valid_from = now + timedelta(days=vf)
     e.expires_at = None if ex is None else now + timedelta(days=ex)
     e.attributes = _ATTRS.get(type_, {})
-    e.highlights = [
-        f"Signature {type_.value} on the Wild Atlantic Way",
-        "Trade-ready assets included",
-    ]
-    e.custom_sections = [
-        {"title": "Why agents love it", "body": f"A reliable, verified pick in {dest}."}
-    ]
+    e.highlights = content.get("highlights", [])
+    e.custom_sections = []
     db.flush()
     return e
 
@@ -243,6 +288,11 @@ def seed_demo(db: Session) -> dict[str, int]:
         db, agent2.id, "City breaks", [by_title["Dublin Lights"], by_title["Titanic Quarter"]]
     )
     _composition(db, agent2.id, "Dublin teaser", [by_title["Dublin Lights"]])
+
+    # Give every entry a real cover image in object storage (MinIO under compose) and connect it to
+    # the entry, then decompose so each cover also becomes an image item for the studio library.
+    seed_covers(db, entries)
+    decompose_entries_to_items(db)
 
     db.commit()
     return {
