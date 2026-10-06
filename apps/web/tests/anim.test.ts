@@ -44,6 +44,25 @@ describe("animation engine", () => {
     expect(nodeStateAt(n, 0).scale).toBeCloseTo(1, 4);
   });
 
+  it("character loops each drive their own channel (AC85)", () => {
+    const at = (type: string, t: number) =>
+      nodeStateAt(
+        textNode({ anim: { keyframes: [{ t: 0, scale: 1 }], loop: { type: type as "pulse", periodMs: 1000 } } }),
+        t,
+      );
+    // sway/waddle/rock tilt via rotation (base angle 0).
+    expect(at("sway", 250).rotation).toBeCloseTo(7, 4); // +7° at quarter period
+    expect(at("rock", 250).rotation).toBeCloseTo(8, 4);
+    expect(Math.abs(at("waddle", 250).rotation)).toBeGreaterThan(0);
+    // spin accumulates rotation over time (half a turn at half the period).
+    expect(at("spin", 500).rotation).toBeCloseTo(180, 4);
+    expect(at("spin", 0).rotation).toBeCloseTo(0, 4);
+    // drift moves x; float moves y; twinkle dims opacity below the settled 1.
+    expect(at("drift", 250).x).toBeCloseTo(116, 4); // base x 100 + 16
+    expect(at("float", 250).y).toBeGreaterThan(200); // base y 200 + buoyancy
+    expect(at("twinkle", 750).opacity).toBeLessThan(1);
+  });
+
   it("enterTrack presets produce an invisible→visible entrance anchored at the base transform", () => {
     const n = textNode();
     for (const type of ENTER_TYPES) {

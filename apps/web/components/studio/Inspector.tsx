@@ -5,11 +5,13 @@ import { enterTrack, nodeStateAt } from "../../lib/studio/anim";
 import {
   EASINGS,
   ENTER_TYPES,
+  LOOP_TYPES,
   type AnimKeyframe,
   type DesignNode,
   type Easing,
   type EnterType,
   type LayerMove,
+  type LoopType,
   type NodeAnimation,
   type NodeStyle,
 } from "../../lib/studio/ops";
@@ -45,6 +47,18 @@ const ENTER_LABEL: Record<EnterType | "none", string> = {
   scale: "Scale up",
 };
 
+const LOOP_LABEL: Record<LoopType, string> = {
+  pulse: "Pulse",
+  bob: "Bob",
+  sway: "Sway",
+  waddle: "Waddle",
+  float: "Float",
+  spin: "Spin",
+  twinkle: "Twinkle",
+  drift: "Drift",
+  rock: "Rock",
+};
+
 // Per-element animation: an entrance preset (type · start · duration · easing) + an emphasis loop.
 // Writes a NodeAnimation; the engine expands the entrance into keyframes and plays it.
 function AnimControls({ node, onAnim }: { node: DesignNode; onAnim: Props["onAnim"] }) {
@@ -53,7 +67,7 @@ function AnimControls({ node, onAnim }: { node: DesignNode; onAnim: Props["onAni
   const [start, setStart] = useState(a?.enter?.startMs ?? 0);
   const [dur, setDur] = useState(a?.enter?.durationMs ?? 500);
   const [ez, setEz] = useState<Easing>(a?.enter?.ease ?? "easeOut");
-  const [loop, setLoop] = useState<"none" | "pulse" | "bob">(a?.loop?.type ?? "none");
+  const [loop, setLoop] = useState<"none" | LoopType>(a?.loop?.type ?? "none");
   const [period, setPeriod] = useState(a?.loop?.periodMs ?? 1200);
 
   // Re-sync the controls when a different element is selected.
@@ -68,7 +82,7 @@ function AnimControls({ node, onAnim }: { node: DesignNode; onAnim: Props["onAni
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
-  function emit(next: Partial<{ enter: EnterType | "none"; start: number; dur: number; ez: Easing; loop: "none" | "pulse" | "bob"; period: number }>) {
+  function emit(next: Partial<{ enter: EnterType | "none"; start: number; dur: number; ez: Easing; loop: "none" | LoopType; period: number }>) {
     const c = { enter, start, dur, ez, loop, period, ...next };
     const keyframes = c.enter === "none" ? [] : enterTrack(node, c.enter, c.start, c.dur, c.ez).keyframes;
     const anim: NodeAnimation = {
@@ -119,14 +133,23 @@ function AnimControls({ node, onAnim }: { node: DesignNode; onAnim: Props["onAni
         </>
       )}
       <div className={row}>
-        <span className={label}>Emphasis</span>
-        <select value={loop} onChange={(e) => { const v = e.target.value as "none" | "pulse" | "bob"; setLoop(v); emit({ loop: v }); }}
-          aria-label="Emphasis loop" className={`${field} w-36`}>
+        <span className={label}>Motion</span>
+        <select value={loop} onChange={(e) => { const v = e.target.value as "none" | LoopType; setLoop(v); emit({ loop: v }); }}
+          aria-label="Motion loop" className={`${field} w-36`}>
           <option value="none">None</option>
-          <option value="pulse">Pulse</option>
-          <option value="bob">Bob</option>
+          {LOOP_TYPES.map((t) => (
+            <option key={t} value={t}>{LOOP_LABEL[t]}</option>
+          ))}
         </select>
       </div>
+      {loop !== "none" && (
+        <div className={row}>
+          <span className={label}>Speed (ms)</span>
+          <input type="number" min={300} max={30000} step={100} value={period}
+            onChange={(e) => { const v = Number(e.target.value) || 1200; setPeriod(v); emit({ period: v }); }}
+            aria-label="Motion period" className={`${field} w-24 text-right`} />
+        </div>
+      )}
     </div>
   );
 }

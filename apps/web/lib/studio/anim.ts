@@ -91,15 +91,57 @@ export function nodeStateAt(node: DesignNode, t: number): AnimState {
     opacity: clamp01(sampleProp(kfs, t, "opacity", base.opacity)),
   };
 
-  // Emphasis loop, layered on after the track's last keyframe (so it starts once the element settles).
+  // Character loop, layered on after the track's last keyframe (so it starts once the element
+  // settles). Each type is a periodic transform; the same math drives preview and export.
   if (anim.loop) {
     const lastT = kfs.length ? kfs[kfs.length - 1].t : 0;
     if (t >= lastT) {
-      const phase = (2 * Math.PI * (t - lastT)) / Math.max(1, anim.loop.periodMs);
-      if (anim.loop.type === "pulse") st.scale *= 1 + 0.05 * Math.sin(phase);
-      else st.y += 10 * Math.sin(phase); // bob
+      applyLoop(st, anim.loop, t - lastT);
     }
   }
   return st;
+}
+
+/** Layer a named periodic loop onto an already-resolved state. Exported for tests. */
+export function applyLoop(
+  st: AnimState,
+  loop: NonNullable<DesignNode["anim"]>["loop"] & {},
+  elapsedMs: number,
+): void {
+  const period = Math.max(1, loop.periodMs);
+  const phase = (2 * Math.PI * elapsedMs) / period;
+  switch (loop.type) {
+    case "pulse":
+      st.scale *= 1 + 0.05 * Math.sin(phase);
+      break;
+    case "bob":
+      st.y += 10 * Math.sin(phase);
+      break;
+    case "sway":
+      st.rotation += 7 * Math.sin(phase);
+      break;
+    case "waddle": // a walk cycle: tilt one way then the other, with a little hop at double rate
+      st.rotation += 5 * Math.sin(phase);
+      st.y -= 3 * Math.abs(Math.sin(phase * 2));
+      break;
+    case "float": // gentle buoyant drift up/down with a slight tilt
+      st.y += 7 * Math.sin(phase);
+      st.rotation += 3 * Math.sin(phase * 0.7);
+      break;
+    case "spin": // continuous rotation (one full turn per period)
+      st.rotation += ((elapsedMs / period) * 360) % 360;
+      break;
+    case "twinkle":
+      st.opacity = clamp01(st.opacity * (0.55 + 0.45 * (0.5 + 0.5 * Math.sin(phase))));
+      st.scale *= 1 + 0.09 * Math.sin(phase);
+      break;
+    case "drift": // horizontal glide side to side (breeze, cloud)
+      st.x += 16 * Math.sin(phase);
+      break;
+    case "rock": // a boat on water: tilt and bob out of phase
+      st.rotation += 8 * Math.sin(phase);
+      st.y += 4 * Math.sin(phase + Math.PI / 3);
+      break;
+  }
 }
 

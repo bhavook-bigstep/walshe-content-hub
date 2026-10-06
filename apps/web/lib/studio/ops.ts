@@ -70,9 +70,27 @@ export interface NodeAnimation {
   /** Authoring intent for the entrance preset, so the Inspector can round-trip the controls. The
    * engine ignores this and plays `keyframes` (which the UI regenerates from it). */
   enter?: { type: EnterType; startMs: number; durationMs: number; ease?: Easing };
-  /** Optional emphasis loop applied on top of the track (pulse/bob), after the last keyframe time. */
-  loop?: { type: "pulse" | "bob"; periodMs: number };
+  /** Optional emphasis/character loop applied on top of the track, after the last keyframe time.
+   * The engine (anim.ts) interprets each type as a periodic transform (see `LOOP_TYPES`). */
+  loop?: { type: LoopType; periodMs: number };
 }
+
+/** The periodic loop motions the engine can layer on a node (anim.ts `nodeStateAt`). Named so a
+ * sprite reads as its character: a boat rocks, a balloon floats, the sun spins, a star twinkles. */
+export type LoopType =
+  | "pulse" // scale wobble
+  | "bob" // vertical bounce
+  | "sway" // tilt side to side
+  | "waddle" // walk-cycle tilt + hop
+  | "float" // drift up/down with a slight tilt
+  | "spin" // continuous rotation
+  | "twinkle" // opacity + scale sparkle
+  | "drift" // horizontal glide
+  | "rock"; // tilt + bob, like a boat on water
+
+export const LOOP_TYPES: readonly LoopType[] = [
+  "pulse", "bob", "sway", "waddle", "float", "spin", "twinkle", "drift", "rock",
+];
 
 export interface DesignNode {
   readonly id: string;

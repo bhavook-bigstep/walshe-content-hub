@@ -518,3 +518,8 @@ acceptance:
     tier: P2
     api:
       - "apps/api/tests/test_seed_demo.py::test_seed_demo_creates_rich_named_collections"
+  AC85:
+    tier: P2
+    web:
+      - "apps/web/tests/graphics.test.ts::ships a rich roster of named, moving sprites (AC85)"
+      - "apps/web/tests/anim.test.ts::character loops each drive their own channel (AC85)"

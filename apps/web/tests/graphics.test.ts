@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addGraphic, newDesign } from "../lib/studio/ops";
+import { LOOP_TYPES, addGraphic, newDesign } from "../lib/studio/ops";
 import { ABSTRACT_ARTIFACTS, SPRITE_ANIMATIONS, STICKERS, svgDataUrl } from "../lib/studio/graphics";
 
 describe("built-in graphics + sprites", () => {
@@ -46,5 +46,22 @@ describe("built-in graphics + sprites", () => {
     const pulse = SPRITE_ANIMATIONS.find((s) => s.loop?.type === "pulse")!;
     const d = addGraphic(newDesign("social"), 0, { src: svgDataUrl(pulse.svg), width: pulse.width, height: pulse.height, enter: pulse.enter, loop: pulse.loop });
     expect(d.scenes[0].nodes.at(-1)!.anim?.loop?.type).toBe("pulse");
+  });
+
+  it("ships a rich roster of named, moving sprites (AC85)", () => {
+    // Recognisable subjects, not reused stickers.
+    const ids = SPRITE_ANIMATIONS.map((s) => s.id);
+    expect(ids).toEqual(expect.arrayContaining(["walking-panda", "blooming-flower", "breeze"]));
+    expect(SPRITE_ANIMATIONS.length).toBeGreaterThanOrEqual(12);
+    // Every sprite actually moves (a loop or an entrance) with a valid loop type, and carries real
+    // multi-element artwork rather than a one-shape sticker.
+    for (const s of SPRITE_ANIMATIONS) {
+      expect(s.loop || s.enter).toBeTruthy();
+      if (s.loop) expect(LOOP_TYPES).toContain(s.loop.type);
+      expect(s.svg.split("<path").length + s.svg.split("<circle").length).toBeGreaterThan(2);
+    }
+    // The motions are varied, not all the same loop.
+    const loops = new Set(SPRITE_ANIMATIONS.map((s) => s.loop?.type));
+    expect(loops.size).toBeGreaterThanOrEqual(5);
   });
 });
