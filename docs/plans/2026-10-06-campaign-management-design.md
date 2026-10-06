@@ -8,6 +8,8 @@
 | **Supersedes / builds on** | `docs/plans/2026-10-05-instagram-publishing-pipeline-design.md`, `docs/plans/2026-10-06-engagement-insights-design.md` |
 | **Governing spec** | `/REQUIREMENTS.md` (new ACs added under Governance, below) |
 
+*Rev 2026-10-06b: added delivery semantics & crash recovery — at-least-once publishing (§8.1) — per review.*
+
 ## 1. Context & goal
 
 A tourism **agent** runs destination marketing as *campaigns*. The product today lets an agent
@@ -85,6 +87,9 @@ Platform-agnostic container owned by an agent.
 | `approved_by` | FK → `users.id`, nullable | Who approved (§5). Decouples approval authority from `campaign.agent_id`. |
 | `reviewed_at` | `DateTime(tz)`, nullable | When the approve/reject decision was made. |
 | `review_note` | `Text`, default `""` | Optional reviewer note (used on reject). |
+| `publish_container_id` | `String(100)`, nullable | The IG `creation_id`, persisted the instant the container is created, **before** `media_publish`. The correlation handle that makes crash recovery idempotent (§8.1). |
+| `publish_started_at` | `DateTime(tz)`, nullable | When the dispatcher claimed the row (`approved → publishing`). Drives the stale-claim reaper (§8.1). |
+| `publish_attempts` | `Integer`, default `0` | Incremented on each claim; capped by `max_publish_attempts` → terminal `failed`, never an infinite loop (§8.1). |
 
 `platform` (already present, default `"instagram"`) and a **future** `social_account_id` are the
 post-level seam for multi-platform/multi-account campaigns. We do **not** add `social_account_id`
@@ -150,7 +155,9 @@ status == approved  AND  campaign_id IS NOT NULL  AND  scheduled_at <= now
 
 Because the predicate is keyed on the **new** `approved` state and a non-null `campaign_id`, the
 dispatcher can never pick up the legacy `scheduled` posts from the manual `/social/schedule` flow
-(`apps/api/app/routers/social.py:110-123`). The two pipelines stay fully isolated.
+(`apps/api/app/routers/social.py:110-123`). The two pipelines stay fully isolated. A row stuck in
+`publishing` (worker died mid-publish) is **not** lost — it is recovered separately by the reaper
+(§8.1).
 
 ### Capture-at-schedule (the headless-worker constraint)
 
@@ -231,13 +238,73 @@ a new settings flag (`campaign_dispatch_enabled`, **off in tests**), looping
 dispatch_due_posts(db, connector, now) -> int   # apps/api/app/services/campaign_dispatch.py
 ```
 
-- Selects posts matching the §4 predicate, **ordered by `scheduled_at`**.
-- For each: claim the row (`approved → publishing`, committed) as a double-dispatch lock, then
-  `connector.publish(...)` via `get_connector(settings)` (real IG or stub by env).
-- Wrap each post in `try/except Exception` so one failure can never abort the sweep (the same
-  resilience posture the engagement sync adopted). Success → `published` + `external_id` /
-  `permalink` / `published_at`. Any exception → `failed` + `error`.
+- Selects posts matching the §4 predicate **plus** stale `publishing` rows to recover (§8.1),
+  **ordered by `scheduled_at`**, via `get_connector(settings)` (real IG or stub by env).
+- The publish is **split across commits so a crash is recoverable** (§8.1). Per post:
+  1. **Claim** — `approved → publishing`, set `publish_started_at=now`, `publish_attempts += 1`;
+     commit. This is the double-dispatch lock.
+  2. **Create + persist container** — `connector.create_container(...)` → persist
+     `publish_container_id`; **commit before publishing**.
+  3. **Publish** — `connector.publish_container(container_id)` → `published` + `external_id` /
+     `permalink` / `published_at`.
+- Each post is wrapped in `try/except Exception` so one failure can never abort the sweep (the same
+  resilience posture the engagement sync adopted). A non-retryable `PublishError` / any unexpected
+  exception → `failed` + `error`; a retryable one is left for the next tick (bounded by
+  `max_publish_attempts`, §8.1).
 - Every transition `audit.record`-ed (Contract 3). Returns the count published.
+
+### 8.1 Delivery semantics & recovery (at-least-once)
+
+**Guarantee: at-least-once.** A due, approved post is published *at least once* and is never
+silently lost. Exactly-once is **not** achievable here — the Instagram `media_publish` is an
+external side effect that cannot be committed in the same transaction as our DB write, and the
+Graph API exposes no idempotency token it will honour (the connector's `idempotency_key` arg is
+currently ignored by the IG adapter, `apps/api/app/social/instagram.py`). In the narrow window
+where Instagram accepts the post but the worker dies before persisting the receipt, a later
+recovery attempt could create a **duplicate**. We make that window small and duplicates detectable;
+we do not pretend it is impossible.
+
+**The orphaned-`publishing` problem.** The claim `approved → publishing` is committed *before* the
+publish call, so if the process dies mid-publish the row is stuck in `publishing` and the normal
+predicate (`status == approved`) will never pick it up again. `publishing` rows therefore need an
+explicit recovery path, or posts would be silently dropped.
+
+**Recovery via the container id (idempotent resume).** The IG publish is a 3-step flow (create
+container → poll `FINISHED` → `media_publish`). The dispatcher persists the **container id
+(`creation_id`) the instant the container is created, before `media_publish`** — this is why the
+connector is split (§8) and why `publish_container_id` exists (§3). The **reaper** — the same sweep,
+selecting `publishing` rows whose `publish_started_at` is older than
+`campaign_dispatch_reaper_timeout_seconds` (set well above the worst-case publish duration,
+including video transcode polling) — resumes each orphan:
+
+- **`publish_container_id` present** → call `publish_container(id)` again. Instagram rejects a
+  second publish of the same container; the connector maps that specific error to
+  "already published", and the reaper reconciles the media id / permalink by reading the container
+  (or recent media), then marks it `published`. **No duplicate** — the container id *is* the
+  idempotency key.
+- **No `publish_container_id`** → the crash was at or before container creation, so at most an
+  unpublished container exists; it is safe to recreate. The only residual duplicate risk is a crash
+  *between* IG accepting the container-create and our commit of the id — kept tiny by committing the
+  id immediately after step 2 and before step 3.
+
+**Bounded retries.** `publish_attempts` is incremented on every claim; past `max_publish_attempts`
+(default 3) the post goes terminal `failed` with its last error, so a poisoned post can never loop
+forever.
+
+**Startup sweep.** On worker start the dispatcher runs one recovery pass, so a crash during a
+deploy/restart is reconciled promptly instead of waiting a full interval.
+
+**Connector contract (additive, back-compatible).** `publish()` stays unchanged for the manual IG
+path (`apps/api/app/routers/instagram.py`); Inc 2 **adds** granular `create_container(...) ->
+container_id`, `poll_until_ready(container_id)`, and `publish_container(container_id) ->
+PublishResult`, and `publish()` becomes their composition. The stub connector implements the same
+split deterministically, and a repeated `publish_container` on the same id returns the same result
+(idempotent), so the whole recovery path is unit-testable with no network (Contract 4).
+
+**Acknowledged downstream.** Because a rare duplicate is possible, analytics treat each `Post` row
+independently (a duplicate surfaces as two posts, not corrupted data), and the agent can
+`/social/unpublish` or remove one on Instagram. The PoC does not auto-dedupe after the fact; it
+minimises the window and records enough (`publish_container_id`, `external_id`) to detect one.
 
 ## 9. Increments
 
@@ -273,8 +340,13 @@ TDD throughout (RED → GREEN), per-task commits (`Co-Authored-By: Claude Opus 4
   `media_object_key` set; `draft` when no `scheduled_at`.
 - State machine (Inc 2): legal transitions only; `can_review` allow/deny; audit rows written.
 - Dispatcher (Inc 2): picks only `approved && due && campaign_id`; **never** legacy `scheduled`;
-  one failing post doesn't abort the sweep; idempotent claim prevents double publish; stub
-  connector + fixed clock → deterministic.
+  one failing post doesn't abort the sweep; the `approved → publishing` claim prevents a second
+  concurrent sweep grabbing the same row; stub connector + fixed clock → deterministic.
+- Recovery / at-least-once (Inc 2, §8.1): a `publishing` row older than the reaper timeout **with**
+  a `publish_container_id` resumes and reconciles to `published` without creating a second
+  container (repeated `publish_container(id)` on the stub is idempotent); **without** a container id
+  it safely recreates; `publish_attempts > max_publish_attempts` → terminal `failed`; the startup
+  sweep reconciles a simulated mid-publish crash.
 - Analytics (Inc 3): sum across latest-per-post; scoped to the calling agent; empty campaign → zeros.
 - Web: Vitest for the calendar date-bucketing + status chips (pure); one Playwright e2e for
   create-campaign + calendar render.
@@ -291,6 +363,9 @@ AC49–AC58 block):
 - Approval gate: no post auto-publishes unless `approved` **and** due; approver recorded.
 - Dispatcher publishes due approved posts via the real connector (stub in tests) and never touches
   legacy manual posts.
+- Scheduled posts are delivered **at-least-once**: a worker crash mid-publish is recovered (the
+  post is never lost), and recovery resumes on the persisted container id so it does not duplicate
+  when one exists (§8.1).
 - Campaign analytics aggregate post metrics (labelled as aggregate, not unique reach).
 
 ## 13. Open decisions (flag at spec review)
