@@ -60,8 +60,11 @@ def sync_insights(
             metrics = connector.fetch_insights(
                 external_id=post.external_id, media_type=_DEFAULT_MEDIA_TYPE
             )
-        except PublishError as err:
-            _upsert_sync(db, post.id, now, "error", f"{err.code}: {err}")
+        except Exception as err:  # noqa: BLE001 - one bad post must never abort the whole sweep
+            # Typed connector errors keep their code; anything else (e.g. an httpx transport
+            # timeout) is recorded as "unknown" so the post shows a failure, not silent staleness.
+            code = err.code if isinstance(err, PublishError) else "unknown"
+            _upsert_sync(db, post.id, now, "error", f"{code}: {err}")
             continue
         db.add(
             Engagement(

@@ -24,29 +24,44 @@ def eng_client(eng_app, client):
     return client
 
 
-def _insert(app, rows):
-    with app.state.sessionmaker() as db:
-        db.add_all([Engagement(**r) for r in rows])
-        db.commit()
-
-
-def test_dashboard_returns_seeded_metrics(eng_app, eng_client, agent_headers):
-    when = datetime(2026, 1, 15, tzinfo=timezone.utc)
-    rows = [
-        {"post_id": 2, "platform": "instagram",
-         "metrics": {"reach": 500, "likes": 12}, "fetched_at": when},
-        {"post_id": 1, "platform": "instagram",
-         "metrics": {"reach": 1000, "likes": 30}, "fetched_at": when},
-    ]
-    _insert(eng_app, rows)
+def test_dashboard_returns_agents_metrics(eng_app, eng_client, agent_headers):
+    pid = _make_agent_post(eng_app, external_id="G1")
+    _add_engagement(eng_app, pid, {"reach": 1000, "likes": 30})
 
     resp = eng_client.get("/engagement", headers=agent_headers)
 
     assert resp.status_code == 200
     body = resp.json()
-    assert [r["post_id"] for r in body] == [1, 2]  # ordered by post_id
+    assert len(body) == 1
+    assert body[0]["post_id"] == pid
     assert body[0]["platform"] == "instagram"
     assert body[0]["metrics"] == {"reach": 1000, "likes": 30}
+
+
+def test_dashboard_is_scoped_to_calling_agent(eng_app, eng_client, agent_headers):
+    # The calling agent's own post...
+    mine = _make_agent_post(eng_app, external_id="MINE")
+    _add_engagement(eng_app, mine, {"reach": 10})
+    # ...and a different agent's post — which must NOT appear.
+    from app.models.user import Role, User
+    from app.security import hash_password
+
+    with eng_app.state.sessionmaker() as db:
+        db.add(
+            User(
+                email="agent2@test.local",
+                password_hash=hash_password("test-pass-agent2"),
+                role=Role.tourism_agent,
+                tenant_id=1,
+                approved=True,
+            )
+        )
+        db.commit()
+    other = _make_agent_post(eng_app, external_id="OTHER", agent_email="agent2@test.local")
+    _add_engagement(eng_app, other, {"reach": 999})
+
+    body = eng_client.get("/engagement", headers=agent_headers).json()
+    assert [r["post_id"] for r in body] == [mine]  # only the caller's own metrics
 
 
 def test_dashboard_is_agent_only(eng_app, eng_client, provider_headers, admin_headers):
@@ -55,26 +70,42 @@ def test_dashboard_is_agent_only(eng_app, eng_client, provider_headers, admin_he
     assert eng_client.get("/engagement", headers=admin_headers).status_code == 403
 
 
-def _make_agent_post(app, external_id="MREF"):
+def _make_agent_post(app, external_id="MREF", agent_email="agent@test.local") -> int:
+    """Create a published post owned by the given agent; return its id."""
     from sqlalchemy import select
 
     from app.models.composition import Composition
     from app.models.post import Post, PostStatus
-    from app.models.user import Role, User
+    from app.models.user import User
 
     with app.state.sessionmaker() as db:
-        agent = db.execute(select(User).where(User.role == Role.tourism_agent)).scalar_one()
+        agent = db.execute(select(User).where(User.email == agent_email)).scalar_one()
         comp = Composition(agent_id=agent.id, format="social", item_ids=[])
         db.add(comp)
         db.flush()
+        post = Post(
+            composition_id=comp.id,
+            channel="instagram",
+            platform="instagram",
+            status=PostStatus.published,
+            external_id=external_id,
+            published_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+        )
+        db.add(post)
+        db.flush()
+        pid = post.id
+        db.commit()
+    return pid
+
+
+def _add_engagement(app, post_id, metrics):
+    with app.state.sessionmaker() as db:
         db.add(
-            Post(
-                composition_id=comp.id,
-                channel="instagram",
+            Engagement(
+                post_id=post_id,
                 platform="instagram",
-                status=PostStatus.published,
-                external_id=external_id,
-                published_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
+                metrics=metrics,
+                fetched_at=datetime(2026, 1, 15, tzinfo=timezone.utc),
             )
         )
         db.commit()

@@ -39,11 +39,21 @@ class RefreshOut(BaseModel):
 
 @router.get("", response_model=list[EngagementOut])
 def list_engagement(
+    user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
-    _: User = Depends(_agent_only),
 ) -> list[Engagement]:
+    # Scope to the caller's own posts (via their compositions) — never expose another agent's or
+    # tenant's metrics.
     return list(
-        db.execute(select(Engagement).order_by(Engagement.post_id, Engagement.id)).scalars().all()
+        db.execute(
+            select(Engagement)
+            .join(Post, Post.id == Engagement.post_id)
+            .join(Composition, Composition.id == Post.composition_id)
+            .where(Composition.agent_id == user.id)
+            .order_by(Engagement.post_id, Engagement.id)
+        )
+        .scalars()
+        .all()
     )
 
 

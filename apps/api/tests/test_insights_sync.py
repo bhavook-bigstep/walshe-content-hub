@@ -63,3 +63,34 @@ def test_per_post_error_recorded_not_fatal(app):
         assert db.query(Engagement).count() == 0  # no snapshot written on failure
         err = db.query(PostInsightsSync).filter_by(sync_status="error").all()
         assert len(err) == 1 and "insights_permission" in err[0].last_error
+
+
+def test_non_publish_error_is_also_non_fatal(app):
+    # A raw transport error (not a PublishError) on one post must not abort the sweep or roll back
+    # another post's good snapshot — the spec's "one bad post, keep going" guarantee.
+    import httpx
+
+    with app.state.sessionmaker() as db:
+        db.add_all(
+            [
+                Post(composition_id=1, channel="instagram", platform="instagram",
+                     status=PostStatus.published, external_id="E1",
+                     published_at=NOW - timedelta(days=1)),
+                Post(composition_id=1, channel="instagram", platform="instagram",
+                     status=PostStatus.published, external_id="E2",
+                     published_at=NOW - timedelta(days=1)),
+            ]
+        )
+        db.commit()
+
+    class _FlakyFirst(StubInsights):
+        def fetch_insights(self, *, external_id, media_type):
+            if external_id == "E1":
+                raise httpx.ReadTimeout("network boom")
+            return super().fetch_insights(external_id=external_id, media_type=media_type)
+
+    with app.state.sessionmaker() as db:
+        n = sync_insights(db, _FlakyFirst(), NOW, max_age_days=30)
+        assert n == 1  # E2 still synced despite E1's transport error
+        assert db.query(Engagement).count() == 1  # E2's good snapshot survived
+        assert {r.sync_status for r in db.query(PostInsightsSync).all()} == {"ok", "error"}
