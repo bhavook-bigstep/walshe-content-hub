@@ -11,6 +11,6 @@ test("agent dashboard widgets", async ({ page }) => {
   expect(await page.getByTestId("stat-tile").count()).toBeGreaterThanOrEqual(4);
   await expect(page.getByText("Approved content", { exact: true })).toBeVisible();
   // A real chart renders under its heading.
-  await expect(page.getByRole("heading", { name: /engagement by post/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /reach & interactions by post/i })).toBeVisible();
   await expect(page.getByTestId("engagement-chart")).toBeVisible();
 });

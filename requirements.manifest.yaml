@@ -81,7 +81,7 @@ acceptance:
   AC15:
     tier: P3
     api:
-      - "apps/api/tests/test_engagement.py::test_dashboard_returns_seeded_metrics"
+      - "apps/api/tests/test_engagement.py::test_dashboard_returns_agents_metrics"
   AC16:
     tier: P1
     api:
