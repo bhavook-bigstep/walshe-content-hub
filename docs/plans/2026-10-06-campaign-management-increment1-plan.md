@@ -4,7 +4,7 @@
 
 **Goal:** Ship the Campaign organising layer — an agent can create a campaign, schedule Studio creatives into it as dated/timed Instagram posts (image captured at schedule time), edit/reschedule them before review, and see them laid out on a month calendar. Nothing auto-publishes yet.
 
-**Architecture:** A new `Campaign` ORM entity (agent-owned, platform-agnostic) plus a nullable `Post.campaign_id` and the frozen post-status vocabulary. A new agent-only `/campaigns` router does CRUD + schedule-into-campaign (multipart capture-at-schedule, reusing the Instagram JPEG validation and the object-storage seam) + edit/reschedule. The web app gets an `app/agent/campaigns/` area: a list + create form, a campaign detail page with a month-grid calendar built from native `Date` (no date lib exists), and a schedule-a-post form that renders the creative to JPEG exactly as the Studio's `ExportMenu` does. Schema changes need no migration — the app builds tables with `Base.metadata.create_all()` and registers models in `app/models/__init__.py`.
+**Architecture:** A new `Campaign` ORM entity (agent-owned, platform-agnostic) plus a nullable `Post.campaign_id` and the frozen post-status vocabulary. A new agent-only `/campaigns` router does CRUD + schedule-into-campaign (multipart capture-at-schedule, reusing the Instagram JPEG validation and the object-storage seam) + edit/reschedule. The web app gets an `app/agent/campaigns/` area: a list + create form, a campaign detail page with a month-grid calendar built from native `Date` (no date lib exists), and a schedule-a-post form that renders the creative to JPEG exactly as the Studio's `ExportMenu` does. The schema **does** change (a new `campaigns` table + `Post.campaign_id`); this repo just has no migration tool — it builds tables with `Base.metadata.create_all()` and registers models in `app/models/__init__.py`, so fresh DBs pick the change up and existing dev DBs are reset.
 
 **Tech Stack:** FastAPI + SQLAlchemy (SQLite dev/tests, Postgres/MinIO in prod), Pydantic v2; Next.js 15 + React 19 + TypeScript + Tailwind + Fabric.js; shared typed client in `packages/shared` generated from the API's OpenAPI; pytest / Vitest / Playwright.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **No migrations.** Schema is `Base.metadata.create_all()` (`app/db.py:34`, `app/main.py:105`, and each test). A new model must be imported in `app/models/__init__.py` or its table is never created. New columns appear only in freshly-created DBs — reset the local dev DB (`rm` the sqlite file + reseed) as prior increments did.
+- **Schema evolution without a migration tool.** This repo has no Alembic/migrations; `Base.metadata.create_all()` (`app/db.py:34`, `app/main.py:105`, and each test) builds tables on a fresh DB. Inc 1 **does change the schema** (new `campaigns` table + `Post.campaign_id`). `create_all` only creates *missing tables* — it does not alter an existing one — so existing dev/test DBs must be reset (`rm` the sqlite file + reseed), as prior increments did. A new model must be imported in `app/models/__init__.py` or its table is never created. (A conventional Postgres prod DB would need a real migration for these changes; that is out of scope for the PoC.)
 - **`PostStatus` is `native_enum=False`** (a plain string column, `app/models/post.py`), so adding enum values is a no-op.
 - **Inc 1 adds to `Post` only `campaign_id`** plus the status vocabulary. The approval/publish columns (`approved_by`, `reviewed_at`, `review_note`, `publish_container_id`, `publish_started_at`, `publish_attempts`) are **Increment 2** — do not add them here.
 - **Campaign status is `active` | `completed` only** (design §3). Created `active`; no draft/activation.
@@ -31,7 +31,7 @@ Input classes the spec implies that a task's happy-path tests can miss — each 
 
 1. **Non-UTC offset at the window boundary** — a `scheduled_at` like `2026-08-15T23:30:00+05:30` must validate against `[starts_on, ends_on]` by its **local** date (15 Aug), not the UTC date (15 Aug 18:00Z — same here, but `2026-08-16T02:00:00+05:30` is 15 Aug 20:30Z and must count as **16 Aug**), and store as UTC. → Task 3 (`within_campaign_window`) + Task 5.
 2. **Cross-agent access** — agent B must not read agent A's campaign, schedule into it, or edit its posts; all return **404**, never a leak or a 403 that confirms existence. → Tasks 4, 5, 6.
-3. **Bad media at schedule** — non-JPEG or `> 8 MB` → **422** before any row/object is written; never a 500 or a stored bad asset. → Tasks 5, 6.
+3. **Bad media / invalid change** — non-JPEG or `> 8 MB` → **422** before any row or storage object is written. This holds for **both** `POST` (validate before `db.add`) **and** `PATCH` (validate caption + JPEG bytes + schedule window *before* uploading the replacement object — otherwise an invalid schedule leaves an orphaned object). Never a 500 or a stored bad asset. → Tasks 5, 6.
 4. **Empty collections** — an agent with no campaigns → `[]`; a campaign with no posts → `posts: []`; never an error. → Task 4.
 5. **Edit on a non-editable status** — `PATCH` on a post not in `{draft, pending_approval, rejected}` → **409**, never a silent mutation. → Task 6.
 
@@ -343,7 +343,29 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - Consumes: `get_db`, `get_settings`, `require_role` (`app/deps.py`), `clock.now`, `audit.record`.
 - Produces routes: `POST /campaigns` (201), `GET /campaigns`, `GET /campaigns/{id}`. Schemas: `CampaignCreate`, `CampaignOut` (`+post_count`), `CampaignPostOut`, `CampaignDetailOut` (`+posts`). Router helpers reused by Tasks 5–6: `_agent_only`, `_owned_campaign(db, id, user)`, `get_storage`, `_campaign_out(c, post_count)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1a: Add a real second-agent fixture to `conftest.py`** (the seeded fixtures only create one agent, so isolation can't be tested without a genuine second agent — used here and in Tasks 5–6)
+
+```python
+# apps/api/tests/conftest.py (append)
+def login_headers(client: TestClient, email: str, password: str) -> dict[str, str]:
+    resp = client.post("/auth/login", json={"email": email, "password": password})
+    assert resp.status_code == 200, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+@pytest.fixture
+def second_agent_headers(client: TestClient) -> dict[str, str]:
+    """A genuinely different tourism agent (agent2@test.local), for cross-agent isolation tests."""
+    SessionLocal = client.app.state.sessionmaker
+    with SessionLocal() as db:
+        if not db.query(User).filter_by(email="agent2@test.local").first():
+            db.add(User(email="agent2@test.local", password_hash=hash_password("test-pass-a2"),
+                        role=Role.tourism_agent, tenant_id=1, approved=True))
+            db.commit()
+    return login_headers(client, "agent2@test.local", "test-pass-a2")
+```
+
+- [ ] **Step 1b: Write the failing tests**
 
 ```python
 # apps/api/tests/test_campaigns_routes.py
@@ -367,11 +389,13 @@ def test_create_and_list_scoped_to_agent(client):
     assert len(lst) == 1 and lst[0]["name"] == "Australia Aug"
 
 
-def test_list_empty_for_fresh_agent(client):
-    # provider has no campaigns; a second agent would see none of the first's (single agent here,
-    # so assert the empty-collection contract directly).
+def test_second_agent_cannot_see_or_read_first_agents_campaigns(client, second_agent_headers):
     a = auth_header(client, Role.tourism_agent)
-    assert client.get("/campaigns", headers=a).json() == []
+    cid = _create(client, a).json()["id"]
+    # a genuinely different agent (seeded by the `second_agent_headers` fixture):
+    assert client.get("/campaigns", headers=second_agent_headers).json() == []  # Review Focus #4
+    assert client.get(f"/campaigns/{cid}",
+                      headers=second_agent_headers).status_code == 404           # Review Focus #2
 
 
 def test_detail_includes_posts_empty_and_non_owner_404(client):
@@ -448,7 +472,7 @@ class CampaignPostOut(BaseModel):
 
 
 class CampaignDetailOut(CampaignOut):
-    posts: list[CampaignPostOut] = []
+    posts: list[CampaignPostOut] = Field(default_factory=list)
 ```
 
 - [ ] **Step 4: Write the router (CRUD portion)**
@@ -593,7 +617,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `_owned_campaign`, `get_storage`, `within_campaign_window`, IG validation constants (Task 4).
-- Produces: `POST /campaigns/{id}/posts` (multipart: `composition_id`, `caption`, `scheduled_at?`, `image`) → `CampaignPostOut` (201). Adds module helper `_parse_dt(raw) -> datetime` and `_read_jpeg(image) -> bytes`.
+- Produces: `POST /campaigns/{id}/posts` (multipart: `composition_id`, `caption`, `scheduled_at?`, `image`) → `CampaignPostOut` (201). Adds shared module helpers `_validate_caption(caption)`, `_parse_scheduled_at(raw) -> datetime` (rejects naive), and `_read_jpeg(image) -> bytes` — reused by Task 6.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -677,6 +701,20 @@ def test_schedule_foreign_composition_404(client):
     cid = _campaign(client, a)
     r = _schedule(client, a, cid, comp_id=99999)
     assert r.status_code == 404
+
+
+def test_schedule_naive_datetime_422(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    r = _schedule(client, a, cid, comp, scheduled_at="2026-08-15T15:00:00")  # no offset
+    assert r.status_code == 422
+
+
+def test_second_agent_cannot_schedule_into_foreign_campaign(client, second_agent_headers):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)  # both owned by agent A
+    r = _schedule(client, second_agent_headers, cid, comp)       # agent B
+    assert r.status_code == 404  # Review Focus #2 (404 before the composition is even checked)
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -687,12 +725,27 @@ Expected: FAIL — 405/404 (route absent).
 - [ ] **Step 3: Implement the route** (append to `campaigns.py`)
 
 ```python
-def _parse_dt(raw: str) -> datetime:
+# Shared validation helpers — POST and PATCH call the SAME ones so the two endpoints can never
+# diverge (e.g. accept on POST what PATCH rejects). All raise 422 and write nothing.
+def _validate_caption(caption: str) -> None:
+    if len(caption) > _MAX_CAPTION:
+        raise HTTPException(422, f"Caption exceeds Instagram's {_MAX_CAPTION}-character limit")
+
+
+def _parse_scheduled_at(raw: str) -> datetime:
+    """Parse an ISO-8601 datetime and REQUIRE an explicit timezone offset (design §4.1).
+
+    A naive value is rejected (422), not silently assumed UTC — that keeps the UTC-storage contract
+    hard to misuse. ``.date()`` on the result is the submitted offset's LOCAL date (what the campaign
+    window is checked against); ``.astimezone(timezone.utc)`` is what we store.
+    """
     try:
-        dt = datetime.fromisoformat(raw)  # Python 3.12 parses offsets and trailing 'Z'
+        dt = datetime.fromisoformat(raw)  # Python 3.12 parses offsets and a trailing 'Z'
     except ValueError as err:
         raise HTTPException(422, "scheduled_at must be an ISO-8601 datetime") from err
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        raise HTTPException(422, "scheduled_at must include a timezone offset")
+    return dt
 
 
 def _read_jpeg(image: UploadFile) -> bytes:
@@ -721,14 +774,13 @@ def schedule_post(
     comp = db.get(Composition, composition_id)
     if comp is None or comp.agent_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
-    if len(caption) > _MAX_CAPTION:
-        raise HTTPException(422, f"Caption exceeds Instagram's {_MAX_CAPTION}-character limit")
+    _validate_caption(caption)
     data = _read_jpeg(image)  # validate before writing anything
 
     sched_utc: datetime | None = None
     post_status = PostStatus.draft
     if scheduled_at:
-        dt = _parse_dt(scheduled_at)
+        dt = _parse_scheduled_at(scheduled_at)
         if not within_campaign_window(dt, campaign.starts_on, campaign.ends_on):
             raise HTTPException(422, "scheduled_at is outside the campaign window")
         sched_utc = dt.astimezone(timezone.utc)
@@ -749,10 +801,12 @@ def schedule_post(
     return CampaignPostOut.model_validate(post)
 ```
 
+> **Storage is not transactionally coupled to the DB commit.** The object is `put_object`-ed before `db.commit()`; if the commit then fails, the object is orphaned. For Inc 1 this is accepted — validation runs *before* any write (so bad input never uploads), and orphan cleanup is out of scope (same contract as `PATCH`, Task 6). What we guarantee is the ordering: **validate everything, then write.**
+
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd apps/api && .venv/bin/pytest tests/test_campaign_posts.py -q`
-Expected: PASS (5 tests).
+Expected: PASS (7 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -828,6 +882,42 @@ def test_patch_blocked_on_non_editable_status(client):
         p = db.get(Post, pid); p.status = PostStatus.published; db.commit()
     r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"caption": "x"}, headers=a)
     assert r.status_code == 409
+
+
+def test_patch_invalid_schedule_with_image_writes_nothing(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    before = client.get(f"/campaigns/{cid}", headers=a).json()["posts"][0]
+    storage = client.app.state.storage
+    n_before = len(storage._objects)  # InMemoryStorage in tests
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}",
+                     data={"scheduled_at": "2026-09-09T09:00:00+00:00"},   # out of window
+                     files={"image": ("new.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=a)
+    assert r.status_code == 422
+    assert len(storage._objects) == n_before                              # no orphan object
+    after = client.get(f"/campaigns/{cid}", headers=a).json()["posts"][0]
+    assert after["media_object_key"] == before["media_object_key"]        # row untouched
+    assert after["status"] == before["status"]
+
+
+def test_patch_unschedule_and_scheduled_at_both_422(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}",
+                     data={"unschedule": "true", "scheduled_at": "2026-08-20T09:00:00+00:00"},
+                     headers=a)
+    assert r.status_code == 422
+
+
+def test_second_agent_cannot_patch_foreign_post(client, second_agent_headers):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    pid = _post_id(client, a, cid, comp)
+    r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"caption": "x"},
+                     headers=second_agent_headers)
+    assert r.status_code == 404  # Review Focus #2
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -862,24 +952,32 @@ def edit_post(
         raise HTTPException(status.HTTP_409_CONFLICT,
                             f"Cannot edit a post in '{post.status.value}'")
 
+    # ---- 1. Validate EVERYTHING before writing a byte or mutating the row ----
+    # (otherwise an invalid schedule after an image upload leaves an orphaned object).
+    if unschedule and scheduled_at is not None:
+        raise HTTPException(422, "Pass either scheduled_at or unschedule, not both")
     if caption is not None:
-        if len(caption) > _MAX_CAPTION:
-            raise HTTPException(422, f"Caption exceeds Instagram's {_MAX_CAPTION}-character limit")
+        _validate_caption(caption)
+    data = _read_jpeg(image) if image is not None else None
+    new_sched_utc: datetime | None = None
+    if scheduled_at is not None:
+        dt = _parse_scheduled_at(scheduled_at)
+        if not within_campaign_window(dt, campaign.starts_on, campaign.ends_on):
+            raise HTTPException(422, "scheduled_at is outside the campaign window")
+        new_sched_utc = dt.astimezone(timezone.utc)
+
+    # ---- 2. All checks passed — now write (object first, then the row) ----
+    if caption is not None:
         post.caption = caption
-    if image is not None:
-        data = _read_jpeg(image)
+    if data is not None:
         key = f"campaign-posts/{post.id}/{int(now.timestamp())}.jpg"
         storage.put_object(key, data, "image/jpeg")
         post.media_object_key = key  # old object left in storage (orphan cleanup out of PoC scope)
-
     if unschedule:
         post.scheduled_at = None
         post.status = PostStatus.draft
     elif scheduled_at is not None:
-        dt = _parse_dt(scheduled_at)
-        if not within_campaign_window(dt, campaign.starts_on, campaign.ends_on):
-            raise HTTPException(422, "scheduled_at is outside the campaign window")
-        post.scheduled_at = dt.astimezone(timezone.utc)
+        post.scheduled_at = new_sched_utc
         post.status = PostStatus.pending_approval
     # Inc 2 also clears approval fields here (approved_by/reviewed_at/review_note) once added.
 
@@ -1111,20 +1209,46 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```ts
 // apps/web/lib/campaigns/form.test.ts
 import { describe, expect, it } from "vitest";
-import { buildCampaignPostForm } from "./form";
+import { buildCampaignPostForm, localInputToOffsetISO } from "./form";
 
 describe("buildCampaignPostForm", () => {
   it("appends fields and the JPEG file; omits scheduled_at when absent", () => {
     const jpeg = new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: "image/jpeg" });
     const f = buildCampaignPostForm({ compositionId: 7, caption: "Hi",
-      scheduledAtISO: "2026-08-15T09:30:00.000Z", jpeg });
+      scheduledAtISO: "2026-08-15T09:30:00+05:30", jpeg });
     expect(f.get("composition_id")).toBe("7");
     expect(f.get("caption")).toBe("Hi");
-    expect(f.get("scheduled_at")).toBe("2026-08-15T09:30:00.000Z");
+    expect(f.get("scheduled_at")).toBe("2026-08-15T09:30:00+05:30");
     expect(f.get("image")).toBeInstanceOf(File);
 
     const f2 = buildCampaignPostForm({ compositionId: 7, caption: "", scheduledAtISO: null, jpeg });
     expect(f2.has("scheduled_at")).toBe(false);
+  });
+});
+
+describe("localInputToOffsetISO", () => {
+  it("keeps the local wall time and appends an offset (never converts to Z)", () => {
+    // Environment-independent: the local Y-M-D-H-M must be preserved and an offset appended,
+    // so the API sees the viewer's local date — not a UTC-shifted one.
+    expect(localInputToOffsetISO("2026-08-16T01:30")).toMatch(
+      /^2026-08-16T01:30:00[+-]\d{2}:\d{2}$/,
+    );
+  });
+});
+
+describe("buildCampaignPatchForm", () => {
+  it("includes only the provided fields; unschedule wins over scheduled_at", () => {
+    const a = buildCampaignPatchForm({ caption: "New" });
+    expect(a.get("caption")).toBe("New");
+    expect(a.has("scheduled_at")).toBe(false);
+    expect(a.has("unschedule")).toBe(false);
+
+    const b = buildCampaignPatchForm({ scheduledAtISO: "2026-08-20T09:00:00+05:30" });
+    expect(b.get("scheduled_at")).toBe("2026-08-20T09:00:00+05:30");
+
+    const c = buildCampaignPatchForm({ unschedule: true, scheduledAtISO: "2026-08-20T09:00:00+05:30" });
+    expect(c.get("unschedule")).toBe("true");
+    expect(c.has("scheduled_at")).toBe(false);
   });
 });
 ```
@@ -1153,6 +1277,39 @@ export function buildCampaignPostForm(input: CampaignPostFormInput): FormData {
   form.append("caption", input.caption);
   if (input.scheduledAtISO) form.append("scheduled_at", input.scheduledAtISO);
   form.append("image", new File([input.jpeg], "post.jpg", { type: "image/jpeg" }));
+  return form;
+}
+
+// Convert a <input type="datetime-local"> value (the viewer's wall-clock time, "YYYY-MM-DDTHH:mm")
+// to an OFFSET-AWARE ISO string that keeps that wall time and appends the viewer's UTC offset.
+// NOT new Date(x).toISOString() — that converts to a 'Z' instant, which would make the API validate
+// the campaign window against the UTC date instead of the viewer's local date (design §4.1).
+export function localInputToOffsetISO(local: string): string {
+  const d = new Date(local); // parsed as local time
+  const offMin = -d.getTimezoneOffset(); // e.g. +330 for IST, DST-correct for this date
+  const sign = offMin >= 0 ? "+" : "-";
+  const abs = Math.abs(offMin);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const off = `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:00${off}`
+  );
+}
+
+export interface CampaignPatchInput {
+  caption?: string;
+  scheduledAtISO?: string | null; // offset-aware ISO to set; ignored when `unschedule` is true
+  unschedule?: boolean;
+  jpeg?: Blob | null; // optional replacement render (not surfaced in the Inc 1 UI)
+}
+
+export function buildCampaignPatchForm(input: CampaignPatchInput): FormData {
+  const form = new FormData();
+  if (input.caption !== undefined) form.append("caption", input.caption);
+  if (input.unschedule) form.append("unschedule", "true");
+  else if (input.scheduledAtISO) form.append("scheduled_at", input.scheduledAtISO);
+  if (input.jpeg) form.append("image", new File([input.jpeg], "post.jpg", { type: "image/jpeg" }));
   return form;
 }
 ```
@@ -1350,7 +1507,7 @@ import {
   type CampaignDetail,
 } from "../../../../lib/api";
 import { bucketByLocalDay, monthCells, STATUS_CHIP } from "../../../../lib/campaigns/calendar";
-import { buildCampaignPostForm } from "../../../../lib/campaigns/form";
+import { buildCampaignPostForm, localInputToOffsetISO } from "../../../../lib/campaigns/form";
 import { renderDesignToJpegBlob } from "../../../../lib/studio/render";
 import { migrateDesign } from "../../../../lib/studio/ops";
 
@@ -1376,10 +1533,22 @@ export default function CampaignDetailPage() {
   }, []);
 
   const byDay = useMemo(() => bucketByLocalDay(campaign?.posts ?? []), [campaign]);
-  const [year, month] = campaign
-    ? [new Date(campaign.starts_on).getFullYear(), new Date(campaign.starts_on).getMonth()]
-    : [new Date().getFullYear(), new Date().getMonth()];
-  const cells = monthCells(year, month);
+  // Month navigation bounded to the campaign window (campaigns can span months).
+  const [view, setView] = useState<{ year: number; month: number } | null>(null);
+  useEffect(() => {
+    if (campaign && !view) {
+      const s = new Date(campaign.starts_on);
+      setView({ year: s.getFullYear(), month: s.getMonth() });
+    }
+  }, [campaign, view]);
+  const idx = (y: number, m: number) => y * 12 + m;
+  const bStart = campaign ? new Date(campaign.starts_on) : null;
+  const bEnd = campaign ? new Date(campaign.ends_on) : null;
+  const canPrev = !!(view && bStart && idx(view.year, view.month) > idx(bStart.getFullYear(), bStart.getMonth()));
+  const canNext = !!(view && bEnd && idx(view.year, view.month) < idx(bEnd.getFullYear(), bEnd.getMonth()));
+  const shift = (d: number) =>
+    setView((v) => (v ? { year: v.year + Math.floor((v.month + d) / 12), month: ((v.month + d) % 12 + 12) % 12 } : v));
+  const cells = view ? monthCells(view.year, view.month) : [];
 
   async function onSchedule(e: React.FormEvent) {
     e.preventDefault();
@@ -1392,7 +1561,7 @@ export default function CampaignDetailPage() {
       const jpeg = await renderDesignToJpegBlob(design, 0);
       const form = buildCampaignPostForm({
         compositionId: Number(projectId), caption,
-        scheduledAtISO: scheduledAt ? new Date(scheduledAt).toISOString() : null, jpeg,
+        scheduledAtISO: scheduledAt ? localInputToOffsetISO(scheduledAt) : null, jpeg,
       });
       await scheduleCampaignPost(id, form);
       setCaption(""); setScheduledAt("");
@@ -1439,6 +1608,20 @@ export default function CampaignDetailPage() {
       </form>
 
       <section className="card p-5" aria-label="Calendar" data-testid="campaign-calendar">
+        <div className="mb-3 flex items-center justify-between">
+          <button type="button" className="btn-ghost" disabled={!canPrev} onClick={() => shift(-1)}>
+            ← Prev
+          </button>
+          <span className="font-semibold text-walshe-ink">
+            {view
+              ? new Date(view.year, view.month, 1).toLocaleDateString(undefined,
+                  { month: "long", year: "numeric" })
+              : ""}
+          </span>
+          <button type="button" className="btn-ghost" disabled={!canNext} onClick={() => shift(1)}>
+            Next →
+          </button>
+        </div>
         <div className="mb-3 grid grid-cols-7 gap-2 text-small text-walshe-grey">
           {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d}>{d}</div>)}
         </div>
@@ -1483,7 +1666,126 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-## Task 13: Playwright e2e — create campaign + calendar renders
+## Task 13: Edit / reschedule UI on the campaign detail page
+
+**Files:**
+- Modify: `apps/web/app/agent/campaigns/[id]/page.tsx`
+
+**Interfaces:**
+- Consumes: `patchCampaignPost` (Task 8), `buildCampaignPatchForm` + `localInputToOffsetISO` (Task 10).
+- Scope: caption + reschedule + unschedule. Image replacement is API-complete (`PATCH` accepts an `image`) but **not surfaced in the Inc 1 UI** (deferred) — a deliberate, documented scope line, not a silent omission.
+
+- [ ] **Step 1: Add imports + edit state** (extend the detail page from Task 12)
+
+```tsx
+// add to the imports
+import {
+  ApiError, getCampaign, getProject, listProjects, patchCampaignPost, scheduleCampaignPost,
+  type CampaignDetail, type CampaignPost,
+} from "../../../../lib/api";
+import {
+  buildCampaignPatchForm, buildCampaignPostForm, localInputToOffsetISO,
+} from "../../../../lib/campaigns/form";
+
+// a display-only helper (ISO → datetime-local value, in the viewer's local time)
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    + `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+```
+
+```tsx
+// add alongside the other useState hooks
+  const [selected, setSelected] = useState<CampaignPost | null>(null);
+  const [editCaption, setEditCaption] = useState("");
+  const [editWhen, setEditWhen] = useState("");
+
+  function openEdit(p: CampaignPost) {
+    setSelected(p);
+    setEditCaption(p.caption);
+    setEditWhen(isoToLocalInput(p.scheduled_at));
+  }
+
+  async function onSaveEdit(unschedule: boolean) {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await patchCampaignPost(id, selected.id, buildCampaignPatchForm({
+        caption: editCaption,
+        unschedule,
+        scheduledAtISO: unschedule ? null : (editWhen ? localInputToOffsetISO(editWhen) : null),
+      }));
+      setSelected(null);
+      await reload();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not save changes.");
+    } finally {
+      setBusy(false);
+    }
+  }
+```
+
+- [ ] **Step 2: Make each calendar post chip open the editor** (replace the chip `<div>` from Task 12 with a `<button>`)
+
+```tsx
+                {posts.map((p) => (
+                  <button key={p.id} type="button" onClick={() => openEdit(p)}
+                    className={`mt-1 block w-full truncate rounded px-1 text-left text-[11px] ${STATUS_CHIP[p.status] ?? ""}`}>
+                    {p.caption || `Post #${p.id}`}
+                  </button>
+                ))}
+```
+
+- [ ] **Step 3: Add the edit panel** (after the calendar `</section>`)
+
+```tsx
+      {selected && (
+        <section className="card mt-6 p-5" aria-label="Edit post" data-testid="edit-post-panel">
+          <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Edit post</h2>
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="label">Caption</span>
+              <input className="field" aria-label="Edit caption" value={editCaption}
+                     onChange={(e) => setEditCaption(e.target.value)} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="label">When</span>
+              <input type="datetime-local" className="field" aria-label="Edit scheduled at"
+                     value={editWhen} onChange={(e) => setEditWhen(e.target.value)} />
+            </label>
+            <button type="button" className="btn-primary h-12" disabled={busy}
+                    onClick={() => void onSaveEdit(false)}>Save changes</button>
+            <button type="button" className="btn-secondary h-12" disabled={busy}
+                    onClick={() => void onSaveEdit(true)}>Unschedule</button>
+            <button type="button" className="btn-ghost h-12" onClick={() => setSelected(null)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      )}
+```
+
+- [ ] **Step 4: Typecheck**
+
+Run: `cd apps/web && pnpm typecheck`
+Expected: no errors.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add "apps/web/app/agent/campaigns/[id]/page.tsx"
+git commit -m "feat(web): edit/reschedule campaign post (caption, time, unschedule)
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+```
+
+---
+
+## Task 14: Playwright e2e — create campaign + calendar renders
 
 **Files:**
 - Create: `apps/web/e2e/campaigns-smoke.spec.ts`
@@ -1528,7 +1830,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-## Task 14: Full `make verify` green
+## Task 15: Full `make verify` green
 
 **Files:** none (gate run; fix follow-ups in the owning task's files if anything fails).
 
@@ -1552,7 +1854,9 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ## Self-Review (completed by the plan author)
 
-- **Spec coverage (Inc 1, design §9):** Campaign model (T1) · `Post.campaign_id` + statuses (T2) · window rule (T3) · create/list/detail (T4) · schedule-into-campaign + capture-at-schedule + window validation (T5) · `PATCH` edit/reschedule §7.1 (T6) · UTC scheduling semantics (T3+T5) · shared client + types (T7–T8) · calendar UI + list/create/detail (T9–T12) · nav + quick link (T11) · e2e + verify (T13–T14). No Inc-2/Inc-3 scope leaked in.
-- **Review Focus → tests:** #1 offset-local-date → T3 `test_local_date_from_submitted_offset_not_utc` + T5 window case; #2 cross-agent 404 → T4/T5/T6 owner checks; #3 bad media 422 → T5 `test_schedule_non_jpeg_and_oversize_422`; #4 empty collections → T4 `test_list_empty…`/`posts == []`; #5 edit on non-editable → T6 `test_patch_blocked_on_non_editable_status`.
-- **Type consistency:** `CampaignPostOut.status: PostStatus`; router returns via `model_validate`; shared types alias the generated `Schemas` keys (T7 before T8); `scheduleCampaignPost(id, FormData)` / `patchCampaignPost(id, postId, FormData)` match the multipart routes.
+15 tasks. Revised after design-review round 2 — the fixes folded in: PATCH validates fully before any write (T6); real cross-agent isolation via a second-agent fixture (T4/T5/T6); accurate "no migration tool" wording (Global Constraints); bounded multi-month calendar nav (T12); a real edit/reschedule UI (T13); naive `scheduled_at` rejected with offset required (T5) and the client sends the local offset so window validation uses the viewer's local date (T10/T12); `default_factory=list` (T4); shared validation helpers used by POST and PATCH (T5); documented DB/storage non-transactionality (T5).
+
+- **Spec coverage (Inc 1, design §9):** Campaign model (T1) · `Post.campaign_id` + statuses (T2) · window rule (T3) · create/list/detail + isolation (T4) · schedule-into-campaign + capture-at-schedule + window validation (T5) · `PATCH` edit/reschedule §7.1 (T6) · OpenAPI regen (T7) · shared client + types (T8) · pure calendar + form helpers (T9–T10) · list/create + nav + quick link (T11) · detail + calendar + schedule (T12) · edit/reschedule UI (T13) · e2e (T14) · `make verify` (T15). No Inc-2/Inc-3 scope leaked in (no approval columns, dispatcher, or analytics).
+- **Review Focus → tests:** #1 offset/local-date → T3 `test_local_date_from_submitted_offset_not_utc`, T5 window case + `test_schedule_naive_datetime_422`, T10 `localInputToOffsetISO`; #2 cross-agent → T4 `test_second_agent_cannot_see_or_read…`, T5 `test_second_agent_cannot_schedule…`, T6 `test_second_agent_cannot_patch…`; #3 bad media / invalid change → T5 `test_schedule_non_jpeg_and_oversize_422`, T6 `test_patch_invalid_schedule_with_image_writes_nothing` (asserts no orphan object + row untouched); #4 empty collections → T4 (`[]` / `posts == []`); #5 edit on non-editable → T6 `test_patch_blocked_on_non_editable_status`.
+- **Type consistency:** `CampaignPostOut.status: PostStatus`; routers return via `model_validate`; POST and PATCH share `_validate_caption` / `_parse_scheduled_at` / `_read_jpeg` (one semantics); shared TS types alias generated `Schemas` keys (T7 before T8); `scheduleCampaignPost(id, FormData)` / `patchCampaignPost(id, postId, FormData)` match the multipart routes; `buildCampaignPostForm` vs `buildCampaignPatchForm` are distinct (POST sends `composition_id` + required image; PATCH sends only provided fields).
 - **Placeholders:** none — every code step carries real code. The one soft spot (exact `getProject`/`listProjects`/`migrateDesign` import names in T12) is flagged with the file to confirm against, not left as a TODO.
