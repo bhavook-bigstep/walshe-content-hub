@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.30.0 |
+| **Version** | 2.31.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -533,12 +533,25 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   without the marker; stream endpoint roles + event order; stable per-role system prompt; Gemini
   streaming request shape).
 
-**Priority tiers** (build order; acceptance reports honestly against all 76):
+### Scene animation — AC77
+
+- **AC77** — **Declarative keyframe animation + timeline preview.** Every studio element may carry a
+  JSON **animation** on its node — `anim = { keyframes:[{t,x,y,scale,rotation,opacity,ease}], enter?, loop? }`
+  — stored in the workspace scenes like any other property. A pure, framework-free **engine**
+  (`nodeStateAt(node, t)`) interpolates the track (holding the first/last value so elements *arrive*
+  and *settle*), supports **motion paths** (x/y keyframes), size/opacity/rotation changes, entrance
+  presets (fade/rise/slide/scale) and an **emphasis loop** (pulse/bob). The **same deterministic
+  engine** drives the live canvas preview (the Timeline's play/scrub transport applies it to the
+  Fabric objects) and, in the next increment, the video frame-capture — so preview == export
+  (Contract 4). The Inspector edits an element's entrance + emphasis. Proof: web (engine
+  interpolation, arrival/settle hold, motion-path lerp, determinism, loop, presets, set/clear op).
+
+**Priority tiers** (build order; acceptance reports honestly against all 77):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -577,6 +590,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.31.0 | 2026-10-06 | **Scene animation — keyframe model + engine + timeline preview (phase 1)** (added **AC77**): elements now carry a declarative, JSON keyframe **animation** on their node (`{keyframes:[{t,x,y,scale,rotation,opacity,ease}], enter?, loop?}`), stored in the workspace scenes. A pure, deterministic **engine** (`lib/studio/anim.ts` `nodeStateAt`) interpolates the track — motion paths, size/opacity/rotation, entrance presets (fade/rise/slide/scale) and pulse/bob emphasis — and the **same engine** drives the live canvas preview: the Timeline gained a **play/scrub transport** that animates the Fabric objects, and the Inspector gained **Animation** controls (entrance type/start/duration/easing + emphasis). The chosen mechanism is in-boundary (no cloud/egress), with the workspace JSON as the single source of truth; phase 2 will reuse this engine for WYSIWYG video frame-capture export. All prior ACs stay green. | user + Claude |
 | 2.30.0 | 2026-10-06 | **Video renders on ffmpeg builds without `drawtext` + export progress spinner** (fixes within **AC13**/**AC47**, enhances **AC12**): "Generate video" failed (500 → "Video rendering unavailable") on ffmpeg builds that omit the `drawtext` filter (e.g. a minimal Homebrew ffmpeg). The renderer now **probes the binary once and degrades gracefully** — when `drawtext` is absent it drops the burned-in title/caption overlay and still produces the MP4 (captions remain in the sidecar `.srt`). Also added a **circular processing spinner** shown in the always-visible menu bar (and on the Timeline button) while a PNG/PDF/HTML export or a video render is in progress. All prior ACs stay green. | user + Claude |
 | 2.29.0 | 2026-10-06 | **Long Travel Itinerary template (multi-page PDF + video)** (enhances **AC62**/**AC12**/**AC47**): added a sixth built-in template — an 8-scene pamphlet itinerary (cover · six day pages with photo zones · closing). Because one scene = one PDF page and one video clip, the same template exports as a **multi-page PDF** and as a **video**: each day's dropped catalog photo becomes that scene's picture, the scene name is the video title and its one-line summary the caption. All prior ACs stay green. | user + Claude |
 | 2.28.0 | 2026-10-06 | **Studio persistence fixes + Projects table** (fixes within **AC75**/**AC47**, enhances **AC28**): placed **media now survives reopen** — an image node persists its stable storage **object key** and the studio re-resolves a fresh URL on open (the old ephemeral `blob:` src died across reloads, so media vanished); a **renamed workspace keeps its name** — the rename now also updates `metadata.name`, which the autosave sends (previously the next autosave reverted the project name to the stale workspace name); and **video rendering gets its scene photos back** — the request builder now parses the prefixed `entry-<id>` image tag to the catalog entry id (it was parsed as a bare number → `NaN` → every scene lost its image). The **Projects** page is now a paginated table (20/page) with icon row-actions (open / delete). All prior ACs stay green. | user + Claude |

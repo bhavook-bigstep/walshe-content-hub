@@ -44,6 +44,10 @@ export type TextAlign = "left" | "center" | "right";
 export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut" | "back" | "bounce";
 export const EASINGS: readonly Easing[] = ["linear", "easeIn", "easeOut", "easeInOut", "back", "bounce"];
 
+/** Entrance presets the engine expands into keyframes (authoring sugar). */
+export type EnterType = "fade" | "rise" | "slide-left" | "slide-right" | "scale";
+export const ENTER_TYPES: readonly EnterType[] = ["fade", "rise", "slide-left", "slide-right", "scale"];
+
 export interface AnimKeyframe {
   /** Time in ms from the scene's start. */
   t: number;
@@ -61,8 +65,11 @@ export interface AnimKeyframe {
 }
 
 export interface NodeAnimation {
-  /** Keyframes sorted by `t`. Empty/one keyframe = effectively static. */
+  /** The resolved keyframe track the engine plays. Empty/one keyframe = effectively static. */
   keyframes: AnimKeyframe[];
+  /** Authoring intent for the entrance preset, so the Inspector can round-trip the controls. The
+   * engine ignores this and plays `keyframes` (which the UI regenerates from it). */
+  enter?: { type: EnterType; startMs: number; durationMs: number; ease?: Easing };
   /** Optional emphasis loop applied on top of the track (pulse/bob), after the last keyframe time. */
   loop?: { type: "pulse" | "bob"; periodMs: number };
 }
@@ -512,7 +519,7 @@ export function setNodeAnim(
 ): DesignDoc {
   return mapNode(design, sceneIndex, nodeId, (n) => {
     const next = { ...n };
-    if (anim && anim.keyframes.length > 0) next.anim = anim;
+    if (anim && (anim.keyframes.length > 0 || anim.loop)) next.anim = anim;
     else delete next.anim;
     return next;
   });

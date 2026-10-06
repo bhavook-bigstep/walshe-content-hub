@@ -1,6 +1,17 @@
 "use client";
 
-import type { DesignNode, LayerMove, NodeStyle } from "../../lib/studio/ops";
+import { useEffect, useState } from "react";
+import { enterTrack } from "../../lib/studio/anim";
+import {
+  EASINGS,
+  ENTER_TYPES,
+  type DesignNode,
+  type Easing,
+  type EnterType,
+  type LayerMove,
+  type NodeAnimation,
+  type NodeStyle,
+} from "../../lib/studio/ops";
 
 // Web-safe / default-stack families so the canvas (and PNG export) actually render them.
 const FONTS: { label: string; value: string }[] = [
@@ -17,6 +28,103 @@ interface Props {
   onDuplicate: () => void;
   onDelete: () => void;
   onLayer: (move: LayerMove) => void;
+  /** Set (or clear) the selected element's keyframe animation. */
+  onAnim: (anim: NodeAnimation | undefined) => void;
+}
+
+const ENTER_LABEL: Record<EnterType | "none", string> = {
+  none: "None",
+  fade: "Fade in",
+  rise: "Rise up",
+  "slide-left": "Slide in ←",
+  "slide-right": "Slide in →",
+  scale: "Scale up",
+};
+
+// Per-element animation: an entrance preset (type · start · duration · easing) + an emphasis loop.
+// Writes a NodeAnimation; the engine expands the entrance into keyframes and plays it.
+function AnimControls({ node, onAnim }: { node: DesignNode; onAnim: Props["onAnim"] }) {
+  const a = node.anim;
+  const [enter, setEnter] = useState<EnterType | "none">(a?.enter?.type ?? "none");
+  const [start, setStart] = useState(a?.enter?.startMs ?? 0);
+  const [dur, setDur] = useState(a?.enter?.durationMs ?? 500);
+  const [ez, setEz] = useState<Easing>(a?.enter?.ease ?? "easeOut");
+  const [loop, setLoop] = useState<"none" | "pulse" | "bob">(a?.loop?.type ?? "none");
+  const [period, setPeriod] = useState(a?.loop?.periodMs ?? 1200);
+
+  // Re-sync the controls when a different element is selected.
+  useEffect(() => {
+    const cur = node.anim;
+    setEnter(cur?.enter?.type ?? "none");
+    setStart(cur?.enter?.startMs ?? 0);
+    setDur(cur?.enter?.durationMs ?? 500);
+    setEz(cur?.enter?.ease ?? "easeOut");
+    setLoop(cur?.loop?.type ?? "none");
+    setPeriod(cur?.loop?.periodMs ?? 1200);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.id]);
+
+  function emit(next: Partial<{ enter: EnterType | "none"; start: number; dur: number; ez: Easing; loop: "none" | "pulse" | "bob"; period: number }>) {
+    const c = { enter, start, dur, ez, loop, period, ...next };
+    const keyframes = c.enter === "none" ? [] : enterTrack(node, c.enter, c.start, c.dur, c.ez).keyframes;
+    const anim: NodeAnimation = {
+      keyframes,
+      enter: c.enter === "none" ? undefined : { type: c.enter, startMs: c.start, durationMs: c.dur, ease: c.ez },
+      loop: c.loop === "none" ? undefined : { type: c.loop, periodMs: c.period },
+    };
+    onAnim(keyframes.length > 0 || anim.loop ? anim : undefined);
+  }
+
+  return (
+    <div className="space-y-2.5 border-t border-walshe-line/70 pt-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">Animation</p>
+      <div className={row}>
+        <span className={label}>Entrance</span>
+        <select
+          value={enter}
+          onChange={(e) => { const v = e.target.value as EnterType | "none"; setEnter(v); emit({ enter: v }); }}
+          aria-label="Entrance animation"
+          className={`${field} w-36`}
+        >
+          {(["none", ...ENTER_TYPES] as (EnterType | "none")[]).map((t) => (
+            <option key={t} value={t}>{ENTER_LABEL[t]}</option>
+          ))}
+        </select>
+      </div>
+      {enter !== "none" && (
+        <>
+          <div className={row}>
+            <span className={label}>Start (ms)</span>
+            <input type="number" min={0} max={30000} step={100} value={start}
+              onChange={(e) => { const v = Number(e.target.value) || 0; setStart(v); emit({ start: v }); }}
+              aria-label="Entrance start" className={`${field} w-24 text-right`} />
+          </div>
+          <div className={row}>
+            <span className={label}>Duration (ms)</span>
+            <input type="number" min={50} max={10000} step={50} value={dur}
+              onChange={(e) => { const v = Number(e.target.value) || 50; setDur(v); emit({ dur: v }); }}
+              aria-label="Entrance duration" className={`${field} w-24 text-right`} />
+          </div>
+          <div className={row}>
+            <span className={label}>Easing</span>
+            <select value={ez} onChange={(e) => { const v = e.target.value as Easing; setEz(v); emit({ ez: v }); }}
+              aria-label="Entrance easing" className={`${field} w-36`}>
+              {EASINGS.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </div>
+        </>
+      )}
+      <div className={row}>
+        <span className={label}>Emphasis</span>
+        <select value={loop} onChange={(e) => { const v = e.target.value as "none" | "pulse" | "bob"; setLoop(v); emit({ loop: v }); }}
+          aria-label="Emphasis loop" className={`${field} w-36`}>
+          <option value="none">None</option>
+          <option value="pulse">Pulse</option>
+          <option value="bob">Bob</option>
+        </select>
+      </div>
+    </div>
+  );
 }
 
 const row = "flex items-center justify-between gap-2 py-1.5";
@@ -84,7 +192,7 @@ function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => 
 }
 
 /** The selected-element Inspector: type-specific styling controls + layer/duplicate/delete. */
-export default function Inspector({ node, onChange, onDuplicate, onDelete, onLayer }: Props) {
+export default function Inspector({ node, onChange, onDuplicate, onDelete, onLayer, onAnim }: Props) {
   if (!node) {
     return <p className="px-1 py-6 text-center text-small text-walshe-grey">Select an element to style it.</p>;
   }
@@ -231,6 +339,8 @@ export default function Inspector({ node, onChange, onDuplicate, onDelete, onLay
           className="w-32"
         />
       </div>
+
+      <AnimControls node={node} onAnim={onAnim} />
 
       <div className="flex items-center justify-between gap-2 border-t border-walshe-line/70 pt-2.5">
         <div className="flex gap-1.5">

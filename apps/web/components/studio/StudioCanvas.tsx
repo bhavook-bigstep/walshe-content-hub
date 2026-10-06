@@ -14,6 +14,7 @@ import {
 } from "fabric";
 import { nodeToObject } from "../../lib/studio/fabric-nodes";
 import { shouldDeleteSelection } from "../../lib/studio/keys";
+import { nodeStateAt } from "../../lib/studio/anim";
 import type { DesignDoc } from "../../lib/studio/ops";
 
 export interface NodeBox {
@@ -30,6 +31,9 @@ export interface StudioControls {
   /** Map a viewport (clientX/clientY) point to the active scene's local coordinates, for drop
    * placement from the media drawer. Returns null before the canvas has mounted. */
   clientToScenePoint: (clientX: number, clientY: number) => { x: number; y: number } | null;
+  /** Preview the active scene's animation at time `t` ms (imperative, no React re-render). Pass
+   * null to restore the static/editable layout. Used by the timeline play/scrub. */
+  previewAt: (timeMs: number | null) => void;
 }
 
 export interface StudioCanvasProps {
@@ -59,7 +63,17 @@ const ZOOM_MAX = 4;
 const SCENE_GAP = 160; // scene-space px between consecutive artboards
 const CLICK_SLOP_PX = 3; // pointer travel under this counts as a click (select), not a drag (pan)
 
-type TaggedObject = FabricObject & { nodeId?: string; sceneIndex?: number };
+type TaggedObject = FabricObject & {
+  nodeId?: string;
+  sceneIndex?: number;
+  // Base transform captured at build time, so the animation preview can compute animated = base × state.
+  baseLeft?: number;
+  baseTop?: number;
+  baseScaleX?: number;
+  baseScaleY?: number;
+  baseAngle?: number;
+  baseOpacity?: number;
+};
 
 /** Left edge (scene-space x) of scene i, laid out left-to-right with a fixed gap. */
 function sceneOriginX(design: DesignDoc, i: number): number {
@@ -182,6 +196,46 @@ export default function StudioCanvas({
         const gx = (clientX - rect.left - tx) / zoom;
         const gy = (clientY - rect.top - ty) / zoom;
         return { x: gx - sceneOriginX(designRef.current, activeSceneRef.current), y: gy };
+      },
+      previewAt: (timeMs) => {
+        const c = canvasRef.current;
+        if (!c) return;
+        const design = designRef.current;
+        const active = activeSceneRef.current;
+        const originX = sceneOriginX(design, active);
+        const scene = design.scenes[active];
+        for (const obj of c.getObjects() as TaggedObject[]) {
+          if (obj.sceneIndex !== active || !obj.nodeId) continue;
+          const node = scene?.nodes.find((n) => n.id === obj.nodeId);
+          if (!node) continue;
+          if (timeMs === null) {
+            obj.set({
+              left: obj.baseLeft,
+              top: obj.baseTop,
+              scaleX: obj.baseScaleX,
+              scaleY: obj.baseScaleY,
+              angle: obj.baseAngle,
+              opacity: obj.baseOpacity,
+            });
+            obj.selectable = true;
+            obj.evented = true;
+          } else {
+            const st = nodeStateAt(node, timeMs);
+            obj.set({
+              left: originX + st.x,
+              top: st.y,
+              scaleX: (obj.baseScaleX ?? 1) * st.scale,
+              scaleY: (obj.baseScaleY ?? 1) * st.scale,
+              angle: st.rotation,
+              opacity: st.opacity,
+            });
+            obj.selectable = false;
+            obj.evented = false;
+          }
+          obj.setCoords();
+        }
+        if (timeMs !== null) c.discardActiveObject();
+        c.requestRenderAll();
       },
     });
 
@@ -350,6 +404,13 @@ export default function StudioCanvas({
             const t = o as TaggedObject;
             t.left = (t.left ?? 0) + originX;
             t.sceneIndex = i;
+            // Capture the base transform for the animation engine (animated = base × state).
+            t.baseLeft = t.left;
+            t.baseTop = t.top ?? 0;
+            t.baseScaleX = t.scaleX ?? 1;
+            t.baseScaleY = t.scaleY ?? 1;
+            t.baseAngle = t.angle ?? 0;
+            t.baseOpacity = t.opacity ?? 1;
             const editable = i === activeScene;
             t.selectable = editable;
             t.evented = editable;

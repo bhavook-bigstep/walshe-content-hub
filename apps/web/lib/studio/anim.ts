@@ -4,7 +4,9 @@
 // It is intentionally framework-free (no GSAP/DOM), so the EXACT same math drives the live canvas
 // preview (a rAF loop) and the offscreen video frame-capture — guaranteeing export == preview, and
 // keeping it unit-testable and reproducible (Contract 4).
-import type { AnimKeyframe, DesignNode, Easing, NodeAnimation } from "./ops";
+import { ENTER_TYPES, type AnimKeyframe, type DesignNode, type Easing, type EnterType, type NodeAnimation } from "./ops";
+
+export { ENTER_TYPES, type EnterType };
 
 export interface AnimState {
   x: number;
@@ -103,9 +105,6 @@ export function nodeStateAt(node: DesignNode, t: number): AnimState {
 
 // ── Entrance presets (authoring sugar) ─────────────────────────────────────────────────────────
 // Generate a keyframe track for a common entrance, anchored at the node's base transform.
-export type EnterType = "fade" | "rise" | "slide-left" | "slide-right" | "scale";
-export const ENTER_TYPES: readonly EnterType[] = ["fade", "rise", "slide-left", "slide-right", "scale"];
-
 export function enterTrack(
   node: DesignNode,
   type: EnterType,

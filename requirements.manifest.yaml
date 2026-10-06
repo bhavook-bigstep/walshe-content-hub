@@ -461,3 +461,13 @@ acceptance:
       - "apps/api/tests/test_assistant.py::test_stream_endpoint_sends_deltas_then_done"
       - "apps/api/tests/test_assistant.py::test_stream_endpoint_roles"
       - "apps/api/tests/test_ai_provider.py::test_gemini_stream_chat_sends_system_turns_and_parses_chunks"
+  AC77:
+    tier: P2
+    web:
+      - "apps/web/tests/anim.test.ts::returns the base transform when a node has no animation"
+      - "apps/web/tests/anim.test.ts::holds the first keyframe before the track and the last after it (arrival/settle)"
+      - "apps/web/tests/anim.test.ts::interpolates position (motion path) between keyframes"
+      - "apps/web/tests/anim.test.ts::is deterministic — same node + time give the same state"
+      - "apps/web/tests/anim.test.ts::layers a pulse loop on top of the settled scale"
+      - "apps/web/tests/anim.test.ts::enterTrack presets produce an invisible→visible entrance anchored at the base transform"
+      - "apps/web/tests/anim.test.ts::setNodeAnim sets and clears a node's animation"

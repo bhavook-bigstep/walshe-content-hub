@@ -43,6 +43,7 @@ import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
 import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import {
+  DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
   deleteNode,
   duplicateNode,
@@ -52,10 +53,12 @@ import {
   newDesign,
   reorderNode,
   resizeNode,
+  setNodeAnim,
   updateNode,
   type DesignDoc,
   type DesignNode,
   type LayerMove,
+  type NodeAnimation,
   type NodeStyle,
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
@@ -162,6 +165,9 @@ function StudioEditor() {
   const [videoMsg, setVideoMsg] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
   const [storyboardOpen, setStoryboardOpen] = useState(false);
+  // Animation preview transport (active scene): playing + playhead (ms from the scene start).
+  const [playing, setPlaying] = useState(false);
+  const [playhead, setPlayhead] = useState(0);
   // Editable project name (rename).
   const [nameDraft, setNameDraft] = useState("");
   const params = useSearchParams();
@@ -591,6 +597,79 @@ function StudioEditor() {
     });
   }
 
+  function animSelected(anim: NodeAnimation | undefined) {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return setNodeAnim(d, selected.scene, selected.nodeId, anim);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  // ── Animation preview transport (play/scrub the active scene's animation) ──────────────────────
+  const sceneDurRef = useRef(DEFAULT_SCENE_DURATION_MS);
+  sceneDurRef.current = design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS;
+  const rafRef = useRef<number | null>(null);
+  const playStartRef = useRef<{ wall: number; base: number }>({ wall: 0, base: 0 });
+
+  const stopRaf = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }, []);
+
+  const playLoop = useCallback(() => {
+    rafRef.current = requestAnimationFrame((ts) => {
+      const { wall, base } = playStartRef.current;
+      const t = base + (ts - wall);
+      const dur = sceneDurRef.current;
+      if (t >= dur) {
+        setPlayhead(dur);
+        controlsRef.current?.previewAt(dur);
+        setPlaying(false);
+        stopRaf();
+        return;
+      }
+      setPlayhead(t);
+      controlsRef.current?.previewAt(t);
+      playLoop();
+    });
+  }, [stopRaf]);
+
+  function togglePlay() {
+    if (playing) {
+      setPlaying(false);
+      stopRaf();
+      return;
+    }
+    const start = playhead >= sceneDurRef.current ? 0 : playhead;
+    playStartRef.current = { wall: performance.now(), base: start };
+    setPlayhead(start);
+    setPlaying(true);
+    playLoop();
+  }
+
+  function scrub(t: number) {
+    if (playing) {
+      setPlaying(false);
+      stopRaf();
+    }
+    setPlayhead(t);
+    controlsRef.current?.previewAt(t > 0 ? t : null);
+  }
+
+  // Reset the transport (back to the editable, static layout) when the active scene changes.
+  useEffect(() => {
+    setPlaying(false);
+    stopRaf();
+    setPlayhead(0);
+    controlsRef.current?.previewAt(null);
+  }, [sceneIndex, stopRaf]);
+
+  // Cancel any running animation frame on unmount.
+  useEffect(() => stopRaf, [stopRaf]);
+
   const zoomBtn =
     "grid h-8 w-8 place-items-center rounded-sm text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
@@ -676,6 +755,11 @@ function StudioEditor() {
           onGenerateVideo={() => void generateVideo()}
           rendering={rendering}
           videoMsg={videoMsg}
+          playing={playing}
+          playhead={playhead}
+          durationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
+          onTogglePlay={togglePlay}
+          onScrub={scrub}
         />
 
         {/* Right tool rail: creation tools only (icons + hover names). */}
@@ -701,6 +785,7 @@ function StudioEditor() {
               onDuplicate={duplicateSelected}
               onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
               onLayer={layerSelected}
+              onAnim={animSelected}
             />
           </div>
         )}
