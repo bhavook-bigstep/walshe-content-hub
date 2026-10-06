@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  ActiveSelection,
   Canvas,
   FabricText,
   Line,
@@ -9,6 +10,7 @@ import {
   Rect,
   Shadow,
   Triangle,
+  util,
   type FabricObject,
   type TPointerEventInfo,
 } from "fabric";
@@ -52,8 +54,9 @@ export interface StudioCanvasProps {
   onBackgroundClick?: () => void;
   /** Whether a scene is currently selected — when false, no artboard is highlighted. */
   highlightActive?: boolean;
-  /** Called when the selected element changes (null when cleared) — drives the Inspector. */
-  onSelect?: (sceneIndex: number | null, nodeId: string | null) => void;
+  /** Called when the selection changes — the selected node ids (empty when cleared), plus the
+   * scene they're on. One id = single element; many = a group / multi-selection. */
+  onSelect?: (sceneIndex: number | null, nodeIds: string[]) => void;
   /** The node id currently selected in the app — re-selected after a rebuild so the Inspector
    * persists across edits (a programmatic rebuild otherwise clears the Fabric selection). */
   selectedNodeId?: string | null;
@@ -76,6 +79,7 @@ const CLICK_SLOP_PX = 3; // pointer travel under this counts as a click (select)
 type TaggedObject = FabricObject & {
   nodeId?: string;
   sceneIndex?: number;
+  groupId?: string;
   // Base transform captured at build time, so the animation preview can compute animated = base × state.
   baseLeft?: number;
   baseTop?: number;
@@ -386,14 +390,34 @@ export default function StudioCanvas({
     // rebuilt (the selection is restored afterwards), so edits never flicker the Inspector away.
     const reportSelection = () => {
       if (suppressSelRef.current) return;
-      const o = canvas.getActiveObject() as TaggedObject | undefined;
-      if (o && o.nodeId && o.sceneIndex !== undefined) selectNodeRef.current?.(o.sceneIndex, o.nodeId);
-      else selectNodeRef.current?.(null, null);
+      const objs = canvas.getActiveObjects() as TaggedObject[];
+      if (objs.length === 0) {
+        selectNodeRef.current?.(null, []);
+        return;
+      }
+      // Clicking one member of a group selects the whole group (so it moves/animates together).
+      if (objs.length === 1 && objs[0].groupId && objs[0].sceneIndex !== undefined) {
+        const gid = objs[0].groupId;
+        const si = objs[0].sceneIndex;
+        const members = (canvas.getObjects() as TaggedObject[]).filter(
+          (x) => x.groupId === gid && x.sceneIndex === si && x.selectable,
+        );
+        if (members.length > 1) {
+          canvas.setActiveObject(new ActiveSelection(members, { canvas }));
+          canvas.requestRenderAll();
+          return; // selection:updated re-fires with the full group
+        }
+      }
+      const sceneIdx = objs[0].sceneIndex ?? null;
+      selectNodeRef.current?.(
+        sceneIdx,
+        objs.map((o) => o.nodeId).filter((id): id is string => !!id),
+      );
     };
     canvas.on("selection:created", reportSelection);
     canvas.on("selection:updated", reportSelection);
     canvas.on("selection:cleared", () => {
-      if (!suppressSelRef.current) selectNodeRef.current?.(null, null);
+      if (!suppressSelRef.current) selectNodeRef.current?.(null, []);
     });
 
     // Inline text editing: double-click a text node, type, blur → sync back to the model (only on
@@ -406,14 +430,33 @@ export default function StudioCanvas({
     });
 
     canvas.on("object:modified", (opt) => {
-      const obj = opt.target as TaggedObject | undefined;
-      if (!obj || !obj.nodeId || obj.sceneIndex === undefined) return;
-      const originX = sceneOriginX(designRef.current, obj.sceneIndex);
-      changeRef.current?.(obj.sceneIndex, obj.nodeId, {
-        x: Math.round((obj.left ?? 0) - originX),
-        y: Math.round(obj.top ?? 0),
-        width: Math.round(obj.getScaledWidth()),
-        height: Math.round(obj.getScaledHeight()),
+      const target = opt.target as (TaggedObject & { getObjects?: () => TaggedObject[] }) | undefined;
+      if (!target) return;
+      // A group / multi-selection move: write back each member's absolute box.
+      const members = typeof target.getObjects === "function" ? target.getObjects() : null;
+      if (members && members.length > 0 && !target.nodeId) {
+        for (const member of members) {
+          if (!member.nodeId || member.sceneIndex === undefined) continue;
+          const d = util.qrDecompose(member.calcTransformMatrix());
+          const w = (member.width ?? 0) * d.scaleX;
+          const h = (member.height ?? 0) * d.scaleY;
+          const originX = sceneOriginX(designRef.current, member.sceneIndex);
+          changeRef.current?.(member.sceneIndex, member.nodeId, {
+            x: Math.round(d.translateX - w / 2 - originX),
+            y: Math.round(d.translateY - h / 2),
+            width: Math.round(w),
+            height: Math.round(h),
+          });
+        }
+        return;
+      }
+      if (!target.nodeId || target.sceneIndex === undefined) return;
+      const originX = sceneOriginX(designRef.current, target.sceneIndex);
+      changeRef.current?.(target.sceneIndex, target.nodeId, {
+        x: Math.round((target.left ?? 0) - originX),
+        y: Math.round(target.top ?? 0),
+        width: Math.round(target.getScaledWidth()),
+        height: Math.round(target.getScaledHeight()),
       });
     });
 
@@ -455,6 +498,7 @@ export default function StudioCanvas({
             const t = o as TaggedObject;
             t.left = (t.left ?? 0) + originX;
             t.sceneIndex = i;
+            t.groupId = scene.nodes.find((n) => n.id === t.nodeId)?.groupId;
             // Capture the base transform for the animation engine (animated = base × state).
             t.baseLeft = t.left;
             t.baseTop = t.top ?? 0;

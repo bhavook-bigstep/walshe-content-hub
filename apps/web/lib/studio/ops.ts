@@ -120,6 +120,8 @@ export interface DesignNode {
 
   /** optional keyframe animation (position/scale/rotation/opacity over time within the scene) */
   anim?: NodeAnimation;
+  /** group membership — nodes sharing a groupId move/animate together (flat; no nested groups) */
+  groupId?: string;
 }
 
 /** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
@@ -622,6 +624,79 @@ export function setNodeAnim(
     else delete next.anim;
     return next;
   });
+}
+
+/** Node ids belonging to a group, in scene order. */
+export function groupMemberIds(scene: Scene, groupId: string): string[] {
+  return scene.nodes.filter((n) => n.groupId === groupId).map((n) => n.id);
+}
+
+/** Group the given nodes (flat, no nesting): assign them all a fresh shared groupId, replacing any
+ * existing group tags. Returns the new design. */
+export function groupNodes(design: DesignDoc, sceneIndex: number, nodeIds: readonly string[]): DesignDoc {
+  assertScene(design, sceneIndex);
+  const ids = new Set(nodeIds);
+  if (ids.size < 2) return design;
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  let max = 0;
+  for (const n of scene.nodes) {
+    const m = /^group-(\d+)$/.exec(n.groupId ?? "");
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  const gid = `group-${max + 1}`;
+  for (const n of scene.nodes) if (ids.has(n.id)) n.groupId = gid;
+  return next;
+}
+
+/** Remove a group's tag from all its members (ungroup). */
+export function ungroupNodes(design: DesignDoc, sceneIndex: number, groupId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  for (const n of next.scenes[sceneIndex].nodes) if (n.groupId === groupId) delete n.groupId;
+  return next;
+}
+
+/** Apply an entrance + emphasis-loop intent to every member of a group, each track anchored at the
+ * member's own position (so a group rises/slides from each element's offset). Clears when neither. */
+export function setGroupAnim(
+  design: DesignDoc,
+  sceneIndex: number,
+  groupId: string,
+  enter: EnterType | null,
+  loop?: NodeAnimation["loop"],
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  for (const n of next.scenes[sceneIndex].nodes) {
+    if (n.groupId !== groupId) continue;
+    if (enter || loop) {
+      const keyframes = enter ? enterTrack(n, enter, 0, 600).keyframes : [];
+      n.anim = {
+        keyframes,
+        ...(enter ? { enter: { type: enter, startMs: 0, durationMs: 600, ease: "easeOut" as Easing } } : {}),
+        ...(loop ? { loop } : {}),
+      };
+    } else {
+      delete n.anim;
+    }
+  }
+  return next;
+}
+
+/** Patch a style property on every member of a group (e.g. opacity). */
+export function updateGroupStyle(design: DesignDoc, sceneIndex: number, groupId: string, patch: Partial<NodeStyle>): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  for (const n of next.scenes[sceneIndex].nodes) {
+    if (n.groupId !== groupId) continue;
+    const rec = n as unknown as Record<string, unknown>;
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete rec[k];
+      else rec[k] = v;
+    }
+  }
+  return next;
 }
 
 /** Duplicate a node on the same scene, offset slightly, placed just above the original. Returns

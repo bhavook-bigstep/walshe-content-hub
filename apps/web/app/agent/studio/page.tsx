@@ -48,6 +48,11 @@ import {
   deleteNode,
   duplicateNode,
   editText,
+  groupNodes,
+  setGroupAnim,
+  ungroupNodes,
+  updateGroupStyle,
+  type EnterType,
   migrateDesign,
   moveNode,
   newDesign,
@@ -63,6 +68,7 @@ import {
   type NodeStyle,
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
+import GroupPanel from "../../../components/studio/GroupPanel";
 
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
@@ -148,6 +154,9 @@ function StudioEditor() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
   // The selected element (for the Inspector). Scene-scoped by index + node id.
   const [selected, setSelected] = useState<{ scene: number; nodeId: string } | null>(null);
+  // The full selection (one id = single element; many = a group / multi-selection) + its scene.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedScene, setSelectedScene] = useState<number | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
   // AC63 — the studio's usable media = the project's collection items + local uploads + AI media,
@@ -627,6 +636,32 @@ function StudioEditor() {
     });
   }
 
+  // ── Grouping ──────────────────────────────────────────────────────────────────────────────────
+  // The group id shared by the whole selection (null when the selection isn't a single group).
+  const selectedGroupId: string | null = (() => {
+    if (selectedScene === null || selectedIds.length < 2) return null;
+    const nodes = design.scenes[selectedScene]?.nodes ?? [];
+    const gids = selectedIds.map((id) => nodes.find((n) => n.id === id)?.groupId);
+    return gids[0] && gids.every((g) => g === gids[0]) ? gids[0]! : null;
+  })();
+
+  function groupSelected() {
+    if (selectedScene === null || selectedIds.length < 2) return;
+    setDesign((d) => groupNodes(d, selectedScene, selectedIds));
+  }
+  function ungroupSelected() {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => ungroupNodes(d, selectedScene, selectedGroupId));
+  }
+  function groupAnim(enter: EnterType | null, loop: NodeAnimation["loop"]) {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => setGroupAnim(d, selectedScene, selectedGroupId, enter, loop));
+  }
+  function groupOpacity(opacity: number) {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { opacity }));
+  }
+
   // ── Animation preview transport (play/scrub the active scene's animation) ──────────────────────
   const sceneDurRef = useRef(DEFAULT_SCENE_DURATION_MS);
   sceneDurRef.current = design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS;
@@ -719,10 +754,14 @@ function StudioEditor() {
           onBackgroundClick={() => {
             setSceneSelected(false);
             setSelected(null);
+            setSelectedIds([]);
+            setSelectedScene(null);
           }}
-          onSelect={(scene, nodeId) => {
-            if (nodeId) setSceneSelected(true); // working in a scene re-selects it
-            setSelected(scene !== null && nodeId ? { scene, nodeId } : null);
+          onSelect={(scene, nodeIds) => {
+            if (nodeIds.length) setSceneSelected(true); // working in a scene re-selects it
+            setSelectedScene(scene);
+            setSelectedIds(nodeIds);
+            setSelected(scene !== null && nodeIds.length === 1 ? { scene, nodeId: nodeIds[0] } : null);
           }}
           onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
@@ -793,8 +832,23 @@ function StudioEditor() {
         {/* Right tool rail: creation tools only (icons + hover names). */}
         <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />
 
-        {/* Inspector: appears when an element is selected, styling controls for it. */}
-        {selectedNode && (
+        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props). */}
+        {selectedIds.length > 1 && selectedScene !== null && (
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+            <GroupPanel
+              count={selectedIds.length}
+              isGroup={Boolean(selectedGroupId)}
+              groupId={selectedGroupId}
+              onGroup={groupSelected}
+              onUngroup={ungroupSelected}
+              onAnim={groupAnim}
+              onOpacity={groupOpacity}
+            />
+          </div>
+        )}
+
+        {/* Inspector: appears when a single element is selected, styling controls for it. */}
+        {selectedNode && selectedIds.length <= 1 && (
           <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-small font-bold text-walshe-ink">Edit element</h2>
