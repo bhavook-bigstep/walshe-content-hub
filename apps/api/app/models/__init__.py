@@ -7,6 +7,7 @@ from app.models.agent_run import AgentRun
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.blocklist import BlocklistTerm
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.catalog import (
     Asset,
     Catalog,
@@ -56,4 +57,6 @@ __all__ = [
     "Engagement",
     "Collection",
     "BrandKit",
+    "Campaign",
+    "CampaignStatus",
 ]
