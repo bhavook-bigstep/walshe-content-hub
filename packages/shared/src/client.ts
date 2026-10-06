@@ -466,6 +466,20 @@ export async function builderDesign(body: DesignRequest): Promise<Record<string,
   return (await (await send("/builder/design", json(body))).json()) as Record<string, unknown>;
 }
 
+/** AI: generate an Instagram caption for one of the agent's saved compositions. Deterministic
+ *  under the stub provider (no key); grounded in the composition's catalog content. */
+export async function generateCaption(compositionId: number): Promise<{ caption: string }> {
+  const body = { composition_id: compositionId };
+  return (await (await send("/ai/caption", json(body))).json()) as { caption: string };
+}
+
+/** AI: suggest Instagram hashtags derived from a composition's catalog content (AI-suggested, to
+ *  review before posting). Returns a non-empty list of `#`-prefixed tags. */
+export async function generateKeywords(compositionId: number): Promise<{ hashtags: string[] }> {
+  const body = { composition_id: compositionId };
+  return (await (await send("/ai/keywords", json(body))).json()) as { hashtags: string[] };
+}
+
 /** Renders items to an MP4 blob (server never accepts client file paths). */
 export async function renderVideo(body: VideoRequest): Promise<Blob> {
   return (await send("/render/video", json(body))).blob();

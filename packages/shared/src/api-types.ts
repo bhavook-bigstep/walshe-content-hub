@@ -44,6 +44,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/caption": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Caption */
+        post: operations["caption_ai_caption_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Keywords */
+        post: operations["keywords_ai_keywords_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assets/{object_key}": {
         parameters: {
             query?: never;
@@ -1441,6 +1475,14 @@ export interface components {
             /** Tools */
             tools: string[];
         };
+        /**
+         * AiCopyRequest
+         * @description Both endpoints act on one of the caller's saved compositions.
+         */
+        AiCopyRequest: {
+            /** Composition Id */
+            composition_id: number;
+        };
         /** AssistantOut */
         AssistantOut: {
             /** Intent */
@@ -1705,6 +1747,11 @@ export interface components {
             /** Scheduled At */
             scheduled_at: string | null;
             status: components["schemas"]["PostStatus"];
+        };
+        /** CaptionOut */
+        CaptionOut: {
+            /** Caption */
+            caption: string;
         };
         /**
          * CatalogCreate
@@ -2199,6 +2246,11 @@ export interface components {
              * @default
              */
             title: string;
+        };
+        /** KeywordsOut */
+        KeywordsOut: {
+            /** Hashtags */
+            hashtags: string[];
         };
         /** KnowledgeOut */
         KnowledgeOut: {
@@ -2739,6 +2791,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    caption_ai_caption_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiCopyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    keywords_ai_keywords_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiCopyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordsOut"];
                 };
             };
             /** @description Validation Error */

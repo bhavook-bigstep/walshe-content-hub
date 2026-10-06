@@ -224,6 +224,20 @@
         "title": "AgentRunOut",
         "type": "object"
       },
+      "AiCopyRequest": {
+        "description": "Both endpoints act on one of the caller's saved compositions.",
+        "properties": {
+          "composition_id": {
+            "title": "Composition Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "composition_id"
+        ],
+        "title": "AiCopyRequest",
+        "type": "object"
+      },
       "AssistantOut": {
         "properties": {
           "intent": {
@@ -943,6 +957,19 @@
           "media_object_key"
         ],
         "title": "CampaignPostOut",
+        "type": "object"
+      },
+      "CaptionOut": {
+        "properties": {
+          "caption": {
+            "title": "Caption",
+            "type": "string"
+          }
+        },
+        "required": [
+          "caption"
+        ],
+        "title": "CaptionOut",
         "type": "object"
       },
       "CatalogCreate": {
@@ -2162,6 +2189,22 @@
           "kind"
         ],
         "title": "ItemOut",
+        "type": "object"
+      },
+      "KeywordsOut": {
+        "properties": {
+          "hashtags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hashtags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hashtags"
+        ],
+        "title": "KeywordsOut",
         "type": "object"
       },
       "KnowledgeOut": {
@@ -3495,6 +3538,98 @@
         "summary": "Create User",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/ai/caption": {
+      "post": {
+        "operationId": "caption_ai_caption_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCopyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Caption",
+        "tags": [
+          "ai-copy"
+        ]
+      }
+    },
+    "/ai/keywords": {
+      "post": {
+        "operationId": "keywords_ai_keywords_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCopyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Keywords",
+        "tags": [
+          "ai-copy"
         ]
       }
     },

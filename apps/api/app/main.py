@@ -20,6 +20,7 @@ from app.observability import configure_langsmith
 from app.routers import (
     admin,
     agent,
+    ai_copy,
     assets,
     assistant,
     audit_log,
@@ -133,6 +134,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(me_media.router)
     app.include_router(render.router)
     app.include_router(builder.router)
+    app.include_router(ai_copy.router)
     app.include_router(social.router)
     app.include_router(instagram.router)
     app.include_router(campaigns.router)
