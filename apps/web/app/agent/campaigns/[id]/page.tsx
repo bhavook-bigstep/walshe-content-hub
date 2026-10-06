@@ -148,61 +148,63 @@ export default function CampaignDetailPage() {
         </p>
       )}
 
-      <form onSubmit={onSchedule} className="card mb-8 space-y-5 p-6" aria-busy={busy}>
-        <div className="flex flex-col gap-1.5">
-          <span className="label">Caption</span>
-          <textarea
-            className="field min-h-24 w-full resize-y"
-            aria-label="Caption"
-            rows={3}
-            placeholder="Write a caption, or generate one from your content…"
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-          />
-          <AiCaptionControls
-            compositionId={projectId ? Number(projectId) : null}
-            caption={caption}
-            onCaptionChange={setCaption}
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="flex flex-col gap-1.5">
-            <span className="label">Project</span>
-            <select className="field" aria-label="Project" value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}>
-              {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="label">Platform</span>
-            <select className="field" aria-label="Platform" value={platform}
-                    onChange={(e) => setPlatform(e.target.value)}>
-              {CAMPAIGN_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="label">When</span>
-            <input type="datetime-local" className="field" aria-label="Scheduled at"
-                   value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
-          </label>
-        </div>
-        <div className="flex items-center justify-end border-t border-walshe-line pt-4">
-          <button type="submit" className="btn-primary h-12" disabled={busy || !projectId}>
-            {busy ? "Scheduling…" : "Schedule post"}
-          </button>
-        </div>
-      </form>
+      {/* Two columns: schedule a post on the left (sticky), the campaign calendar on the right —
+          so the planning surface stays in view instead of being pushed below a long scroll. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(340px,1fr)_1.7fr] lg:items-start">
+        <form onSubmit={onSchedule} className="card space-y-5 p-6 lg:sticky lg:top-6" aria-busy={busy}>
+          <div className="flex flex-col gap-1.5">
+            <span className="label">Caption</span>
+            <textarea
+              className="field min-h-24 w-full resize-y"
+              aria-label="Caption"
+              rows={3}
+              placeholder="Write a caption, or generate one from your content…"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+            />
+            <AiCaptionControls
+              compositionId={projectId ? Number(projectId) : null}
+              caption={caption}
+              onCaptionChange={setCaption}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="label">Project</span>
+              <select className="field" aria-label="Project" value={projectId}
+                      onChange={(e) => setProjectId(e.target.value)}>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="label">Platform</span>
+              <select className="field" aria-label="Platform" value={platform}
+                      onChange={(e) => setPlatform(e.target.value)}>
+                {CAMPAIGN_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5 sm:col-span-2">
+              <span className="label">When</span>
+              <input type="datetime-local" className="field" aria-label="Scheduled at"
+                     value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            </label>
+          </div>
+          <div className="flex items-center justify-end border-t border-walshe-line pt-4">
+            <button type="submit" className="btn-primary h-12" disabled={busy || !projectId}>
+              {busy ? "Scheduling…" : "Schedule post"}
+            </button>
+          </div>
+        </form>
 
-      {campaign && (
         <CampaignCalendar
-          posts={campaign.posts ?? []}
+          posts={campaign?.posts ?? []}
           onSelectPost={(pid) => {
-            const p = campaign.posts?.find((x) => x.id === pid);
+            const p = campaign?.posts?.find((x) => x.id === pid);
             if (p) openEdit(p);
           }}
-          initialDate={new Date(campaign.starts_on)}
+          initialDate={campaign ? new Date(campaign.starts_on) : undefined}
         />
-      )}
+      </div>
 
       {selected && (
         <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Edit post">

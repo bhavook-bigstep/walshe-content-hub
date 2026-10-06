@@ -106,15 +106,10 @@ export default function CampaignsPage() {
           )}
         </div>
 
-        {/* Right column: the campaigns calendar (sticky so it stays in view while the list scrolls). */}
+        {/* Right column: the campaigns calendar (sticky so it stays in view while the list scrolls).
+            Always rendered — an empty calendar is still the planning surface before any campaign. */}
         <div className="lg:sticky lg:top-6">
-          {campaigns && campaigns.length > 0 ? (
-            <CampaignsCalendar campaigns={campaigns} />
-          ) : (
-            <div className="card grid min-h-80 place-items-center p-8 text-center text-walshe-grey">
-              Your campaigns will appear here on a calendar.
-            </div>
-          )}
+          <CampaignsCalendar campaigns={campaigns ?? []} />
         </div>
       </div>
     </div>
