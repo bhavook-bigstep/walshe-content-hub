@@ -133,3 +133,48 @@ def get_campaign(
         **_campaign_out(c, len(posts)).model_dump(),
         posts=[CampaignPostOut.model_validate(p) for p in posts],
     )
+
+
+@router.post("/{campaign_id}/posts", response_model=CampaignPostOut,
+             status_code=status.HTTP_201_CREATED)
+def create_campaign_post(
+    campaign_id: int,
+    composition_id: int = Form(...),
+    caption: str = Form(""),
+    scheduled_at: str | None = Form(None),
+    image: UploadFile = File(...),
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
+    now: datetime = Depends(clock.now),
+) -> CampaignPostOut:
+    """Create a campaign post, optionally scheduled; captures the rendered JPEG now (design §4)."""
+    campaign = _owned_campaign(db, campaign_id, user)
+    comp = db.get(Composition, composition_id)
+    if comp is None or comp.agent_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
+    _validate_caption(caption)
+    data = _read_jpeg(image)  # validate before writing anything
+
+    sched_utc: datetime | None = None
+    post_status = PostStatus.draft
+    if scheduled_at:
+        dt = _parse_scheduled_at(scheduled_at)
+        if not within_campaign_window(dt, campaign.starts_on, campaign.ends_on):
+            raise HTTPException(422, "scheduled_at is outside the campaign window")
+        sched_utc = dt.astimezone(timezone.utc)
+        post_status = PostStatus.pending_approval
+
+    post = Post(
+        campaign_id=campaign.id, composition_id=comp.id, channel="instagram",
+        platform="instagram", caption=caption, status=post_status, scheduled_at=sched_utc,
+    )
+    db.add(post)
+    db.flush()  # assign post.id for the storage key
+    key = f"campaign-posts/{post.id}/{uuid4().hex}.jpg"  # uuid avoids a same-second replace clash
+    storage.put_object(key, data, "image/jpeg")  # captured now; Inc 2 publishes from this
+    post.media_object_key = key
+    audit.record(db, actor_id=user.id, action="schedule", target_type="post", target_id=post.id)
+    db.commit()
+    db.refresh(post)
+    return CampaignPostOut.model_validate(post)
