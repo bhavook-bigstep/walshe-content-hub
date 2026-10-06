@@ -45,3 +45,8 @@ apps/api/.dev-assets-alt/
 
 # Local reference material (not part of the repo)
 docs/sample/
+
+# SQLite sidecar files
+*.db-journal
+*.db-wal
+*.db-shm
