@@ -1,0 +1,158 @@
+"use client";
+
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import PageHeader from "../../../../components/ui/PageHeader";
+import {
+  ApiError, getCampaign, getProject, listProjects, scheduleCampaignPost,
+  type CampaignDetail, type Project,
+} from "../../../../lib/api";
+import { bucketByLocalDay, monthCells, STATUS_CHIP } from "../../../../lib/campaigns/calendar";
+import { buildCampaignPostForm, localInputToOffsetISO } from "../../../../lib/campaigns/form";
+import { migrateDesign } from "../../../../lib/studio/ops";
+import { renderDesignToJpegBlob } from "../../../../lib/studio/render";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const cellKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+export default function CampaignDetailPage() {
+  const id = Number(useParams().id);
+  const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [caption, setCaption] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(
+    () => getCampaign(id).then(setCampaign)
+      .catch((e) => setError(e instanceof ApiError ? e.message : "Could not load the campaign.")),
+    [id],
+  );
+
+  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    listProjects().then((p) => {
+      setProjects(p);
+      if (p[0]) setProjectId(String(p[0].id));
+    }).catch(() => {});
+  }, []);
+
+  const byDay = useMemo(() => bucketByLocalDay(campaign?.posts ?? []), [campaign]);
+
+  // Month navigation bounded to the campaign window (campaigns can span months).
+  const [view, setView] = useState<{ year: number; month: number } | null>(null);
+  useEffect(() => {
+    if (campaign && !view) {
+      const s = new Date(campaign.starts_on);
+      setView({ year: s.getFullYear(), month: s.getMonth() });
+    }
+  }, [campaign, view]);
+  const idx = (y: number, m: number) => y * 12 + m;
+  const bStart = campaign ? new Date(campaign.starts_on) : null;
+  const bEnd = campaign ? new Date(campaign.ends_on) : null;
+  const canPrev = !!(view && bStart && idx(view.year, view.month) > idx(bStart.getFullYear(), bStart.getMonth()));
+  const canNext = !!(view && bEnd && idx(view.year, view.month) < idx(bEnd.getFullYear(), bEnd.getMonth()));
+  const shift = (d: number) =>
+    setView((v) => (v ? { year: v.year + Math.floor((v.month + d) / 12), month: ((v.month + d) % 12 + 12) % 12 } : v));
+  const cells = view ? monthCells(view.year, view.month) : [];
+
+  async function onSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!projectId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const project = await getProject(Number(projectId));
+      const design = migrateDesign(project.design);
+      if (!design) throw new Error("This project has no usable design to render.");
+      const jpeg = await renderDesignToJpegBlob(design, 0);
+      const form = buildCampaignPostForm({
+        compositionId: Number(projectId), caption,
+        scheduledAtISO: scheduledAt ? localInputToOffsetISO(scheduledAt) : null, jpeg,
+      });
+      await scheduleCampaignPost(id, form);
+      setCaption(""); setScheduledAt("");
+      await reload();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e instanceof Error ? e.message : "Could not schedule the post."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader title={campaign?.name ?? "Campaign"}
+        description={campaign ? `${campaign.starts_on} → ${campaign.ends_on}` : ""} />
+
+      {error && (
+        <p role="alert" className="card mb-6 border-walshe-danger/30 p-4 text-small text-walshe-danger">
+          {error}
+        </p>
+      )}
+
+      <form onSubmit={onSchedule} className="card mb-8 flex flex-wrap items-end gap-4 p-6" aria-busy={busy}>
+        <label className="flex flex-col gap-1">
+          <span className="label">Project</span>
+          <select className="field" aria-label="Project" value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}>
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="label">Caption</span>
+          <input className="field" aria-label="Caption" value={caption}
+                 onChange={(e) => setCaption(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="label">When</span>
+          <input type="datetime-local" className="field" aria-label="Scheduled at"
+                 value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        </label>
+        <button type="submit" className="btn-primary h-12" disabled={busy || !projectId}>
+          {busy ? "Scheduling…" : "Schedule post"}
+        </button>
+      </form>
+
+      <section className="card p-5" aria-label="Calendar" data-testid="campaign-calendar">
+        <div className="mb-3 flex items-center justify-between">
+          <button type="button" className="btn-ghost" disabled={!canPrev} onClick={() => shift(-1)}>
+            ← Prev
+          </button>
+          <span className="font-semibold text-walshe-ink">
+            {view
+              ? new Date(view.year, view.month, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+              : ""}
+          </span>
+          <button type="button" className="btn-ghost" disabled={!canNext} onClick={() => shift(1)}>
+            Next →
+          </button>
+        </div>
+        <div className="mb-3 grid grid-cols-7 gap-2 text-small text-walshe-grey">
+          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d}>{d}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {cells.map((cell, i) => {
+            if (!cell) return <div key={`pad-${i}`} className="min-h-20 rounded-sm bg-walshe-stone/30" aria-hidden />;
+            const key = cellKey(cell);
+            const posts = byDay.get(key) ?? [];
+            const inWindow = !!campaign && key >= campaign.starts_on && key <= campaign.ends_on;
+            return (
+              <div key={key}
+                   className={`min-h-20 rounded-sm border border-walshe-line p-1.5 ${inWindow ? "" : "opacity-40"}`}>
+                <div className="text-[11px] text-walshe-grey">{cell.getDate()}</div>
+                {posts.map((p) => (
+                  <div key={p.id} className={`mt-1 truncate rounded px-1 text-[11px] ${STATUS_CHIP[p.status] ?? ""}`}>
+                    {p.caption || `Post #${p.id}`}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
