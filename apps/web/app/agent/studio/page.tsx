@@ -317,6 +317,7 @@ function StudioEditor() {
           onChange={setDesign}
           onPickFormat={pickFormat}
           catalogImages={CATALOG_IMAGES}
+          compositionId={project?.id ?? null}
         />
 
         {/* Zoom / fit — bottom-right, shifted left to clear the Q/A assistant button. */}

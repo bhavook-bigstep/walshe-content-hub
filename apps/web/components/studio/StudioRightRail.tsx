@@ -16,6 +16,7 @@ interface Props {
   onChange: (next: DesignDoc) => void;
   onPickFormat: (format: FormatName) => void;
   catalogImages: readonly CatalogImageOption[];
+  compositionId: number | null;
 }
 
 const TOOLS: { id: Tool; label: string; icon: ReactNode }[] = [
@@ -54,6 +55,7 @@ export default function StudioRightRail({
   onChange,
   onPickFormat,
   catalogImages,
+  compositionId,
 }: Props) {
   const [active, setActive] = useState<Tool | null>(null);
   const activeTool = TOOLS.find((t) => t.id === active);
@@ -82,7 +84,9 @@ export default function StudioRightRail({
           {active === "personalise" && (
             <PersonalizePanel design={design} sceneIndex={sceneIndex} onChange={onChange} />
           )}
-          {active === "export" && <ExportMenu design={design} sceneIndex={sceneIndex} />}
+          {active === "export" && (
+            <ExportMenu design={design} sceneIndex={sceneIndex} compositionId={compositionId} />
+          )}
         </div>
       )}
 
