@@ -1630,11 +1630,23 @@
         "type": "object"
       },
       "EntryRef": {
-        "description": "A reference to a catalog entry inside a workspace (no media copy).",
+        "description": "A reference to a catalog entry inside a workspace.\n\nCarries the entry's media **links** (MinIO/S3 object keys) so the workspace is self-contained:\nany part of the project can reach the entry's cover + assets from the reference itself, via the\nauthed ``GET /assets/{object_key}`` gate — without re-resolving the catalog. These are pointers\n(keys), never copies of the bytes.",
         "properties": {
+          "cover_object_key": {
+            "default": "",
+            "title": "Cover Object Key",
+            "type": "string"
+          },
           "entry_id": {
             "title": "Entry Id",
             "type": "integer"
+          },
+          "media_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Media Keys",
+            "type": "array"
           },
           "title": {
             "default": "",

@@ -176,9 +176,16 @@ def _dims(fmt: str) -> tuple[int, int]:
 
 
 def _entry_refs(db: Session, agent: User, ids: list[int], now: datetime) -> list[dict]:
-    """Visible entries → lightweight refs {entry_id,title,type} (order preserved, stale dropped)."""
+    """Visible entries → enriched refs carrying the entry's media links (MinIO/S3 object keys), so
+    the stored workspace is self-contained. Order preserved; stale/non-visible entries dropped."""
     return [
-        {"entry_id": e.id, "title": e.title, "type": e.type.value}
+        {
+            "entry_id": e.id,
+            "title": e.title,
+            "type": e.type.value,
+            "cover_object_key": e.cover_object_key or "",
+            "media_keys": list(e.asset_keys or []),
+        }
         for e in agent_visible_entries_by_ids(db, agent, ids, now=now)
     ]
 
@@ -303,11 +310,11 @@ def save_workspace(
     prev = project.workspace.get("metadata", {}).get("version", 0) if project.workspace else 0
     ws["metadata"]["version"] = prev + 1
     rc = ws["reference_content"]
-    # Drop references that aren't valid for this agent (non-visible entries, non-owned assets).
+    # Re-resolve each collection's entries against the live catalog: drops non-visible ones and
+    # refreshes the stored media links (so reference_content always carries current S3 keys).
     for c in rc["collections"]:
         ids = [x["entry_id"] for x in c["entries"]]
-        vis = {e["entry_id"] for e in _entry_refs(db, agent, ids, now)}
-        c["entries"] = [e for e in c["entries"] if e["entry_id"] in vis]
+        c["entries"] = _entry_refs(db, agent, ids, now)
     owned = {a.asset_id for a in _owned_assets(db, agent, rc["uploads"] + rc["generated"])}
     rc["uploads"] = [a for a in rc["uploads"] if a["asset_id"] in owned]
     rc["generated"] = [a for a in rc["generated"] if a["asset_id"] in owned]

@@ -125,6 +125,35 @@ def test_project_from_collection_seeds_workspace(client, provider_headers, agent
     assert {e["id"] for e in coll["entries"]} == {e1, e2}
 
 
+def test_workspace_refs_carry_media_links(client, provider_headers, agent_headers, app) -> None:
+    # AC64 — the stored reference_content entries carry the entry's media links (S3/MinIO keys),
+    # so the workspace is self-contained. We inspect the persisted workspace JSON directly.
+    from app.models.composition import Composition
+
+    eid = _visible_entry(client, provider_headers, "Has media")
+    # Attach a cover object key to the entry (a reference/pointer, not bytes).
+    with app.state.sessionmaker() as db:
+        from app.models.catalog import CatalogEntry
+
+        db.get(CatalogEntry, eid).cover_object_key = "catalog/has-media/cover.png"
+        db.commit()
+
+    cid = client.post(
+        "/me/collections", headers=agent_headers, json={"name": "Media", "item_ids": [eid]}
+    ).json()["id"]
+    pid = client.post(
+        "/me/projects", headers=agent_headers,
+        json={"name": "Media proj", "collection_id": cid},
+    ).json()["id"]
+
+    with app.state.sessionmaker() as db:
+        rc = db.get(Composition, pid).workspace["reference_content"]
+        ref = rc["collections"][0]["entries"][0]
+    assert ref["entry_id"] == eid
+    assert ref["cover_object_key"] == "catalog/has-media/cover.png"
+    assert "media_keys" in ref
+
+
 def test_workspace_put_validates_and_bumps_version(client, provider_headers, agent_headers) -> None:
     # AC64 — PUT saves the whole workspace, bumps the version, and drops invalid references.
     e1 = _visible_entry(client, provider_headers, "Keep me")

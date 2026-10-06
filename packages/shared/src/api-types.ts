@@ -1952,11 +1952,23 @@ export interface components {
         };
         /**
          * EntryRef
-         * @description A reference to a catalog entry inside a workspace (no media copy).
+         * @description A reference to a catalog entry inside a workspace.
+         *
+         *     Carries the entry's media **links** (MinIO/S3 object keys) so the workspace is self-contained:
+         *     any part of the project can reach the entry's cover + assets from the reference itself, via the
+         *     authed ``GET /assets/{object_key}`` gate — without re-resolving the catalog. These are pointers
+         *     (keys), never copies of the bytes.
          */
         EntryRef: {
+            /**
+             * Cover Object Key
+             * @default
+             */
+            cover_object_key: string;
             /** Entry Id */
             entry_id: number;
+            /** Media Keys */
+            media_keys?: string[];
             /**
              * Title
              * @default

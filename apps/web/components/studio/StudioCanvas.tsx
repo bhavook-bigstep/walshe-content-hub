@@ -27,6 +27,9 @@ export interface StudioControls {
   zoomIn: () => void;
   zoomOut: () => void;
   fit: () => void;
+  /** Map a viewport (clientX/clientY) point to the active scene's local coordinates, for drop
+   * placement from the media drawer. Returns null before the canvas has mounted. */
+  clientToScenePoint: (clientX: number, clientY: number) => { x: number; y: number } | null;
 }
 
 export interface StudioCanvasProps {
@@ -92,6 +95,8 @@ export default function StudioCanvas({
   selectRef.current = onSelectScene;
   const designRef = useRef(design);
   designRef.current = design;
+  const activeSceneRef = useRef(activeScene);
+  activeSceneRef.current = activeScene;
   const fittedRef = useRef<string>(""); // layout signature of the last fit, so a new layout re-fits
 
   // Keep the dotted background locked to the canvas viewport transform (pan + zoom).
@@ -154,7 +159,21 @@ export default function StudioCanvas({
     });
     canvasRef.current = canvas;
     onReady?.(canvas);
-    onControls?.({ zoomIn: () => zoomAt(1.2), zoomOut: () => zoomAt(1 / 1.2), fit: fitToView });
+    onControls?.({
+      zoomIn: () => zoomAt(1.2),
+      zoomOut: () => zoomAt(1 / 1.2),
+      fit: fitToView,
+      clientToScenePoint: (clientX, clientY) => {
+        const c = canvasRef.current;
+        const cont = containerRef.current;
+        if (!c || !cont) return null;
+        const rect = cont.getBoundingClientRect();
+        const [zoom, , , , tx, ty] = c.viewportTransform;
+        const gx = (clientX - rect.left - tx) / zoom;
+        const gy = (clientY - rect.top - ty) / zoom;
+        return { x: gx - sceneOriginX(designRef.current, activeSceneRef.current), y: gy };
+      },
+    });
 
     let panning = false;
     let spaceHeld = false;

@@ -398,3 +398,4 @@ acceptance:
       - "apps/api/tests/test_agent_features.py::test_project_from_collection_seeds_workspace"
       - "apps/api/tests/test_agent_features.py::test_workspace_put_validates_and_bumps_version"
       - "apps/api/tests/test_agent_features.py::test_workspace_migrates_legacy_project"
+      - "apps/api/tests/test_agent_features.py::test_workspace_refs_carry_media_links"

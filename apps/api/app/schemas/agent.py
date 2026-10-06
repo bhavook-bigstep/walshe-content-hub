@@ -20,11 +20,19 @@ class ProjectCreate(BaseModel):
 
 
 class EntryRef(BaseModel):
-    """A reference to a catalog entry inside a workspace (no media copy)."""
+    """A reference to a catalog entry inside a workspace.
+
+    Carries the entry's media **links** (MinIO/S3 object keys) so the workspace is self-contained:
+    any part of the project can reach the entry's cover + assets from the reference itself, via the
+    authed ``GET /assets/{object_key}`` gate — without re-resolving the catalog. These are pointers
+    (keys), never copies of the bytes.
+    """
 
     entry_id: int
     title: str = ""
     type: str = ""
+    cover_object_key: str = ""
+    media_keys: list[str] = Field(default_factory=list)
 
 
 class WorkspaceCollection(BaseModel):
