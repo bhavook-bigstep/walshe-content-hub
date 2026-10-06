@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   MAX_SCENE_DURATION_MS,
   MIN_SCENE_DURATION_MS,
@@ -51,9 +52,10 @@ const TRANSITION_LABEL: Record<TransitionKind, string> = {
 };
 
 /**
- * Per-scene controls that hug the selected scene's top + bottom edges in the workspace (replacing
- * the old timeline drawer). Top edge = identity + timing; bottom edge = the animation player (row
- * one) above a time-cued narration editor (row two). Positions follow the scene as it pans/zooms.
+ * The selected scene's control panel: one fixed-size card (so it never resizes as the canvas zooms)
+ * anchored below the scene and following it as it pans. It encloses two menus in a subtle dotted
+ * box — the top menu (identity + timing) and the bottom menu (animation player + time-cued
+ * narration). Hidden when no scene is selected.
  */
 export default function SceneEdgeControls({
   rect,
@@ -68,6 +70,17 @@ export default function SceneEdgeControls({
   narrate,
   onToggleNarrate,
 }: Props) {
+  // Measure the panel so it can be clamped on screen; its size is content-driven (never zoom-driven).
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelH, setPanelH] = useState(230);
+  useLayoutEffect(() => {
+    const ro = new ResizeObserver(() => {
+      if (panelRef.current) setPanelH(panelRef.current.offsetHeight);
+    });
+    if (panelRef.current) ro.observe(panelRef.current);
+    return () => ro.disconnect();
+  });
+
   const scene = design.scenes[sceneIndex];
   if (!rect || !scene) return null;
 
@@ -75,21 +88,25 @@ export default function SceneEdgeControls({
   const cues = narrationCues(scene);
   const setCues = (next: NarrationCue[]) => upd((d) => setSceneNarration(d, scene.id, next));
 
-  const centerX = rect.left + rect.width / 2;
+  const viewportW = typeof window !== "undefined" ? window.innerWidth : 1200;
   const viewportH = typeof window !== "undefined" ? window.innerHeight : 900;
-  // Keep the top bar fully below the menu bar (44px) so it stays clickable, and the bottom bar on screen.
-  const topBarTop = Math.max(52, rect.top - 56);
-  const bottomBarTop = Math.min(viewportH - 170, Math.max(topBarTop + 52, rect.top + rect.height + 12));
+  const boxW = Math.min(viewportW * 0.92, 720);
+  const centerX = Math.min(Math.max(rect.left + rect.width / 2, boxW / 2 + 8), viewportW - boxW / 2 - 8);
+  // Sit just below the scene's bottom edge, clamped on screen. Size is fixed → no resize on zoom.
+  const top = Math.min(Math.max(rect.top + rect.height + 12, 56), viewportH - panelH - 12);
   const isLast = sceneIndex >= design.scenes.length - 1;
   const t = Math.min(playhead, durationMs);
 
+  const sectionCls = "rounded-xl bg-walshe-stone/35 px-2.5 py-1.5";
+
   return (
-    <>
-      {/* ── TOP edge: identity + timing ─────────────────────────────────────────────── */}
-      <div
-        className="pointer-events-auto absolute z-30 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/95 px-3 py-1.5 shadow-xl backdrop-blur-md"
-        style={{ left: centerX, top: topBarTop }}
-      >
+    <div
+      ref={panelRef}
+      className="pointer-events-auto absolute z-30 -translate-x-1/2 space-y-2 rounded-2xl border-2 border-dashed border-walshe-grey/35 bg-chrome-bg/95 p-2 shadow-xl backdrop-blur-md"
+      style={{ left: centerX, top, width: boxW }}
+    >
+      {/* ── Top menu: identity + timing ─────────────────────────────────────────────── */}
+      <div className={`flex flex-wrap items-center justify-center gap-1.5 ${sectionCls}`}>
         <input
           value={scene.name}
           onChange={(e) => upd((d) => renameScene(d, scene.id, e.target.value))}
@@ -100,7 +117,7 @@ export default function SceneEdgeControls({
           Scene {sceneIndex + 1} of {design.scenes.length}
         </span>
         <span aria-hidden className="h-6 w-px bg-walshe-line" />
-        <label className="flex items-center gap-1 rounded-lg bg-walshe-stone/60 px-2 py-1 text-[11px] font-medium text-walshe-grey" title="Scene duration (seconds)">
+        <label className="flex items-center gap-1 rounded-lg bg-walshe-base/70 px-2 py-1 text-[11px] font-medium text-walshe-grey" title="Scene duration (seconds)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2M9 2h6" /></svg>
           <input
             type="number"
@@ -115,7 +132,7 @@ export default function SceneEdgeControls({
           s
         </label>
         {!isLast && (
-          <label className="flex items-center gap-1 rounded-lg bg-walshe-stone/60 px-2 py-1 text-[11px] font-medium text-walshe-grey" title="Transition into the next scene">
+          <label className="flex items-center gap-1 rounded-lg bg-walshe-base/70 px-2 py-1 text-[11px] font-medium text-walshe-grey" title="Transition into the next scene">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 12h14M13 6l6 6-6 6" /></svg>
             <select
               value={scene.transition}
@@ -144,12 +161,8 @@ export default function SceneEdgeControls({
         </button>
       </div>
 
-      {/* ── BOTTOM edge: player (row 1) + time-cued narration (row 2) ──────────────────── */}
-      <div
-        className="pointer-events-auto absolute z-30 flex w-[min(92vw,44rem)] -translate-x-1/2 flex-col gap-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/95 px-3 py-2.5 shadow-xl backdrop-blur-md"
-        style={{ left: centerX, top: bottomBarTop }}
-      >
-        {/* Row 1 — the animation player. */}
+      {/* ── Bottom menu: player (row 1) + time-cued narration (row 2) ──────────────────── */}
+      <div className={`flex flex-col gap-2 ${sectionCls} py-2`}>
         <div className="flex items-center gap-2.5">
           <button
             type="button"
@@ -181,7 +194,6 @@ export default function SceneEdgeControls({
 
         <div aria-hidden className="border-t border-walshe-line/60" />
 
-        {/* Row 2 — time-cued narration. Each line reads aloud starting at its cue time. */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">Narration</span>
@@ -250,6 +262,6 @@ export default function SceneEdgeControls({
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

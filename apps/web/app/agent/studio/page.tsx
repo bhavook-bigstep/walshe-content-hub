@@ -167,6 +167,8 @@ function StudioEditor() {
   const [rendering, setRendering] = useState(false);
   // The active scene's on-screen rect, so the per-scene edge controls can hug its edges.
   const [sceneRect, setSceneRect] = useState<SceneRect | null>(null);
+  // Whether a scene is selected (clicking the empty workspace deselects → hides the scene controls).
+  const [sceneSelected, setSceneSelected] = useState(true);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
@@ -713,7 +715,14 @@ function StudioEditor() {
           onReady={onReady}
           onNodeChange={onNodeChange}
           onNodeDelete={onNodeDelete}
-          onSelectScene={setSceneIndex}
+          onSelectScene={(i) => {
+            setSceneIndex(i);
+            setSceneSelected(true);
+          }}
+          onBackgroundClick={() => {
+            setSceneSelected(false);
+            setSelected(null);
+          }}
           onSelect={(scene, nodeId) => setSelected(scene !== null && nodeId ? { scene, nodeId } : null)}
           onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
@@ -767,7 +776,7 @@ function StudioEditor() {
         {/* Per-scene controls hugging the active scene's top + bottom edges (identity + timing on
             top; animation transport + narration on the bottom). Replaces the old timeline drawer. */}
         <SceneEdgeControls
-          rect={sceneRect}
+          rect={sceneSelected ? sceneRect : null}
           design={design}
           sceneIndex={sceneIndex}
           onChange={setDesign}
