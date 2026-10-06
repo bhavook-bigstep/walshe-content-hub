@@ -399,6 +399,20 @@
         "title": "BlocklistOut",
         "type": "object"
       },
+      "Body_import_document_me_auto_catalog_import_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_document_me_auto_catalog_import_post",
+        "type": "object"
+      },
       "Body_upload_cover_catalog__entry_id__cover_post": {
         "properties": {
           "file": {
@@ -1451,6 +1465,11 @@
       },
       "EntryOut": {
         "properties": {
+          "ai_created": {
+            "default": false,
+            "title": "Ai Created",
+            "type": "boolean"
+          },
           "asset_keys": {
             "default": [],
             "items": {
@@ -1881,6 +1900,65 @@
           "kind"
         ],
         "title": "ItemOut",
+        "type": "object"
+      },
+      "JobOut": {
+        "description": "An async import job (AC71) as seen by the provider's bell + jobs list (AC74).\n\nContent-free: status + a safe summary only (never document text, keys or raw PII).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "drafts_created": {
+            "title": "Drafts Created",
+            "type": "integer"
+          },
+          "entry_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Entry Ids",
+            "type": "array"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "filename",
+          "status",
+          "drafts_created",
+          "entry_ids",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "JobOut",
         "type": "object"
       },
       "KnowledgeOut": {
@@ -5020,8 +5098,26 @@
     },
     "/catalogs/mine/entries": {
       "get": {
-        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.",
+        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.\n\n``ai_created`` filters the set (AC68): ``true`` = only Auto-Catalog-generated entries,\n``false`` = only hand-authored entries, omitted = all.",
         "operationId": "list_my_entries_catalogs_mine_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ai_created",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Created"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -5036,6 +5132,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -5500,6 +5606,53 @@
         ]
       }
     },
+    "/me/auto-catalog/import": {
+      "post": {
+        "description": "Accept a document and schedule an async import (AC71).\n\nValidates type + size at the boundary (AC64), reads the bytes (the ``UploadFile`` is closed once\nthe 202 returns), enqueues a ``Job`` and schedules the extraction as a background task. The work\n— AC16 seam extraction (AC65), image extraction (AC72), tool-call draft creation (AC73) — runs\nafter the response; this endpoint never blocks on the LLM.",
+        "operationId": "import_document_me_auto_catalog_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_document_me_auto_catalog_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Document",
+        "tags": [
+          "auto-catalog"
+        ]
+      }
+    },
     "/me/brand-kit": {
       "get": {
         "operationId": "get_brand_kit_me_brand_kit_get",
@@ -5929,6 +6082,37 @@
         "summary": "Design Templates",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/me/jobs": {
+      "get": {
+        "description": "List the provider's own import jobs, newest first — backs the navbar bell (AC74).\n\nOwner-scoped (a provider never sees another's jobs); content-free (status + a safe summary).",
+        "operationId": "list_jobs_me_jobs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobOut"
+                  },
+                  "title": "Response List Jobs Me Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Jobs",
+        "tags": [
+          "auto-catalog"
         ]
       }
     },

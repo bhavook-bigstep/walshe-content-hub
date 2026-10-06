@@ -260,8 +260,27 @@ export async function inviteAgent(email: string): Promise<Catalog> {
 export async function uninviteAgent(agentId: number): Promise<Catalog> {
   return (await (await send(`/catalogs/mine/invite/${agentId}`, { method: "DELETE" })).json()) as Catalog;
 }
-export async function listMyEntries(): Promise<Entry[]> {
-  return (await (await send("/catalogs/mine/entries")).json()) as Entry[];
+/** The provider's own entries (AC50). ``aiCreated`` filters to only AI-generated / only manual (AC68). */
+export async function listMyEntries(aiCreated?: boolean): Promise<Entry[]> {
+  const qs = aiCreated === undefined ? "" : `?ai_created=${aiCreated}`;
+  return (await (await send(`/catalogs/mine/entries${qs}`)).json()) as Entry[];
+}
+
+export type Job = Schemas["JobOut"];
+/**
+ * Auto-Catalog import (AC71): upload a PDF/PNG/JPEG and get back the queued **Job** (202). The
+ * extraction → draft-entry work runs asynchronously; poll {@link listJobs} for its status.
+ */
+export async function importAutoCatalog(file: File): Promise<Job> {
+  const form = new FormData();
+  form.append("file", file);
+  return (await (
+    await send("/me/auto-catalog/import", { method: "POST", body: form })
+  ).json()) as Job;
+}
+/** The provider's own import jobs, newest first — backs the navbar notification bell (AC74). */
+export async function listJobs(): Promise<Job[]> {
+  return (await (await send("/me/jobs")).json()) as Job[];
 }
 export async function listCatalogEntries(catalogId: number): Promise<Entry[]> {
   return (await (await send(`/catalogs/${catalogId}/entries`)).json()) as Entry[];

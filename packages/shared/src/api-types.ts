@@ -583,6 +583,9 @@ export interface paths {
         /**
          * List My Entries
          * @description Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.
+         *
+         *     ``ai_created`` filters the set (AC68): ``true`` = only Auto-Catalog-generated entries,
+         *     ``false`` = only hand-authored entries, omitted = all.
          */
         get: operations["list_my_entries_catalogs_mine_entries_get"];
         put?: never;
@@ -765,6 +768,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/auto-catalog/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Document
+         * @description Accept a document and schedule an async import (AC71).
+         *
+         *     Validates type + size at the boundary (AC64), reads the bytes (the ``UploadFile`` is closed once
+         *     the 202 returns), enqueues a ``Job`` and schedules the extraction as a background task. The work
+         *     — AC16 seam extraction (AC65), image extraction (AC72), tool-call draft creation (AC73) — runs
+         *     after the response; this endpoint never blocks on the LLM.
+         */
+        post: operations["import_document_me_auto_catalog_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/brand-kit": {
         parameters: {
             query?: never;
@@ -888,6 +916,28 @@ export interface paths {
         };
         /** Design Templates */
         get: operations["design_templates_me_design_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jobs
+         * @description List the provider's own import jobs, newest first — backs the navbar bell (AC74).
+         *
+         *     Owner-scoped (a provider never sees another's jobs); content-free (status + a safe summary).
+         */
+        get: operations["list_jobs_me_jobs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1501,6 +1551,11 @@ export interface components {
             /** Term */
             term: string;
         };
+        /** Body_import_document_me_auto_catalog_import_post */
+        Body_import_document_me_auto_catalog_import_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_cover_catalog__entry_id__cover_post */
         Body_upload_cover_catalog__entry_id__cover_post: {
             /** File */
@@ -1862,6 +1917,11 @@ export interface components {
         /** EntryOut */
         EntryOut: {
             /**
+             * Ai Created
+             * @default false
+             */
+            ai_created: boolean;
+            /**
              * Asset Keys
              * @default []
              */
@@ -2098,6 +2158,41 @@ export interface components {
              * @default
              */
             title: string;
+        };
+        /**
+         * JobOut
+         * @description An async import job (AC71) as seen by the provider's bell + jobs list (AC74).
+         *
+         *     Content-free: status + a safe summary only (never document text, keys or raw PII).
+         */
+        JobOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Drafts Created */
+            drafts_created: number;
+            /** Entry Ids */
+            entry_ids: number[];
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /** Filename */
+            filename: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** KnowledgeOut */
         KnowledgeOut: {
@@ -3795,7 +3890,9 @@ export interface operations {
     };
     list_my_entries_catalogs_mine_entries_get: {
         parameters: {
-            query?: never;
+            query?: {
+                ai_created?: boolean | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3809,6 +3906,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -4113,6 +4219,39 @@ export interface operations {
             };
         };
     };
+    import_document_me_auto_catalog_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_document_me_auto_catalog_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_brand_kit_me_brand_kit_get: {
         parameters: {
             query?: never;
@@ -4397,6 +4536,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DesignTemplate"][];
+                };
+            };
+        };
+    };
+    list_jobs_me_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"][];
                 };
             };
         };
