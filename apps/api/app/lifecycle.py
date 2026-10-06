@@ -32,23 +32,24 @@ def display_status(
     *,
     soon_window: timedelta = EXPIRING_SOON_WINDOW,
 ) -> DisplayStatus:
-    """Derive the display status from the stored status, the validity window and the clock.
+    """Derive the display status from the stored status, the expiry date and the clock.
 
-    Boundary semantics: ``now == expires_at`` ⇒ expired (half-open window
-    ``[valid_from, expires_at)``). Only *approved* items ever derive ``expiring_soon`` /
-    ``expired``; other stored statuses pass through unchanged.
+    Expiry-only lifecycle (AC55): any entry past its ``expires_at`` reads as ``expired`` (and
+    ``expiring_soon`` within the window) regardless of its approval status — expiry is the single
+    thing that marks an entry stale/irrelevant. ``withdrawn`` still passes through, and an entry
+    with no ``expires_at`` never expires (lives forever). Boundary: ``now == expires_at`` ⇒ expired
+    (half-open window).
     """
     if stored == EntryStatus.withdrawn:
         return DisplayStatus.withdrawn
-    if stored != EntryStatus.approved:
-        return DisplayStatus(stored.value)  # draft / in_review pass through
     if expires_at is not None:
         expiry = _aware(expires_at)
         if _aware(now) >= expiry:
             return DisplayStatus.expired
         if _aware(now) >= expiry - soon_window:
             return DisplayStatus.expiring_soon
-    return DisplayStatus.approved
+    # draft / in_review / approved pass through when not expiring.
+    return DisplayStatus(stored.value)
 
 
 def is_expired(expires_at: datetime | None, now: datetime) -> bool:

@@ -91,7 +91,7 @@ def search_catalog(
     covers approved/current/in-scope/off-limits), narrow by a type/destination hint (or keyword
     tokens), then **hybrid-rank** the result (vector + keyword) when a provider is given."""
     low = (query or "").strip().lower()
-    visible = visibility.agent_visible_entries(db, agent, now=now)
+    visible = visibility.entries_for_actor(db, agent, now=now)
 
     type_ = next((val for val, rx in _TYPE_PATTERNS if rx.search(low)), None)
     destination = next((e.destination for e in visible if e.destination.lower() in low), None)
@@ -136,10 +136,12 @@ def suggest_items(
     """
     used = used_item_ids(db, agent)
     # Compute each candidate's display status once, then rank: expiring-soon first, then newest.
+    # Expired items are shown greyed in the catalog but are NOT usable (AC55), so never suggested.
     scored = [
         (e, display_status(e.status, e.expires_at, now).value == "expiring_soon")
-        for e in visibility.agent_visible_entries(db, agent, now=now)
+        for e in visibility.entries_for_actor(db, agent, now=now)
         if e.id not in used
+        and display_status(e.status, e.expires_at, now).value != "expired"
     ]
     scored.sort(key=lambda pair: (0 if pair[1] else 1, -pair[0].id))
 

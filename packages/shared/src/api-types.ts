@@ -72,7 +72,8 @@ export interface paths {
         put?: never;
         /**
          * Assistant
-         * @description Ask the grounded Content Assistant (AC38/AC39). It only ever speaks about visible content.
+         * @description Ask the grounded Content Assistant (AC38/39/57). It only ever speaks about content the
+         *     caller may browse — an agent's visible set, or a provider's own catalog.
          */
         post: operations["assistant_assistant_post"];
         delete?: never;
@@ -292,6 +293,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalog/geo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Geo Reference
+         * @description Curated country → state → city hierarchy + the fixed season list (AC53) that powers the
+         *     New-entry location dropdowns and the agent catalog's location/season filters.
+         */
+        get: operations["geo_reference_catalog_geo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog/templates": {
         parameters: {
             query?: never;
@@ -319,8 +341,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get For Agent */
-        get: operations["get_for_agent_catalog__entry_id__get"];
+        /**
+         * Get Entry
+         * @description Fetch one entry (with its items). The owning provider sees their own; an agent sees it only
+         *     if visible to them (Contract 1). A hidden/unknown entry looks like missing (C1/AC36).
+         */
+        get: operations["get_entry_catalog__entry_id__get"];
         /**
          * Update Content
          * @description Edit an entry's structured content (AC29). Provider owns the entry; access/status stay on
@@ -336,6 +362,46 @@ export interface paths {
         patch: operations["set_access_catalog__entry_id__patch"];
         trace?: never;
     };
+    "/catalog/{entry_id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Cover
+         * @description Set the entry's cover photo from an uploaded raster image (AC52).
+         */
+        post: operations["upload_cover_catalog__entry_id__cover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/cover/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Cover
+         * @description Generate the entry's cover photo from a prompt via the configured image model (AC52).
+         */
+        post: operations["generate_cover_catalog__entry_id__cover_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalog/{entry_id}/image": {
         parameters: {
             query?: never;
@@ -348,6 +414,77 @@ export interface paths {
         /** Upload Image */
         post: operations["upload_image_catalog__entry_id__image_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Items */
+        get: operations["list_items_catalog__entry_id__items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/items/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Media Item
+         * @description Add an image or video media item to an entry (AC50). Stored in the provider's media store.
+         */
+        post: operations["upload_media_item_catalog__entry_id__items_media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/items/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Text Item */
+        post: operations["add_text_item_catalog__entry_id__items_text_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalog/{entry_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Item */
+        delete: operations["delete_item_catalog__entry_id__items__item_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -370,6 +507,204 @@ export interface paths {
          *     to ``draft`` with the reason recorded (shown to the owner) and re-enters review on resubmit.
          */
         post: operations["send_back_catalog__entry_id__send_back_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Own Catalogs */
+        get: operations["list_own_catalogs_catalogs_get"];
+        put?: never;
+        /** Create Catalog */
+        post: operations["create_catalog_catalogs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/accessible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Accessible Catalogs
+         * @description Catalogs an agent may browse: every public one + the private ones shared with them (AC49).
+         *     The single catalog-level gate — entry/item reads then flow through services/visibility.
+         */
+        get: operations["list_accessible_catalogs_catalogs_accessible_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/mine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Catalog
+         * @description The provider's single catalog (AC49), created on first access.
+         */
+        get: operations["get_my_catalog_catalogs_mine_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update My Catalog */
+        patch: operations["update_my_catalog_catalogs_mine_patch"];
+        trace?: never;
+    };
+    "/catalogs/mine/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Entries
+         * @description Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.
+         */
+        get: operations["list_my_entries_catalogs_mine_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/mine/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite Agent
+         * @description Invite a tourism agent (by email) to this catalog's private entries (AC54).
+         */
+        post: operations["invite_agent_catalogs_mine_invite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/mine/invite/{agent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Uninvite Agent
+         * @description Remove an invited agent from this catalog (AC54).
+         */
+        delete: operations["uninvite_agent_catalogs_mine_invite__agent_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/mine/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Share My Catalog */
+        put: operations["share_my_catalog_catalogs_mine_share_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/{catalog_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Catalog */
+        delete: operations["delete_catalog_catalogs__catalog_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Catalog */
+        patch: operations["update_catalog_catalogs__catalog_id__patch"];
+        trace?: never;
+    };
+    "/catalogs/{catalog_id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Entries
+         * @description Browse a catalog's entries + their items (AC50/AC54). A provider sees their own catalog's
+         *     entries (every set); an agent sees only the entries visible to them (public, or private when
+         *     invited), with expiry/off-limits applied via the visibility choke-point. A catalog with nothing
+         *     visible to the agent looks like missing (404), so its existence can't be probed.
+         */
+        get: operations["list_catalog_entries_catalogs__catalog_id__entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogs/{catalog_id}/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Share Catalog
+         * @description Set the agents a private catalog is shared with (AC49). Only real tourism agents are kept.
+         */
+        put: operations["share_catalog_catalogs__catalog_id__share_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -501,6 +836,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Media
+         * @description List the caller's own assets, optionally filtered by source (Local / Agent). Owner-scoped.
+         */
+        get: operations["list_media_me_library_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/library/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate
+         * @description Generate an image + text into your Agent storage (AC51). Image comes from the configured
+         *     image model (AC52), with a deterministic stub fallback when no key is set — image + text only;
+         *     no generated video/animation (that comes from sprites).
+         */
+        post: operations["generate_me_library_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/library/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Text
+         * @description Save a text snippet into your Local storage (AC51).
+         */
+        post: operations["add_text_me_library_text_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/library/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Media
+         * @description Upload an image or video into your Local storage (AC51).
+         */
+        post: operations["upload_media_me_library_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/media": {
         parameters: {
             query?: never;
@@ -537,6 +954,26 @@ export interface paths {
         head?: never;
         /** Update Organization */
         patch: operations["update_organization_me_organization_patch"];
+        trace?: never;
+    };
+    "/me/organization/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Logo
+         * @description Upload the org logo (jpg/jpeg/png) → store it + point ``logo_url`` at the served asset.
+         */
+        post: operations["upload_logo_me_organization_logo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/me/performance": {
@@ -829,6 +1266,7 @@ export interface components {
             status?: components["schemas"]["EntryStatus"] | null;
             /** Valid From */
             valid_from?: string | null;
+            visibility?: components["schemas"]["EntryVisibility"] | null;
         };
         /**
          * AdminCreateUserRequest
@@ -842,6 +1280,29 @@ export interface components {
             /** Password */
             password: string;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * AgentInvite
+         * @description Invite an agent to a catalog's private entries by email (AC54).
+         */
+        AgentInvite: {
+            /** Email */
+            email: string;
+        };
+        /**
+         * AgentRef
+         * @description An invited agent, resolved for display (AC54).
+         */
+        AgentRef: {
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Email */
+            email: string;
+            /** Id */
+            id: number;
         };
         /** AgentRunOut */
         AgentRunOut: {
@@ -922,10 +1383,40 @@ export interface components {
             /** Term */
             term: string;
         };
+        /** Body_upload_cover_catalog__entry_id__cover_post */
+        Body_upload_cover_catalog__entry_id__cover_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_image_catalog__entry_id__image_post */
         Body_upload_image_catalog__entry_id__image_post: {
             /** File */
             file: string;
+        };
+        /** Body_upload_logo_me_organization_logo_post */
+        Body_upload_logo_me_organization_logo_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_media_item_catalog__entry_id__items_media_post */
+        Body_upload_media_item_catalog__entry_id__items_media_post: {
+            /** File */
+            file: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
+        /** Body_upload_media_me_library_upload_post */
+        Body_upload_media_me_library_upload_post: {
+            /** File */
+            file: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
         };
         /** BrandKitOut */
         BrandKitOut: {
@@ -958,10 +1449,77 @@ export interface components {
             website?: string | null;
         };
         /**
+         * CatalogCreate
+         * @description Provider creates a catalog (AC49).
+         */
+        CatalogCreate: {
+            /**
+             * Category
+             * @default
+             */
+            category: string;
+            /** Name */
+            name: string;
+            /** @default private */
+            visibility: components["schemas"]["CatalogVisibility"];
+        };
+        /** CatalogOut */
+        CatalogOut: {
+            /** Category */
+            category: string;
+            /**
+             * Entry Count
+             * @default 0
+             */
+            entry_count: number;
+            /** Id */
+            id: number;
+            /**
+             * Invited Agents
+             * @default []
+             */
+            invited_agents: components["schemas"]["AgentRef"][];
+            /** Name */
+            name: string;
+            /** Provider Id */
+            provider_id: number;
+            /**
+             * Shared Agent Ids
+             * @default []
+             */
+            shared_agent_ids: number[];
+            visibility: components["schemas"]["CatalogVisibility"];
+        };
+        /**
+         * CatalogShareUpdate
+         * @description Set the agent ids a private catalog is shared with (AC49).
+         */
+        CatalogShareUpdate: {
+            /** Shared Agent Ids */
+            shared_agent_ids?: number[];
+        };
+        /**
          * CatalogType
          * @enum {string}
          */
         CatalogType: "event" | "place" | "opportunity" | "offer" | "itinerary";
+        /**
+         * CatalogUpdate
+         * @description Rename / re-categorise / re-publish a catalog (AC49). Only provided fields change.
+         */
+        CatalogUpdate: {
+            /** Category */
+            category?: string | null;
+            /** Name */
+            name?: string | null;
+            visibility?: components["schemas"]["CatalogVisibility"] | null;
+        };
+        /**
+         * CatalogVisibility
+         * @description A catalog's distribution gate (AC49): public = every agent; private = only shared agents.
+         * @enum {string}
+         */
+        CatalogVisibility: "public" | "private";
         /** ClaimSourceOut */
         ClaimSourceOut: {
             /** Claim */
@@ -1090,6 +1648,10 @@ export interface components {
             attributes?: {
                 [key: string]: unknown;
             } | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
             /** Custom Sections */
             custom_sections?: components["schemas"]["CustomSection"][] | null;
             /** Description */
@@ -1100,8 +1662,12 @@ export interface components {
             highlights?: string[] | null;
             /** Market Tags */
             market_tags?: string[] | null;
+            season?: components["schemas"]["Season"] | null;
+            /** State */
+            state?: string | null;
             /** Title */
             title?: string | null;
+            type?: components["schemas"]["CatalogType"] | null;
         };
         /** EntryCreate */
         EntryCreate: {
@@ -1109,6 +1675,18 @@ export interface components {
             attributes?: {
                 [key: string]: unknown;
             };
+            /** Catalog Id */
+            catalog_id?: number | null;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /**
+             * Country
+             * @default
+             */
+            country: string;
             /** Custom Sections */
             custom_sections?: components["schemas"]["CustomSection"][];
             /**
@@ -1124,11 +1702,19 @@ export interface components {
             highlights?: string[];
             /** Market Tags */
             market_tags?: string[];
+            season?: components["schemas"]["Season"] | null;
+            /**
+             * State
+             * @default
+             */
+            state: string;
             /** Title */
             title: string;
             type: components["schemas"]["CatalogType"];
             /** Valid From */
             valid_from?: string | null;
+            /** @default draft */
+            visibility: components["schemas"]["EntryVisibility"];
         };
         /** EntryOut */
         EntryOut: {
@@ -1146,6 +1732,28 @@ export interface components {
             };
             /** Brand Safe */
             brand_safe: boolean;
+            /** Catalog Id */
+            catalog_id?: number | null;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /**
+             * Country
+             * @default
+             */
+            country: string;
+            /**
+             * Cover Object Key
+             * @default
+             */
+            cover_object_key: string;
+            /**
+             * Created By Email
+             * @default
+             */
+            created_by_email: string;
             /**
              * Custom Sections
              * @default []
@@ -1165,8 +1773,18 @@ export interface components {
             highlights: string[];
             /** Id */
             id: number;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["ItemOut"][];
             /** Market Tags */
             market_tags: string[];
+            /**
+             * Org Name
+             * @default
+             */
+            org_name: string;
             /** Provider Id */
             provider_id: number;
             /**
@@ -1174,12 +1792,20 @@ export interface components {
              * @default
              */
             review_reason: string;
+            season?: components["schemas"]["Season"] | null;
+            /**
+             * State
+             * @default
+             */
+            state: string;
             status: components["schemas"]["EntryStatus"];
             /** Title */
             title: string;
             type: components["schemas"]["CatalogType"];
             /** Valid From */
             valid_from?: string | null;
+            /** @default draft */
+            visibility: components["schemas"]["EntryVisibility"];
         };
         /**
          * EntryStatus
@@ -1188,6 +1814,48 @@ export interface components {
          * @enum {string}
          */
         EntryStatus: "draft" | "in_review" | "approved" | "withdrawn";
+        /**
+         * EntryVisibility
+         * @description Per-entry distribution within a catalog (AC54): the three sets a provider sorts entries into.
+         *
+         *     draft   = work in progress, visible to no agent (the default for a new entry);
+         *     public  = visible to every agent;
+         *     private = visible only to the agents invited on the entry's catalog (``shared_agent_ids``).
+         * @enum {string}
+         */
+        EntryVisibility: "draft" | "public" | "private";
+        /**
+         * GenerateRequest
+         * @description Ask the AI layer to generate an image + text into the user's Agent storage (AC51).
+         */
+        GenerateRequest: {
+            /** Prompt */
+            prompt: string;
+        };
+        /** GeoCountry */
+        GeoCountry: {
+            /** Name */
+            name: string;
+            /** States */
+            states: components["schemas"]["GeoState"][];
+        };
+        /**
+         * GeoData
+         * @description Curated location hierarchy + the fixed season list for the catalog forms + filters (AC53).
+         */
+        GeoData: {
+            /** Countries */
+            countries: components["schemas"]["GeoCountry"][];
+            /** Seasons */
+            seasons: components["schemas"]["SeasonOption"][];
+        };
+        /** GeoState */
+        GeoState: {
+            /** Cities */
+            cities: string[];
+            /** Name */
+            name: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1210,6 +1878,53 @@ export interface components {
             title: string;
             /** Type */
             type: string;
+        };
+        /**
+         * ItemKind
+         * @description The kind of a first-class entry item (AC50).
+         * @enum {string}
+         */
+        ItemKind: "text" | "image" | "video";
+        /**
+         * ItemOut
+         * @description A first-class entry item (AC50) — one text block or one media file.
+         */
+        ItemOut: {
+            /**
+             * Alt
+             * @default
+             */
+            alt: string;
+            /**
+             * Content Type
+             * @default
+             */
+            content_type: string;
+            /** Entry Id */
+            entry_id: number;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["ItemKind"];
+            /**
+             * Object Key
+             * @default
+             */
+            object_key: string;
+            /**
+             * Order
+             * @default 0
+             */
+            order: number;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
         };
         /** KnowledgeOut */
         KnowledgeOut: {
@@ -1477,6 +2192,19 @@ export interface components {
             scheduled_at?: string | null;
         };
         /**
+         * Season
+         * @description The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter.
+         * @enum {string}
+         */
+        Season: "spring" | "summer" | "autumn" | "winter" | "year_round";
+        /** SeasonOption */
+        SeasonOption: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
          * SendBackRequest
          * @description Reviewer returns an entry to its owner with a reason (AC35 / FR-14).
          */
@@ -1523,6 +2251,21 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** TextItemCreate */
+        TextItemCreate: {
+            /**
+             * Order
+             * @default 0
+             */
+            order: number;
+            /** Text */
+            text: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
         /** TokenResponse */
         TokenResponse: {
             /** Access Token */
@@ -1533,6 +2276,42 @@ export interface components {
              */
             token_type: string;
         };
+        /**
+         * UserAssetOut
+         * @description A user's own stored asset (AC51) — uploaded (``local``) or generated (``agent``).
+         */
+        UserAssetOut: {
+            /**
+             * Content Type
+             * @default
+             */
+            content_type: string;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["ItemKind"];
+            /**
+             * Object Key
+             * @default
+             */
+            object_key: string;
+            source: components["schemas"]["UserAssetSource"];
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+        };
+        /**
+         * UserAssetSource
+         * @description Origin of a user-storage asset (AC51): user upload, or AI-service generation.
+         * @enum {string}
+         */
+        UserAssetSource: "local" | "agent";
         /** UserOut */
         UserOut: {
             /** Approved */
@@ -2104,6 +2883,10 @@ export interface operations {
         parameters: {
             query?: {
                 destination?: string | null;
+                country?: string | null;
+                state?: string | null;
+                city?: string | null;
+                season?: components["schemas"]["Season"] | null;
                 type?: components["schemas"]["CatalogType"] | null;
                 q?: string | null;
             };
@@ -2166,6 +2949,26 @@ export interface operations {
             };
         };
     };
+    geo_reference_catalog_geo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeoData"];
+                };
+            };
+        };
+    };
     content_templates_catalog_templates_get: {
         parameters: {
             query?: never;
@@ -2186,7 +2989,7 @@ export interface operations {
             };
         };
     };
-    get_for_agent_catalog__entry_id__get: {
+    get_entry_catalog__entry_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2316,6 +3119,80 @@ export interface operations {
             };
         };
     };
+    upload_cover_catalog__entry_id__cover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_cover_catalog__entry_id__cover_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_cover_catalog__entry_id__cover_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_image_catalog__entry_id__image_post: {
         parameters: {
             query?: never;
@@ -2353,6 +3230,139 @@ export interface operations {
             };
         };
     };
+    list_items_catalog__entry_id__items_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_item_catalog__entry_id__items_media_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_media_item_catalog__entry_id__items_media_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_text_item_catalog__entry_id__items_text_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_item_catalog__entry_id__items__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     send_back_catalog__entry_id__send_back_post: {
         parameters: {
             query?: never;
@@ -2375,6 +3385,379 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_own_catalogs_catalogs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"][];
+                };
+            };
+        };
+    };
+    create_catalog_catalogs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_accessible_catalogs_catalogs_accessible_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"][];
+                };
+            };
+        };
+    };
+    get_my_catalog_catalogs_mine_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+        };
+    };
+    update_my_catalog_catalogs_mine_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_entries_catalogs_mine_entries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryOut"][];
+                };
+            };
+        };
+    };
+    invite_agent_catalogs_mine_invite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentInvite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uninvite_agent_catalogs_mine_invite__agent_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    share_my_catalog_catalogs_mine_share_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogShareUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_catalog_catalogs__catalog_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_catalog_catalogs__catalog_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_catalog_entries_catalogs__catalog_id__entries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    share_catalog_catalogs__catalog_id__share_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogShareUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOut"];
                 };
             };
             /** @description Validation Error */
@@ -2651,6 +4034,136 @@ export interface operations {
             };
         };
     };
+    list_media_me_library_get: {
+        parameters: {
+            query?: {
+                source?: components["schemas"]["UserAssetSource"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_me_library_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_text_me_library_text_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TextItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_me_library_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_media_me_library_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     media_library_me_media_get: {
         parameters: {
             query?: never;
@@ -2701,6 +4214,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OrganizationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_logo_me_organization_logo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_logo_me_organization_logo_post"];
             };
         };
         responses: {

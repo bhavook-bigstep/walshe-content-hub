@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import CatalogThumb from "../../../components/catalog/CatalogThumb";
 import PageHeader from "../../../components/ui/PageHeader";
+import Select from "../../../components/ui/Select";
 import {
   ApiError,
   createCollection,
+  getGeo,
   listAgentCatalog,
   listCollections,
   updateCollection,
@@ -14,6 +16,7 @@ import {
   type CatalogType,
   type Collection,
   type Entry,
+  type GeoData,
 } from "../../../lib/api";
 
 const TYPES: readonly CatalogType[] = ["event", "place", "opportunity", "offer", "itinerary"];
@@ -41,8 +44,12 @@ type EntryWithImage = Entry & { image_key?: string | null };
 
 export default function AgentCatalogPage() {
   const [q, setQ] = useState("");
-  const [destination, setDestination] = useState("");
+  const [country, setCountry] = useState("");
+  const [state, setState] = useState("");
+  const [city, setCity] = useState("");
+  const [season, setSeason] = useState("");
   const [type, setType] = useState<CatalogType | "">("");
+  const [geo, setGeo] = useState<GeoData | null>(null);
   const [query, setQuery] = useState<CatalogQuery>({});
   const [entries, setEntries] = useState<EntryWithImage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,14 +77,28 @@ export default function AgentCatalogPage() {
     listCollections()
       .then((c) => !cancelled && setCollections(c))
       .catch(() => {});
+    getGeo()
+      .then((g) => !cancelled && setGeo(g))
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const countries = geo?.countries ?? [];
+  const states = countries.find((c) => c.name === country)?.states ?? [];
+  const cities = states.find((s) => s.name === state)?.cities ?? [];
+
   function onSearch(e: FormEvent) {
     e.preventDefault();
-    setQuery({ q: q.trim() || undefined, destination: destination.trim() || undefined, type: type || undefined });
+    setQuery({
+      q: q.trim() || undefined,
+      country: country || undefined,
+      state: state || undefined,
+      city: city || undefined,
+      season: (season || undefined) as CatalogQuery["season"],
+      type: type || undefined,
+    });
   }
 
   function add(entry: EntryWithImage) {
@@ -107,26 +128,58 @@ export default function AgentCatalogPage() {
           <span className="label">Search</span>
           <input value={q} onChange={(e) => setQ(e.target.value)} className="field" placeholder="Keyword" />
         </label>
-        <label className="flex-1 text-small" style={{ minWidth: "12rem" }}>
-          <span className="label">Destination</span>
-          <input
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            className="field"
-            placeholder="Any destination"
+        <div className="text-small" style={{ minWidth: "10rem" }}>
+          <span className="label">Country</span>
+          <Select
+            aria-label="Country"
+            value={country}
+            placeholder="All"
+            onChange={(v) => { setCountry(v); setState(""); setCity(""); }}
+            options={[{ value: "", label: "All" }, ...countries.map((c) => ({ value: c.name, label: c.name }))]}
           />
-        </label>
-        <label className="text-small">
+        </div>
+        <div className="text-small" style={{ minWidth: "10rem" }}>
+          <span className="label">State / region</span>
+          <Select
+            aria-label="State or region"
+            value={state}
+            placeholder="All"
+            disabled={!country}
+            onChange={(v) => { setState(v); setCity(""); }}
+            options={[{ value: "", label: "All" }, ...states.map((s) => ({ value: s.name, label: s.name }))]}
+          />
+        </div>
+        <div className="text-small" style={{ minWidth: "10rem" }}>
+          <span className="label">City</span>
+          <Select
+            aria-label="City"
+            value={city}
+            placeholder="All"
+            disabled={!state}
+            onChange={setCity}
+            options={[{ value: "", label: "All" }, ...cities.map((c) => ({ value: c, label: c }))]}
+          />
+        </div>
+        <div className="text-small" style={{ minWidth: "9rem" }}>
+          <span className="label">Season</span>
+          <Select
+            aria-label="Season"
+            value={season}
+            placeholder="All"
+            onChange={setSeason}
+            options={[{ value: "", label: "All" }, ...(geo?.seasons ?? []).map((s) => ({ value: s.value, label: s.label }))]}
+          />
+        </div>
+        <div className="text-small" style={{ minWidth: "9rem" }}>
           <span className="label">Type</span>
-          <select value={type} onChange={(e) => setType(e.target.value as CatalogType | "")} className="field capitalize">
-            <option value="">All</option>
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            aria-label="Type"
+            value={type}
+            placeholder="All"
+            onChange={(v) => setType(v as CatalogType | "")}
+            options={[{ value: "", label: "All" }, ...TYPES.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))]}
+          />
+        </div>
         <button type="submit" className="btn-primary h-12">
           Search
         </button>
@@ -178,10 +231,12 @@ export default function AgentCatalogPage() {
           {entries.map((e) => {
             const added = selected.some((x) => x.id === e.id);
             const inCollections = collectionsWith(e.id);
+            // AC55 — expired entries are shown greyed and can't be added to a composition.
+            const expired = e.display_status === "expired";
             return (
-              <li key={e.id} className="card card-hover group flex flex-col overflow-hidden">
+              <li key={e.id} className={`card card-hover group flex flex-col overflow-hidden ${expired ? "opacity-70" : ""}`}>
                 <div className="relative">
-                  <CatalogThumb imageKey={e.image_key ?? e.asset_keys?.[0]} alt={e.title} />
+                  <CatalogThumb imageKey={e.cover_object_key || e.image_key || e.asset_keys?.[0]} alt={e.title} className={expired ? "grayscale" : undefined} />
                   <span className="chip-verified absolute left-3.5 top-3.5">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--walshe-green))" strokeWidth="3" aria-hidden>
                       <path d="M5 13l4 4L19 7" />
@@ -197,9 +252,11 @@ export default function AgentCatalogPage() {
                     <span
                       data-testid="entry-status"
                       className={`rounded-pill px-2.5 py-0.5 text-[11px] font-semibold ${
-                        e.display_status === "expiring_soon"
-                          ? "bg-walshe-warn/15 text-walshe-warn"
-                          : "bg-walshe-stone text-walshe-grey"
+                        expired
+                          ? "bg-walshe-danger/15 text-walshe-danger"
+                          : e.display_status === "expiring_soon"
+                            ? "bg-walshe-warn/15 text-walshe-warn"
+                            : "bg-walshe-stone text-walshe-grey"
                       }`}
                     >
                       {STATUS_LABELS[e.display_status] ?? e.display_status}
@@ -215,11 +272,11 @@ export default function AgentCatalogPage() {
                   <div className="mt-auto flex flex-col gap-2 pt-2">
                     <button
                       type="button"
-                      disabled={added}
+                      disabled={added || expired}
                       onClick={() => add(e)}
                       className="btn-secondary w-full disabled:opacity-60"
                     >
-                      {added ? "Added to composition" : "Add to composition"}
+                      {expired ? "Expired — can't add" : added ? "Added to composition" : "Add to composition"}
                     </button>
                     <button
                       type="button"
