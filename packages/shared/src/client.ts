@@ -506,6 +506,32 @@ export async function refreshEngagement(): Promise<{ synced: number }> {
   };
 }
 
+// --- Campaigns (Inc 1) ---
+export type Campaign = Schemas["CampaignOut"];
+export type CampaignDetail = Schemas["CampaignDetailOut"];
+export type CampaignPost = Schemas["CampaignPostOut"];
+export type CampaignCreate = Schemas["CampaignCreate"];
+
+export async function createCampaign(body: CampaignCreate): Promise<Campaign> {
+  return (await (await send("/campaigns", json(body))).json()) as Campaign;
+}
+export async function listCampaigns(): Promise<Campaign[]> {
+  return (await (await send("/campaigns")).json()) as Campaign[];
+}
+export async function getCampaign(id: number): Promise<CampaignDetail> {
+  return (await (await send(`/campaigns/${id}`)).json()) as CampaignDetail;
+}
+export async function scheduleCampaignPost(id: number, form: FormData): Promise<CampaignPost> {
+  return (await (await send(`/campaigns/${id}/posts`, { method: "POST", body: form })).json()) as CampaignPost;
+}
+export async function patchCampaignPost(
+  id: number,
+  postId: number,
+  form: FormData,
+): Promise<CampaignPost> {
+  return (await (await send(`/campaigns/${id}/posts/${postId}`, { method: "PATCH", body: form })).json()) as CampaignPost;
+}
+
 /** Assets need the bearer header, so <img src> cannot hit the API directly: authed fetch -> blob -> object URL. */
 export async function fetchAssetObjectUrl(key: string): Promise<string> {
   const encoded = key.split("/").map(encodeURIComponent).join("/");
