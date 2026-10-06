@@ -199,6 +199,192 @@ _SEED_ATTRIBUTES_BY_TITLE: dict[str, dict] = {
     },
 }
 
+# Real editorial copy per entry (description + highlights) so the catalog reads like genuine
+# destination content, not placeholder/demo text. title -> {description, highlights:[...]}.
+_SEED_CONTENT: dict[str, dict] = {
+    "Harbour Festival": {
+        "description": "A week of waterfront music, street theatre and seafood on Galway's historic"
+        " docks, drawing crowds from across the west of Ireland.",
+        "highlights": [
+            "Live music across five harbourside stages",
+            "Local seafood and craft markets",
+            "Family-friendly daytime programme",
+        ],
+    },
+    "Cliffs of Moher": {
+        "description": "Rising 214 metres above the Atlantic, the Cliffs of Moher are Ireland's"
+        " most visited natural attraction, with views to the Aran Islands and the open ocean.",
+        "highlights": [
+            "214m sea cliffs with viewing platforms",
+            "O'Brien's Tower and visitor centre",
+            "Signposted coastal walking trails",
+        ],
+    },
+    "Trade Showcase": {
+        "description": "An invitation-only trade showcase connecting Irish destination partners"
+        " with international travel agents ahead of the new season.",
+        "highlights": [
+            "Meet destination suppliers face to face",
+            "Pre-scheduled one-to-one meetings",
+            "Commission and incentive deals",
+        ],
+    },
+    "Autumn Package": {
+        "description": "A three-night autumn escape in Killarney with guided Ring of Kerry touring,"
+        " National Park access and a traditional music evening.",
+        "highlights": [
+            "Three nights with breakfast",
+            "Guided Ring of Kerry day tour",
+            "Entry to Killarney National Park",
+        ],
+    },
+    "Wild Atlantic Way": {
+        "description": "A seven-day self-drive along Ireland's western seaboard, from Galway's bays"
+        " through Connemara to the cliffs and islands of Mayo.",
+        "highlights": [
+            "Seven days, flexible self-drive",
+            "Connemara, Westport and Achill Island",
+            "Curated stops and local stays",
+        ],
+    },
+    "Vivid Sydney": {
+        "description": "Vivid Sydney transforms the harbour city with large-scale light"
+        " installations, live music and ideas talks across three winter weeks.",
+        "highlights": [
+            "City-wide light art and projections",
+            "Live music programme",
+            "Harbour foreshore light walk",
+        ],
+    },
+    "Great Barrier Reef": {
+        "description": "The world's largest coral reef system stretches more than 2,300 kilometres"
+        " off the Queensland coast, with snorkelling, diving and reef cruises from Cairns and Port"
+        " Douglas.",
+        "highlights": [
+            "World Heritage-listed coral reef",
+            "Snorkel and dive day trips",
+            "Departures from Cairns and Port Douglas",
+        ],
+    },
+    "Australian Trade Expo": {
+        "description": "A national travel trade expo in Melbourne connecting Australian destination"
+        " partners with agents and tour operators for the year ahead.",
+        "highlights": [
+            "National network of suppliers",
+            "Scheduled trade appointments",
+            "Partner incentives and famils",
+        ],
+    },
+    "Red Centre Getaway": {
+        "description": "A four-night Red Centre package based in Alice Springs with Uluru sunrise"
+        " touring, Kings Canyon and a desert dinner under the stars.",
+        "highlights": [
+            "Four nights with daily breakfast",
+            "Uluru sunrise and base walk",
+            "Kings Canyon rim walk",
+        ],
+    },
+    "Great Ocean Road Drive": {
+        "description": "A five-day coastal drive from Geelong past Bells Beach and Apollo Bay"
+        " to the Twelve Apostles, with rainforest and surf-town stops along the way.",
+        "highlights": [
+            "Five-day self-drive itinerary",
+            "Twelve Apostles and Loch Ard Gorge",
+            "Otways rainforest and coastal towns",
+        ],
+    },
+    "Sydney Opera House": {
+        "description": "A UNESCO World Heritage masterpiece on Sydney Harbour, hosting opera,"
+        " theatre and concerts beneath its iconic sails.",
+        "highlights": [
+            "Guided architecture tours",
+            "Year-round performance programme",
+            "Harbourside dining",
+        ],
+    },
+    "Uluru-Kata Tjuta": {
+        "description": "A vast sandstone monolith sacred to the Anangu people, Uluru anchors a"
+        " desert national park of dramatic sunrises, sunsets and ancient rock art.",
+        "highlights": [
+            "Uluru base walk and rock art",
+            "Kata Tjuta (The Olgas) trails",
+            "Sunrise and sunset viewing",
+        ],
+    },
+    "Daintree Rainforest": {
+        "description": "One of the oldest living rainforests on earth, the Daintree meets the reef"
+        " north of Port Douglas, with boardwalks, river cruises and abundant wildlife.",
+        "highlights": [
+            "Ancient World Heritage rainforest",
+            "Daintree River wildlife cruises",
+            "Where rainforest meets the reef",
+        ],
+    },
+    "Twelve Apostles": {
+        "description": "Towering limestone stacks rising from the Southern Ocean along Victoria's"
+        " Great Ocean Road, best seen at sunrise and sunset.",
+        "highlights": [
+            "Iconic limestone sea stacks",
+            "Boardwalk lookouts",
+            "Sunrise and sunset photography",
+        ],
+    },
+    "Rottnest Island": {
+        "description": "A car-free island off Perth known for quokkas, white-sand bays and clear"
+        " snorkelling waters, reached by a short ferry.",
+        "highlights": [
+            "Home of the quokka",
+            "Cycle and snorkel the bays",
+            "Short ferry from Perth and Fremantle",
+        ],
+    },
+    "Melbourne Cup": {
+        "description": "The race that stops a nation, Australia's premier thoroughbred race draws a"
+        " global crowd to Flemington on the first Tuesday of November.",
+        "highlights": [
+            "Group 1 feature race",
+            "Fashions on the Field",
+            "Flemington trackside hospitality",
+        ],
+    },
+    "Sydney New Year's Eve": {
+        "description": "Sydney's harbour fireworks are among the world's first and largest New Year"
+        " celebrations, viewed from foreshores around the Opera House and bridge.",
+        "highlights": [
+            "Harbour Bridge midnight fireworks",
+            "9pm family fireworks",
+            "Foreshore vantage points",
+        ],
+    },
+    "Australian Open": {
+        "description": "The year's first tennis Grand Slam brings the world's top players to"
+        " Melbourne Park across two weeks of summer.",
+        "highlights": [
+            "Grand Slam main draw",
+            "Rod Laver Arena sessions",
+            "Festival precinct and live sites",
+        ],
+    },
+    "Darwin Festival": {
+        "description": "An open-air arts festival celebrating Top End music, theatre and food"
+        " through Darwin's balmy dry-season evenings.",
+        "highlights": [
+            "Open-air music and theatre",
+            "Top End food and markets",
+            "Dry-season evening programme",
+        ],
+    },
+    "Byron Bay Bluesfest": {
+        "description": "A long-running roots and blues festival staged over the Easter long weekend"
+        " at the Byron Events Farm.",
+        "highlights": [
+            "Roots, blues and world music",
+            "Multiple stages over five days",
+            "Easter long weekend",
+        ],
+    },
+}
+
 
 def _upsert_tenant(db: Session, name: str) -> Tenant:
     tenant = db.execute(select(Tenant).where(Tenant.name == name)).scalar_one_or_none()
@@ -262,11 +448,13 @@ def _upsert_entry(
         )
     ).scalar_one_or_none()
     country, state, city, season = _SEED_LOCATION.get(title, ("Ireland", destination, "", None))
+    content = _SEED_CONTENT.get(title, {})
+    place = city or state or country
     if entry is None:
         entry = CatalogEntry(
             type=type_,
             title=title,
-            description=f"Seeded {type_.value} in {destination}.",
+            description=content.get("description", f"{title} in {place}."),
             destination=destination,
             country=country,
             state=state,
@@ -283,16 +471,8 @@ def _upsert_entry(
             org_name=org_name,
             catalog_id=catalog_id,
             attributes=_SEED_ATTRIBUTES_BY_TITLE.get(title, _SEED_ATTRIBUTES.get(type_, {})),
-            highlights=[
-                f"Signature {type_.value} in {state or country}",
-                "Trade-ready assets included",
-            ],
-            custom_sections=[
-                {
-                    "title": "Why agents love it",
-                    "body": f"A reliable, verified {type_.value} in {destination}.",
-                }
-            ],
+            highlights=content.get("highlights", []),
+            custom_sections=[],
         )
         db.add(entry)
         db.flush()
