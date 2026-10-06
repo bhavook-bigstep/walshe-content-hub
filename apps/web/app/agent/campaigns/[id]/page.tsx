@@ -1,13 +1,13 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AiCaptionControls from "../../../../components/ai/AiCaptionControls";
 import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar";
 import PageHeader from "../../../../components/ui/PageHeader";
 import {
-  ApiError, getCampaign, getProject, listProjects, patchCampaignPost, scheduleCampaignPost,
-  type CampaignDetail, type CampaignPost, type Project,
+  ApiError, deleteCampaign, getCampaign, getProject, listProjects, patchCampaignPost,
+  scheduleCampaignPost, type CampaignDetail, type CampaignPost, type Project,
 } from "../../../../lib/api";
 import {
   buildCampaignPatchForm, buildCampaignPostForm, CAMPAIGN_PLATFORMS, localInputToOffsetISO,
@@ -26,6 +26,8 @@ function isoToLocalInput(iso: string | null): string {
 
 export default function CampaignDetailPage() {
   const id = Number(useParams().id);
+  const router = useRouter();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
@@ -76,6 +78,18 @@ export default function CampaignDetailPage() {
     }
   }
 
+  async function onDelete() {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteCampaign(id);
+      router.push("/agent/campaigns");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not delete the campaign.");
+      setBusy(false);
+    }
+  }
+
   function openEdit(p: CampaignPost) {
     setSelected(p);
     setEditCaption(p.caption);
@@ -105,8 +119,28 @@ export default function CampaignDetailPage() {
 
   return (
     <div>
-      <PageHeader title={campaign?.name ?? "Campaign"}
-        description={campaign ? `${campaign.starts_on} → ${campaign.ends_on}` : ""} />
+      <PageHeader
+        title={campaign?.name ?? "Campaign"}
+        description={campaign ? `${campaign.starts_on} → ${campaign.ends_on}` : ""}
+        action={
+          confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-small text-walshe-grey">Delete this campaign?</span>
+              <button type="button" className="btn-primary h-10 border-walshe-danger/40 bg-walshe-danger text-white"
+                      disabled={busy} onClick={() => void onDelete()}>
+                {busy ? "Deleting…" : "Delete"}
+              </button>
+              <button type="button" className="btn-ghost h-10" disabled={busy}
+                      onClick={() => setConfirmDelete(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button type="button" className="btn-ghost h-10 text-walshe-danger"
+                    onClick={() => setConfirmDelete(true)}>
+              Delete campaign
+            </button>
+          )
+        }
+      />
 
       {error && (
         <p role="alert" className="card mb-6 border-walshe-danger/30 p-4 text-small text-walshe-danger">

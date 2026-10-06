@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app import audit, clock
@@ -136,6 +136,21 @@ def get_campaign(
         **_campaign_out(c, len(posts)).model_dump(),
         posts=[CampaignPostOut.model_validate(p) for p in posts],
     )
+
+
+@router.delete("/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_campaign(
+    campaign_id: int,
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+) -> None:
+    """Delete a campaign and its posts (Contract 3: traceable)."""
+    campaign = _owned_campaign(db, campaign_id, user)
+    db.execute(delete(Post).where(Post.campaign_id == campaign.id))
+    audit.record(db, actor_id=user.id, action="delete", target_type="campaign",
+                 target_id=campaign.id)
+    db.delete(campaign)
+    db.commit()
 
 
 @router.post("/{campaign_id}/posts", response_model=CampaignPostOut,

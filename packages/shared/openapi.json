@@ -4576,6 +4576,45 @@
       }
     },
     "/campaigns/{campaign_id}": {
+      "delete": {
+        "description": "Delete a campaign and its posts (Contract 3: traceable).",
+        "operationId": "delete_campaign_campaigns__campaign_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "title": "Campaign Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Campaign",
+        "tags": [
+          "campaigns"
+        ]
+      },
       "get": {
         "operationId": "get_campaign_campaigns__campaign_id__get",
         "parameters": [

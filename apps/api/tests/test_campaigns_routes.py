@@ -42,3 +42,18 @@ def test_detail_includes_posts_empty_and_non_owner_404(client):
 def test_ends_before_start_is_422(client):
     a = auth_header(client, Role.tourism_agent)
     assert _create(client, a, ends_on="2026-07-01").status_code == 422
+
+
+def test_delete_campaign_removes_it(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid = _create(client, a).json()["id"]
+    assert client.delete(f"/campaigns/{cid}", headers=a).status_code == 204
+    assert client.get(f"/campaigns/{cid}", headers=a).status_code == 404
+    assert client.get("/campaigns", headers=a).json() == []
+
+
+def test_delete_campaign_non_owner_404(client, second_agent_headers):
+    a = auth_header(client, Role.tourism_agent)
+    cid = _create(client, a).json()["id"]
+    assert client.delete(f"/campaigns/{cid}", headers=second_agent_headers).status_code == 404
+    assert client.get(f"/campaigns/{cid}", headers=a).status_code == 200  # still there

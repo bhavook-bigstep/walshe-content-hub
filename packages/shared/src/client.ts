@@ -594,6 +594,9 @@ export async function listCampaigns(): Promise<Campaign[]> {
 export async function getCampaign(id: number): Promise<CampaignDetail> {
   return (await (await send(`/campaigns/${id}`)).json()) as CampaignDetail;
 }
+export async function deleteCampaign(id: number): Promise<void> {
+  await send(`/campaigns/${id}`, { method: "DELETE" });
+}
 export async function scheduleCampaignPost(id: number, form: FormData): Promise<CampaignPost> {
   return (await (await send(`/campaigns/${id}/posts`, { method: "POST", body: form })).json()) as CampaignPost;
 }
