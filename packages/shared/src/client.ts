@@ -58,6 +58,7 @@ export type CatalogType = Entry["type"];
 export type EntryStatus = Entry["status"];
 export type DesignRequest = Schemas["DesignRequest"];
 export type VideoRequest = Schemas["VideoRequest"];
+export type FramesVideoRequest = Schemas["FramesVideoRequest"];
 export type ScheduleRequest = Schemas["ScheduleRequest"];
 export type PublishRequest = Schemas["PublishRequest"];
 export type Post = Schemas["PostOut"];
@@ -581,6 +582,11 @@ export async function builderDesign(body: DesignRequest): Promise<Record<string,
 /** Renders items to an MP4 blob (server never accepts client file paths). */
 export async function renderVideo(body: VideoRequest): Promise<Blob> {
   return (await send("/render/video", json(body))).blob();
+}
+
+/** WYSIWYG frame-capture video: the client posts pre-rendered animation frames; server encodes. */
+export async function renderVideoFrames(body: FramesVideoRequest): Promise<Blob> {
+  return (await send("/render/video-frames", json(body))).blob();
 }
 
 /** Dry-run the pre-send checks (AC34) so the agent sees issues before trying to send. */

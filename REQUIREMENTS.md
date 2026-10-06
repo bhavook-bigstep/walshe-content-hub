@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.31.0 |
+| **Version** | 2.32.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -545,13 +545,23 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   Fabric objects) and, in the next increment, the video frame-capture — so preview == export
   (Contract 4). The Inspector edits an element's entrance + emphasis. Proof: web (engine
   interpolation, arrival/settle hold, motion-path lerp, determinism, loop, presets, set/clear op).
+- **AC78** — **WYSIWYG frame-capture video export.** "Generate video" renders each scene's
+  animation **frame-by-frame in the browser** — the same Fabric renderer as the canvas, driven by
+  the same engine (AC77) at `nodeStateAt(node, t)` — and posts the JPEG frame sequences to
+  `POST /render/video-frames`. The server **sequences each scene's frames into a clip** (image2 →
+  H.264, even dimensions forced) and **stitches the scenes with their transitions** (reusing the
+  crossfade/concat path), optional TTS narration under each scene (off by default). So the exported
+  MP4 is exactly the animated preview (no server-side text/zoom synthesis). Frames are inert image
+  bytes (`data:` URLs) composed from approved assets — never file paths, never a network fetch
+  (Contracts 1/2); deterministic given the design (Contract 4). Proof: api (frame-clip command
+  shape, per-scene sequence + stitch, the agent-only route decodes frames and rejects non-`data:`).
 
-**Priority tiers** (build order; acceptance reports honestly against all 77):
+**Priority tiers** (build order; acceptance reports honestly against all 78):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -590,6 +600,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.32.0 | 2026-10-06 | **WYSIWYG frame-capture video export (phase 2)** (added **AC78**): "Generate video" no longer stitches catalog covers with synthesised captions (which rendered as empty colour screens on ffmpeg builds without `drawtext`). It now **rasterises each scene's animation frame-by-frame in the browser** — the same Fabric renderer + the AC77 engine — and posts the JPEG frames to a new `POST /render/video-frames`; the server sequences each scene's frames into an H.264 clip and **stitches them with the scenes' transitions** (optional TTS narration, off by default). The MP4 is exactly the animated preview. Frames are inert `data:` image bytes (no file paths, no network fetch); the frame-encode path reuses the ultrafast/stitch machinery. Regenerated the API types for the new endpoint. All prior ACs stay green. | user + Claude |
 | 2.31.0 | 2026-10-06 | **Scene animation — keyframe model + engine + timeline preview (phase 1)** (added **AC77**): elements now carry a declarative, JSON keyframe **animation** on their node (`{keyframes:[{t,x,y,scale,rotation,opacity,ease}], enter?, loop?}`), stored in the workspace scenes. A pure, deterministic **engine** (`lib/studio/anim.ts` `nodeStateAt`) interpolates the track — motion paths, size/opacity/rotation, entrance presets (fade/rise/slide/scale) and pulse/bob emphasis — and the **same engine** drives the live canvas preview: the Timeline gained a **play/scrub transport** that animates the Fabric objects, and the Inspector gained **Animation** controls (entrance type/start/duration/easing + emphasis). The chosen mechanism is in-boundary (no cloud/egress), with the workspace JSON as the single source of truth; phase 2 will reuse this engine for WYSIWYG video frame-capture export. All prior ACs stay green. | user + Claude |
 | 2.30.0 | 2026-10-06 | **Video renders on ffmpeg builds without `drawtext` + export progress spinner** (fixes within **AC13**/**AC47**, enhances **AC12**): "Generate video" failed (500 → "Video rendering unavailable") on ffmpeg builds that omit the `drawtext` filter (e.g. a minimal Homebrew ffmpeg). The renderer now **probes the binary once and degrades gracefully** — when `drawtext` is absent it drops the burned-in title/caption overlay and still produces the MP4 (captions remain in the sidecar `.srt`). Also added a **circular processing spinner** shown in the always-visible menu bar (and on the Timeline button) while a PNG/PDF/HTML export or a video render is in progress. All prior ACs stay green. | user + Claude |
 | 2.29.0 | 2026-10-06 | **Long Travel Itinerary template (multi-page PDF + video)** (enhances **AC62**/**AC12**/**AC47**): added a sixth built-in template — an 8-scene pamphlet itinerary (cover · six day pages with photo zones · closing). Because one scene = one PDF page and one video clip, the same template exports as a **multi-page PDF** and as a **video**: each day's dropped catalog photo becomes that scene's picture, the scene name is the video title and its one-line summary the caption. All prior ACs stay green. | user + Claude |

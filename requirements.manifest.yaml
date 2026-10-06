@@ -471,3 +471,9 @@ acceptance:
       - "apps/web/tests/anim.test.ts::layers a pulse loop on top of the settled scale"
       - "apps/web/tests/anim.test.ts::enterTrack presets produce an invisible→visible entrance anchored at the base transform"
       - "apps/web/tests/anim.test.ts::setNodeAnim sets and clears a node's animation"
+  AC78:
+    tier: P2
+    api:
+      - "apps/api/tests/test_video.py::test_build_frames_clip_cmd_structure"
+      - "apps/api/tests/test_video.py::test_render_video_frames_sequences_and_stitches"
+      - "apps/api/tests/test_video.py::test_video_frames_route"

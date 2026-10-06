@@ -1736,6 +1736,84 @@
         "title": "EntryVisibility",
         "type": "string"
       },
+      "FrameScene": {
+        "properties": {
+          "caption": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Caption",
+            "type": "string"
+          },
+          "duration_ms": {
+            "maximum": 60000.0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "frames": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 900,
+            "minItems": 1,
+            "title": "Frames",
+            "type": "array"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Title",
+            "type": "string"
+          },
+          "transition": {
+            "default": "none",
+            "enum": [
+              "none",
+              "fade",
+              "slide-left",
+              "zoom"
+            ],
+            "title": "Transition",
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration_ms",
+          "frames"
+        ],
+        "title": "FrameScene",
+        "type": "object"
+      },
+      "FramesVideoRequest": {
+        "properties": {
+          "fps": {
+            "default": 20,
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "narrate": {
+            "default": false,
+            "title": "Narrate",
+            "type": "boolean"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/FrameScene"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Scenes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenes"
+        ],
+        "title": "FramesVideoRequest",
+        "type": "object"
+      },
       "GenerateRequest": {
         "description": "Ask the AI layer to generate an image + text into the user's Agent storage (AC51).",
         "properties": {
@@ -7207,6 +7285,51 @@
           }
         ],
         "summary": "Render Video",
+        "tags": [
+          "render"
+        ]
+      }
+    },
+    "/render/video-frames": {
+      "post": {
+        "description": "Encode pre-rendered WYSIWYG animation frames into an MP4 (preview == export).",
+        "operationId": "render_video_frames_render_video_frames_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FramesVideoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Render Video Frames",
         "tags": [
           "render"
         ]

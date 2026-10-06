@@ -26,7 +26,7 @@ import {
   getWorkspace,
   listCollections,
   listDesignTemplates,
-  renderVideo,
+  renderVideoFrames,
   resolveCollection,
   saveWorkspace,
   updateProject,
@@ -40,7 +40,7 @@ import {
 } from "../../../lib/api";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
 import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
-import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
+import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
 import {
   DEFAULT_SCENE_DURATION_MS,
@@ -493,19 +493,31 @@ function StudioEditor() {
     }
   }
 
-  // AC47 — stitch the ordered storyboard scenes (durations + transitions, captions, approved
-  // catalog images) into an MP4 via the server render service and download it.
+  // AC78 — WYSIWYG video: rasterise each animated scene frame-by-frame with the shared engine
+  // (so the MP4 matches the canvas preview), post the frames, and download the stitched video.
   async function generateVideo() {
     setVideoMsg(null);
     setRendering(true);
     try {
-      const items = (panelItems ?? []).map((i) => ({
-        id: Number(i.id),
-        title: i.title,
-        description: i.description,
-      }));
-      const body = designToVideoRequest(design, items, true);
-      const blob = await renderVideo(body);
+      // Stop any running preview so it doesn't fight the offscreen frame render.
+      setPlaying(false);
+      stopRaf();
+      controlsRef.current?.previewAt(null);
+      setPlayhead(0);
+
+      const sceneFrames = await renderDesignFrames(design, EXPORT_FPS);
+      const body = {
+        fps: EXPORT_FPS,
+        narrate: false,
+        scenes: design.scenes.map((s, i) => ({
+          title: s.name,
+          caption: (s.nodes.find((n) => n.type === "text" && n.text?.trim())?.text ?? "").slice(0, 200),
+          duration_ms: s.durationMs,
+          transition: s.transition,
+          frames: sceneFrames[i].frames,
+        })),
+      };
+      const blob = await renderVideoFrames(body);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

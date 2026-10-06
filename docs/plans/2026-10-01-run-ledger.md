@@ -189,7 +189,8 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC75 | P2 | met | 4/4 |
 | AC76 | P2 | met | 13/13 |
 | AC77 | P2 | met | 7/7 |
+| AC78 | P2 | met | 3/3 |
 
-**Totals:** 77 met · 0 partial · 0 missing · 77 total.
+**Totals:** 78 met · 0 partial · 0 missing · 78 total.
 
 <!-- END GENERATED ACCEPTANCE MATRIX -->

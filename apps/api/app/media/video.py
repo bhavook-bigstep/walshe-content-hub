@@ -14,6 +14,7 @@ from __future__ import annotations
 import functools
 import logging
 import math
+import os
 import shutil
 import subprocess
 import tempfile
@@ -333,8 +334,14 @@ def render_video(
             f"{scene.caption or scene.title}\n"
         )
     (work / "captions.srt").write_text("\n".join(srt), encoding="utf-8")
+    return _stitch(scenes, clips, work, runner, use_xfade=use_xfade)
 
-    # A crossfade that fails (e.g. an ffmpeg build without xfade) degrades to the hard-cut concat.
+
+def _stitch(
+    scenes: Scenes, clips: list[str], work: Path, runner: Callable[..., Any], *, use_xfade: bool
+) -> str:
+    """Join per-scene clips into ``<work>/video.mp4`` — crossfade when requested, else a hard cut.
+    A crossfade that fails (an ffmpeg build without xfade) degrades to the hard-cut concat."""
     if use_xfade:
         try:
             return _stitch_xfade(scenes, clips, work, runner)
@@ -345,6 +352,87 @@ def render_video(
     list_file.write_text("".join(f"file '{c}'\n" for c in clips), encoding="utf-8")
     runner(build_concat_cmd(str(list_file), out), check=True, capture_output=True)
     return out
+
+
+def build_frames_clip_cmd(pattern: str, fps: int, out: str, audio: str | None = None) -> list[str]:
+    """ffmpeg argv to encode one scene clip from an image SEQUENCE (frame%05d.jpg). The frames
+    already carry the animation + timing (frame count = duration × fps), so no -vf is needed."""
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-framerate",
+        str(fps),
+        "-i",
+        pattern,
+    ]
+    if audio:
+        cmd += ["-i", audio]
+    else:
+        cmd += ["-f", "lavfi", "-t", "3600", "-i", "anullsrc=r=44100:cl=stereo"]
+    # Force even dimensions (yuv420p requires them); frame sizes from the client may be odd.
+    cmd += ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"]
+    cmd += [
+        "-r",
+        str(FPS),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-c:a",
+        "aac",
+    ]
+    cmd += ["-shortest", out]
+    return cmd
+
+
+def render_video_frames(
+    scenes: Scenes,
+    frame_dirs: Sequence[str],
+    *,
+    fps: int,
+    out_dir: str | Path | None = None,
+    tts: bool = False,
+    xfade: bool = True,
+    runner: Callable[..., Any] = subprocess.run,
+    which: Callable[[str], str | None] = shutil.which,
+) -> str:
+    """Encode pre-rendered WYSIWYG frame sequences (one dir per scene, ``frame%05d.jpg``) into an
+    MP4 — the animation is already baked into the frames, so this just sequences + stitches them
+    (with each scene's transition) and optionally lays TTS narration under each scene."""
+    if not scenes:
+        raise ValueError("no scenes to render")
+    if which("ffmpeg") is None:
+        raise RuntimeError("ffmpeg is not installed")
+    work = Path(out_dir) if out_dir else Path(tempfile.mkdtemp(prefix="video-"))
+    work.mkdir(parents=True, exist_ok=True)
+
+    use_xfade = uses_xfade(scenes, xfade=xfade)
+    starts = scene_start_times(scenes, use_xfade=use_xfade)
+    clips: list[str] = []
+    srt: list[str] = []
+    for scene, start in zip(scenes, starts, strict=True):
+        clip = str(work / f"scene{scene.index:02d}.mp4")
+        pattern = os.path.join(frame_dirs[scene.index], "frame%05d.jpg")
+        audio = None
+        if tts:
+            audio_path = str(work / f"scene{scene.index:02d}.aiff")
+            tcmd = _tts_cmd(which, scene.narration, audio_path)
+            if tcmd:
+                runner(tcmd, check=True, capture_output=True)
+                audio = audio_path
+        runner(build_frames_clip_cmd(pattern, fps, clip, audio), check=True, capture_output=True)
+        clips.append(clip)
+        srt.append(
+            f"{scene.index + 1}\n{_ts(start)} --> {_ts(start + scene.duration)}\n"
+            f"{scene.caption or scene.title}\n"
+        )
+    (work / "captions.srt").write_text("\n".join(srt), encoding="utf-8")
+    return _stitch(scenes, clips, work, runner, use_xfade=use_xfade)
 
 
 def _ts(seconds: float) -> str:

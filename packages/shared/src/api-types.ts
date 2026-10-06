@@ -1313,6 +1313,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/render/video-frames": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render Video Frames
+         * @description Encode pre-rendered WYSIWYG animation frames into an MP4 (preview == export).
+         */
+        post: operations["render_video_frames_render_video_frames_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/social/preflight": {
         parameters: {
             query?: never;
@@ -2101,6 +2121,44 @@ export interface components {
          * @enum {string}
          */
         EntryVisibility: "draft" | "public" | "private";
+        /** FrameScene */
+        FrameScene: {
+            /**
+             * Caption
+             * @default
+             */
+            caption: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Frames */
+            frames: string[];
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Transition
+             * @default none
+             * @enum {string}
+             */
+            transition: "none" | "fade" | "slide-left" | "zoom";
+        };
+        /** FramesVideoRequest */
+        FramesVideoRequest: {
+            /**
+             * Fps
+             * @default 20
+             */
+            fps: number;
+            /**
+             * Narrate
+             * @default false
+             */
+            narrate: boolean;
+            /** Scenes */
+            scenes: components["schemas"]["FrameScene"][];
+        };
         /**
          * GenerateRequest
          * @description Ask the AI layer to generate an image + text into the user's Agent storage (AC51).
@@ -5301,6 +5359,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["VideoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    render_video_frames_render_video_frames_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FramesVideoRequest"];
             };
         };
         responses: {
