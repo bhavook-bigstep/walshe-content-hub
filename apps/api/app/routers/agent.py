@@ -178,7 +178,17 @@ def resolve_project(
 
 # ---- AC75: structured Workspace ---------------------------------------------------------------
 
-_FORMAT_DIMS = {"social": (1080, 1080), "story": (1080, 1920), "pamphlet": (1240, 1754)}
+# Keep in lockstep with apps/web/lib/studio/formats.ts FORMAT_PRESETS (every size + orientation).
+_FORMAT_DIMS = {
+    "social": (1080, 1080),
+    "post": (1080, 1350),
+    "story": (1080, 1920),
+    "wide": (1920, 1080),
+    "banner": (1200, 628),
+    "flyer": (1480, 2096),
+    "pamphlet": (1240, 1754),
+    "card": (1050, 600),
+}
 
 
 def _dims(fmt: str) -> tuple[int, int]:

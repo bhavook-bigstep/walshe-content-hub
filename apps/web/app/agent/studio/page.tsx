@@ -44,7 +44,7 @@ import { applyBrandKit } from "../../../lib/studio/branding";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
 import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
 import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
-import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
+import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/studio/formats";
 import {
   DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
@@ -92,18 +92,12 @@ async function toPanelItem(e: Entry): Promise<BuilderCatalogItem> {
   return item;
 }
 
-const FORMAT_DIMS: Record<FormatName, { width: number; height: number }> = {
-  social: { width: 1080, height: 1080 },
-  story: { width: 1080, height: 1920 },
-  pamphlet: { width: 1240, height: 1754 },
-};
-
 // Collapse a resolved workspace back to the reference-only shape the PUT /workspace endpoint
 // expects (AC75): entries → {entry_id,title,type}; assets pass through as refs; scenes = the
 // current design's scenes. Metadata follows the live format the user is editing in.
 function toWorkspaceIn(ws: WorkspaceResolved, design: DesignDoc): WorkspaceIn {
-  const fmt = design.format as FormatName;
-  const dims = FORMAT_DIMS[fmt] ?? FORMAT_DIMS.social;
+  const fmt = isFormatName(design.format) ? design.format : "social";
+  const dims = getFormatPreset(fmt);
   return {
     metadata: { ...ws.metadata, format: fmt, width: dims.width, height: dims.height },
     reference_content: {
@@ -337,7 +331,7 @@ function StudioEditor() {
         .then((templates) => {
           const t = templates.find((x) => x.id === tid);
           if (!t) return;
-          const fmt = (["social", "story", "pamphlet"].includes(t.format) ? t.format : "social") as FormatName;
+          const fmt: FormatName = isFormatName(t.format) ? t.format : "social";
           pickFormat(fmt);
           setProject({ id: 0, name: `${t.name} (template)` });
         })

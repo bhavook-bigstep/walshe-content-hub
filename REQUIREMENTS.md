@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.44.0 |
+| **Version** | 2.45.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -640,12 +640,24 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   recolours headings/body/shapes, sets the brand fonts + tinted background, injects a brand-styled
   contact block, and is deterministic + idempotent; `hexMix` blends the tint).
 
-**Priority tiers** (build order; acceptance reports honestly against all 87):
+- **AC88** — **A modern template gallery across sizes + orientations.** The studio adds **five new
+  formats** beyond square/story/pamphlet — **Portrait post** (1080×1350), **Presentation**
+  (1920×1080 landscape), **Banner** (1200×628), **Flyer** (A4 1480×2096) and **Business card**
+  (1050×600 landscape) — wired end-to-end (`formats.ts` presets → menu-bar Size picker → backend
+  `_FORMAT_DIMS`). Twelve new, research-grounded templates lead the gallery (Aegean Minimal, Sunset
+  Coast, Alpine Clean, Tropical Pop, Desert Luxe, City Grid, Festival Night, Heritage Trail, Slow
+  Travel, Welcome Banner, Trip Card, Island Breeze), each a self-contained workspace with a photo
+  zone, a type hierarchy and a CTA, authored on current travel-design palettes. Proof: api (the
+  gallery spans multiple formats incl. square/portrait/landscape with ≥15 templates, each
+  well-formed with a background + nodes + description; a landscape template seeds a 1920×1080
+  workspace) + web (`test_format_presets` covers every new size/orientation).
+
+**Priority tiers** (build order; acceptance reports honestly against all 88):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -684,6 +696,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.45.0 | 2026-10-07 | **Modern template gallery + new sizes/orientations** (added **AC88**): added five formats — Portrait post (1080×1350), Presentation (1920×1080), Banner (1200×628), Flyer (A4 1480×2096) and Business card (1050×600) — wired through `formats.ts`, the Size picker and backend `_FORMAT_DIMS`, and twelve new research-grounded templates leading the gallery (Aegean Minimal, Sunset Coast, Alpine Clean, Tropical Pop, Desert Luxe, City Grid, Festival Night, Heritage Trail, Slow Travel, Welcome Banner, Trip Card, Island Breeze), each a self-contained workspace with a photo zone, type hierarchy and CTA on a current travel palette. All prior ACs stay green. | user + Claude |
 | 2.44.0 | 2026-10-07 | **One-click brand kit in the studio** (added **AC87**): the brand kit gains typography (heading + body font keys, editable on the Brand-kit page, seeded per agent), and the studio gets an **Apply brand kit** button that applies palette + fonts + logo + contact across the whole design in one click (soft accent background, primary-coloured headings in the heading font, inked body in the body font, brand-filled shapes, logo/contact injected on scene 1). Pure/deterministic + idempotent (`applyBrandKit`, `hexMix`); shared `fonts.ts` font palette now drives the Inspector, brand kit and brand-apply. All prior ACs stay green. | user + Claude |
 | 2.43.0 | 2026-10-07 | **CorelDraw-style selection vs pan** (added **AC86**): the studio workspace now distinguishes marquee-select, click-an-item and pan. A **Select** tool (default) rubber-bands a dashed marquee over items fully inside a dragged box; a **Hand** tool pans; Space-hold / Alt-drag / middle-mouse always pan; the wheel still zooms. Added a floating Select/Hand toggle (keys V/H) and a tested pure `pointerMode` decision so the gestures never collide. All prior ACs stay green. | user + Claude |
 | 2.42.0 | 2026-10-07 | **Real animated sprites** (added **AC85**): replaced the reused-sticker sprites with 12 cute, recognisable multi-colour SVG characters (walking panda, blooming flower, breeze, hot-air balloon, drifting cloud, gliding bird, bobbing boat, spinning sun, falling leaf, twinkling star, party balloon, pulsing pin). Each moves on canvas/preview/video via the keyframe engine (in-SVG SMIL/CSS can't survive Fabric's raster, per the studio-svg-animation-rasterization note). Added named character loops to the engine — sway, waddle, float, spin, twinkle, drift, rock (with pulse/bob) — each a periodic whole-node transform, pickable per element in the Inspector with a speed control. All prior ACs stay green. | user + Claude |

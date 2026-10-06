@@ -535,3 +535,8 @@ acceptance:
       - "apps/web/tests/brand-apply.test.ts::recolours headings/body/shapes and sets the brand fonts + a tinted background"
       - "apps/web/tests/brand-apply.test.ts::injects the contact block on the first scene, brand-styled"
       - "apps/web/tests/brand-apply.test.ts::is deterministic and idempotent (re-applying yields the same design)"
+  AC88:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_template_gallery_covers_sizes_and_orientations"
+      - "apps/api/tests/test_agent_features.py::test_project_from_landscape_template_keeps_orientation"

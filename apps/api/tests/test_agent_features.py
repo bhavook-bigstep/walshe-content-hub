@@ -136,6 +136,47 @@ def test_project_from_template_seeds_workspace(client, agent_headers) -> None:
     assert node["fontSize"] == 123 and node["fontWeight"] == "bold"
 
 
+def test_template_gallery_covers_sizes_and_orientations(client, agent_headers) -> None:
+    """AC88 — the gallery offers a rich, modern set spanning multiple sizes + orientations, each a
+    well-formed workspace whose declared dimensions are consistent with its format."""
+    templates = client.get("/me/design-templates", headers=agent_headers).json()
+    by_id = {t["id"] for t in templates}
+    # The modern set is present.
+    assert {"aegean-minimal", "alpine-clean", "heritage-trail", "trip-card"} <= by_id
+    assert len(templates) >= 15
+
+    # Multiple distinct formats, including a landscape, a portrait and a square.
+    formats = {t["format"] for t in templates}
+    assert {"social", "post", "story", "wide", "flyer", "card"} <= formats
+
+    # A landscape template really is wider than tall; a story is taller than wide.
+    wide = next(t for t in templates if t["id"] == "alpine-clean")
+    assert wide["width"] > wide["height"]
+    story = next(t for t in templates if t["format"] == "story")
+    assert story["height"] > story["width"]
+
+    # Every template carries a thumbnail background + at least one node, and a description.
+    for t in templates:
+        assert t["width"] > 0 and t["height"] > 0
+        assert t["background"], f"{t['id']} has no thumbnail background"
+        assert t["nodes"], f"{t['id']} has no nodes"
+        assert t["description"], f"{t['id']} has no description"
+
+
+def test_project_from_landscape_template_keeps_orientation(client, agent_headers) -> None:
+    """AC88 — a landscape (wide) template seeds a 1920×1080 workspace, not the square default."""
+    created = client.post(
+        "/me/projects",
+        headers=agent_headers,
+        json={"name": "Deck", "template_id": "alpine-clean"},
+    )
+    assert created.status_code == 201, created.text
+    pid = created.json()["id"]
+    assert created.json()["format"] == "wide"
+    ws = client.get(f"/me/projects/{pid}/workspace", headers=agent_headers).json()
+    assert ws["metadata"]["width"] == 1920 and ws["metadata"]["height"] == 1080
+
+
 def test_project_from_collection_seeds_workspace(client, provider_headers, agent_headers) -> None:
     # AC75 — creating a project from a collection seeds reference_content.collections,
     # and GET /workspace returns it resolved (collection entries with their items).

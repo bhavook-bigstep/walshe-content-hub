@@ -804,8 +804,263 @@ _LONG_ITINERARY = _workspace(
     ],
 )
 
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+# A second, modern set of templates (AC88) — varied sizes + orientations, with current travel-design
+# palettes (oceanic teals, sunset corals, earthy terracotta, cosmic night) grounded in 2026 trend
+# research. Each is a single-page design with a photo zone, a type hierarchy and a CTA, authored so
+# the agent drops a real catalog photo over the frame and edits the copy.
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _pill(
+    nid: str, label: str, x: float, y: float, w: float, h: float, bg: str, fg: str, size: float = 34
+) -> list[dict[str, Any]]:
+    """A rounded CTA pill: a radius-capped rect with a centred bold label."""
+    return [
+        _rect(f"{nid}_bg", x, y, w, h, bg, radius=h / 2),
+        _text(
+            nid, label, x, y + (h - size * 1.4) / 2, w, size,
+            color=fg, fontWeight="bold", textAlign="center",
+        ),
+    ]
+
+
+def _photo(
+    nid: str, x: float, y: float, w: float, h: float, color: str,
+    *, hint: str = "Drag a photo here", hint_color: str = "#ffffff", radius: float = 0,
+) -> list[dict[str, Any]]:
+    """A photo-frame placeholder with a faint centred hint the agent replaces with a photo."""
+    return [
+        _rect(nid, x, y, w, h, color, radius=radius),
+        _text(
+            f"{nid}_hint", hint, x, y + h / 2 - 18, w, 30,
+            color=hint_color, textAlign="center", opacity=0.8,
+        ),
+    ]
+
+
+# ── Aegean Minimal (portrait post, 1080×1350) ──────────────────────────────────────────────────
+_AEGEAN = _workspace("Aegean Minimal", "post", 1080, 1350, [
+    _scene("scene-n1", "Aegean", "#0A4D68", [
+        *_photo("photo", 0, 0, 1080, 900, "#2E8BC0", hint_color="#E9F1F7"),
+        # Legibility scrim fading up from the base.
+        _rect("scrim", 0, 620, 1080, 280, "#0A4D68", opacity=0.55),
+        _rect("accent", 80, 980, 110, 10, "#F4B860", radius=5),
+        _text("eyebrow", "GREECE · CYCLADES", 80, 1012, 920, 28, color="#F4B860",
+              fontWeight="bold"),
+        _text("title", "Santorini", 72, 1052, 940, 120, color="#ffffff", fontWeight="bold",
+              font=_SERIF, lineHeight=1.0),
+        _text("subtitle", "Whitewashed cliffs, blue domes and the slow Aegean sunset.",
+              80, 1192, 620, 34, color="#E9F1F7", opacity=0.92),
+        *_pill("cta", "Plan the trip", 760, 1180, 240, 72, "#F4B860", "#0A4D68", size=30),
+    ]),
+])
+
+# ── Sunset Coast (story, 1080×1920) ─────────────────────────────────────────────────────────────
+_SUNSET = _workspace("Sunset Coast", "story", 1080, 1920, [
+    _scene("scene-n1", "Sunset", "#FFF3E9", [
+        # Layered warm fields suggest an atmospheric gradient.
+        _rect("sky", 0, 0, 1080, 1180, "#FF6B4A"),
+        _rect("glow", 0, 760, 1080, 420, "#FFB088", opacity=0.9),
+        *_photo("photo", 90, 300, 900, 720, "#4A2545", hint_color="#FFE9DD", radius=28),
+        _text("eyebrow", "SUMMER ESCAPES", 90, 1240, 900, 30, color="#4A2545", fontWeight="bold"),
+        _text("title", "Chase the\nGolden Hour", 84, 1290, 940, 104, color="#4A2545",
+              fontWeight="bold", font=_DISPLAY, lineHeight=1.02),
+        _text("subtitle", "Seven coastal evenings you’ll never want to end.",
+              90, 1560, 820, 38, color="#6B3A52", opacity=0.95),
+        *_pill("cta", "Book now", 90, 1680, 340, 96, "#FF6B4A", "#FFF3E9"),
+    ]),
+])
+
+# ── Alpine Clean (presentation, 1920×1080 landscape) ────────────────────────────────────────────
+_ALPINE = _workspace("Alpine Clean", "wide", 1920, 1080, [
+    _scene("scene-n1", "Alpine", "#F4F6F3", [
+        _rect("panel", 0, 0, 864, 1080, "#1F3A34"),
+        _rect("accent", 96, 300, 120, 10, "#E07A4B", radius=5),
+        _text("eyebrow", "THE ALPS", 96, 336, 680, 30, color="#8FB39B", fontWeight="bold"),
+        _text("title", "Breathe\nAbove the\nClouds", 88, 384, 720, 108, color="#F4F6F3",
+              fontWeight="bold", font=_SERIF, lineHeight=1.02),
+        _text("subtitle", "Guided summits, alpine lodges and quiet mornings.",
+              96, 760, 640, 34, color="#C9C6BE"),
+        *_pill("cta", "See the routes", 96, 860, 320, 84, "#E07A4B", "#F4F6F3", size=30),
+        *_photo("photo", 864, 0, 1056, 1080, "#8FB39B", hint_color="#1F3A34"),
+    ]),
+])
+
+# ── Tropical Pop (square social, 1080×1080) ─────────────────────────────────────────────────────
+_TROPICAL = _workspace("Tropical Pop", "social", 1080, 1080, [
+    _scene("scene-n1", "Tropical", "#FFF8EC", [
+        _rect("block", 0, 0, 1080, 1080, "#0F8A5F"),
+        _ellipse("sun", 760, -120, 460, 460, "#B6E388", opacity=0.55),
+        *_photo("photo", 90, 150, 900, 640, "#0B6B49", hint_color="#E9FBE9", radius=36),
+        _ellipse("dot", 120, 120, 70, 70, "#F03E5A"),
+        _text("title", "Hello, Paradise", 90, 820, 900, 78, color="#FFF8EC", fontWeight="bold",
+              font=_DISPLAY),
+        _text("subtitle", "Reef dives, street food and island time.", 90, 918, 600, 34,
+              color="#B6E388"),
+        *_pill("cta", "Explore", 740, 900, 250, 80, "#F03E5A", "#FFF8EC"),
+    ]),
+])
+
+# ── Desert Luxe (portrait post, 1080×1350) ──────────────────────────────────────────────────────
+_DESERT = _workspace("Desert Luxe", "post", 1080, 1350, [
+    _scene("scene-n1", "Desert", "#F2E7D5", [
+        *_photo("photo", 140, 150, 800, 760, "#B5643C", hint_color="#F2E7D5", radius=6),
+        _rect("rule_top", 140, 100, 800, 4, "#8C4A2F"),
+        _text("eyebrow", "MOROCCO", 140, 960, 800, 26, color="#8C4A2F", fontWeight="bold",
+              textAlign="center"),
+        _text("title", "Marrakech", 140, 1000, 800, 96, color="#2B211A", font=_SERIF,
+              textAlign="center"),
+        _text("subtitle", "Souks, riads and the Sahara at dusk — a four-night escape.",
+              170, 1130, 740, 32, color="#8C4A2F", textAlign="center"),
+        *_pill("cta", "Request itinerary", 330, 1230, 420, 76, "#B5643C", "#F2E7D5", size=30),
+    ]),
+])
+
+# ── City Grid (portrait post, 1080×1350) ────────────────────────────────────────────────────────
+_CITYGRID = _workspace("City Grid", "post", 1080, 1350, [
+    _scene("scene-n1", "City", "#E4E4E1", [
+        *_photo("photo", 60, 60, 620, 620, "#22252A", hint_color="#E4E4E1", radius=10),
+        _rect("stat_bg", 700, 60, 320, 300, "#FFD23F", radius=10),
+        _text("stat_num", "48h", 700, 120, 320, 110, color="#22252A", fontWeight="bold",
+              font=_DISPLAY, textAlign="center"),
+        _text("stat_label", "the perfect city break", 700, 250, 320, 28, color="#22252A",
+              textAlign="center"),
+        _rect("teal_bg", 700, 380, 320, 300, "#1E8E8A", radius=10),
+        _text("teal_text", "Eat · See · Repeat", 700, 500, 320, 32, color="#ffffff",
+              fontWeight="bold", textAlign="center"),
+        _text("title", "Lisbon in a\nWeekend", 60, 720, 960, 96, color="#22252A", fontWeight="bold",
+              font=_DISPLAY, lineHeight=1.02),
+        _text("subtitle", "Trams, miradouros and pastéis — a 48-hour plan.", 60, 940, 820, 32,
+              color="#44474C"),
+        *_pill("cta", "Get the guide", 60, 1040, 360, 84, "#22252A", "#FFD23F", size=30),
+    ]),
+])
+
+# ── Festival Night (square social, 1080×1080) ───────────────────────────────────────────────────
+_FESTIVAL = _workspace("Festival Night", "social", 1080, 1080, [
+    _scene("scene-n1", "Festival", "#140B2E", [
+        _rect("field", 0, 0, 1080, 1080, "#5B2A86", opacity=0.35),
+        _ellipse("s1", 160, 150, 14, 14, "#FFF4CC"),
+        _ellipse("s2", 900, 120, 10, 10, "#30D0E0"),
+        _ellipse("s3", 760, 300, 12, 12, "#FFF4CC"),
+        _ellipse("s4", 250, 760, 10, 10, "#E84393"),
+        _text("eyebrow", "LIVE · THIS SUMMER", 90, 180, 900, 30, color="#30D0E0",
+              fontWeight="bold", textAlign="center"),
+        _text("title", "Neon Nights\nFestival", 90, 360, 900, 110, color="#ffffff",
+              fontWeight="bold", font=_DISPLAY, textAlign="center", lineHeight=1.02),
+        _text("meta", "Aug 14–16 · Harbour Park", 90, 660, 900, 36, color="#FFF4CC",
+              textAlign="center"),
+        *_pill("cta", "Get tickets", 360, 780, 360, 92, "#E84393", "#ffffff"),
+    ]),
+])
+
+# ── Heritage Trail (A4 flyer, 1480×2096 portrait) ───────────────────────────────────────────────
+_HERITAGE = _workspace("Heritage Trail", "flyer", 1480, 2096, [
+    _scene("scene-n1", "Heritage", "#F3EAD8", [
+        _rect("rule_top", 150, 150, 1180, 6, "#2E4034"),
+        _text("eyebrow", "WALKING TOURS", 150, 190, 1180, 34, color="#A8432B", fontWeight="bold"),
+        _text("title", "The Heritage\nTrail", 140, 250, 1200, 150, color="#2E4034", font=_SERIF,
+              fontWeight="bold", lineHeight=1.02),
+        *_photo("photo", 150, 600, 1180, 760, "#2E4034", hint_color="#F3EAD8", radius=8),
+        _text("stop1", "1 — Old Town Gate", 150, 1420, 1180, 40, color="#241F18",
+              fontWeight="bold"),
+        _text("stop1b", "Begin at the medieval gate and climb to the ramparts.", 150, 1470, 1180,
+              30, color="#4A4034"),
+        _text("stop2", "2 — Cathedral Square", 150, 1540, 1180, 40, color="#241F18",
+              fontWeight="bold"),
+        _text("stop2b", "Markets, mosaics and the bell tower view.", 150, 1590, 1180, 30,
+              color="#4A4034"),
+        _text("stop3", "3 — Riverside Mill", 150, 1660, 1180, 40, color="#241F18",
+              fontWeight="bold"),
+        _text("stop3b", "Finish with tea where the old mill still turns.", 150, 1710, 1180, 30,
+              color="#4A4034"),
+        _rect("cta_band", 150, 1840, 1180, 120, "#2E4034", radius=12),
+        _text("cta", "Book a guided walk · heritagetrail.example", 150, 1882, 1180, 36,
+              color="#F3EAD8", fontWeight="bold", textAlign="center"),
+    ]),
+])
+
+# ── Slow Travel (portrait post, 1080×1350) ──────────────────────────────────────────────────────
+_SLOW = _workspace("Slow Travel", "post", 1080, 1350, [
+    _scene("scene-n1", "Slow", "#F6F5F1", [
+        _text("eyebrow", "SLOW TRAVEL", 90, 150, 900, 26, color="#9BAE9B", fontWeight="bold",
+              textAlign="center"),
+        _rect("rule", 480, 210, 120, 3, "#D9D2C7"),
+        *_photo("photo", 240, 280, 600, 600, "#D9D2C7", hint_color="#33434F", radius=300),
+        _text("title", "Take it slow", 90, 930, 900, 84, color="#33434F", font=_SERIF,
+              textAlign="center"),
+        _text("subtitle", "Unhurried days, long lunches and the scenic road.", 150, 1050, 780, 32,
+              color="#6B7680", textAlign="center"),
+        *_pill("cta", "Start planning", 360, 1160, 360, 76, "#D98E5A", "#ffffff", size=30),
+    ]),
+])
+
+# ── Welcome Banner (wide banner, 1200×628) ──────────────────────────────────────────────────────
+_BANNER = _workspace("Welcome Banner", "banner", 1200, 628, [
+    _scene("scene-n1", "Banner", "#0E6B5E", [
+        *_photo("photo", 620, 0, 580, 628, "#14716A", hint_color="#D1FAF4"),
+        _rect("scrim", 0, 0, 760, 628, "#0E6B5E", opacity=0.85),
+        _rect("accent", 70, 180, 100, 8, "#F3C96B", radius=4),
+        _text("eyebrow", "VISIT IRELAND", 70, 206, 600, 26, color="#F3C96B", fontWeight="bold"),
+        _text("title", "The Wild\nAtlantic Way", 64, 244, 620, 76, color="#ffffff",
+              fontWeight="bold", font=_DISPLAY, lineHeight=1.02),
+        *_pill("cta", "Explore the route", 70, 440, 320, 72, "#F3C96B", "#0E6B5E", size=28),
+    ]),
+])
+
+# ── Trip Card (business card, 1050×600 landscape) ───────────────────────────────────────────────
+_CARD = _workspace("Trip Card", "card", 1050, 600, [
+    _scene("scene-n1", "Card", "#ffffff", [
+        _rect("band", 0, 0, 360, 600, "#1F3A5F"),
+        _ellipse("logo", 120, 110, 120, 120, "#E06A63"),
+        _text("logo_mark", "R", 120, 138, 120, 64, color="#ffffff", fontWeight="bold",
+              font=_DISPLAY, textAlign="center"),
+        _text("brand", "Rivera Travel", 120, 300, 180, 30, color="#ffffff", fontWeight="bold",
+              textAlign="center"),
+        _text("name", "Alex Rivera", 430, 150, 560, 56, color="#1F3A5F", fontWeight="bold",
+              font=_SERIF),
+        _text("role", "Independent Travel Designer", 430, 230, 560, 30, color="#E06A63"),
+        _rect("rule", 430, 300, 420, 3, "#E6E6E6"),
+        _text("contact", "alex@riveratravel.example\n+353 1 555 0101\nriveratravel.example",
+              430, 330, 560, 30, color="#44474C", lineHeight=1.5),
+    ]),
+])
+
+# ── Island Breeze (story, 1080×1920) ────────────────────────────────────────────────────────────
+_ISLAND = _workspace("Island Breeze", "story", 1080, 1920, [
+    _scene("scene-n1", "Island", "#0FA3A3", [
+        _rect("aqua", 0, 0, 1080, 1180, "#6FD6D6", opacity=0.55),
+        *_photo("photo", 90, 240, 900, 820, "#0A3D3D", hint_color="#EAFBFA", radius=32),
+        # Soft wave shapes at the base.
+        _ellipse("wave1", -160, 1500, 900, 520, "#EAFBFA", opacity=0.5),
+        _ellipse("wave2", 360, 1600, 1000, 560, "#6FD6D6", opacity=0.6),
+        _text("eyebrow", "ISLAND HOPPING", 90, 1200, 900, 30, color="#063A3A", fontWeight="bold"),
+        _text("title", "Catch the\nBreeze", 84, 1250, 940, 108, color="#063A3A", fontWeight="bold",
+              font=_DISPLAY, lineHeight=1.02),
+        _text("subtitle", "Five islands, turquoise water, zero rush.", 90, 1520, 820, 36,
+              color="#0A3D3D", opacity=0.9),
+        *_pill("cta", "See packages", 90, 1650, 380, 96, "#FF7F6B", "#ffffff"),
+    ]),
+])
+
+
 # id -> full workspace. Metadata for the Templates list is derived from this.
 TEMPLATE_WORKSPACES: dict[str, dict[str, Any]] = {
+    # Modern set (AC88) first — these are what the gallery leads with.
+    "aegean-minimal": _AEGEAN,
+    "sunset-coast": _SUNSET,
+    "alpine-clean": _ALPINE,
+    "tropical-pop": _TROPICAL,
+    "desert-luxe": _DESERT,
+    "city-grid": _CITYGRID,
+    "festival-night": _FESTIVAL,
+    "heritage-trail": _HERITAGE,
+    "slow-travel": _SLOW,
+    "welcome-banner": _BANNER,
+    "trip-card": _CARD,
+    "island-breeze": _ISLAND,
+    # Original set.
     "destination-poster": _POSTER,
     "trip-itinerary": _ITINERARY,
     "weekend-getaway": _PROMO,
@@ -816,6 +1071,18 @@ TEMPLATE_WORKSPACES: dict[str, dict[str, Any]] = {
 
 # Human-facing descriptions for the Templates gallery.
 TEMPLATE_DESCRIPTIONS: dict[str, str] = {
+    "aegean-minimal": "Portrait post: a cinematic photo, a serif place name and a sunset accent.",
+    "sunset-coast": "Story with a warm sunset gradient, a rounded photo and a stacked headline.",
+    "alpine-clean": "16:9 presentation: a calm title panel beside a full-bleed mountain photo.",
+    "tropical-pop": "Square post: playful colour blocks, a rounded photo inset and a punchy title.",
+    "desert-luxe": "Editorial post: a framed inset photo, a serif title and a request CTA.",
+    "city-grid": "Portrait post on a modular grid — hero photo, a stat tile and a city-break CTA.",
+    "festival-night": "Square event card: a cosmic field, twinkling stars, date/venue and tickets.",
+    "heritage-trail": "A4 flyer: a serif title, a photo and a numbered walking-tour stop list.",
+    "slow-travel": "Airy portrait post: a circular photo, a light serif headline and white space.",
+    "welcome-banner": "Wide web/cover banner: a hero photo with an eyebrow, headline and CTA.",
+    "trip-card": "Landscape business card: a brand band with monogram, name, role and contacts.",
+    "island-breeze": "Story with a teal gradient, soft wave shapes, a rounded photo and a CTA.",
     "destination-poster": "A bold portrait poster: hero photo, headline and a call-to-action.",
     "trip-itinerary": "A printable two-page itinerary: cover + a day-by-day plan with photo spots.",
     "weekend-getaway": "A square social promo: hero photo, headline and a booking call-to-action.",
