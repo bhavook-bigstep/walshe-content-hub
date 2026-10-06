@@ -87,11 +87,34 @@ def scene_png(seed: int, width: int = 1080, height: int = 1350) -> bytes:
     return buf.getvalue()
 
 
+def _fetch_photo(
+    seed: int, width: int = 1080, height: int = 1350, timeout: float = 6.0
+) -> bytes | None:
+    """Download a real, deterministic scenic photo (Picsum) for a demo-quality catalog. Returns the
+    JPEG bytes, or None on any failure so the caller can fall back to the drawn scene."""
+    import urllib.request
+
+    url = f"https://picsum.photos/seed/{seed}/{width}/{height}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "walsh-content-hub-seed"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (fixed https host)
+            data = resp.read()
+        return data or None
+    except Exception:
+        return None
+
+
 def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
-    """Give each entry a deterministic cover image in the configured object store (MinIO in compose,
-    the on-disk store in local dev) and connect it to the entry: sets ``cover_object_key`` and adds
-    an ``Asset`` (so a later decompose turns it into an image item). Idempotent and best-effort — if
-    storage is unavailable the seed still completes (covers are skipped). Used by both seeds."""
+    """Give each entry a cover image in the configured object store (MinIO in compose, the on-disk
+    store in local dev) and connect it to the entry: sets ``cover_object_key`` and adds an ``Asset``
+    (so a later decompose turns it into an image item). Idempotent and best-effort. Used by both
+    seeds.
+
+    When ``SEED_FETCH_PHOTOS`` is set (the dev launcher / demo turn it on), each cover is a real
+    deterministic photo; otherwise — and offline, or under tests — it's a drawn scene, so the seed
+    stays hermetic and reproducible."""
+    import os
+
     from app.config import get_settings
     from app.models.catalog import Asset
     from app.storage.minio_client import get_storage
@@ -100,16 +123,23 @@ def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
         storage = get_storage(get_settings())
     except Exception:
         return
+    fetch_photos = bool(os.environ.get("SEED_FETCH_PHOTOS"))
     db.flush()  # ensure every entry has an id for the object key
     for entry in entries:
         if entry.cover_object_key or entry.assets:
             continue  # already has media (re-run safe)
-        key = f"catalog/seed/{entry.id}/cover.png"
+        seed = stable_seed(entry.title)
+        photo = _fetch_photo(seed) if fetch_photos else None
+        if photo is not None:
+            data, content_type, ext = photo, "image/jpeg", "jpg"
+        else:
+            data, content_type, ext = scene_png(seed), "image/png", "png"
+        key = f"catalog/seed/{entry.id}/cover.{ext}"
         try:
-            storage.put_object(key, scene_png(stable_seed(entry.title)), "image/png")
+            storage.put_object(key, data, content_type)
         except Exception:
             continue  # don't point a cover at bytes we failed to store
         entry.cover_object_key = key
-        entry.cover_content_type = "image/png"
-        db.add(Asset(entry_id=entry.id, object_key=key, content_type="image/png"))
+        entry.cover_content_type = content_type
+        db.add(Asset(entry_id=entry.id, object_key=key, content_type=content_type))
     db.flush()
