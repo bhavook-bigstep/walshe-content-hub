@@ -224,6 +224,45 @@
         "title": "AgentRunOut",
         "type": "object"
       },
+      "AssetRef": {
+        "description": "A reference to one of the agent's own assets (upload or AI-generated).",
+        "properties": {
+          "asset_id": {
+            "title": "Asset Id",
+            "type": "integer"
+          },
+          "content_type": {
+            "default": "",
+            "title": "Content Type",
+            "type": "string"
+          },
+          "kind": {
+            "default": "image",
+            "title": "Kind",
+            "type": "string"
+          },
+          "object_key": {
+            "default": "",
+            "title": "Object Key",
+            "type": "string"
+          },
+          "source": {
+            "default": "local",
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id"
+        ],
+        "title": "AssetRef",
+        "type": "object"
+      },
       "AssistantOut": {
         "properties": {
           "intent": {
@@ -1590,6 +1629,30 @@
         "title": "EntryOut",
         "type": "object"
       },
+      "EntryRef": {
+        "description": "A reference to a catalog entry inside a workspace (no media copy).",
+        "properties": {
+          "entry_id": {
+            "title": "Entry Id",
+            "type": "integer"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "default": "",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_id"
+        ],
+        "title": "EntryRef",
+        "type": "object"
+      },
       "EntryStatus": {
         "description": "Stored lifecycle status (AC32). ``expiring_soon`` / ``expired`` are never stored — they are\nderived at read time (see ``app.lifecycle``).",
         "enum": [
@@ -2245,6 +2308,17 @@
       },
       "ProjectCreate": {
         "properties": {
+          "collection_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Id"
+          },
           "design": {
             "additionalProperties": true,
             "title": "Design",
@@ -2424,6 +2498,33 @@
         "title": "PublishRequest",
         "type": "object"
       },
+      "ReferenceContent": {
+        "properties": {
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceCollection"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "generated": {
+            "items": {
+              "$ref": "#/components/schemas/AssetRef"
+            },
+            "title": "Generated",
+            "type": "array"
+          },
+          "uploads": {
+            "items": {
+              "$ref": "#/components/schemas/AssetRef"
+            },
+            "title": "Uploads",
+            "type": "array"
+          }
+        },
+        "title": "ReferenceContent",
+        "type": "object"
+      },
       "RegisterProviderRequest": {
         "description": "Provider self-registration (AC25) — creates a PENDING Content Provider (awaits approval).",
         "properties": {
@@ -2504,6 +2605,58 @@
           "design"
         ],
         "title": "RenderRequest",
+        "type": "object"
+      },
+      "ResolvedCollection": {
+        "properties": {
+          "collection_id": {
+            "title": "Collection Id",
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "collection_id"
+        ],
+        "title": "ResolvedCollection",
+        "type": "object"
+      },
+      "ResolvedReferenceContent": {
+        "properties": {
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/ResolvedCollection"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "generated": {
+            "items": {
+              "$ref": "#/components/schemas/AssetRef"
+            },
+            "title": "Generated",
+            "type": "array"
+          },
+          "uploads": {
+            "items": {
+              "$ref": "#/components/schemas/AssetRef"
+            },
+            "title": "Uploads",
+            "type": "array"
+          }
+        },
+        "title": "ResolvedReferenceContent",
         "type": "object"
       },
       "Role": {
@@ -2984,6 +3137,108 @@
           "title"
         ],
         "title": "VideoScene",
+        "type": "object"
+      },
+      "WorkspaceCollection": {
+        "properties": {
+          "collection_id": {
+            "title": "Collection Id",
+            "type": "integer"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EntryRef"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "collection_id"
+        ],
+        "title": "WorkspaceCollection",
+        "type": "object"
+      },
+      "WorkspaceIn": {
+        "description": "Autosave body: the whole workspace. ``reference_content`` holds references only.",
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/WorkspaceMetadata"
+          },
+          "reference_content": {
+            "$ref": "#/components/schemas/ReferenceContent"
+          },
+          "scenes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Scenes",
+            "type": "array"
+          }
+        },
+        "title": "WorkspaceIn",
+        "type": "object"
+      },
+      "WorkspaceMetadata": {
+        "properties": {
+          "format": {
+            "default": "social",
+            "title": "Format",
+            "type": "string"
+          },
+          "height": {
+            "default": 1080,
+            "title": "Height",
+            "type": "integer"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "width": {
+            "default": 1080,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "title": "WorkspaceMetadata",
+        "type": "object"
+      },
+      "WorkspaceResolved": {
+        "description": "What the studio loads: references expanded to live entries (with items) + assets.",
+        "properties": {
+          "metadata": {
+            "$ref": "#/components/schemas/WorkspaceMetadata"
+          },
+          "reference_content": {
+            "$ref": "#/components/schemas/ResolvedReferenceContent"
+          },
+          "scenes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Scenes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "metadata",
+          "reference_content"
+        ],
+        "title": "WorkspaceResolved",
         "type": "object"
       }
     },
@@ -6301,6 +6556,110 @@
           }
         ],
         "summary": "Resolve Project",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/me/projects/{project_id}/workspace": {
+      "get": {
+        "description": "The structured workspace (AC64), resolved: references expanded to live entries + assets.",
+        "operationId": "get_workspace_me_projects__project_id__workspace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResolved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Workspace",
+        "tags": [
+          "agent"
+        ]
+      },
+      "put": {
+        "description": "Autosave the whole workspace (AC64). Validates references (visible entries, owned assets),\nbumps the version, and keeps item_ids/design in sync for the compat resolve/export paths.",
+        "operationId": "save_workspace_me_projects__project_id__workspace_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResolved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Workspace",
         "tags": [
           "agent"
         ]

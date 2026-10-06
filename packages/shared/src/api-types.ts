@@ -1115,6 +1115,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/projects/{project_id}/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workspace
+         * @description The structured workspace (AC64), resolved: references expanded to live entries + assets.
+         */
+        get: operations["get_workspace_me_projects__project_id__workspace_get"];
+        /**
+         * Save Workspace
+         * @description Autosave the whole workspace (AC64). Validates references (visible entries, owned assets),
+         *     bumps the version, and keeps item_ids/design in sync for the compat resolve/export paths.
+         */
+        put: operations["save_workspace_me_projects__project_id__workspace_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/suggestions": {
         parameters: {
             query?: never;
@@ -1387,6 +1412,39 @@ export interface components {
             provider: string;
             /** Tools */
             tools: string[];
+        };
+        /**
+         * AssetRef
+         * @description A reference to one of the agent's own assets (upload or AI-generated).
+         */
+        AssetRef: {
+            /** Asset Id */
+            asset_id: number;
+            /**
+             * Content Type
+             * @default
+             */
+            content_type: string;
+            /**
+             * Kind
+             * @default image
+             */
+            kind: string;
+            /**
+             * Object Key
+             * @default
+             */
+            object_key: string;
+            /**
+             * Source
+             * @default local
+             */
+            source: string;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
         };
         /** AssistantOut */
         AssistantOut: {
@@ -1893,6 +1951,24 @@ export interface components {
             visibility: components["schemas"]["EntryVisibility"];
         };
         /**
+         * EntryRef
+         * @description A reference to a catalog entry inside a workspace (no media copy).
+         */
+        EntryRef: {
+            /** Entry Id */
+            entry_id: number;
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Type
+             * @default
+             */
+            type: string;
+        };
+        /**
          * EntryStatus
          * @description Stored lifecycle status (AC32). ``expiring_soon`` / ``expired`` are never stored — they are
          *     derived at read time (see ``app.lifecycle``).
@@ -2160,6 +2236,8 @@ export interface components {
         };
         /** ProjectCreate */
         ProjectCreate: {
+            /** Collection Id */
+            collection_id?: number | null;
             /** Design */
             design?: {
                 [key: string]: unknown;
@@ -2229,6 +2307,15 @@ export interface components {
             /** Composition Id */
             composition_id: number;
         };
+        /** ReferenceContent */
+        ReferenceContent: {
+            /** Collections */
+            collections?: components["schemas"]["WorkspaceCollection"][];
+            /** Generated */
+            generated?: components["schemas"]["AssetRef"][];
+            /** Uploads */
+            uploads?: components["schemas"]["AssetRef"][];
+        };
         /**
          * RegisterProviderRequest
          * @description Provider self-registration (AC25) — creates a PENDING Content Provider (awaits approval).
@@ -2261,6 +2348,27 @@ export interface components {
             design: {
                 [key: string]: unknown;
             };
+        };
+        /** ResolvedCollection */
+        ResolvedCollection: {
+            /** Collection Id */
+            collection_id: number;
+            /** Entries */
+            entries?: components["schemas"]["EntryOut"][];
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** ResolvedReferenceContent */
+        ResolvedReferenceContent: {
+            /** Collections */
+            collections?: components["schemas"]["ResolvedCollection"][];
+            /** Generated */
+            generated?: components["schemas"]["AssetRef"][];
+            /** Uploads */
+            uploads?: components["schemas"]["AssetRef"][];
         };
         /**
          * Role
@@ -2464,6 +2572,70 @@ export interface components {
              * @enum {string}
              */
             transition: "none" | "fade" | "slide-left" | "zoom";
+        };
+        /** WorkspaceCollection */
+        WorkspaceCollection: {
+            /** Collection Id */
+            collection_id: number;
+            /** Entries */
+            entries?: components["schemas"]["EntryRef"][];
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /**
+         * WorkspaceIn
+         * @description Autosave body: the whole workspace. ``reference_content`` holds references only.
+         */
+        WorkspaceIn: {
+            metadata?: components["schemas"]["WorkspaceMetadata"];
+            reference_content?: components["schemas"]["ReferenceContent"];
+            /** Scenes */
+            scenes?: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** WorkspaceMetadata */
+        WorkspaceMetadata: {
+            /**
+             * Format
+             * @default social
+             */
+            format: string;
+            /**
+             * Height
+             * @default 1080
+             */
+            height: number;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /**
+             * Width
+             * @default 1080
+             */
+            width: number;
+        };
+        /**
+         * WorkspaceResolved
+         * @description What the studio loads: references expanded to live entries (with items) + assets.
+         */
+        WorkspaceResolved: {
+            metadata: components["schemas"]["WorkspaceMetadata"];
+            reference_content: components["schemas"]["ResolvedReferenceContent"];
+            /** Scenes */
+            scenes?: {
+                [key: string]: unknown;
+            }[];
         };
     };
     responses: never;
@@ -4639,6 +4811,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectResolved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_workspace_me_projects__project_id__workspace_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResolved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_workspace_me_projects__project_id__workspace_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceResolved"];
                 };
             };
             /** @description Validation Error */

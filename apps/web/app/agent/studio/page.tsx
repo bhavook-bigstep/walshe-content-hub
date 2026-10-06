@@ -16,13 +16,17 @@ import {
   fetchAssetObjectUrl,
   generateLibraryMedia,
   getProject,
-  getProjectResolved,
+  getWorkspace,
   listDesignTemplates,
-  listMyLibrary,
   renderVideo,
+  saveWorkspace,
   updateProject,
   uploadLibraryMedia,
+  type AssetRef,
   type Entry,
+  type UserAsset,
+  type WorkspaceIn,
+  type WorkspaceResolved,
 } from "../../../lib/api";
 import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
 import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
@@ -65,6 +69,45 @@ async function toPanelItem(e: Entry): Promise<BuilderCatalogItem> {
   return item;
 }
 
+const FORMAT_DIMS: Record<FormatName, { width: number; height: number }> = {
+  social: { width: 1080, height: 1080 },
+  story: { width: 1080, height: 1920 },
+  pamphlet: { width: 1240, height: 1754 },
+};
+
+// Collapse a resolved workspace back to the reference-only shape the PUT /workspace endpoint
+// expects (AC64): entries → {entry_id,title,type}; assets pass through as refs; scenes = the
+// current design's scenes. Metadata follows the live format the user is editing in.
+function toWorkspaceIn(ws: WorkspaceResolved, design: DesignDoc): WorkspaceIn {
+  const fmt = design.format as FormatName;
+  const dims = FORMAT_DIMS[fmt] ?? FORMAT_DIMS.social;
+  return {
+    metadata: { ...ws.metadata, format: fmt, width: dims.width, height: dims.height },
+    reference_content: {
+      collections: (ws.reference_content.collections ?? []).map((c) => ({
+        collection_id: c.collection_id,
+        name: c.name,
+        entries: (c.entries ?? []).map((e) => ({ entry_id: e.id, title: e.title, type: e.type })),
+      })),
+      uploads: ws.reference_content.uploads ?? [],
+      generated: ws.reference_content.generated ?? [],
+    },
+    scenes: design.scenes as unknown as Record<string, unknown>[],
+  };
+}
+
+// A library asset the agent just added becomes a workspace AssetRef (reference only).
+function assetToRef(a: UserAsset): AssetRef {
+  return {
+    asset_id: a.id,
+    object_key: a.object_key,
+    kind: a.kind,
+    content_type: a.content_type,
+    title: a.title,
+    source: a.source,
+  };
+}
+
 function seeded(format: FormatName): DesignDoc {
   let d = newDesign(format);
   d = setBackground(d, 0, "#fef3c7");
@@ -90,6 +133,9 @@ function StudioEditor() {
   const [catalogImages, setCatalogImages] = useState<CatalogImageOption[]>([...CATALOG_IMAGES]);
   const [mediaReload, setMediaReload] = useState(0);
   const [mediaOpen, setMediaOpen] = useState(false);
+  // AC64 — the structured workspace (resolved): the single input the studio reads for grounding +
+  // placeable media (collection entries + uploads + generated) and autosaves back.
+  const [workspace, setWorkspace] = useState<WorkspaceResolved | null>(null);
   const [project, setProject] = useState<{ id: number; name: string } | null>(null);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,8 +147,9 @@ function StudioEditor() {
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
 
-  // Load the usable media: the project's collection items (builder grounding + placeable images) +
-  // the agent's own Local/AI library. The whole catalog is intentionally NOT loaded here (AC63).
+  // Load the usable media from the project's structured workspace (AC64): collection entries
+  // (builder grounding + placeable images) + the project's own uploads/generated assets. The whole
+  // catalog is intentionally NOT loaded here (AC63); media is scoped to this workspace.
   useEffect(() => {
     let cancelled = false;
     const urls: string[] = [];
@@ -112,32 +159,36 @@ function StudioEditor() {
       let items: BuilderCatalogItem[] = [];
       if (pid) {
         try {
-          const resolved = await getProjectResolved(Number(pid));
-          items = await Promise.all(resolved.items.map(toPanelItem));
+          const ws = await getWorkspace(Number(pid));
+          if (!cancelled) setWorkspace(ws);
+          // Collection entries → builder grounding + placeable images.
+          const entries = (ws.reference_content.collections ?? []).flatMap((c) => c.entries ?? []);
+          items = await Promise.all(entries.map(toPanelItem));
           for (const i of items) {
             if (i.imageSrc) {
               urls.push(i.imageSrc);
               imgs.push({ catalogItemId: `entry-${i.id}`, label: i.title, src: i.imageSrc });
             }
           }
-        } catch {
-          /* project items optional */
-        }
-      }
-      try {
-        for (const a of await listMyLibrary()) {
-          if (a.kind === "image" && a.object_key) {
-            try {
-              const src = await fetchAssetObjectUrl(a.object_key);
-              urls.push(src);
-              imgs.push({ catalogItemId: `lib-${a.id}`, label: a.title || a.source, src });
-            } catch {
-              /* skip */
+          // Uploaded + AI-generated assets stored on the workspace → placeable images.
+          const assets = [
+            ...(ws.reference_content.uploads ?? []),
+            ...(ws.reference_content.generated ?? []),
+          ];
+          for (const a of assets) {
+            if (a.kind === "image" && a.object_key) {
+              try {
+                const src = await fetchAssetObjectUrl(a.object_key);
+                urls.push(src);
+                imgs.push({ catalogItemId: `asset-${a.asset_id}`, label: a.title || a.source, src });
+              } catch {
+                /* asset optional */
+              }
             }
           }
+        } catch {
+          /* workspace optional (e.g. a template draft with no project yet) */
         }
-      } catch {
-        /* library optional */
       }
       if (cancelled) {
         urls.forEach((u) => URL.revokeObjectURL(u));
@@ -198,15 +249,30 @@ function StudioEditor() {
     setSaveMsg(null);
     setSaving(true);
     try {
-      // The API stores `design` as a generic JSON object; DesignDoc is our richer view of it.
-      const designJson = design as unknown as Record<string, unknown>;
-      if (project && project.id > 0) {
-        await updateProject(project.id, { design: designJson });
+      if (project && project.id > 0 && workspace) {
+        // AC64 — autosave the whole structured workspace (references + scenes); bumps the version.
+        const saved = await saveWorkspace(project.id, toWorkspaceIn(workspace, design));
+        setWorkspace(saved);
+        setSaveMsg("Saved.");
+      } else if (project && project.id > 0) {
+        // Fallback for a project opened before its workspace resolved.
+        await updateProject(project.id, { design: design as unknown as Record<string, unknown> });
         setSaveMsg("Saved.");
       } else {
+        // A template draft / blank canvas: create the project (seeds a workspace server-side),
+        // then load that workspace so further saves go through the structured path.
         const name = (project?.name || "Untitled project").replace(" (template)", "");
-        const created = await createProject({ name, format: design.format, design: designJson });
+        const created = await createProject({
+          name,
+          format: design.format,
+          design: design as unknown as Record<string, unknown>,
+        });
         setProject({ id: created.id, name: created.name });
+        try {
+          setWorkspace(await getWorkspace(created.id));
+        } catch {
+          /* workspace loads lazily on next render */
+        }
         setSaveMsg("Saved to Projects.");
       }
     } catch {
@@ -214,6 +280,28 @@ function StudioEditor() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // AC64 — media added in the studio is stored on the workspace (uploads/generated), then the
+  // workspace is autosaved so it stays a complete, structured record.
+  async function onMediaAdded(assets: UserAsset[], kind: "uploads" | "generated") {
+    const refs = assets.map(assetToRef);
+    if (project && project.id > 0 && workspace) {
+      const next: WorkspaceResolved = {
+        ...workspace,
+        reference_content: {
+          ...workspace.reference_content,
+          [kind]: [...(workspace.reference_content[kind] ?? []), ...refs],
+        },
+      };
+      try {
+        const saved = await saveWorkspace(project.id, toWorkspaceIn(next, design));
+        setWorkspace(saved);
+      } catch {
+        /* keep the local view; the reload below still surfaces the asset */
+      }
+    }
+    setMediaReload((n) => n + 1);
   }
 
   // AC47 — stitch the ordered storyboard scenes (durations + transitions, captions, approved
@@ -397,25 +485,37 @@ function StudioEditor() {
       </div>
 
       {mediaOpen && (
-        <MediaDialog onClose={() => setMediaOpen(false)} onAdded={() => setMediaReload((n) => n + 1)} />
+        <MediaDialog onClose={() => setMediaOpen(false)} onAdded={onMediaAdded} />
       )}
     </div>
   );
 }
 
-// AC63 — add Local (upload) or AI-generated media to the studio's usable media (the agent library).
-function MediaDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+// AC63/AC64 — add Local (upload) or AI-generated media; the created assets are reported to the
+// parent, which stores them on the workspace (uploads/generated) and autosaves.
+function MediaDialog({
+  onClose,
+  onAdded,
+}: {
+  onClose: () => void;
+  onAdded: (assets: UserAsset[], kind: "uploads" | "generated") => void | Promise<void>;
+}) {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  async function run(fn: () => Promise<unknown>, done: string) {
+  async function run(
+    fn: () => Promise<UserAsset | UserAsset[]>,
+    done: string,
+    kind: "uploads" | "generated",
+  ) {
     setBusy(true);
     setMsg(null);
     try {
-      await fn();
+      const result = await fn();
+      const assets = Array.isArray(result) ? result : [result];
       setMsg(done);
-      onAdded();
+      await onAdded(assets, kind);
     } catch {
       setMsg("Could not add that media.");
     } finally {
@@ -437,7 +537,7 @@ function MediaDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () =>
           <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" disabled={busy}
             aria-label="Upload media file"
             className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => uploadLibraryMedia(f), "Uploaded."); }} />
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => uploadLibraryMedia(f), "Uploaded.", "uploads"); }} />
         </label>
         <div className="mt-4 flex items-end gap-2 border-t border-walshe-line pt-4">
           <label className="block flex-1">
@@ -445,7 +545,7 @@ function MediaDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () =>
             <input className="field h-11" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="e.g. sunset over the cliffs" aria-label="Image prompt" />
           </label>
           <button type="button" className="btn-secondary h-11" disabled={busy || !prompt.trim()}
-            onClick={() => void run(() => generateLibraryMedia(prompt.trim()), "Generated.")}>
+            onClick={() => void run(() => generateLibraryMedia(prompt.trim()), "Generated.", "generated")}>
             Generate
           </button>
         </div>

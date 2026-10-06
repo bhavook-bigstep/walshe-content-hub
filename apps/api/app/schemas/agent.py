@@ -12,6 +12,78 @@ class ProjectCreate(BaseModel):
     format: str = "social"
     item_ids: list[int] = Field(default_factory=list)
     design: dict = Field(default_factory=dict)
+    # AC64 — seed the workspace's reference_content from this collection (optional).
+    collection_id: int | None = None
+
+
+# ---- AC64: structured Workspace (metadata + reference_content + scenes) ----
+
+
+class EntryRef(BaseModel):
+    """A reference to a catalog entry inside a workspace (no media copy)."""
+
+    entry_id: int
+    title: str = ""
+    type: str = ""
+
+
+class WorkspaceCollection(BaseModel):
+    collection_id: int
+    name: str = ""
+    entries: list[EntryRef] = Field(default_factory=list)
+
+
+class AssetRef(BaseModel):
+    """A reference to one of the agent's own assets (upload or AI-generated)."""
+
+    asset_id: int
+    object_key: str = ""
+    kind: str = "image"
+    content_type: str = ""
+    title: str = ""
+    source: str = "local"
+
+
+class ReferenceContent(BaseModel):
+    collections: list[WorkspaceCollection] = Field(default_factory=list)
+    uploads: list[AssetRef] = Field(default_factory=list)
+    generated: list[AssetRef] = Field(default_factory=list)
+
+
+class WorkspaceMetadata(BaseModel):
+    name: str = ""
+    format: str = "social"
+    width: int = 1080
+    height: int = 1080
+    version: int = 1
+
+
+class WorkspaceIn(BaseModel):
+    """Autosave body: the whole workspace. ``reference_content`` holds references only."""
+
+    metadata: WorkspaceMetadata = Field(default_factory=WorkspaceMetadata)
+    reference_content: ReferenceContent = Field(default_factory=ReferenceContent)
+    scenes: list[dict] = Field(default_factory=list)
+
+
+class ResolvedCollection(BaseModel):
+    collection_id: int
+    name: str = ""
+    entries: list[EntryOut] = Field(default_factory=list)
+
+
+class ResolvedReferenceContent(BaseModel):
+    collections: list[ResolvedCollection] = Field(default_factory=list)
+    uploads: list[AssetRef] = Field(default_factory=list)
+    generated: list[AssetRef] = Field(default_factory=list)
+
+
+class WorkspaceResolved(BaseModel):
+    """What the studio loads: references expanded to live entries (with items) + assets."""
+
+    metadata: WorkspaceMetadata
+    reference_content: ResolvedReferenceContent
+    scenes: list[dict] = Field(default_factory=list)
 
 
 class ProjectUpdate(BaseModel):
