@@ -23,6 +23,7 @@ const QUICK_LINKS = [
   { href: "/agent/catalog", title: "Browse catalog", body: "Search approved, brand-safe content" },
   { href: "/agent/studio", title: "Open Design Studio", body: "Compose pamphlets, posts and more" },
   { href: "/agent/social", title: "Plan social", body: "Schedule and publish to channels" },
+  { href: "/agent/campaigns", title: "Plan campaigns", body: "Schedule posts across a calendar" },
   { href: "/agent/engagement", title: "View engagement", body: "Reach, interactions and more" },
 ];
 

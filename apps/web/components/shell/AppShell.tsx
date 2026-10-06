@@ -32,6 +32,7 @@ const I = {
   users: "M16 21a4 4 0 00-8 0M12 11a4 4 0 100-8 4 4 0 000 8M20 21a3 3 0 00-4-3",
   building: "M4 21V5a2 2 0 012-2h7a2 2 0 012 2v16M9 8h3M9 12h3M9 16h3M15 21h5V9h-5",
   list: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
+  calendar: "M7 3v2M17 3v2M4 8h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z",
 } as const;
 
 const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
@@ -44,6 +45,7 @@ const NAV: Readonly<Record<Role, readonly NavItem[]>> = {
     { href: "/agent/templates", label: "Templates", icon: I.template },
     { href: "/agent/brand-kit", label: "Brand kit", icon: I.brush },
     { href: "/agent/social", label: "Social", icon: I.share },
+    { href: "/agent/campaigns", label: "Campaigns", icon: I.calendar },
     { href: "/agent/engagement", label: "Engagement", icon: I.chart },
   ],
   content_provider: [
@@ -75,6 +77,7 @@ const CRUMB_LABELS: Readonly<Record<string, string>> = {
   catalog: "Catalog",
   studio: "Design Studio",
   social: "Social",
+  campaigns: "Campaigns",
   engagement: "Engagement",
   new: "New entry",
   users: "Users",
