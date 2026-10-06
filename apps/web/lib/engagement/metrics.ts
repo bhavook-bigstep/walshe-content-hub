@@ -37,7 +37,9 @@ export function latestByPost(rows: EngagementRow[]): EngagementRow[] {
 }
 
 export function metricValue(row: EngagementRow, key: string): number {
-  return row.metrics[key] ?? 0;
+  // Defensive: a legacy/stale row (or one from a pre-reshape DB) may lack `metrics` entirely —
+  // never crash the dashboard over it.
+  return row?.metrics?.[key] ?? 0;
 }
 
 /** Sum a metric across the latest snapshot of each post. */

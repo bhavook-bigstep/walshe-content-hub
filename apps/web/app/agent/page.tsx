@@ -60,7 +60,7 @@ export default function AgentHomePage() {
   const views = sumMetric(engData, "views");
   const interactions = sumMetric(engData, "total_interactions");
   const latest = latestByPost(engData);
-  const points: ChartPoint[] = latest.map((r) => ({ label: `Post #${r.post_id}`, values: r.metrics }));
+  const points: ChartPoint[] = latest.map((r) => ({ label: `Post #${r.post_id}`, values: r.metrics ?? {} }));
   const topPosts = [...latest].sort(
     (a, b) => metricValue(b, "total_interactions") - metricValue(a, "total_interactions"),
   ).slice(0, 4);

@@ -49,7 +49,7 @@ export default function AgentEngagementPage() {
   const latest = latestByPost(data);
   const tiles = metricsFor("instagram").filter((m) => TILE_KEYS.includes(m.key));
   const igMetrics = metricsFor("instagram");
-  const points: ChartPoint[] = latest.map((r) => ({ label: `Post #${r.post_id}`, values: r.metrics }));
+  const points: ChartPoint[] = latest.map((r) => ({ label: `Post #${r.post_id}`, values: r.metrics ?? {} }));
 
   return (
     <div>
