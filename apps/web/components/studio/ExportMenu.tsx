@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AiCaptionControls from "../ai/AiCaptionControls";
 import { publishToInstagram, renderEmailHtml, renderPdf } from "../../lib/api";
 import { filenameFor, type ExportKind } from "../../lib/studio/export";
 import { buildPublishForm } from "../../lib/studio/instagram";
@@ -129,6 +130,11 @@ export default function ExportMenu({
                 {caption.length}/{CAPTION_MAX}
               </span>
             </div>
+            <AiCaptionControls
+              compositionId={compositionId}
+              caption={caption}
+              onCaptionChange={(next) => setCaption(next.slice(0, CAPTION_MAX))}
+            />
             <button type="button" className={btn} disabled={publishing} onClick={() => void publish()}>
               <span>{publishing ? "Publishing…" : "Publish to Instagram"}</span>
               {chevron}
