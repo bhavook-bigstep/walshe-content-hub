@@ -401,3 +401,19 @@ acceptance:
       - "apps/api/tests/test_agent_features.py::test_workspace_put_validates_and_bumps_version"
       - "apps/api/tests/test_agent_features.py::test_workspace_migrates_legacy_project"
       - "apps/api/tests/test_agent_features.py::test_workspace_refs_carry_media_links"
+  AC65:
+    tier: P2
+    api:
+      - "apps/api/tests/test_assistant.py::test_real_provider_reply_must_stay_grounded"
+      - "apps/api/tests/test_assistant.py::test_real_provider_reply_with_off_limits_term_falls_back"
+      - "apps/api/tests/test_assistant.py::test_platform_question_gets_reply_without_cards"
+      - "apps/api/tests/test_assistant.py::test_history_reaches_provider_in_order_and_capped"
+      - "apps/api/tests/test_assistant.py::test_follow_up_regrounds_on_previous_user_turn"
+      - "apps/api/tests/test_assistant.py::test_history_is_accepted_and_validated_by_the_api"
+      - "apps/api/tests/test_assistant.py::test_system_prompt_is_stable_and_role_specific"
+      - "apps/api/tests/test_assistant.py::test_hidden_items_never_reach_the_model"
+      - "apps/api/tests/test_assistant.py::test_stream_deltas_build_the_reply_and_hide_the_marker"
+      - "apps/api/tests/test_assistant.py::test_stream_failure_mid_reply_ends_with_fallback"
+      - "apps/api/tests/test_assistant.py::test_stream_endpoint_sends_deltas_then_done"
+      - "apps/api/tests/test_assistant.py::test_stream_endpoint_roles"
+      - "apps/api/tests/test_ai_provider.py::test_gemini_stream_chat_sends_system_turns_and_parses_chunks"

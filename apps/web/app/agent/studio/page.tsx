@@ -866,33 +866,25 @@ function MediaDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-walshe-deep/50 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Add media"
-        className="w-full max-w-md rounded-lg border border-walshe-line bg-walshe-base p-5 shadow-lift"
-        onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-h3 text-walshe-ink">Add media</h2>
-          <button type="button" aria-label="Close dialog" onClick={onClose} className="text-walshe-grey hover:text-walshe-ink">✕</button>
-        </div>
-        <label className="block">
-          <span className="label">Upload an image (local)</span>
-          <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" disabled={busy}
-            aria-label="Upload media file"
-            className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => uploadLibraryMedia(f), "Uploaded.", "uploads"); }} />
+    <Dialog title="Add media" size="md" open onClose={onClose}>
+      <label className="block">
+        <span className="label">Upload an image (local)</span>
+        <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" disabled={busy}
+          aria-label="Upload media file"
+          className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => uploadLibraryMedia(f), "Uploaded.", "uploads"); }} />
+      </label>
+      <div className="mt-4 flex items-end gap-2 border-t border-walshe-line pt-4">
+        <label className="block flex-1">
+          <span className="label">Or generate one (AI)</span>
+          <input className="field h-11" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="e.g. sunset over the cliffs" aria-label="Image prompt" />
         </label>
-        <div className="mt-4 flex items-end gap-2 border-t border-walshe-line pt-4">
-          <label className="block flex-1">
-            <span className="label">Or generate one (AI)</span>
-            <input className="field h-11" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="e.g. sunset over the cliffs" aria-label="Image prompt" />
-          </label>
-          <button type="button" className="btn-secondary h-11" disabled={busy || !prompt.trim()}
-            onClick={() => void run(() => generateLibraryMedia(prompt.trim()), "Generated.", "generated")}>
-            Generate
-          </button>
-        </div>
-        {msg && <p role="status" className="mt-2 text-small text-walshe-green">{msg}</p>}
+        <button type="button" className="btn-secondary h-11" disabled={busy || !prompt.trim()}
+          onClick={() => void run(() => generateLibraryMedia(prompt.trim()), "Generated.", "generated")}>
+          Generate
+        </button>
       </div>
-    </div>
+      {msg && <p role="status" className="mt-2 text-small text-walshe-green">{msg}</p>}
+    </Dialog>
   );
 }
