@@ -114,39 +114,49 @@ export default function CampaignDetailPage() {
         </p>
       )}
 
-      <form onSubmit={onSchedule} className="card mb-8 flex flex-wrap items-end gap-4 p-6" aria-busy={busy}>
-        <label className="flex flex-col gap-1">
-          <span className="label">Project</span>
-          <select className="field" aria-label="Project" value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="label">Platform</span>
-          <select className="field" aria-label="Platform" value={platform}
-                  onChange={(e) => setPlatform(e.target.value)}>
-            {CAMPAIGN_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
+      <form onSubmit={onSchedule} className="card mb-8 space-y-5 p-6" aria-busy={busy}>
+        <div className="flex flex-col gap-1.5">
           <span className="label">Caption</span>
-          <input className="field" aria-label="Caption" value={caption}
-                 onChange={(e) => setCaption(e.target.value)} />
+          <textarea
+            className="field min-h-24 w-full resize-y"
+            aria-label="Caption"
+            rows={3}
+            placeholder="Write a caption, or generate one from your content…"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+          />
           <AiCaptionControls
             compositionId={projectId ? Number(projectId) : null}
             caption={caption}
             onCaptionChange={setCaption}
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="label">When</span>
-          <input type="datetime-local" className="field" aria-label="Scheduled at"
-                 value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
-        </label>
-        <button type="submit" className="btn-primary h-12" disabled={busy || !projectId}>
-          {busy ? "Scheduling…" : "Schedule post"}
-        </button>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="label">Project</span>
+            <select className="field" aria-label="Project" value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label">Platform</span>
+            <select className="field" aria-label="Platform" value={platform}
+                    onChange={(e) => setPlatform(e.target.value)}>
+              {CAMPAIGN_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label">When</span>
+            <input type="datetime-local" className="field" aria-label="Scheduled at"
+                   value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+          </label>
+        </div>
+        <div className="flex items-center justify-end border-t border-walshe-line pt-4">
+          <button type="submit" className="btn-primary h-12" disabled={busy || !projectId}>
+            {busy ? "Scheduling…" : "Schedule post"}
+          </button>
+        </div>
       </form>
 
       {campaign && (
@@ -161,28 +171,56 @@ export default function CampaignDetailPage() {
       )}
 
       {selected && (
-        <section className="card mt-6 p-5" aria-label="Edit post" data-testid="edit-post-panel">
-          <h2 className="mb-3 text-h3 font-bold text-walshe-ink">Edit post</h2>
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col gap-1">
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Edit post">
+          <div className="absolute inset-0 bg-walshe-ink/40 backdrop-blur-[1px]"
+               onClick={() => setSelected(null)} aria-hidden />
+          <aside
+            data-testid="edit-post-panel"
+            className="card absolute right-0 top-0 flex h-full w-full max-w-md flex-col gap-5 overflow-y-auto rounded-none p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-h3 font-bold text-walshe-ink">Edit post</h2>
+              <button type="button" className="btn-ghost h-9 px-3" onClick={() => setSelected(null)}
+                      aria-label="Close">✕</button>
+            </div>
+
+            {/* The post being edited — its platform, status and current caption. */}
+            <div className="rounded-sm border border-walshe-line bg-walshe-stone/40 p-4">
+              <div className="eyebrow text-[11px] capitalize">
+                {selected.platform} · {selected.status.replace(/_/g, " ")}
+              </div>
+              <p className="mt-2 text-body text-walshe-ink">
+                {selected.caption || <span className="text-walshe-grey">No caption yet</span>}
+              </p>
+              {selected.scheduled_at && (
+                <p className="mt-2 text-small text-walshe-grey">
+                  Scheduled for {new Date(selected.scheduled_at).toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            <label className="flex flex-col gap-1.5">
               <span className="label">Caption</span>
-              <input className="field" aria-label="Edit caption" value={editCaption}
-                     onChange={(e) => setEditCaption(e.target.value)} />
+              <textarea className="field min-h-24 w-full resize-y" aria-label="Edit caption" rows={4}
+                        value={editCaption} onChange={(e) => setEditCaption(e.target.value)} />
             </label>
-            <label className="flex flex-col gap-1">
+            <label className="flex flex-col gap-1.5">
               <span className="label">When</span>
               <input type="datetime-local" className="field" aria-label="Edit scheduled at"
                      value={editWhen} onChange={(e) => setEditWhen(e.target.value)} />
             </label>
-            <button type="button" className="btn-primary h-12" disabled={busy}
-                    onClick={() => void onSaveEdit(false)}>Save changes</button>
-            <button type="button" className="btn-secondary h-12" disabled={busy}
-                    onClick={() => void onSaveEdit(true)}>Unschedule</button>
-            <button type="button" className="btn-ghost h-12" onClick={() => setSelected(null)}>
-              Cancel
-            </button>
-          </div>
-        </section>
+
+            <div className="mt-auto flex flex-wrap gap-3 border-t border-walshe-line pt-4">
+              <button type="button" className="btn-primary h-12" disabled={busy}
+                      onClick={() => void onSaveEdit(false)}>Save changes</button>
+              <button type="button" className="btn-secondary h-12" disabled={busy}
+                      onClick={() => void onSaveEdit(true)}>Unschedule</button>
+              <button type="button" className="btn-ghost h-12" onClick={() => setSelected(null)}>
+                Cancel
+              </button>
+            </div>
+          </aside>
+        </div>
       )}
     </div>
   );
