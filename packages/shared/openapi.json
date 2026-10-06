@@ -310,6 +310,47 @@
         "title": "BlocklistOut",
         "type": "object"
       },
+      "Body_publish_social_instagram_publish_post": {
+        "properties": {
+          "caption": {
+            "default": "",
+            "title": "Caption",
+            "type": "string"
+          },
+          "composition_id": {
+            "title": "Composition Id",
+            "type": "integer"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          }
+        },
+        "required": [
+          "composition_id"
+        ],
+        "title": "Body_publish_social_instagram_publish_post",
+        "type": "object"
+      },
       "Body_upload_image_catalog__entry_id__image_post": {
         "properties": {
           "file": {
@@ -1141,6 +1182,48 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InstagramPublishOut": {
+        "properties": {
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "permalink": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permalink"
+          },
+          "post_id": {
+            "title": "Post Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "post_id",
+          "external_id",
+          "permalink",
+          "status"
+        ],
+        "title": "InstagramPublishOut",
+        "type": "object"
+      },
       "ItemCardOut": {
         "properties": {
           "destination": {
@@ -1510,7 +1593,8 @@
       "PostStatus": {
         "enum": [
           "scheduled",
-          "published"
+          "published",
+          "failed"
         ],
         "title": "PostStatus",
         "type": "string"
@@ -4412,6 +4496,53 @@
         "summary": "Render Video",
         "tags": [
           "render"
+        ]
+      }
+    },
+    "/social/instagram/publish": {
+      "post": {
+        "description": "Publish from an uploaded JPEG (hosted on S3 for the real connector) OR a pre-hosted\n``image_url`` (no upload/S3 — used to verify the flow end-to-end before S3 exists).",
+        "operationId": "publish_social_instagram_publish_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_publish_social_instagram_publish_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstagramPublishOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Publish",
+        "tags": [
+          "instagram"
         ]
       }
     },

@@ -718,6 +718,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/social/instagram/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish
+         * @description Publish from an uploaded JPEG (hosted on S3 for the real connector) OR a pre-hosted
+         *     ``image_url`` (no upload/S3 — used to verify the flow end-to-end before S3 exists).
+         */
+        post: operations["publish_social_instagram_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/social/preflight": {
         parameters: {
             query?: never;
@@ -921,6 +942,20 @@ export interface components {
             id: number;
             /** Term */
             term: string;
+        };
+        /** Body_publish_social_instagram_publish_post */
+        Body_publish_social_instagram_publish_post: {
+            /**
+             * Caption
+             * @default
+             */
+            caption: string;
+            /** Composition Id */
+            composition_id: number;
+            /** Image */
+            image?: string | null;
+            /** Image Url */
+            image_url?: string | null;
         };
         /** Body_upload_image_catalog__entry_id__image_post */
         Body_upload_image_catalog__entry_id__image_post: {
@@ -1193,6 +1228,17 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InstagramPublishOut */
+        InstagramPublishOut: {
+            /** External Id */
+            external_id: string | null;
+            /** Permalink */
+            permalink: string | null;
+            /** Post Id */
+            post_id: number;
+            /** Status */
+            status: string;
+        };
         /** ItemCardOut */
         ItemCardOut: {
             /** Destination */
@@ -1325,7 +1371,7 @@ export interface components {
          * PostStatus
          * @enum {string}
          */
-        PostStatus: "scheduled" | "published";
+        PostStatus: "scheduled" | "published" | "failed";
         /** PreflightIssueOut */
         PreflightIssueOut: {
             /** Code */
@@ -3084,6 +3130,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_social_instagram_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_publish_social_instagram_publish_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstagramPublishOut"];
                 };
             };
             /** @description Validation Error */

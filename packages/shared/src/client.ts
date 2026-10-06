@@ -46,6 +46,7 @@ export type ScheduleRequest = Schemas["ScheduleRequest"];
 export type PublishRequest = Schemas["PublishRequest"];
 export type Post = Schemas["PostOut"];
 export type Engagement = Schemas["EngagementOut"];
+export type InstagramPublishResult = Schemas["InstagramPublishOut"];
 
 export let API_URL: string =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
@@ -356,6 +357,16 @@ export async function scheduleSocialPost(body: ScheduleRequest): Promise<Post> {
 
 export async function publishSocialPost(body: PublishRequest): Promise<Post> {
   return (await (await send("/social/publish", json(body))).json()) as Post;
+}
+
+/**
+ * Publish an image + caption to Instagram (increment 1). `form` carries composition_id, caption,
+ * and the exported JPEG (see buildPublishForm in the web app). Real connector when the API has
+ * Instagram keys configured, else a deterministic stub.
+ */
+export async function publishToInstagram(form: FormData): Promise<InstagramPublishResult> {
+  const res = await send("/social/instagram/publish", { method: "POST", body: form });
+  return (await res.json()) as InstagramPublishResult;
 }
 
 export async function listEngagement(): Promise<Engagement[]> {
