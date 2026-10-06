@@ -17,7 +17,9 @@ test("agent is redirected away from admin", async ({ page }) => {
 
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/agent$/);
-  await expect(page.getByRole("heading", { name: "Agent home" })).toBeVisible();
+  // The page title is intentionally not shown (the sidebar names the section); assert a stable
+  // element unique to the agent overview instead.
+  await expect(page.getByRole("link", { name: "Open Design Studio", exact: true })).toBeVisible();
 });
 
 // A syntactically valid JWT carrying only the fields the client reads.

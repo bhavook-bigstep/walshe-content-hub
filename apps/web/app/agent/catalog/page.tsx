@@ -189,7 +189,7 @@ export default function AgentCatalogPage() {
                   aria-label={`Open ${e.title}`}
                   className="relative block text-left"
                 >
-                  <CatalogThumb imageKey={e.cover_object_key || e.asset_keys?.[0]} alt={e.title} className={expired ? "grayscale" : undefined} />
+                  <CatalogThumb imageKey={e.cover_object_key || e.asset_keys?.[0]} alt={e.title} className={`aspect-[4/3] w-full ${expired ? "grayscale" : ""}`} />
                   <span className="chip-verified absolute left-3.5 top-3.5">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--walshe-green))" strokeWidth="3" aria-hidden>
                       <path d="M5 13l4 4L19 7" />

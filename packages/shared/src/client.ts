@@ -20,6 +20,15 @@ export type Project = Schemas["ProjectOut"];
 export type ProjectResolved = Schemas["ProjectResolved"];
 export type ProjectCreate = Schemas["ProjectCreate"];
 export type ProjectUpdate = Schemas["ProjectUpdate"];
+export type WorkspaceResolved = Schemas["WorkspaceResolved"];
+export type WorkspaceIn = Schemas["WorkspaceIn"];
+export type WorkspaceMetadata = Schemas["WorkspaceMetadata"];
+export type ReferenceContent = Schemas["ReferenceContent"];
+export type WorkspaceCollection = Schemas["WorkspaceCollection"];
+export type ResolvedReferenceContent = Schemas["ResolvedReferenceContent"];
+export type ResolvedCollection = Schemas["ResolvedCollection"];
+export type AssetRef = Schemas["AssetRef"];
+export type EntryRef = Schemas["EntryRef"];
 export type Collection = Schemas["CollectionOut"];
 export type CollectionResolved = Schemas["CollectionResolved"];
 export type UserAsset = Schemas["UserAssetOut"];
@@ -365,6 +374,16 @@ export async function getProject(id: number): Promise<Project> {
 /** A project's items resolved against the live catalog (its source collection's entries). */
 export async function getProjectResolved(id: number): Promise<ProjectResolved> {
   return (await (await send(`/me/projects/${id}/resolved`)).json()) as ProjectResolved;
+}
+/** The structured workspace (AC75), resolved: references expanded to live entries + assets. */
+export async function getWorkspace(id: number): Promise<WorkspaceResolved> {
+  return (await (await send(`/me/projects/${id}/workspace`)).json()) as WorkspaceResolved;
+}
+/** Autosave the whole workspace (AC75); returns it re-resolved with the bumped version. */
+export async function saveWorkspace(id: number, body: WorkspaceIn): Promise<WorkspaceResolved> {
+  return (await (
+    await send(`/me/projects/${id}/workspace`, { ...json(body), method: "PUT" })
+  ).json()) as WorkspaceResolved;
 }
 export async function createProject(body: ProjectCreate): Promise<Project> {
   return (await (await send("/me/projects", json(body))).json()) as Project;

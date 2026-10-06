@@ -14,10 +14,11 @@ from sqlalchemy.orm import Session
 from app import clock
 from app.deps import get_db, require_role
 from app.models.agent_features import BrandKit, Collection
-from app.models.catalog import CatalogEntry
+from app.models.catalog import CatalogEntry, UserAsset
 from app.models.composition import Composition
 from app.models.user import Role, User
 from app.schemas.agent import (
+    AssetRef,
     BrandKitOut,
     BrandKitUpdate,
     CollectionCreate,
@@ -30,6 +31,11 @@ from app.schemas.agent import (
     ProjectOut,
     ProjectResolved,
     ProjectUpdate,
+    ResolvedCollection,
+    ResolvedReferenceContent,
+    WorkspaceIn,
+    WorkspaceMetadata,
+    WorkspaceResolved,
 )
 from app.schemas.catalog import EntryOut
 from app.services.visibility import agent_visible_entries_by_ids
@@ -95,15 +101,25 @@ def _snapshot_item_versions(db: Session, item_ids: list[int]) -> dict[str, int]:
 
 @router.post("/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 def create_project(
-    body: ProjectCreate, db: Session = Depends(get_db), agent: User = Depends(_agent_only)
+    body: ProjectCreate,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
 ) -> Composition:
+    # AC75 — seed the structured workspace (from a collection, or the posted item_ids).
+    workspace = _seed_workspace(
+        db, agent, name=body.name, fmt=body.format, design=body.design,
+        collection_id=body.collection_id, item_ids=body.item_ids, now=now,
+    )
+    item_ids = _ids_from_ws(workspace)
     project = Composition(
         agent_id=agent.id,
         name=body.name,
         format=body.format,
-        item_ids=body.item_ids,
+        item_ids=item_ids,
         design=body.design,
-        item_versions=_snapshot_item_versions(db, body.item_ids),
+        item_versions=_snapshot_item_versions(db, item_ids),
+        workspace=workspace,
     )
     db.add(project)
     db.commit()
@@ -148,6 +164,173 @@ def resolve_project(
         dropped_item_ids=dropped,
         flagged_item_ids=flagged,
     )
+
+
+# ---- AC75: structured Workspace ---------------------------------------------------------------
+
+_FORMAT_DIMS = {"social": (1080, 1080), "story": (1080, 1920), "pamphlet": (1240, 1754)}
+
+
+def _dims(fmt: str) -> tuple[int, int]:
+    return _FORMAT_DIMS.get(fmt, (1080, 1080))
+
+
+def _entry_refs(db: Session, agent: User, ids: list[int], now: datetime) -> list[dict]:
+    """Visible entries → enriched refs carrying the entry's media links (MinIO/S3 object keys), so
+    the stored workspace is self-contained. Order preserved; stale/non-visible entries dropped."""
+    return [
+        {
+            "entry_id": e.id,
+            "title": e.title,
+            "type": e.type.value,
+            "cover_object_key": e.cover_object_key or "",
+            "media_keys": list(e.asset_keys or []),
+        }
+        for e in agent_visible_entries_by_ids(db, agent, ids, now=now)
+    ]
+
+
+def _seed_workspace(
+    db: Session, agent: User, *, name: str, fmt: str, design: dict,
+    collection_id: int | None, item_ids: list[int], now: datetime,
+) -> dict:
+    """Build the initial workspace when a project is created (from a collection, or legacy ids)."""
+    w, h = _dims(fmt)
+    collections: list[dict] = []
+    if collection_id is not None:
+        coll = db.get(Collection, collection_id)
+        if coll is not None and coll.agent_id == agent.id:
+            collections = [{
+                "collection_id": coll.id, "name": coll.name,
+                "entries": _entry_refs(db, agent, coll.item_ids or [], now),
+            }]
+    elif item_ids:
+        collections = [{
+            "collection_id": 0, "name": "Saved items",
+            "entries": _entry_refs(db, agent, item_ids, now),
+        }]
+    scenes = design.get("scenes", []) if isinstance(design, dict) else []
+    return {
+        "metadata": {"name": name, "format": fmt, "width": w, "height": h, "version": 1},
+        "reference_content": {"collections": collections, "uploads": [], "generated": []},
+        "scenes": scenes,
+    }
+
+
+def _migrate_workspace(project: Composition) -> dict:
+    """Build a workspace for a legacy project that has none, from its item_ids + design."""
+    w, h = _dims(project.format)
+    d = project.design if isinstance(project.design, dict) else {}
+    scenes = d.get("scenes") or d.get("pages") or []
+    collections = (
+        [{"collection_id": 0, "name": "Saved items",
+          "entries": [{"entry_id": i, "title": "", "type": ""} for i in (project.item_ids or [])]}]
+        if project.item_ids else []
+    )
+    return {
+        "metadata": {
+            "name": project.name, "format": project.format,
+            "width": w, "height": h, "version": 1,
+        },
+        "reference_content": {"collections": collections, "uploads": [], "generated": []},
+        "scenes": scenes,
+    }
+
+
+def _workspace_of(project: Composition) -> dict:
+    return project.workspace if project.workspace else _migrate_workspace(project)
+
+
+def _ids_from_ws(ws: dict) -> list[int]:
+    ids: list[int] = []
+    for c in ws.get("reference_content", {}).get("collections", []):
+        for e in c.get("entries", []):
+            if e["entry_id"] not in ids:
+                ids.append(e["entry_id"])
+    return ids
+
+
+def _owned_assets(db: Session, agent: User, refs: list[dict]) -> list[AssetRef]:
+    out: list[AssetRef] = []
+    for a in refs:
+        ua = db.get(UserAsset, a.get("asset_id"))
+        if ua is not None and ua.owner_id == agent.id:
+            out.append(AssetRef(
+                asset_id=ua.id, object_key=ua.object_key, kind=ua.kind.value,
+                content_type=ua.content_type, title=ua.title, source=ua.source.value,
+            ))
+    return out
+
+
+def _resolve_workspace(db: Session, agent: User, ws: dict, now: datetime) -> WorkspaceResolved:
+    rc = ws.get("reference_content", {})
+    cols = []
+    for c in rc.get("collections", []):
+        ids = [e["entry_id"] for e in c.get("entries", [])]
+        entries = agent_visible_entries_by_ids(db, agent, ids, now=now)
+        cols.append(ResolvedCollection(
+            collection_id=c.get("collection_id", 0), name=c.get("name", ""),
+            entries=[EntryOut.from_entry(e, now=now) for e in entries],
+        ))
+    return WorkspaceResolved(
+        metadata=WorkspaceMetadata(**ws.get("metadata", {})),
+        reference_content=ResolvedReferenceContent(
+            collections=cols,
+            uploads=_owned_assets(db, agent, rc.get("uploads", [])),
+            generated=_owned_assets(db, agent, rc.get("generated", [])),
+        ),
+        scenes=ws.get("scenes", []),
+    )
+
+
+@router.get("/projects/{project_id}/workspace", response_model=WorkspaceResolved)
+def get_workspace(
+    project_id: int,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
+) -> WorkspaceResolved:
+    """The structured workspace (AC75), resolved: references expanded to live entries + assets."""
+    project = _owned_project(db, project_id, agent)
+    return _resolve_workspace(db, agent, _workspace_of(project), now)
+
+
+@router.put("/projects/{project_id}/workspace", response_model=WorkspaceResolved)
+def save_workspace(
+    project_id: int,
+    body: WorkspaceIn,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+    now: datetime = Depends(clock.now),
+) -> WorkspaceResolved:
+    """Autosave the whole workspace (AC75). Validates references (visible entries, owned assets),
+    bumps the version, and keeps item_ids/design in sync for the compat resolve/export paths."""
+    project = _owned_project(db, project_id, agent)
+    ws = body.model_dump()
+    prev = project.workspace.get("metadata", {}).get("version", 0) if project.workspace else 0
+    ws["metadata"]["version"] = prev + 1
+    rc = ws["reference_content"]
+    # Re-resolve each collection's entries against the live catalog: drops non-visible ones and
+    # refreshes the stored media links (so reference_content always carries current S3 keys).
+    for c in rc["collections"]:
+        ids = [x["entry_id"] for x in c["entries"]]
+        c["entries"] = _entry_refs(db, agent, ids, now)
+    owned = {a.asset_id for a in _owned_assets(db, agent, rc["uploads"] + rc["generated"])}
+    rc["uploads"] = [a for a in rc["uploads"] if a["asset_id"] in owned]
+    rc["generated"] = [a for a in rc["generated"] if a["asset_id"] in owned]
+
+    project.workspace = ws
+    project.name = ws["metadata"]["name"] or project.name
+    project.format = ws["metadata"]["format"]
+    project.item_ids = _ids_from_ws(ws)
+    project.item_versions = _snapshot_item_versions(db, project.item_ids)
+    project.design = {
+        "format": ws["metadata"]["format"], "width": ws["metadata"]["width"],
+        "height": ws["metadata"]["height"], "scenes": ws["scenes"],
+    }
+    db.commit()
+    db.refresh(project)
+    return _resolve_workspace(db, agent, project.workspace, now)
 
 
 @router.put("/projects/{project_id}", response_model=ProjectOut)

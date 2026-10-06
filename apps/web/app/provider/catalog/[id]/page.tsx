@@ -72,6 +72,7 @@ export default function ProviderEntryPage() {
           { label: entry?.title ?? "Entry" },
         ]}
         title={entry?.title ?? "Entry"}
+        renderTitle
         description={entry ? `${entry.type} · ${entry.destination}` : ""}
         action={
           <div className="flex gap-2">

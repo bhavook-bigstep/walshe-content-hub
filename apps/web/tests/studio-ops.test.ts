@@ -115,6 +115,23 @@ describe("studio manual ops", () => {
     const shapeId = withBg.scenes[0].nodes[1].id;
     expect(() => editText(withBg, 0, shapeId, "nope")).toThrow(/not editable text/);
   });
+
+  it("gives every node a unique id, even after a delete (no position-conflating reuse)", () => {
+    // Three images, then delete the middle one, then add two more. Every id must stay unique —
+    // reusing a suffix would make the canvas conflate nodes and their positions jump.
+    let d = newDesign("social");
+    for (let i = 0; i < 3; i++) {
+      d = addCatalogImage(d, 0, { src: `/a/${i}.png`, catalogItemId: `entry-${i}` });
+    }
+    const midId = d.scenes[0].nodes[1].id;
+    d = deleteNode(d, 0, midId);
+    d = addCatalogImage(d, 0, { src: "/a/x.png", catalogItemId: "entry-x" });
+    d = addCatalogImage(d, 0, { src: "/a/y.png", catalogItemId: "entry-y" });
+
+    const ids = d.scenes[0].nodes.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length); // all unique
+    expect(ids).not.toContain(midId); // the deleted id is gone and not resurrected
+  });
 });
 
 // AC46 — Multi-scene storyboard ops: add/remove/reorder scenes + per-scene duration/transition.

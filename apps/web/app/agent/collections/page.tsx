@@ -153,10 +153,12 @@ function CollectionDetailDialog({
     if (collection.items.length === 0) return;
     setBusy(true);
     try {
+      // Seed the project's workspace from this collection (AC75); the backend expands
+      // reference_content.collections from collection_id.
       const project = await createProject({
         name: collection.name,
         format: "social",
-        item_ids: collection.items.map((e) => e.id),
+        collection_id: collection.id,
         design: {},
       });
       router.push(`/agent/studio?project=${project.id}`);
