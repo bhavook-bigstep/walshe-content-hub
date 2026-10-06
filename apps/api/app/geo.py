@@ -28,9 +28,14 @@ GEO: dict[str, dict[str, list[str]]] = {
         "England": ["London", "Manchester"],
     },
     "Australia": {
-        "New South Wales": ["Sydney", "Newcastle"],
-        "Victoria": ["Melbourne", "Geelong"],
-        "Queensland": ["Brisbane", "Cairns"],
+        "New South Wales": ["Sydney", "Newcastle", "Byron Bay"],
+        "Victoria": ["Melbourne", "Geelong", "Great Ocean Road"],
+        "Queensland": ["Brisbane", "Cairns", "Gold Coast", "Port Douglas"],
+        "Western Australia": ["Perth", "Margaret River", "Broome"],
+        "South Australia": ["Adelaide", "Barossa Valley"],
+        "Tasmania": ["Hobart", "Launceston"],
+        "Northern Territory": ["Darwin", "Alice Springs", "Uluru"],
+        "Australian Capital Territory": ["Canberra"],
     },
     "New Zealand": {
         "Auckland": ["Auckland"],

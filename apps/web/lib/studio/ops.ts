@@ -97,8 +97,16 @@ export function clampSceneDuration(ms: number): number {
  * Deterministic id: `<type>-<sceneId>-n<countInScene>` — stable for a given op sequence and unique
  * across the whole design (scene ids are collision-free), so ids survive scene reorder/removal.
  */
+// A unique, stable node id: `<type>-<sceneId>-n<1 + max existing node suffix in the scene>`.
+// Scanning the max trailing suffix (instead of nodes.length) keeps ids collision-free after a
+// delete — reusing an id would make the canvas conflate two nodes and their positions jump.
 function nextId(type: NodeType, scene: Scene): string {
-  return `${type}-${scene.id}-n${scene.nodes.length + 1}`;
+  let max = 0;
+  for (const n of scene.nodes) {
+    const m = /-n(\d+)$/.exec(n.id);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `${type}-${scene.id}-n${max + 1}`;
 }
 
 /** Deterministic scene id: `scene-n<1 + max existing suffix>` — stable and collision-free. */

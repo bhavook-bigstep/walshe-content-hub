@@ -368,3 +368,34 @@ acceptance:
       - "apps/api/tests/test_profile.py::test_provider_uploads_org_logo_and_it_is_served"
     e2e:
       - "apps/web/e2e/organization-smoke.spec.ts::organization page hosts profile, invite-agents and team"
+  AC59:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_collections_crud"
+    e2e:
+      - "apps/web/e2e/agent-usability-smoke.spec.ts::agent adds a catalog item to a collection"
+  AC60:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_collection_drops_expired_references"
+    e2e:
+      - "apps/web/e2e/agent-workspace-smoke.spec.ts::agent: open entry modal, save to collection, manage it, start a project"
+  AC61:
+    tier: P2
+    e2e:
+      - "apps/web/e2e/agent-workspace-smoke.spec.ts::agent: open entry modal, save to collection, manage it, start a project"
+  AC62:
+    tier: P2
+    e2e:
+      - "apps/web/e2e/agent-workspace-smoke.spec.ts::templates show Preview and Use"
+  AC63:
+    tier: P2
+    e2e:
+      - "apps/web/e2e/agent-workspace-smoke.spec.ts::agent: open entry modal, save to collection, manage it, start a project"
+  AC64:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_project_from_collection_seeds_workspace"
+      - "apps/api/tests/test_agent_features.py::test_workspace_put_validates_and_bumps_version"
+      - "apps/api/tests/test_agent_features.py::test_workspace_migrates_legacy_project"
+      - "apps/api/tests/test_agent_features.py::test_workspace_refs_carry_media_links"
