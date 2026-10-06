@@ -7,11 +7,20 @@ synthetic (no real secrets/PII). Contract 4: same document + stub ⇒ identical 
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 from io import BytesIO
 
 from app.ai.base import AIProvider, AIResponse
-from app.ai.extract import _structure_entries, document_text, extract_entries
+from app.ai.extract import (
+    _coerce_attributes,
+    _extract_facts,
+    _parse_entries,
+    _structure_entries,
+    document_text,
+    extract_entries,
+)
 from app.ai.stub import StubProvider
 from app.models.catalog import CatalogType, Season
 
@@ -241,3 +250,188 @@ def test_determinism_and_no_pii_in_logs(client, provider_headers, caplog):
         res = _import(client, provider_headers, doc)
     assert res.status_code == 201, res.text
     assert marker not in caplog.text
+
+
+# ------------------------------------------------- real-provider structured JSON path (AC65/AC66)
+
+
+def test_structure_entries_parses_real_provider_json():
+    """A non-stub provider's JSON array is parsed + normalized (not dropped to the heuristic)."""
+    payload = json.dumps(
+        [
+            {
+                "type": "event",
+                "title": "Galway Oyster Festival",
+                "description": "A seafood celebration.",
+                "destination": "Galway City",
+                "country": "Ireland",
+                "city": "Galway City",
+                "season": "autumn",
+                "attributes": {
+                    "start_date": "2026-09-25",
+                    "ticket_url": "https://example.test/tickets",
+                },
+                "highlights": ["Freshly shucked oysters", "Live music"],
+                "market_tags": ["food", "culture"],
+            }
+        ]
+    )
+    fake = _RecordingProvider(responses=[payload])
+    entries = _structure_entries("some grounded facts", fake)
+
+    assert fake.prompts, "a real provider must be asked to structure the facts"
+    assert len(entries) == 1
+    e = entries[0]
+    assert e["type"] == CatalogType.event  # coerced from the "event" string to the enum
+    assert e["title"] == "Galway Oyster Festival"
+    assert e["season"] == Season.autumn
+    assert e["attributes"] == {
+        "start_date": "2026-09-25",
+        "ticket_url": "https://example.test/tickets",
+    }
+    assert e["highlights"] == ["Freshly shucked oysters", "Live music"]
+    assert e["market_tags"] == ["food", "culture"]
+
+
+def test_parse_entries_handles_malformed_and_wrapped_shapes():
+    """Malformed JSON, dict-wrapper unwrap, non-dict skipping and the _MAX_ENTRIES cap."""
+    # Malformed / empty text degrades to [] — it never raises.
+    assert _parse_entries("not valid json {{{") == []
+    assert _parse_entries("") == []
+
+    one = {"type": "place", "title": "Cliffs of Moher"}
+
+    # Bare array, and both dict-wrapper shapes the model may emit, parse the same.
+    assert len(_parse_entries(json.dumps([one]))) == 1
+    assert len(_parse_entries(json.dumps({"entries": [one]}))) == 1
+    assert len(_parse_entries(json.dumps({"items": [one]}))) == 1
+    # A dict with neither key unwraps to None → not a list → [].
+    assert _parse_entries(json.dumps({"nope": [one]})) == []
+
+    # Non-dict items (and title-less dicts) are skipped; only the valid entry survives.
+    mixed = _parse_entries(json.dumps([123, "x", None, one, {"description": "no title"}]))
+    assert len(mixed) == 1
+    assert mixed[0]["title"] == "Cliffs of Moher"
+    assert mixed[0]["type"] == CatalogType.place
+
+    # A flood of valid entries is capped at _MAX_ENTRIES (25).
+    flood = [{"type": "place", "title": f"Place {i}"} for i in range(40)]
+    assert len(_parse_entries(json.dumps(flood))) == 25
+
+
+def test_extract_entries_runs_both_provider_stages():
+    """End-to-end with a real provider: stage 1 distils facts, stage 2 structures them."""
+    pdf = _pdf("Galway International Oyster Festival\nType: event\nLocation: Galway City")
+    structured = json.dumps(
+        [
+            {
+                "type": "event",
+                "title": "Galway International Oyster Festival",
+                "destination": "Galway City",
+                "city": "Galway City",
+                "country": "Ireland",
+                "season": "autumn",
+            }
+        ]
+    )
+    # Stage 1 returns distilled facts; stage 2 returns the structured JSON array.
+    fake = _RecordingProvider(
+        responses=["Galway International Oyster Festival\nType: event", structured]
+    )
+    entries = extract_entries("doc.pdf", "application/pdf", pdf, fake)
+
+    assert len(fake.prompts) == 2, "both the extract and structure stages call the seam"
+    assert len(entries) == 1
+    assert entries[0]["title"] == "Galway International Oyster Festival"
+    assert entries[0]["type"] == CatalogType.event
+    # Stage 2 structures stage 1's distilled output, not the raw PDF text.
+    assert "Galway International Oyster Festival" in fake.prompts[1]
+
+
+def test_extract_facts_prefers_distilled_else_falls_back():
+    """Stage 1: a non-empty provider distillation replaces local text; an empty one falls back."""
+    fake = _RecordingProvider(responses=["DISTILLED FACTS"])
+    assert _extract_facts("raw local text", fake) == "DISTILLED FACTS"
+    assert fake.prompts, "a real provider must be asked to distil facts"
+
+    empty = _RecordingProvider(responses=[""])
+    assert _extract_facts("raw local text", empty) == "raw local text"
+
+
+# --------------------------------------------------------- attribute grounding safety (AC66)
+
+
+def test_coerce_attributes_drops_illtyped_template_values():
+    """The grounding guard drops non-numeric/url/date values; well-typed ones are kept."""
+    dropped = _coerce_attributes(
+        CatalogType.event,
+        {"expected_attendance": "loads", "ticket_url": "just-text", "start_date": "someday"},
+    )
+    assert dropped == {}
+
+    kept = _coerce_attributes(
+        CatalogType.event,
+        {"expected_attendance": "1200", "ticket_url": "https://x.test", "start_date": "2026-01-01"},
+    )
+    assert kept == {
+        "expected_attendance": "1200",
+        "ticket_url": "https://x.test",
+        "start_date": "2026-01-01",
+    }
+
+    # A non-dict attributes value coerces to {} rather than raising.
+    assert _coerce_attributes(CatalogType.event, "nope") == {}
+
+
+def test_block_with_illtyped_attribute_drops_it():
+    """A block whose template field carries an ill-typed value yields empty attributes."""
+    facts = (
+        "Spring Music Festival\n"
+        "Type: event\n"
+        "Location: Galway City\n"
+        "Expected attendance: lots\n"  # number field, non-numeric → dropped
+        "Ticket link: not-a-link\n"  # url field, no scheme → dropped
+    )
+    entries = _structure_entries(facts, StubProvider())
+    assert len(entries) == 1
+    assert entries[0]["type"] == CatalogType.event
+    assert entries[0]["attributes"] == {}
+
+
+# ----------------------------------------------- corrupt-PDF safe degradation (AC64/AC65)
+
+
+def test_corrupt_pdf_degrades_to_empty_text(client, provider_headers):
+    """An un-extractable PDF returns "" (never raises) and /import stays 201 with 0 entries."""
+    junk = b"%PDF-1.4\nthis is not a real pdf \x00\x01\x02 garbage bytes"
+    assert document_text("broken.pdf", "application/pdf", junk) == ""
+
+    res = _import(client, provider_headers, junk, "broken.pdf", "application/pdf")
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["count"] == 0
+    assert body["entries"] == []
+
+
+# ------------------------------------------------------------ image import (AC65)
+
+# A 1x1 transparent PNG — bytes are never parsed (no OCR in this PoC); the filename seeds the draft.
+_PNG_1x1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+    "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
+
+
+def test_image_import_yields_draft(client, provider_headers):
+    """An image is accepted; its filename stem deterministically seeds a draft entry (AC65)."""
+    stem = document_text("dingle-food-festival.png", "image/png", _PNG_1x1)
+    assert stem == "dingle food festival"
+
+    res = _import(client, provider_headers, _PNG_1x1, "dingle-food-festival.png", "image/png")
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["count"] >= 1
+    entry = body["entries"][0]
+    assert entry["ai_created"] is True
+    assert entry["visibility"] == "draft"
+    assert "festival" in entry["title"].lower()
