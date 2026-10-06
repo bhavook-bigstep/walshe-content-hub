@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.22.0 |
+| **Version** | 2.23.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -227,9 +227,9 @@ Increment 2 — **Trust, approval & audit**:
 Increment 3 — **AI assistant & discovery** (built on **LangGraph**):
 
 - **AC38** — **Content Assistant**: a grounded, permission-scoped assistant (a LangGraph state
-  machine: route → tool → respond) that answers in plain language and only ever speaks about catalog
+  machine: route → tool → respond) that answers in plain language and only ever surfaces catalog
   content the agent may see — it cannot surface or invent anything outside the approved, current,
-  in-scope library (FR-24/36). Runs via the AC16 provider abstraction: a real model when a key is
+  in-scope library (FR-24/36). It may also explain how the platform itself works (AC65). Runs via the AC16 provider abstraction: a real model when a key is
   set, the deterministic stub otherwise, so it works offline for the demo and is reproducible in
   tests. Proof: pytest asserts the reply is grounded in a visible item and never surfaces
   draft/off-limits content; Playwright shows an agent asking and getting a grounded answer.
@@ -443,13 +443,29 @@ Catalog library (charter `docs/plans/2026-10-05-catalog-library-charter.md`):
   grounding + placeable media) and autosaves it; `item_ids`/`design` stay a derived/compat view.
   Agent-only, ownership-scoped. Proof: api (seed-from-collection, PUT validation + version bump,
   legacy migration).
+- **AC65** — **Conversational platform assistant.** The chat assistant (AC38/AC57) is a real
+  conversational chatbot: its system prompt carries a **role-specific, user-level platform guide**
+  (agent or provider — no internal/confidential detail), so it answers "how do I…" questions and
+  small talk, not only catalog lookups. The widget sends the **recent conversation turns** with each
+  message (the chat itself stays client-side, unchanged — no server-side chat store); the server
+  uses the last 10. Every message still runs a grounded catalog search (visible set only); the
+  model's reply **streams** to the widget as it is generated (`POST /assistant/stream`,
+  server-sent events: text deltas, then one final event) and ends with a hidden `ITEMS: [ids]` line —
+  **only cited ids from that grounded set** become item cards (invented ids are dropped). The final
+  event is authoritative: a reply with an off-limits term or a link, an empty reply or a provider
+  error (even mid-stream) is replaced by the deterministic grounded reply; the stub stays
+  deterministic (Contract 4). The static system prompt comes first and is byte-stable so provider
+  prefix caching applies. Proof: pytest (history reaches the provider capped; platform question →
+  reply with no cards; hallucinated id dropped; guard + mid-stream fallbacks; deltas rebuild the reply
+  without the marker; stream endpoint roles + event order; stable per-role system prompt; Gemini
+  streaming request shape).
 
-**Priority tiers** (build order; acceptance reports honestly against all 64):
+**Priority tiers** (build order; acceptance reports honestly against all 65):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · workspace-engine = AC64 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · workspace-engine = AC64 · assistant = AC65 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -488,6 +504,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.23.0 | 2026-10-06 | **Conversational platform assistant** (user request): added **AC65** — the chat assistant becomes a real chatbot: a role-specific user-level platform guide in its system prompt, recent conversation turns sent from the (unchanged, client-side) widget, a grounded catalog search on every message, the reply **streamed** over server-sent events ending with a hidden `ITEMS: [ids]` line (only cited, visible items become cards; invented ids dropped), guard + deterministic fallback kept (final event authoritative), stub deterministic. **AC38** softened from "only ever speaks about catalog content" to "only ever *surfaces* catalog content … may also explain how the platform works". All prior ACs stay green. | user + Claude |
 | 2.22.0 | 2026-10-06 | **Structured Workspace (single studio input + autosave)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-ai-builder-optimize-charter.md` v2.0): added **AC64** — a project stores one structured **workspace** `{metadata, reference_content:{collections,uploads,generated}, scenes}` holding **references only**; `GET /me/projects/{id}/workspace` returns it resolved, `PUT` autosaves the whole object (validates visible-entry/owned-asset references, drops stale, bumps `metadata.version`); creating a project from a collection seeds `reference_content.collections`; old projects migrate on read; the Design Studio reads the resolved workspace as its single input (builder grounding + placeable media) and autosaves it; `item_ids`/`design` kept as a derived/compat view. All prior ACs stay green. | user + Claude |
 | 2.21.0 | 2026-10-06 | **Agent workspace: Catalog + Collections (accurate + redesigned)** (`/oneshot-poc:run`, charter `docs/plans/2026-10-06-agent-workspace-charter.md`): added **AC59** (catalog = search/query library; primary action **Save to collection** as a validated reference; removed the dead "Add to composition"), **AC60** (collections **resolve** against the live catalog + a detail view: see items, remove, rename, Open in Design Studio), **AC61** (clicking an entry opens an item-detail modal, in catalog + collections), **AC62** (templates **Preview + Use on hover**), **AC63** (a studio **project starts from a collection**; usable media = collection items + Local uploads + AI library, not the whole catalog). Reordered the agent sidebar. Redesigned both pages within the design system. All prior ACs stay green. | user + Claude |
 | 2.20.0 | 2026-10-06 | **Provider assistant + org logo upload + UX cleanup** (⏸G feedback): added **AC57** — the grounded chat assistant now serves **providers** (grounded in their own catalog via `entries_for_actor`); and **AC58** — **org logo upload** (jpg/jpeg/png) replacing the URL field, served through the asset gate. Also: the entry **Edit** now uses the same form as create (edits everything — type/visibility/location/season/attributes/expiry) via a shared `EntryForm`; form sections (location/details/cover/expiry) **collapse by default** for a cleaner form; **Team** + **Invite agents** moved into the **Organization** page (removed Team from the sidebar and Invite from the Catalog); **Off-limits** removed from the provider sidebar (backend + route retained for now). All prior ACs stay green. | user + Claude |
