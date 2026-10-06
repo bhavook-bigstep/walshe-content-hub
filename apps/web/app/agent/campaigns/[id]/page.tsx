@@ -9,7 +9,7 @@ import {
 } from "../../../../lib/api";
 import { bucketByLocalDay, monthCells, STATUS_CHIP } from "../../../../lib/campaigns/calendar";
 import {
-  buildCampaignPatchForm, buildCampaignPostForm, localInputToOffsetISO,
+  buildCampaignPatchForm, buildCampaignPostForm, CAMPAIGN_PLATFORMS, localInputToOffsetISO,
 } from "../../../../lib/campaigns/form";
 import { migrateDesign } from "../../../../lib/studio/ops";
 import { renderDesignToJpegBlob } from "../../../../lib/studio/render";
@@ -29,6 +29,7 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<CampaignDetail | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
+  const [platform, setPlatform] = useState(CAMPAIGN_PLATFORMS[0].value);
   const [caption, setCaption] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -81,7 +82,7 @@ export default function CampaignDetailPage() {
       if (!design) throw new Error("This project has no usable design to render.");
       const jpeg = await renderDesignToJpegBlob(design, 0);
       const form = buildCampaignPostForm({
-        compositionId: Number(projectId), caption,
+        compositionId: Number(projectId), caption, platform,
         scheduledAtISO: scheduledAt ? localInputToOffsetISO(scheduledAt) : null, jpeg,
       });
       await scheduleCampaignPost(id, form);
@@ -106,7 +107,9 @@ export default function CampaignDetailPage() {
     setError(null);
     try {
       await patchCampaignPost(id, selected.id, buildCampaignPatchForm({
-        caption: editCaption,
+        // An empty multipart value reads as absent server-side, so clearing uses clear_caption.
+        caption: editCaption === "" ? undefined : editCaption,
+        clearCaption: editCaption === "",
         unschedule,
         scheduledAtISO: unschedule ? null : (editWhen ? localInputToOffsetISO(editWhen) : null),
       }));
@@ -136,6 +139,13 @@ export default function CampaignDetailPage() {
           <select className="field" aria-label="Project" value={projectId}
                   onChange={(e) => setProjectId(e.target.value)}>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="label">Platform</span>
+          <select className="field" aria-label="Platform" value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}>
+            {CAMPAIGN_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1">

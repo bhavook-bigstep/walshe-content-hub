@@ -3,6 +3,8 @@
 import io
 from datetime import datetime, timezone
 
+import pytest
+
 from app.models.composition import Composition
 from app.models.user import Role, User
 from tests.conftest import auth_header
@@ -63,6 +65,19 @@ def test_scheduled_at_returned_as_utc_aware_instant(client):
     parsed = datetime.fromisoformat(returned)
     assert parsed.utcoffset() is not None, f"naive datetime {returned!r} — browser reads it as local"
     assert parsed == datetime(2026, 8, 15, 20, 30, tzinfo=timezone.utc)
+
+
+def test_schedule_accepts_platform_and_rejects_unsupported(client):
+    a = auth_header(client, Role.tourism_agent)
+    cid, comp = _campaign(client, a), _make_composition(client)
+    ok = client.post(f"/campaigns/{cid}/posts",
+                     data={"composition_id": str(comp), "caption": "x", "platform": "instagram"},
+                     files={"image": ("p.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=a)
+    assert ok.status_code == 201 and ok.json()["platform"] == "instagram"
+    bad = client.post(f"/campaigns/{cid}/posts",
+                      data={"composition_id": str(comp), "caption": "x", "platform": "tiktok"},
+                      files={"image": ("p.jpg", io.BytesIO(JPEG), "image/jpeg")}, headers=a)
+    assert bad.status_code == 422
 
 
 def test_schedule_without_time_is_draft(client):
@@ -159,15 +174,16 @@ def test_patch_unschedule_moves_to_draft(client):
     assert r.json()["scheduled_at"] is None
 
 
-def test_patch_blocked_on_non_editable_status(client):
+@pytest.mark.parametrize("state", ["published", "approved", "publishing", "cancelled"])
+def test_patch_blocked_on_non_editable_status(client, state):
+    from app.models.post import Post, PostStatus
     a = auth_header(client, Role.tourism_agent)
     cid, comp = _campaign(client, a), _make_composition(client)
     pid = _post_id(client, a, cid, comp)
     SessionLocal = client.app.state.sessionmaker
     with SessionLocal() as db:
-        from app.models.post import Post, PostStatus
         p = db.get(Post, pid)
-        p.status = PostStatus.published
+        p.status = PostStatus(state)
         db.commit()
     r = client.patch(f"/campaigns/{cid}/posts/{pid}", data={"caption": "x"}, headers=a)
     assert r.status_code == 409

@@ -376,6 +376,11 @@
             "title": "Image",
             "type": "string"
           },
+          "platform": {
+            "default": "instagram",
+            "title": "Platform",
+            "type": "string"
+          },
           "scheduled_at": {
             "anyOf": [
               {
@@ -754,7 +759,6 @@
       "CampaignDetailOut": {
         "properties": {
           "created_at": {
-            "format": "date-time",
             "title": "Created At",
             "type": "string"
           },
@@ -819,7 +823,6 @@
       "CampaignOut": {
         "properties": {
           "created_at": {
-            "format": "date-time",
             "title": "Created At",
             "type": "string"
           },
@@ -917,7 +920,6 @@
           "scheduled_at": {
             "anyOf": [
               {
-                "format": "date-time",
                 "type": "string"
               },
               {

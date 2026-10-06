@@ -9,6 +9,16 @@ describe("monthCells", () => {
   });
 });
 
+describe("localDateKey", () => {
+  it("matches the viewer's local calendar date via an independent oracle (not self-referential)", () => {
+    // A UTC-evening instant: its UTC date and a +ve-offset local date differ. localDateKey must
+    // track the viewer's LOCAL date, whatever the runner TZ — compared to the standard en-CA
+    // (YYYY-MM-DD) formatter, a different code path, so a wrong localDateKey would fail here.
+    const iso = "2026-08-15T20:30:00+00:00";
+    expect(localDateKey(iso)).toBe(new Date(iso).toLocaleDateString("en-CA"));
+  });
+});
+
 describe("bucketByLocalDay", () => {
   it("buckets by local date and skips un-scheduled posts", () => {
     const rows = [

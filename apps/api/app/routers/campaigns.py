@@ -29,6 +29,9 @@ router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 _agent_only = require_role(Role.tourism_agent)
 _MAX_BYTES = 8 * 1024 * 1024  # Instagram image limit (mirrors app/routers/instagram.py)
 _MAX_CAPTION = 2200
+# Platform lives at the post level (design §3). Instagram-only for the PoC; the set is the seam
+# other platforms slot into later without reshaping the campaign.
+_SUPPORTED_PLATFORMS = {"instagram"}
 
 
 def get_storage(request: Request) -> Storage:  # mirrors app/routers/assets.py:36-37
@@ -141,18 +144,20 @@ def create_campaign_post(
     campaign_id: int,
     composition_id: int = Form(...),
     caption: str = Form(""),
+    platform: str = Form("instagram"),
     scheduled_at: str | None = Form(None),
     image: UploadFile = File(...),
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     storage: Storage = Depends(get_storage),
-    now: datetime = Depends(clock.now),
 ) -> CampaignPostOut:
     """Create a campaign post, optionally scheduled; captures the rendered JPEG now (design §4)."""
     campaign = _owned_campaign(db, campaign_id, user)
     comp = db.get(Composition, composition_id)
     if comp is None or comp.agent_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
+    if platform not in _SUPPORTED_PLATFORMS:
+        raise HTTPException(422, f"Unsupported platform '{platform}'")
     _validate_caption(caption)
     data = _read_jpeg(image)  # validate before writing anything
 
@@ -166,8 +171,8 @@ def create_campaign_post(
         post_status = PostStatus.pending_approval
 
     post = Post(
-        campaign_id=campaign.id, composition_id=comp.id, channel="instagram",
-        platform="instagram", caption=caption, status=post_status, scheduled_at=sched_utc,
+        campaign_id=campaign.id, composition_id=comp.id, channel=platform,
+        platform=platform, caption=caption, status=post_status, scheduled_at=sched_utc,
     )
     db.add(post)
     db.flush()  # assign post.id for the storage key
@@ -195,7 +200,6 @@ def edit_post(
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     storage: Storage = Depends(get_storage),
-    now: datetime = Depends(clock.now),
 ) -> CampaignPostOut:
     campaign = _owned_campaign(db, campaign_id, user)
     post = db.get(Post, post_id)

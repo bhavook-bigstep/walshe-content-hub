@@ -9,14 +9,18 @@ describe("buildCampaignPostForm", () => {
   it("appends fields and the JPEG file; omits scheduled_at when absent", () => {
     const jpeg = new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: "image/jpeg" });
     const f = buildCampaignPostForm({
-      compositionId: 7, caption: "Hi", scheduledAtISO: "2026-08-15T09:30:00+05:30", jpeg,
+      compositionId: 7, caption: "Hi", platform: "instagram",
+      scheduledAtISO: "2026-08-15T09:30:00+05:30", jpeg,
     });
     expect(f.get("composition_id")).toBe("7");
     expect(f.get("caption")).toBe("Hi");
+    expect(f.get("platform")).toBe("instagram");
     expect(f.get("scheduled_at")).toBe("2026-08-15T09:30:00+05:30");
     expect(f.get("image")).toBeInstanceOf(File);
 
-    const f2 = buildCampaignPostForm({ compositionId: 7, caption: "", scheduledAtISO: null, jpeg });
+    const f2 = buildCampaignPostForm({
+      compositionId: 7, caption: "", platform: "instagram", scheduledAtISO: null, jpeg,
+    });
     expect(f2.has("scheduled_at")).toBe(false);
   });
 });

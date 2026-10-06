@@ -3,6 +3,7 @@
 export interface CampaignPostFormInput {
   compositionId: number;
   caption: string;
+  platform: string;
   scheduledAtISO: string | null;
   jpeg: Blob;
 }
@@ -11,10 +12,17 @@ export function buildCampaignPostForm(input: CampaignPostFormInput): FormData {
   const form = new FormData();
   form.append("composition_id", String(input.compositionId));
   form.append("caption", input.caption);
+  form.append("platform", input.platform);
   if (input.scheduledAtISO) form.append("scheduled_at", input.scheduledAtISO);
   form.append("image", new File([input.jpeg], "post.jpg", { type: "image/jpeg" }));
   return form;
 }
+
+// Platforms selectable in the schedule form. Instagram-only for the PoC; the list is the UI seam
+// that grows as the API's supported set grows (design §3, platform at the post level).
+export const CAMPAIGN_PLATFORMS: { value: string; label: string }[] = [
+  { value: "instagram", label: "Instagram" },
+];
 
 // Convert a <input type="datetime-local"> value (the viewer's wall-clock time, "YYYY-MM-DDTHH:mm")
 // to an OFFSET-AWARE ISO string that keeps that wall time and appends the viewer's UTC offset.

@@ -1507,6 +1507,11 @@ export interface components {
             composition_id: number;
             /** Image */
             image: string;
+            /**
+             * Platform
+             * @default instagram
+             */
+            platform: string;
             /** Scheduled At */
             scheduled_at?: string | null;
         };
@@ -1627,10 +1632,7 @@ export interface components {
         };
         /** CampaignDetailOut */
         CampaignDetailOut: {
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Destination */
             destination: string | null;
@@ -1660,10 +1662,7 @@ export interface components {
         };
         /** CampaignOut */
         CampaignOut: {
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Destination */
             destination: string | null;

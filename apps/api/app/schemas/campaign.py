@@ -33,6 +33,14 @@ class CampaignOut(BaseModel):
     post_count: int = 0
     model_config = {"from_attributes": True}
 
+    @field_serializer("created_at")
+    def _serialize_created_at(self, value: datetime) -> str:
+        # Same UTC-marking as scheduled_at: SQLite drops tzinfo, so stamp UTC on output so clients
+        # never read a stored-UTC timestamp as local time.
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
+
 
 class CampaignPostOut(BaseModel):
     id: int
