@@ -39,11 +39,30 @@ _SEED_USERS = [
 ]
 
 _SEED_ENTRIES = [
+    # Ireland
     (CatalogType.event, "Harbour Festival", "Galway"),
     (CatalogType.place, "Cliffs of Moher", "Clare"),
     (CatalogType.opportunity, "Trade Showcase", "Dublin"),
     (CatalogType.offer, "Autumn Package", "Kerry"),
     (CatalogType.itinerary, "Wild Atlantic Way", "Mayo"),
+    # Australia
+    (CatalogType.event, "Vivid Sydney", "New South Wales"),
+    (CatalogType.place, "Great Barrier Reef", "Queensland"),
+    (CatalogType.opportunity, "Australian Trade Expo", "Victoria"),
+    (CatalogType.offer, "Red Centre Getaway", "Northern Territory"),
+    (CatalogType.itinerary, "Great Ocean Road Drive", "Victoria"),
+    # Australia — more places
+    (CatalogType.place, "Sydney Opera House", "New South Wales"),
+    (CatalogType.place, "Uluru-Kata Tjuta", "Northern Territory"),
+    (CatalogType.place, "Daintree Rainforest", "Queensland"),
+    (CatalogType.place, "Twelve Apostles", "Victoria"),
+    (CatalogType.place, "Rottnest Island", "Western Australia"),
+    # Australia — more events
+    (CatalogType.event, "Melbourne Cup", "Victoria"),
+    (CatalogType.event, "Sydney New Year's Eve", "New South Wales"),
+    (CatalogType.event, "Australian Open", "Victoria"),
+    (CatalogType.event, "Darwin Festival", "Northern Territory"),
+    (CatalogType.event, "Byron Bay Bluesfest", "New South Wales"),
 ]
 
 # Structured location + season per entry (AC53) — values come from the curated geo hierarchy
@@ -55,6 +74,21 @@ _SEED_LOCATION: dict[str, tuple[str, str, str, Season]] = {
     "Trade Showcase": ("Ireland", "Dublin", "Dublin", Season.autumn),
     "Autumn Package": ("Ireland", "Kerry", "Killarney", Season.autumn),
     "Wild Atlantic Way": ("Ireland", "Mayo", "Westport", Season.summer),
+    "Vivid Sydney": ("Australia", "New South Wales", "Sydney", Season.winter),
+    "Great Barrier Reef": ("Australia", "Queensland", "Cairns", Season.year_round),
+    "Australian Trade Expo": ("Australia", "Victoria", "Melbourne", Season.spring),
+    "Red Centre Getaway": ("Australia", "Northern Territory", "Alice Springs", Season.winter),
+    "Great Ocean Road Drive": ("Australia", "Victoria", "Geelong", Season.summer),
+    "Sydney Opera House": ("Australia", "New South Wales", "Sydney", Season.year_round),
+    "Uluru-Kata Tjuta": ("Australia", "Northern Territory", "Uluru", Season.year_round),
+    "Daintree Rainforest": ("Australia", "Queensland", "Port Douglas", Season.year_round),
+    "Twelve Apostles": ("Australia", "Victoria", "Great Ocean Road", Season.year_round),
+    "Rottnest Island": ("Australia", "Western Australia", "Perth", Season.summer),
+    "Melbourne Cup": ("Australia", "Victoria", "Melbourne", Season.spring),
+    "Sydney New Year's Eve": ("Australia", "New South Wales", "Sydney", Season.summer),
+    "Australian Open": ("Australia", "Victoria", "Melbourne", Season.summer),
+    "Darwin Festival": ("Australia", "Northern Territory", "Darwin", Season.winter),
+    "Byron Bay Bluesfest": ("Australia", "New South Wales", "Byron Bay", Season.autumn),
 }
 
 # Per-entry distribution (AC54): most of the demo catalog is public; "Autumn Package" is private
@@ -90,6 +124,78 @@ _SEED_ATTRIBUTES: dict[CatalogType, dict] = {
         "duration_days": 7,
         "stops": "Galway, Clifden, Westport, Sligo",
         "difficulty": "Easy",
+    },
+}
+
+# Per-entry attribute overrides (take precedence over the per-type defaults above) so each
+# destination reads true — e.g. Australian offers price in AUD, events name local venues.
+_SEED_ATTRIBUTES_BY_TITLE: dict[str, dict] = {
+    "Vivid Sydney": {
+        "start_date": "2026-05-22",
+        "end_date": "2026-06-13",
+        "venue": "Sydney Harbour & CBD",
+        "expected_attendance": 2000000,
+    },
+    "Great Barrier Reef": {
+        "region": "Coral Sea",
+        "latitude": -16.9203,
+        "longitude": 145.7710,
+    },
+    "Australian Trade Expo": {
+        "deadline": "2026-08-15",
+        "commission": "10%",
+        "partner": "Qantas",
+    },
+    "Red Centre Getaway": {
+        "price_from": 1490,
+        "currency": "AUD",
+        "valid_until": "2026-10-31",
+    },
+    "Great Ocean Road Drive": {
+        "duration_days": 5,
+        "stops": "Geelong, Torquay, Apollo Bay, Twelve Apostles, Port Campbell",
+        "difficulty": "Easy",
+    },
+    # Australian places
+    "Sydney Opera House": {"region": "Sydney Harbour", "latitude": -33.8568, "longitude": 151.2153},
+    "Uluru-Kata Tjuta": {"region": "Red Centre", "latitude": -25.3444, "longitude": 131.0369},
+    "Daintree Rainforest": {
+        "region": "Tropical North Queensland",
+        "latitude": -16.1700,
+        "longitude": 145.4185,
+    },
+    "Twelve Apostles": {"region": "Great Ocean Road", "latitude": -38.6662, "longitude": 143.1044},
+    "Rottnest Island": {"region": "Perth & Rottnest", "latitude": -31.9969, "longitude": 115.5400},
+    # Australian events
+    "Melbourne Cup": {
+        "start_date": "2026-11-03",
+        "end_date": "2026-11-03",
+        "venue": "Flemington Racecourse",
+        "expected_attendance": 100000,
+    },
+    "Sydney New Year's Eve": {
+        "start_date": "2026-12-31",
+        "end_date": "2027-01-01",
+        "venue": "Sydney Harbour",
+        "expected_attendance": 1000000,
+    },
+    "Australian Open": {
+        "start_date": "2027-01-18",
+        "end_date": "2027-02-01",
+        "venue": "Melbourne Park",
+        "expected_attendance": 900000,
+    },
+    "Darwin Festival": {
+        "start_date": "2026-08-06",
+        "end_date": "2026-08-23",
+        "venue": "Darwin city venues",
+        "expected_attendance": 200000,
+    },
+    "Byron Bay Bluesfest": {
+        "start_date": "2027-04-01",
+        "end_date": "2027-04-05",
+        "venue": "Byron Events Farm",
+        "expected_attendance": 100000,
     },
 }
 
@@ -176,9 +282,9 @@ def _upsert_entry(
             created_by_email=created_by_email,
             org_name=org_name,
             catalog_id=catalog_id,
-            attributes=_SEED_ATTRIBUTES.get(type_, {}),
+            attributes=_SEED_ATTRIBUTES_BY_TITLE.get(title, _SEED_ATTRIBUTES.get(type_, {})),
             highlights=[
-                f"Signature {type_.value} on the Wild Atlantic Way",
+                f"Signature {type_.value} in {state or country}",
                 "Trade-ready assets included",
             ],
             custom_sections=[
