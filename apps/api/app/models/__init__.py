@@ -25,6 +25,7 @@ from app.models.catalog import (
 )
 from app.models.composition import Composition
 from app.models.engagement import Engagement
+from app.models.jobs import Job, JobStatus
 from app.models.post import Post, PostStatus
 from app.models.post_insights_sync import PostInsightsSync
 from app.models.user import Role, Tenant, User
@@ -59,4 +60,6 @@ __all__ = [
     "BrandKit",
     "Campaign",
     "CampaignStatus",
+    "Job",
+    "JobStatus",
 ]

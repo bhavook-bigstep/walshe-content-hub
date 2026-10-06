@@ -25,33 +25,30 @@ test("studio smoke", async ({ page }) => {
   // Open the studio.
   await page.goto("/agent");
   await nav.getByRole("link", { name: "Design Studio" }).click();
-  await expect(page.getByRole("heading", { name: "Design Studio" })).toBeVisible();
+  await expect(page.getByTestId("studio-canvas")).toBeVisible();
 
-  // Pick a format (Format & size tool in the right rail).
-  await page.getByRole("button", { name: "Format & size" }).click();
-  const format = page.getByLabel("Format", { exact: true });
-  const options = await format.locator("option").evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-  await format.selectOption(options[0]);
+  // Pick a format (menu bar → Size menu).
+  await page.getByRole("button", { name: "Size" }).click();
+  await page.getByRole("menuitem", { name: /Social image/ }).click();
 
-  // Add a catalog image and a text node (the Add elements tool in the right rail).
-  await page.getByRole("button", { name: "Add elements" }).click();
-  await page.getByRole("button", { name: /Add image/ }).click();
-  await page.getByLabel("Text content").fill("Smoke test headline");
-  await page.getByRole("button", { name: "Add text" }).click();
+  // Add a text element (right-rail Text tool → Heading preset).
+  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: "Heading", exact: true }).click();
   await expect(page.locator("canvas").first()).toBeVisible();
 
-  // Export (the Export / download tool in the right rail).
-  await page.getByRole("button", { name: "Export / download" }).click();
+  // Export PNG (menu bar → File menu).
+  await page.getByRole("button", { name: "File" }).click();
   const [png] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Export PNG" }).click(),
+    page.getByRole("menuitem", { name: "Export as PNG" }).click(),
   ]);
   expect(png.suggestedFilename()).toMatch(/\.png$/);
 
   // Export PDF (server render) and assert the %PDF magic.
+  await page.getByRole("button", { name: "File" }).click();
   const [pdf] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Export PDF" }).click(),
+    page.getByRole("menuitem", { name: "Export as PDF" }).click(),
   ]);
   expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
   const stream = await pdf.createReadStream();

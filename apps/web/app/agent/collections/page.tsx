@@ -60,7 +60,6 @@ export default function AgentCollectionsPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Collections" }]}
         title="Collections"
-        description="Your saved picks from the catalog. Open one to manage it or start a design."
       />
 
       <form onSubmit={onCreate} className="card mb-6 flex items-end gap-3 p-4">
@@ -153,7 +152,7 @@ function CollectionDetailDialog({
     if (collection.items.length === 0) return;
     setBusy(true);
     try {
-      // Seed the project's workspace from this collection (AC64); the backend expands
+      // Seed the project's workspace from this collection (AC75); the backend expands
       // reference_content.collections from collection_id.
       const project = await createProject({
         name: collection.name,

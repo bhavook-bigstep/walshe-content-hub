@@ -116,6 +116,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assistant Stream
+         * @description The same assistant as ``POST /assistant``, streamed as server-sent events (AC65):
+         *     ``delta`` events carry reply text as it is generated, then one ``done`` event carries the
+         *     final (guarded) reply + cited item cards, which replaces the streamed text. On failure a
+         *     single ``error`` event is sent instead of ``done``.
+         */
+        post: operations["assistant_stream_assistant_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit": {
         parameters: {
             query?: never;
@@ -396,7 +419,7 @@ export interface paths {
         put?: never;
         /**
          * Approve Post
-         * @description Approve AND publish a pending post in one action (AC66/AC67). PoC self-approval: the owning
+         * @description Approve AND publish a pending post in one action (AC78/AC79). PoC self-approval: the owning
          *     agent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records
          *     the reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a
          *     guard/publish failure nothing is approved and the reason is returned (422/409/503/502).
@@ -419,7 +442,7 @@ export interface paths {
         put?: never;
         /**
          * Reject Post
-         * @description Reject a pending post with a reason (AC66); it drops to rejected and is editable again.
+         * @description Reject a pending post with a reason (AC78); it drops to rejected and is editable again.
          */
         post: operations["reject_post_campaigns__campaign_id__posts__post_id__reject_post"];
         delete?: never;
@@ -736,6 +759,9 @@ export interface paths {
         /**
          * List My Entries
          * @description Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.
+         *
+         *     ``ai_created`` filters the set (AC68): ``true`` = only Auto-Catalog-generated entries,
+         *     ``false`` = only hand-authored entries, omitted = all.
          */
         get: operations["list_my_entries_catalogs_mine_entries_get"];
         put?: never;
@@ -938,6 +964,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/auto-catalog/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Document
+         * @description Accept a document and schedule an async import (AC71).
+         *
+         *     Validates type + size at the boundary (AC64), reads the bytes (the ``UploadFile`` is closed once
+         *     the 202 returns), enqueues a ``Job`` and schedules the extraction as a background task. The work
+         *     — AC16 seam extraction (AC65), image extraction (AC72), tool-call draft creation (AC73) — runs
+         *     after the response; this endpoint never blocks on the LLM.
+         */
+        post: operations["import_document_me_auto_catalog_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/brand-kit": {
         parameters: {
             query?: never;
@@ -1061,6 +1112,28 @@ export interface paths {
         };
         /** Design Templates */
         get: operations["design_templates_me_design_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Jobs
+         * @description List the provider's own import jobs, newest first — backs the navbar bell (AC74).
+         *
+         *     Owner-scoped (a provider never sees another's jobs); content-free (status + a safe summary).
+         */
+        get: operations["list_jobs_me_jobs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1297,12 +1370,12 @@ export interface paths {
         };
         /**
          * Get Workspace
-         * @description The structured workspace (AC64), resolved: references expanded to live entries + assets.
+         * @description The structured workspace (AC75), resolved: references expanded to live entries + assets.
          */
         get: operations["get_workspace_me_projects__project_id__workspace_get"];
         /**
          * Save Workspace
-         * @description Autosave the whole workspace (AC64). Validates references (visible entries, owned assets),
+         * @description Autosave the whole workspace (AC75). Validates references (visible entries, owned assets),
          *     bumps the version, and keeps item_ids/design in sync for the compat resolve/export paths.
          */
         put: operations["save_workspace_me_projects__project_id__workspace_put"];
@@ -1663,6 +1736,8 @@ export interface components {
         };
         /** AssistantRequest */
         AssistantRequest: {
+            /** History */
+            history?: components["schemas"]["HistoryTurn"][];
             /** Message */
             message: string;
         };
@@ -1740,6 +1815,11 @@ export interface components {
              * @default false
              */
             unschedule: boolean;
+        };
+        /** Body_import_document_me_auto_catalog_import_post */
+        Body_import_document_me_auto_catalog_import_post: {
+            /** File */
+            file: string;
         };
         /** Body_publish_social_instagram_publish_post */
         Body_publish_social_instagram_publish_post: {
@@ -2134,14 +2214,33 @@ export interface components {
         };
         /** DesignTemplate */
         DesignTemplate: {
+            /**
+             * Background
+             * @default
+             */
+            background: string;
             /** Description */
             description: string;
             /** Format */
             format: string;
+            /**
+             * Height
+             * @default 1080
+             */
+            height: number;
             /** Id */
             id: string;
             /** Name */
             name: string;
+            /** Nodes */
+            nodes?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Width
+             * @default 1080
+             */
+            width: number;
         };
         /**
          * DisplayStatus
@@ -2244,6 +2343,11 @@ export interface components {
         };
         /** EntryOut */
         EntryOut: {
+            /**
+             * Ai Created
+             * @default false
+             */
+            ai_created: boolean;
             /**
              * Asset Keys
              * @default []
@@ -2417,6 +2521,16 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HistoryTurn */
+        HistoryTurn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** Text */
+            text: string;
+        };
         /** InstagramPublishOut */
         InstagramPublishOut: {
             /** External Id */
@@ -2492,6 +2606,41 @@ export interface components {
              * @default
              */
             title: string;
+        };
+        /**
+         * JobOut
+         * @description An async import job (AC71) as seen by the provider's bell + jobs list (AC74).
+         *
+         *     Content-free: status + a safe summary only (never document text, keys or raw PII).
+         */
+        JobOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Drafts Created */
+            drafts_created: number;
+            /** Entry Ids */
+            entry_ids: number[];
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /** Filename */
+            filename: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** KeywordsOut */
         KeywordsOut: {
@@ -2662,6 +2811,8 @@ export interface components {
             item_ids?: number[];
             /** Name */
             name: string;
+            /** Template Id */
+            template_id?: string | null;
         };
         /** ProjectOut */
         ProjectOut: {
@@ -3263,6 +3414,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assistant_stream_assistant_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
                 };
             };
             /** @description Validation Error */
@@ -4517,7 +4701,9 @@ export interface operations {
     };
     list_my_entries_catalogs_mine_entries_get: {
         parameters: {
-            query?: never;
+            query?: {
+                ai_created?: boolean | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4531,6 +4717,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -4855,6 +5050,39 @@ export interface operations {
             };
         };
     };
+    import_document_me_auto_catalog_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_document_me_auto_catalog_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_brand_kit_me_brand_kit_get: {
         parameters: {
             query?: never;
@@ -5139,6 +5367,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DesignTemplate"][];
+                };
+            };
+        };
+    };
+    list_jobs_me_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"][];
                 };
             };
         };

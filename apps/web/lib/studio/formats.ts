@@ -31,7 +31,7 @@ export const FORMAT_PRESETS: Readonly<Record<FormatName, FormatPreset>> = {
   pamphlet: { name: "pamphlet", label: "Pamphlet", width: 1240, height: 1754, pages: 4, multiPage: true },
 };
 
-/** Every format name, in display order — drives the FormatPicker component. */
+/** Every format name, in display order — drives the Size menu in the studio menu bar. */
 export const FORMAT_NAMES: readonly FormatName[] = ["social", "story", "pamphlet"];
 
 export function isFormatName(value: string): value is FormatName {

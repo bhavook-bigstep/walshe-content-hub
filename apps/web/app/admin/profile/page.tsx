@@ -6,7 +6,7 @@ import ProfileForm from "../../../components/profile/ProfileForm";
 export default function AdminProfilePage() {
   return (
     <div>
-      <PageHeader title="Profile" description="Your name and how you appear across the workspace." />
+      <PageHeader title="Profile" />
       <div className="max-w-2xl">
         <ProfileForm />
       </div>

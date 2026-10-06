@@ -11,6 +11,7 @@ are used (no shell), and overlay text is escaped for drawtext.
 
 from __future__ import annotations
 
+import functools
 import logging
 import math
 import shutil
@@ -85,28 +86,50 @@ def escape_drawtext(text: str) -> str:
     return out.replace("\n", " ")
 
 
-def _filter(scene: Scene) -> str:
-    frames = int(scene.duration * FPS)
-    parts = [
-        f"zoompan=z='min(zoom+0.0015,1.3)':d={frames}:s={WIDTH}x{HEIGHT}:fps={FPS}",
-        f"drawtext=text='{escape_drawtext(scene.title)}':fontcolor=white:fontsize=56:"
-        "x=(w-text_w)/2:y=h*0.15:box=1:boxcolor=black@0.5:boxborderw=12",
-    ]
-    if scene.caption:
+@functools.lru_cache(maxsize=8)
+def _supports_drawtext(ffmpeg: str) -> bool:
+    """Whether this ffmpeg build has the ``drawtext`` filter (needs libfreetype).
+
+    Some builds (e.g. a minimal Homebrew ffmpeg) omit it; `drawtext` then errors out the whole
+    render. We probe ``ffmpeg -filters`` once per binary and, if drawtext is missing, drop the text
+    overlays so the video still renders (just without burned-in captions). An inconclusive probe
+    (binary not found / error) keeps the overlays — the default, tested behaviour."""
+    try:
+        res = subprocess.run([ffmpeg, "-hide_banner", "-filters"], capture_output=True, timeout=10)
+        out = (res.stdout or b"") + (res.stderr or b"")
+        return b"drawtext" in out
+    except Exception:
+        return True
+
+
+def _filter(scene: Scene, with_text: bool = True, has_image: bool = True) -> str:
+    parts: list[str] = []
+    # The Ken-Burns zoom only matters over a real photo; skip it for colour backgrounds (it just
+    # burns CPU generating frames on a flat colour), which keeps imageless renders near-instant.
+    if has_image:
+        frames = int(scene.duration * FPS)
+        parts.append(f"zoompan=z='min(zoom+0.0015,1.3)':d={frames}:s={WIDTH}x{HEIGHT}:fps={FPS}")
+    if with_text:
         parts.append(
-            f"drawtext=text='{escape_drawtext(scene.caption)}':fontcolor=white:fontsize=30:"
-            "x=(w-text_w)/2:y=h*0.82:box=1:boxcolor=black@0.5:boxborderw=8"
+            f"drawtext=text='{escape_drawtext(scene.title)}':fontcolor=white:fontsize=56:"
+            "x=(w-text_w)/2:y=h*0.15:box=1:boxcolor=black@0.5:boxborderw=12"
         )
+        if scene.caption:
+            parts.append(
+                f"drawtext=text='{escape_drawtext(scene.caption)}':fontcolor=white:fontsize=30:"
+                "x=(w-text_w)/2:y=h*0.82:box=1:boxcolor=black@0.5:boxborderw=8"
+            )
     return ",".join(parts)
 
 
 def build_scene_cmd(
-    scene: Scene, image: str | None, out: str, audio: str | None = None
+    scene: Scene, image: str | None, out: str, audio: str | None = None, with_text: bool = True
 ) -> list[str]:
     """ffmpeg argv for one scene clip (image or generated colour background).
 
     Every clip is given an audio track — the narration when present, otherwise generated silence —
-    so clips always have uniform streams for a clean concat/xfade join.
+    so clips always have uniform streams for a clean concat/xfade join. ``with_text`` burns in the
+    title/caption via drawtext; pass False when the ffmpeg build lacks that filter.
     """
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
     if image:
@@ -119,10 +142,24 @@ def build_scene_cmd(
         cmd += ["-i", audio]
     else:
         cmd += ["-f", "lavfi", "-t", f"{scene.duration}", "-i", "anullsrc=r=44100:cl=stereo"]
-    cmd += ["-vf", _filter(scene)]
+    vf = _filter(scene, with_text, has_image=bool(image))
+    if vf:
+        cmd += ["-vf", vf]
     if audio:
         cmd += ["-af", "apad", "-shortest"]
-    cmd += ["-r", str(FPS), "-pix_fmt", "yuv420p", "-c:v", "libx264", "-c:a", "aac"]
+    # ultrafast keeps the PoC render quick (a few seconds, not minutes) at a small size cost.
+    cmd += [
+        "-r",
+        str(FPS),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-c:a",
+        "aac",
+    ]
     return cmd + [out]
 
 
@@ -153,11 +190,31 @@ def xfade_duration(left: Scene, right: Scene) -> float:
 def _join_cmd(left: str, right: str, filter_complex: str, out: str) -> list[str]:
     """ffmpeg argv joining two clips via a filter_complex that maps to [v] + [a]."""
     return [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-        "-i", left, "-i", right,
-        "-filter_complex", filter_complex,
-        "-map", "[v]", "-map", "[a]",
-        "-r", str(FPS), "-pix_fmt", "yuv420p", "-c:v", "libx264", "-c:a", "aac",
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        left,
+        "-i",
+        right,
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[v]",
+        "-map",
+        "[a]",
+        "-r",
+        str(FPS),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-c:a",
+        "aac",
         out,
     ]
 
@@ -206,9 +263,7 @@ def _tts_cmd(which: Callable[[str], str | None], text: str, out: str) -> list[st
     return None
 
 
-def _stitch_xfade(
-    scenes: Scenes, clips: list[str], work: Path, runner: Callable[..., Any]
-) -> str:
+def _stitch_xfade(scenes: Scenes, clips: list[str], work: Path, runner: Callable[..., Any]) -> str:
     """Join clips honouring each scene's transition (xfade crossfade or hard-cut concat)."""
     acc = clips[0]
     acc_dur = scenes[0].duration
@@ -242,8 +297,11 @@ def render_video(
     """Encode ``scenes`` to ``<out_dir>/video.mp4`` and return that path."""
     if not scenes:
         raise ValueError("no scenes to render")
-    if which("ffmpeg") is None:
+    ffmpeg = which("ffmpeg")
+    if ffmpeg is None:
         raise RuntimeError("ffmpeg is not installed")
+    # Drop burned-in captions when this ffmpeg build lacks drawtext, so the render still succeeds.
+    with_text = _supports_drawtext(ffmpeg)
     work = Path(out_dir) if out_dir else Path(tempfile.mkdtemp(prefix="video-"))
     work.mkdir(parents=True, exist_ok=True)
     images = list(images or [])
@@ -264,7 +322,11 @@ def render_video(
                 runner(tcmd, check=True, capture_output=True)
                 audio = audio_path
         image = images[scene.index] if scene.index < len(images) else None
-        runner(build_scene_cmd(scene, image, clip, audio), check=True, capture_output=True)
+        runner(
+            build_scene_cmd(scene, image, clip, audio, with_text=with_text),
+            check=True,
+            capture_output=True,
+        )
         clips.append(clip)
         srt.append(
             f"{scene.index + 1}\n{_ts(start)} --> {_ts(start + scene.duration)}\n"

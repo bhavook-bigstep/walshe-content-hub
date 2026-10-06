@@ -9,6 +9,8 @@ export interface MediaTile {
   src: string;
   /** Stable catalog/asset id carried onto the canvas node (entry-<id> / asset-<id>). */
   catalogItemId: string;
+  /** Stable storage object key, persisted on the node so its src survives a reload. */
+  objectKey?: string;
   /** Natural placement size on the canvas (keeps the card's aspect). Defaults to a square. */
   width?: number;
   height?: number;
@@ -87,8 +89,6 @@ export default function WorkspaceDrawer({
     window.addEventListener("mousedown", onDown);
     return () => window.removeEventListener("mousedown", onDown);
   }, [menuOpen]);
-
-  const totalTiles = groups.reduce((n, g) => n + g.tiles.length, 0);
 
   return (
     // The whole rig is anchored to the left boundary of the workspace and slides left→right. When
@@ -196,6 +196,7 @@ export default function WorkspaceDrawer({
                               JSON.stringify({
                                 src: t.src,
                                 catalogItemId: t.catalogItemId,
+                                objectKey: t.objectKey,
                                 width: t.width,
                                 height: t.height,
                               }),
@@ -242,11 +243,6 @@ export default function WorkspaceDrawer({
         title={open ? "Hide media" : "Show media"}
         className="pointer-events-auto relative -ml-px self-center flex h-16 w-7 items-center justify-center rounded-r-full border border-l-0 border-walshe-line/70 bg-chrome-bg/95 text-walshe-ink shadow-xl backdrop-blur-md transition-colors hover:bg-walshe-ink/5"
       >
-        {!open && totalTiles > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-walshe-teal px-1 text-[10px] font-bold text-white shadow">
-            {totalTiles}
-          </span>
-        )}
         <svg
           width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
           className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`}

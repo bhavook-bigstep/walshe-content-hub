@@ -12,11 +12,13 @@ class ProjectCreate(BaseModel):
     format: str = "social"
     item_ids: list[int] = Field(default_factory=list)
     design: dict = Field(default_factory=dict)
-    # AC64 — seed the workspace's reference_content from this collection (optional).
+    # AC75 — seed the workspace's reference_content from this collection (optional).
     collection_id: int | None = None
+    # Seed the whole workspace (scenes + metadata) from a built-in template (optional).
+    template_id: str | None = None
 
 
-# ---- AC64: structured Workspace (metadata + reference_content + scenes) ----
+# ---- AC75: structured Workspace (metadata + reference_content + scenes) ----
 
 
 class EntryRef(BaseModel):
@@ -188,3 +190,8 @@ class DesignTemplate(BaseModel):
     name: str
     format: str
     description: str
+    # Lightweight preview of the template's first scene so the gallery can render a real thumbnail.
+    width: int = 1080
+    height: int = 1080
+    background: str = ""
+    nodes: list[dict] = Field(default_factory=list)

@@ -3,7 +3,7 @@
 # Secrets come from the environment / .env — none are baked into this file (Contract 2).
 services:
   db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16  # Postgres 16 + the `vector` extension (AC44 pgvector retrieval)
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

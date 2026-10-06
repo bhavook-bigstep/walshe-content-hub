@@ -22,6 +22,9 @@ import {
   setBackground,
   setSceneDuration,
   setSceneTransition,
+  duplicateNode,
+  reorderNode,
+  updateNode,
   type DesignDoc,
 } from "../lib/studio/ops";
 
@@ -114,6 +117,33 @@ describe("studio manual ops", () => {
     expect(() => resizeNode(withBg, 0, textId, 0, 100)).toThrow(/must be positive/);
     const shapeId = withBg.scenes[0].nodes[1].id;
     expect(() => editText(withBg, 0, shapeId, "nope")).toThrow(/not editable text/);
+  });
+
+  it("styles, duplicates and reorders nodes (customization ops)", () => {
+    let d = addText(addShape(newDesign("social"), 0, "rect"), 0, "Hi");
+    const shapeId = d.scenes[0].nodes[0].id;
+    const textId = d.scenes[0].nodes[1].id;
+
+    // updateNode patches style; undefined clears a prop.
+    d = updateNode(d, 0, textId, { fontSize: 72, fontWeight: "bold", textAlign: "center", opacity: 0.5 });
+    const t = d.scenes[0].nodes.find((n) => n.id === textId)!;
+    expect(t).toMatchObject({ fontSize: 72, fontWeight: "bold", textAlign: "center", opacity: 0.5 });
+    d = updateNode(d, 0, textId, { fontWeight: undefined });
+    expect(d.scenes[0].nodes.find((n) => n.id === textId)!.fontWeight).toBeUndefined();
+
+    // reorderNode changes paint order (array order); a style patch doesn't.
+    expect(d.scenes[0].nodes.map((n) => n.id)).toEqual([shapeId, textId]);
+    d = reorderNode(d, 0, shapeId, "front");
+    expect(d.scenes[0].nodes.map((n) => n.id)).toEqual([textId, shapeId]);
+
+    // duplicateNode adds a copy with a fresh id, offset, just above the source.
+    const before = d.scenes[0].nodes.length;
+    d = duplicateNode(d, 0, textId);
+    expect(d.scenes[0].nodes).toHaveLength(before + 1);
+    const ids = d.scenes[0].nodes.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    expect(() => updateNode(d, 0, "nope", { color: "#000" })).toThrow(/not found/);
   });
 
   it("gives every node a unique id, even after a delete (no position-conflating reuse)", () => {

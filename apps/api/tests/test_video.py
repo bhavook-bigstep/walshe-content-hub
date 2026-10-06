@@ -9,10 +9,14 @@ from pathlib import Path
 
 import pytest
 
+import app.media.video as video_mod
 import app.routers.render as render_mod
 from app.media.video import (
     MAX_SCENE_SECONDS,
     SCENE_SECONDS,
+    _filter,
+    _supports_drawtext,
+    build_scene_cmd,
     build_scene_script,
     clamp_duration,
     escape_drawtext,
@@ -100,7 +104,11 @@ def test_render_video_xfade_chain(tmp_path):
     )
     calls: list[list[str]] = []
     out = render_video(
-        scenes, None, out_dir=tmp_path, tts=False, which={"ffmpeg": "f"}.get,
+        scenes,
+        None,
+        out_dir=tmp_path,
+        tts=False,
+        which={"ffmpeg": "f"}.get,
         runner=lambda cmd, **_: calls.append(list(cmd)),
     )
 
@@ -124,7 +132,11 @@ def test_render_video_xfade_chain(tmp_path):
     # Deterministic: same inputs -> same argv.
     again: list[list[str]] = []
     render_video(
-        scenes, None, out_dir=tmp_path, tts=False, which={"ffmpeg": "f"}.get,
+        scenes,
+        None,
+        out_dir=tmp_path,
+        tts=False,
+        which={"ffmpeg": "f"}.get,
         runner=lambda cmd, **_: again.append(list(cmd)),
     )
     assert again == calls
@@ -140,7 +152,11 @@ def test_render_video_xfade_edge_cases(tmp_path):
     )
     calls: list[list[str]] = []
     render_video(
-        short, None, out_dir=tmp_path, tts=False, which={"ffmpeg": "f"}.get,
+        short,
+        None,
+        out_dir=tmp_path,
+        tts=False,
+        which={"ffmpeg": "f"}.get,
         runner=lambda cmd, **_: calls.append(list(cmd)),
     )
     join = " ".join(next(c for c in calls if "-filter_complex" in c))
@@ -150,7 +166,12 @@ def test_render_video_xfade_edge_cases(tmp_path):
     # xfade=False renders hard cuts even when transitions are set.
     off: list[list[str]] = []
     render_video(
-        short, None, out_dir=tmp_path, tts=False, xfade=False, which={"ffmpeg": "f"}.get,
+        short,
+        None,
+        out_dir=tmp_path,
+        tts=False,
+        xfade=False,
+        which={"ffmpeg": "f"}.get,
         runner=lambda cmd, **_: off.append(list(cmd)),
     )
     assert not any("-filter_complex" in c for c in off)
@@ -168,7 +189,11 @@ def test_render_video_mixed_transitions(tmp_path):
     )
     calls: list[list[str]] = []
     render_video(
-        scenes, None, out_dir=tmp_path, tts=False, which={"ffmpeg": "f"}.get,
+        scenes,
+        None,
+        out_dir=tmp_path,
+        tts=False,
+        which={"ffmpeg": "f"}.get,
         runner=lambda cmd, **_: calls.append(list(cmd)),
     )
     joins = [" ".join(c) for c in calls if "-filter_complex" in c]
@@ -185,7 +210,11 @@ def test_render_video_all_none_hard_cut(tmp_path):
     scenes = build_scene_script([{"title": "A"}, {"title": "B"}])  # default transition "none"
     calls: list[list[str]] = []
     render_video(
-        scenes, None, out_dir=tmp_path, tts=False, which={"ffmpeg": "f"}.get,
+        scenes,
+        None,
+        out_dir=tmp_path,
+        tts=False,
+        which={"ffmpeg": "f"}.get,
         runner=lambda cmd, **_: calls.append(list(cmd)),
     )
     assert not any("-filter_complex" in c for c in calls)
@@ -299,7 +328,13 @@ def test_video_route_passes_duration_and_transition(client, agent_headers, monke
     monkeypatch.setattr(render_mod, "encode_video", fake_encode)
     body = {
         "scenes": [
-            {"item_id": None, "title": "A", "caption": "a", "duration_ms": 2000, "transition": "zoom"},  # noqa: E501
+            {
+                "item_id": None,
+                "title": "A",
+                "caption": "a",
+                "duration_ms": 2000,
+                "transition": "zoom",
+            },  # noqa: E501
             {"item_id": None, "title": "B", "caption": "b"},  # defaults: 4s, hard cut
         ]
     }
@@ -312,15 +347,28 @@ def test_video_route_passes_duration_and_transition(client, agent_headers, monke
 # AC47 — the route validates the new fields at the boundary.
 def test_video_route_validates_duration_and_transition(client, agent_headers):
     base = {"item_id": None, "title": "A", "caption": ""}
-    assert client.post(
-        "/render/video", headers=agent_headers, json={"scenes": [{**base, "transition": "warp"}]}
-    ).status_code == 422
-    assert client.post(
-        "/render/video", headers=agent_headers, json={"scenes": [{**base, "duration_ms": -1}]}
-    ).status_code == 422
-    assert client.post(
-        "/render/video", headers=agent_headers, json={"scenes": [{**base, "duration_ms": 60001}]}
-    ).status_code == 422
+    assert (
+        client.post(
+            "/render/video",
+            headers=agent_headers,
+            json={"scenes": [{**base, "transition": "warp"}]},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/render/video", headers=agent_headers, json={"scenes": [{**base, "duration_ms": -1}]}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/render/video",
+            headers=agent_headers,
+            json={"scenes": [{**base, "duration_ms": 60001}]},
+        ).status_code
+        == 422
+    )
 
 
 def _fake(scenes):
@@ -338,3 +386,70 @@ def _fake(scenes):
 def test_real_encode(tmp_path):
     out = render_video(build_scene_script(ITEMS[:1]), None, out_dir=tmp_path, tts=False)
     assert Path(out).stat().st_size > 0
+
+
+def test_filter_omits_drawtext_when_unsupported():
+    scene = build_scene_script([{"title": "T", "description": "C"}])[0]
+    with_text = _filter(scene, with_text=True, has_image=True)
+    without = _filter(scene, with_text=False, has_image=True)
+    assert "drawtext=" in with_text and "zoompan=" in with_text
+    assert "drawtext=" not in without and "zoompan=" in without  # still a valid clip, no captions
+
+
+def test_filter_skips_zoompan_for_colour_backgrounds():
+    # An imageless scene with no text has an empty filter (no -vf) — a fast flat-colour clip.
+    scene = build_scene_script([{"title": "T", "description": ""}])[0]
+    assert _filter(scene, with_text=False, has_image=False) == ""
+    # With text but no image: drawtext only, no (pointless) zoompan on a flat colour.
+    text_only = _filter(scene, with_text=True, has_image=False)
+    assert "drawtext=" in text_only and "zoompan=" not in text_only
+
+
+def test_build_scene_cmd_respects_with_text():
+    scene = build_scene_script([{"title": "T", "description": "C"}])[0]
+    # Over an image: the -vf keeps the zoom but drops the caption overlay when with_text=False.
+    vf = build_scene_cmd(scene, "/img/a.jpg", "/out.mp4", with_text=False)
+    vf_text = vf[vf.index("-vf") + 1]
+    assert "drawtext=" not in vf_text and "zoompan=" in vf_text
+    # Imageless + no text: no -vf at all.
+    bare = build_scene_cmd(scene, None, "/out.mp4", with_text=False)
+    assert "-vf" not in bare
+
+
+def test_supports_drawtext_probe(monkeypatch):
+    class R:
+        def __init__(self, out: bytes) -> None:
+            self.stdout, self.stderr = out, b""
+
+    # Output lists drawtext -> supported.
+    monkeypatch.setattr(video_mod.subprocess, "run", lambda *a, **k: R(b"... drawtext ..."))
+    assert _supports_drawtext("/ffmpeg-has-drawtext") is True
+    # Output without drawtext -> unsupported (the real-world failing build).
+    monkeypatch.setattr(video_mod.subprocess, "run", lambda *a, **k: R(b"scale pad zoompan"))
+    assert _supports_drawtext("/ffmpeg-no-drawtext") is False
+
+    # Probe error (binary missing) -> inconclusive, keep captions.
+    def boom(*a, **k):
+        raise FileNotFoundError
+
+    monkeypatch.setattr(video_mod.subprocess, "run", boom)
+    assert _supports_drawtext("/ffmpeg-missing") is True
+
+
+def test_render_degrades_without_drawtext(tmp_path, monkeypatch):
+    # When the ffmpeg build lacks drawtext, the render still runs — scene clips drop the overlay.
+    monkeypatch.setattr(video_mod, "_supports_drawtext", lambda _ffmpeg: False)
+    calls: list[list[str]] = []
+    render_video(
+        build_scene_script(ITEMS),
+        None,
+        out_dir=tmp_path,
+        tts=False,
+        runner=lambda c, **k: calls.append(list(c)),
+        which={"ffmpeg": "/x/ffmpeg"}.get,
+    )
+    ffmpeg_calls = [c for c in calls if c[0] == "ffmpeg"]
+    assert ffmpeg_calls, "expected ffmpeg scene clips to be built"
+    # No drawtext anywhere (overlay dropped); captions still live in the sidecar SRT.
+    assert not any("drawtext=" in part for c in calls for part in c)
+    assert (tmp_path / "captions.srt").exists()

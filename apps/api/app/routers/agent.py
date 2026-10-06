@@ -5,6 +5,7 @@ All agent-owned and scoped to the signed-in agent.
 
 from __future__ import annotations
 
+import copy
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app import clock
 from app.deps import get_db, require_role
+from app.design_templates import TEMPLATE_DESCRIPTIONS, TEMPLATE_WORKSPACES
 from app.models.agent_features import BrandKit, Collection
 from app.models.catalog import CatalogEntry, UserAsset
 from app.models.composition import Composition
@@ -45,31 +47,20 @@ router = APIRouter(prefix="/me", tags=["agent"])
 _agent_only = require_role(Role.tourism_agent)
 
 # Starter templates (AC28) — presets an agent can start a design from.
+# Templates are full Workspace objects (app/design_templates.py); the gallery metadata is derived
+# from each one's own metadata, so a template and what it opens as can never drift apart.
 _TEMPLATES: list[DesignTemplate] = [
     DesignTemplate(
-        id="social-hero",
-        name="Social hero",
-        format="social",
-        description="A bold 1:1 post with one hero image and a headline.",
-    ),
-    DesignTemplate(
-        id="story-promo",
-        name="Story promo",
-        format="story",
-        description="A 9:16 story with an offer badge and CTA.",
-    ),
-    DesignTemplate(
-        id="pamphlet",
-        name="Trade pamphlet",
-        format="pamphlet",
-        description="A printable A5 pamphlet with three highlights.",
-    ),
-    DesignTemplate(
-        id="carousel",
-        name="Destination carousel",
-        format="social",
-        description="A multi-image set introducing a destination.",
-    ),
+        id=tid,
+        name=ws["metadata"]["name"],
+        format=ws["metadata"]["format"],
+        description=TEMPLATE_DESCRIPTIONS.get(tid, ""),
+        width=ws["metadata"]["width"],
+        height=ws["metadata"]["height"],
+        background=(ws["scenes"][0].get("background", "") if ws["scenes"] else ""),
+        nodes=(ws["scenes"][0].get("nodes", []) if ws["scenes"] else []),
+    )
+    for tid, ws in TEMPLATE_WORKSPACES.items()
 ]
 
 
@@ -106,18 +97,37 @@ def create_project(
     agent: User = Depends(_agent_only),
     now: datetime = Depends(clock.now),
 ) -> Composition:
-    # AC64 — seed the structured workspace (from a collection, or the posted item_ids).
+    # AC75 — seed the structured workspace (from a template, a collection, or the posted item_ids).
     workspace = _seed_workspace(
-        db, agent, name=body.name, fmt=body.format, design=body.design,
-        collection_id=body.collection_id, item_ids=body.item_ids, now=now,
+        db,
+        agent,
+        name=body.name,
+        fmt=body.format,
+        design=body.design,
+        collection_id=body.collection_id,
+        template_id=body.template_id,
+        item_ids=body.item_ids,
+        now=now,
     )
     item_ids = _ids_from_ws(workspace)
+    # A template defines its own format + design; honour them over the (default) request values.
+    fmt = workspace["metadata"].get("format", body.format)
+    design = (
+        {
+            "format": fmt,
+            "width": workspace["metadata"].get("width"),
+            "height": workspace["metadata"].get("height"),
+            "scenes": workspace.get("scenes", []),
+        }
+        if body.template_id
+        else body.design
+    )
     project = Composition(
         agent_id=agent.id,
         name=body.name,
-        format=body.format,
+        format=fmt,
         item_ids=item_ids,
-        design=body.design,
+        design=design,
         item_versions=_snapshot_item_versions(db, item_ids),
         workspace=workspace,
     )
@@ -166,7 +176,7 @@ def resolve_project(
     )
 
 
-# ---- AC64: structured Workspace ---------------------------------------------------------------
+# ---- AC75: structured Workspace ---------------------------------------------------------------
 
 _FORMAT_DIMS = {"social": (1080, 1080), "story": (1080, 1920), "pamphlet": (1240, 1754)}
 
@@ -191,24 +201,44 @@ def _entry_refs(db: Session, agent: User, ids: list[int], now: datetime) -> list
 
 
 def _seed_workspace(
-    db: Session, agent: User, *, name: str, fmt: str, design: dict,
-    collection_id: int | None, item_ids: list[int], now: datetime,
+    db: Session,
+    agent: User,
+    *,
+    name: str,
+    fmt: str,
+    design: dict,
+    collection_id: int | None,
+    template_id: str | None,
+    item_ids: list[int],
+    now: datetime,
 ) -> dict:
-    """Build the initial workspace when a project is created (from a collection, or legacy ids)."""
+    """Build the initial workspace when a project is created (from a template, a collection, or
+    legacy ids). A template seeds the whole workspace (scenes + styling) — it IS a workspace."""
+    if template_id and template_id in TEMPLATE_WORKSPACES:
+        ws = copy.deepcopy(TEMPLATE_WORKSPACES[template_id])
+        ws["metadata"]["name"] = name or ws["metadata"].get("name", "Untitled project")
+        ws["metadata"]["version"] = 1
+        return ws
     w, h = _dims(fmt)
     collections: list[dict] = []
     if collection_id is not None:
         coll = db.get(Collection, collection_id)
         if coll is not None and coll.agent_id == agent.id:
-            collections = [{
-                "collection_id": coll.id, "name": coll.name,
-                "entries": _entry_refs(db, agent, coll.item_ids or [], now),
-            }]
+            collections = [
+                {
+                    "collection_id": coll.id,
+                    "name": coll.name,
+                    "entries": _entry_refs(db, agent, coll.item_ids or [], now),
+                }
+            ]
     elif item_ids:
-        collections = [{
-            "collection_id": 0, "name": "Saved items",
-            "entries": _entry_refs(db, agent, item_ids, now),
-        }]
+        collections = [
+            {
+                "collection_id": 0,
+                "name": "Saved items",
+                "entries": _entry_refs(db, agent, item_ids, now),
+            }
+        ]
     scenes = design.get("scenes", []) if isinstance(design, dict) else []
     return {
         "metadata": {"name": name, "format": fmt, "width": w, "height": h, "version": 1},
@@ -223,14 +253,25 @@ def _migrate_workspace(project: Composition) -> dict:
     d = project.design if isinstance(project.design, dict) else {}
     scenes = d.get("scenes") or d.get("pages") or []
     collections = (
-        [{"collection_id": 0, "name": "Saved items",
-          "entries": [{"entry_id": i, "title": "", "type": ""} for i in (project.item_ids or [])]}]
-        if project.item_ids else []
+        [
+            {
+                "collection_id": 0,
+                "name": "Saved items",
+                "entries": [
+                    {"entry_id": i, "title": "", "type": ""} for i in (project.item_ids or [])
+                ],
+            }
+        ]
+        if project.item_ids
+        else []
     )
     return {
         "metadata": {
-            "name": project.name, "format": project.format,
-            "width": w, "height": h, "version": 1,
+            "name": project.name,
+            "format": project.format,
+            "width": w,
+            "height": h,
+            "version": 1,
         },
         "reference_content": {"collections": collections, "uploads": [], "generated": []},
         "scenes": scenes,
@@ -255,10 +296,16 @@ def _owned_assets(db: Session, agent: User, refs: list[dict]) -> list[AssetRef]:
     for a in refs:
         ua = db.get(UserAsset, a.get("asset_id"))
         if ua is not None and ua.owner_id == agent.id:
-            out.append(AssetRef(
-                asset_id=ua.id, object_key=ua.object_key, kind=ua.kind.value,
-                content_type=ua.content_type, title=ua.title, source=ua.source.value,
-            ))
+            out.append(
+                AssetRef(
+                    asset_id=ua.id,
+                    object_key=ua.object_key,
+                    kind=ua.kind.value,
+                    content_type=ua.content_type,
+                    title=ua.title,
+                    source=ua.source.value,
+                )
+            )
     return out
 
 
@@ -268,10 +315,13 @@ def _resolve_workspace(db: Session, agent: User, ws: dict, now: datetime) -> Wor
     for c in rc.get("collections", []):
         ids = [e["entry_id"] for e in c.get("entries", [])]
         entries = agent_visible_entries_by_ids(db, agent, ids, now=now)
-        cols.append(ResolvedCollection(
-            collection_id=c.get("collection_id", 0), name=c.get("name", ""),
-            entries=[EntryOut.from_entry(e, now=now) for e in entries],
-        ))
+        cols.append(
+            ResolvedCollection(
+                collection_id=c.get("collection_id", 0),
+                name=c.get("name", ""),
+                entries=[EntryOut.from_entry(e, now=now) for e in entries],
+            )
+        )
     return WorkspaceResolved(
         metadata=WorkspaceMetadata(**ws.get("metadata", {})),
         reference_content=ResolvedReferenceContent(
@@ -290,7 +340,7 @@ def get_workspace(
     agent: User = Depends(_agent_only),
     now: datetime = Depends(clock.now),
 ) -> WorkspaceResolved:
-    """The structured workspace (AC64), resolved: references expanded to live entries + assets."""
+    """The structured workspace (AC75), resolved: references expanded to live entries + assets."""
     project = _owned_project(db, project_id, agent)
     return _resolve_workspace(db, agent, _workspace_of(project), now)
 
@@ -303,7 +353,7 @@ def save_workspace(
     agent: User = Depends(_agent_only),
     now: datetime = Depends(clock.now),
 ) -> WorkspaceResolved:
-    """Autosave the whole workspace (AC64). Validates references (visible entries, owned assets),
+    """Autosave the whole workspace (AC75). Validates references (visible entries, owned assets),
     bumps the version, and keeps item_ids/design in sync for the compat resolve/export paths."""
     project = _owned_project(db, project_id, agent)
     ws = body.model_dump()
@@ -325,8 +375,10 @@ def save_workspace(
     project.item_ids = _ids_from_ws(ws)
     project.item_versions = _snapshot_item_versions(db, project.item_ids)
     project.design = {
-        "format": ws["metadata"]["format"], "width": ws["metadata"]["width"],
-        "height": ws["metadata"]["height"], "scenes": ws["scenes"],
+        "format": ws["metadata"]["format"],
+        "width": ws["metadata"]["width"],
+        "height": ws["metadata"]["height"],
+        "scenes": ws["scenes"],
     }
     db.commit()
     db.refresh(project)

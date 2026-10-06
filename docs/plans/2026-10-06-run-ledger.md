@@ -28,7 +28,7 @@ Authoritative state of the build. Outer/inner iterations, what was tried, accept
 
 ---
 
-# Follow-on increment — Structured Workspace (AC64)
+# Follow-on increment — Structured Workspace (AC75)
 
 Charter: `docs/plans/2026-10-06-ai-builder-optimize-charter.md` (v2.0). "Basics first": ground the
 Design Studio's input as one structured object before any multi-iteration builder loop.
@@ -36,11 +36,11 @@ Design Studio's input as one structured object before any multi-iteration builde
 ## Acceptance items
 | # | Item | Status |
 |---|---|---|
-| W1 | Project stores one structured `workspace` = {metadata, reference_content, scenes}; references only | met (AC64) |
-| W2 | `GET /me/projects/{id}/workspace` returns it resolved (collections' entries w/ items; uploads/generated w/ keys) | met (AC64) |
-| W3 | `PUT /me/projects/{id}/workspace` autosaves whole object; validates refs; drops stale; bumps version | met (AC64) |
-| W4 | Create-from-collection seeds reference_content.collections; legacy project migrates on read | met (AC64) |
-| W5 | Studio reads resolved workspace as single input (grounding + placeable media) and autosaves it | met (AC64) |
+| W1 | Project stores one structured `workspace` = {metadata, reference_content, scenes}; references only | met (AC75) |
+| W2 | `GET /me/projects/{id}/workspace` returns it resolved (collections' entries w/ items; uploads/generated w/ keys) | met (AC75) |
+| W3 | `PUT /me/projects/{id}/workspace` autosaves whole object; validates refs; drops stale; bumps version | met (AC75) |
+| W4 | Create-from-collection seeds reference_content.collections; legacy project migrates on read | met (AC75) |
+| W5 | Studio reads resolved workspace as single input (grounding + placeable media) and autosaves it | met (AC75) |
 | W6 | item_ids/design kept as derived/compat view; `make verify` green | in progress |
 
 ## Iterations
@@ -51,5 +51,5 @@ Design Studio's input as one structured object before any multi-iteration builde
   `createProject` carries `collection_id`. FE: collections "Open in Design Studio" passes
   `collection_id`; studio media + autosave now workspace-driven; MediaDialog appends
   uploads/generated to the workspace and autosaves. Tests: 3 api tests (seed-from-collection,
-  PUT validation + version bump, legacy migration). Governance: AC64 in REQUIREMENTS 2.22.0 +
+  PUT validation + version bump, legacy migration). Governance: AC75 in REQUIREMENTS 2.22.0 +
   manifest; sync PASS (64 ACs). `make verify` running.

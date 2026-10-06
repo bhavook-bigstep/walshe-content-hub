@@ -45,7 +45,7 @@ test("save dialog opens in the viewport when the catalog is scrolled", async ({ 
   await expect(save).toHaveCount(0);
 });
 
-test("templates show Preview and Use", async ({ page }) => {
+test("templates preview, and Use opens an editable studio design", async ({ page }) => {
   await login(page, "agent@example.test", /\/agent$/);
   await page.goto("/agent/templates");
 
@@ -54,6 +54,12 @@ test("templates show Preview and Use", async ({ page }) => {
   await card.getByRole("button", { name: "Preview" }).click({ force: true });
   const preview = page.getByRole("dialog");
   await expect(preview).toBeVisible();
+
+  // Using a template creates a project seeded from its workspace and opens it (AC62/AC64).
   await preview.getByRole("button", { name: /use template/i }).click();
-  await expect(page).toHaveURL(/\/agent\/studio\?template=/);
+  await expect(page).toHaveURL(/\/agent\/studio\?project=\d+/);
+
+  // The template's elements are laid out on the canvas (data-entities reflects the active scene).
+  const canvas = page.getByTestId("studio-canvas");
+  await expect.poll(async () => Number(await canvas.getAttribute("data-entities"))).toBeGreaterThan(0);
 });

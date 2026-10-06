@@ -317,6 +317,14 @@
       },
       "AssistantRequest": {
         "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryTurn"
+            },
+            "maxItems": 20,
+            "title": "History",
+            "type": "array"
+          },
           "message": {
             "maxLength": 2000,
             "minLength": 1,
@@ -501,6 +509,20 @@
           }
         },
         "title": "Body_edit_post_campaigns__campaign_id__posts__post_id__patch",
+        "type": "object"
+      },
+      "Body_import_document_me_auto_catalog_import_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_document_me_auto_catalog_import_post",
         "type": "object"
       },
       "Body_publish_social_instagram_publish_post": {
@@ -1555,6 +1577,11 @@
       },
       "DesignTemplate": {
         "properties": {
+          "background": {
+            "default": "",
+            "title": "Background",
+            "type": "string"
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -1563,6 +1590,11 @@
             "title": "Format",
             "type": "string"
           },
+          "height": {
+            "default": 1080,
+            "title": "Height",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1570,6 +1602,19 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "width": {
+            "default": 1080,
+            "title": "Width",
+            "type": "integer"
           }
         },
         "required": [
@@ -1906,6 +1951,11 @@
       },
       "EntryOut": {
         "properties": {
+          "ai_created": {
+            "default": false,
+            "title": "Ai Created",
+            "type": "boolean"
+          },
           "asset_keys": {
             "default": [],
             "items": {
@@ -2237,6 +2287,30 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HistoryTurn": {
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "HistoryTurn",
+        "type": "object"
+      },
       "InstagramPublishOut": {
         "properties": {
           "external_id": {
@@ -2378,6 +2452,65 @@
           "kind"
         ],
         "title": "ItemOut",
+        "type": "object"
+      },
+      "JobOut": {
+        "description": "An async import job (AC71) as seen by the provider's bell + jobs list (AC74).\n\nContent-free: status + a safe summary only (never document text, keys or raw PII).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "drafts_created": {
+            "title": "Drafts Created",
+            "type": "integer"
+          },
+          "entry_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Entry Ids",
+            "type": "array"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "filename",
+          "status",
+          "drafts_created",
+          "entry_ids",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "JobOut",
         "type": "object"
       },
       "KeywordsOut": {
@@ -2873,6 +3006,17 @@
             "minLength": 1,
             "title": "Name",
             "type": "string"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
           }
         },
         "required": [
@@ -4106,6 +4250,49 @@
         ]
       }
     },
+    "/assistant/stream": {
+      "post": {
+        "description": "The same assistant as ``POST /assistant``, streamed as server-sent events (AC65):\n``delta`` events carry reply text as it is generated, then one ``done`` event carries the\nfinal (guarded) reply + cited item cards, which replaces the streamed text. On failure a\nsingle ``error`` event is sent instead of ``done``.",
+        "operationId": "assistant_stream_assistant_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Assistant Stream",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/audit": {
       "get": {
         "operationId": "list_audit_audit_get",
@@ -4851,7 +5038,7 @@
     },
     "/campaigns/{campaign_id}/posts/{post_id}/approve": {
       "post": {
-        "description": "Approve AND publish a pending post in one action (AC66/AC67). PoC self-approval: the owning\nagent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records\nthe reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a\nguard/publish failure nothing is approved and the reason is returned (422/409/503/502).",
+        "description": "Approve AND publish a pending post in one action (AC78/AC79). PoC self-approval: the owning\nagent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records\nthe reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a\nguard/publish failure nothing is approved and the reason is returned (422/409/503/502).",
         "operationId": "approve_post_campaigns__campaign_id__posts__post_id__approve_post",
         "parameters": [
           {
@@ -4908,7 +5095,7 @@
     },
     "/campaigns/{campaign_id}/posts/{post_id}/reject": {
       "post": {
-        "description": "Reject a pending post with a reason (AC66); it drops to rejected and is editable again.",
+        "description": "Reject a pending post with a reason (AC78); it drops to rejected and is editable again.",
         "operationId": "reject_post_campaigns__campaign_id__posts__post_id__reject_post",
         "parameters": [
           {
@@ -6051,8 +6238,26 @@
     },
     "/catalogs/mine/entries": {
       "get": {
-        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.",
+        "description": "Entries in the provider's catalog (AC50) — all of them, regardless of agent-visibility.\n\n``ai_created`` filters the set (AC68): ``true`` = only Auto-Catalog-generated entries,\n``false`` = only hand-authored entries, omitted = all.",
         "operationId": "list_my_entries_catalogs_mine_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ai_created",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ai Created"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6067,6 +6272,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -6558,6 +6773,53 @@
         ]
       }
     },
+    "/me/auto-catalog/import": {
+      "post": {
+        "description": "Accept a document and schedule an async import (AC71).\n\nValidates type + size at the boundary (AC64), reads the bytes (the ``UploadFile`` is closed once\nthe 202 returns), enqueues a ``Job`` and schedules the extraction as a background task. The work\n— AC16 seam extraction (AC65), image extraction (AC72), tool-call draft creation (AC73) — runs\nafter the response; this endpoint never blocks on the LLM.",
+        "operationId": "import_document_me_auto_catalog_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_document_me_auto_catalog_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Document",
+        "tags": [
+          "auto-catalog"
+        ]
+      }
+    },
     "/me/brand-kit": {
       "get": {
         "operationId": "get_brand_kit_me_brand_kit_get",
@@ -6987,6 +7249,37 @@
         "summary": "Design Templates",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/me/jobs": {
+      "get": {
+        "description": "List the provider's own import jobs, newest first — backs the navbar bell (AC74).\n\nOwner-scoped (a provider never sees another's jobs); content-free (status + a safe summary).",
+        "operationId": "list_jobs_me_jobs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobOut"
+                  },
+                  "title": "Response List Jobs Me Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Jobs",
+        "tags": [
+          "auto-catalog"
         ]
       }
     },
@@ -7633,7 +7926,7 @@
     },
     "/me/projects/{project_id}/workspace": {
       "get": {
-        "description": "The structured workspace (AC64), resolved: references expanded to live entries + assets.",
+        "description": "The structured workspace (AC75), resolved: references expanded to live entries + assets.",
         "operationId": "get_workspace_me_projects__project_id__workspace_get",
         "parameters": [
           {
@@ -7679,7 +7972,7 @@
         ]
       },
       "put": {
-        "description": "Autosave the whole workspace (AC64). Validates references (visible entries, owned assets),\nbumps the version, and keeps item_ids/design in sync for the compat resolve/export paths.",
+        "description": "Autosave the whole workspace (AC75). Validates references (visible entries, owned assets),\nbumps the version, and keeps item_ids/design in sync for the compat resolve/export paths.",
         "operationId": "save_workspace_me_projects__project_id__workspace_put",
         "parameters": [
           {

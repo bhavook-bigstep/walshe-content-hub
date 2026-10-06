@@ -24,7 +24,6 @@ export default function ProviderOrganizationPage() {
     <div className="h-full space-y-8 overflow-y-auto">
       <PageHeader
         title="Organization"
-        description="Your public profile, your team, and the agents you invite to private content."
       />
       <OrgProfileCard />
       <InviteAgentsCard />

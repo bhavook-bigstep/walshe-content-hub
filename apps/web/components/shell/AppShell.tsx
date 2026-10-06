@@ -8,6 +8,7 @@ import type { Role } from "../../lib/rbac";
 import { clear, hasValidSession, msUntilExpiry } from "../../lib/session";
 import ThemeToggle from "../ui/ThemeToggle";
 import AssistantWidget from "./AssistantWidget";
+import NotificationBell from "./NotificationBell";
 
 interface NavItem {
   href: string;
@@ -492,11 +493,14 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
             <Logo className="logo-mark h-7 w-[50px]" />
           </span>
           <Breadcrumbs pathname={pathname} />
-          {/* Light/dark toggle lives in the top bar. */}
-          <ThemeToggle
-            compact
-            className="ml-auto grid h-9 w-9 flex-none place-items-center rounded-md text-chrome-fg/70 transition-colors hover:bg-chrome-fg/10 hover:text-chrome-fg"
-          />
+          {/* Right-side top-bar controls: the provider's import-job bell (AC74) + light/dark toggle. */}
+          <div className="ml-auto flex flex-none items-center gap-1">
+            {role === "content_provider" && <NotificationBell />}
+            <ThemeToggle
+              compact
+              className="grid h-9 w-9 flex-none place-items-center rounded-md text-chrome-fg/70 transition-colors hover:bg-chrome-fg/10 hover:text-chrome-fg"
+            />
+          </div>
         </header>
 
         {/* Content region — bounded scroll (AC26: the document never scrolls). The Design Studio
