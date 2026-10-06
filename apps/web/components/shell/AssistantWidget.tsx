@@ -2,15 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ApiError, askAssistant, type AssistantItem } from "../../lib/api";
+import { ApiError, streamAssistant, type AssistantItem, type AssistantTurn } from "../../lib/api";
 
 // The sticky Q/A assistant (bottom-right): find content + answer questions, grounded in approved
-// content. Content *generation* lives separately in the Design Studio's build service.
+// content. Content *generation* lives separately in the Design Studio's build service. The chat
+// lives only in this component's state; prior turns are sent with each message for context (AC65).
 type Turn =
   | { role: "you"; text: string }
-  | { role: "assistant"; text: string; items: AssistantItem[]; suggestion?: { label: string } | null };
+  | { role: "assistant"; text: string; items: AssistantItem[]; suggestion?: { label: string } | null; typing?: boolean };
 
-const PROMPTS = ["Find events in Galway", "What should I post this week?", "Places on the Wild Atlantic Way"];
+const PROMPTS = ["Find events in Galway", "What should I post this week?", "How do collections work?"];
+
+// The model streams text in uneven bursts; the widget reveals it at a steady pace instead. Each frame
+// shows 1/TYPE_CATCHUP of the unrevealed backlog (at least one character), so it types smoothly and
+// still catches up quickly after a large burst.
+const TYPE_CATCHUP = 24;
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
 
 export default function AssistantWidget({ role = "tourism_agent" }: { role?: string }) {
   // Where the "start a design" suggestion links — the studio for an agent, the catalog for a
@@ -22,25 +32,78 @@ export default function AssistantWidget({ role = "tourism_agent" }: { role?: str
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  // Typewriter state: everything received so far, how much of it is on screen, the pending frame,
+  // and a callback for when the reveal has caught up.
+  const typer = useRef({ target: "", shown: 0, frame: 0, onCaughtUp: null as (() => void) | null });
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
+    // Instant while typing (a smooth scroll restarted every frame judders), smooth otherwise.
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: busy ? "auto" : "smooth" });
   }, [turns, busy, open]);
+
+  useEffect(() => () => cancelAnimationFrame(typer.current.frame), []);
 
   async function ask(message: string) {
     const text = message.trim();
     if (!text || busy) return;
     setError(null);
     setInput("");
-    setTurns((t) => [...t, { role: "you", text }]);
+    const history: AssistantTurn[] = turns
+      .slice(-10)
+      .map((t) => ({ role: t.role === "you" ? "user" : "assistant", text: t.text.slice(0, 2000) }));
+    // No other turn can start while busy, so each update rebuilds from this fixed base (pure updaters).
+    const base: Turn[] = [...turns, { role: "you", text }];
+    setTurns(base);
     setBusy(true);
+
+    const t = typer.current;
+    cancelAnimationFrame(t.frame);
+    Object.assign(t, { target: "", shown: 0, frame: 0, onCaughtUp: null });
+    const tick = () => {
+      const backlog = t.target.length - t.shown;
+      if (backlog <= 0) {
+        t.frame = 0;
+        t.onCaughtUp?.();
+        return;
+      }
+      t.shown += Math.max(1, Math.ceil(backlog / TYPE_CATCHUP));
+      setTurns([...base, { role: "assistant", text: t.target.slice(0, t.shown), items: [], typing: true }]);
+      t.frame = requestAnimationFrame(tick);
+    };
+    const play = () => {
+      if (prefersReducedMotion()) t.shown = Math.max(0, t.target.length - 1); // jump straight to the end
+      if (!t.frame) t.frame = requestAnimationFrame(tick);
+    };
+
     try {
-      const reply = await askAssistant(text);
-      setTurns((t) => [
-        ...t,
-        { role: "assistant", text: reply.reply, items: reply.items, suggestion: reply.suggestion as { label: string } | null },
-      ]);
+      // Text streams in as it is generated; the final event carries the checked reply + cards.
+      const reply = await streamAssistant(text, history, (delta) => {
+        t.target += delta;
+        play();
+      });
+      const final: Turn = {
+        role: "assistant",
+        text: reply.reply,
+        items: reply.items,
+        suggestion: reply.suggestion as { label: string } | null,
+      };
+      if (reply.reply.startsWith(t.target.slice(0, t.shown))) {
+        // Usual case: finish typing the reply, then reveal the cards.
+        t.target = reply.reply;
+        await new Promise<void>((resolve) => {
+          t.onCaughtUp = resolve;
+          play();
+        });
+      } else {
+        // The server replaced the streamed text (a guarded fallback): swap it in at once.
+        cancelAnimationFrame(t.frame);
+        t.frame = 0;
+      }
+      setTurns([...base, final]);
     } catch (e) {
+      cancelAnimationFrame(t.frame);
+      t.frame = 0;
+      setTurns(base);
       setError(e instanceof ApiError ? e.message : "The assistant is unavailable right now.");
     } finally {
       setBusy(false);
@@ -116,6 +179,9 @@ export default function AssistantWidget({ role = "tourism_agent" }: { role?: str
                   <div key={i} className="flex flex-col gap-2">
                     <p className="max-w-[92%] whitespace-pre-line rounded-lg bg-walshe-stone/60 px-3.5 py-2 text-small text-walshe-ink">
                       {t.text}
+                      {t.typing && (
+                        <span aria-hidden className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] bg-walshe-ink/70 motion-safe:animate-pulse" />
+                      )}
                     </p>
                     {t.items.length > 0 && (
                       <ul className="space-y-1.5">
@@ -138,7 +204,7 @@ export default function AssistantWidget({ role = "tourism_agent" }: { role?: str
                 ),
               )
             )}
-            {busy && <p className="text-small text-walshe-grey">Thinking…</p>}
+            {busy && turns[turns.length - 1]?.role === "you" && <p className="text-small text-walshe-grey">Thinking…</p>}
           </div>
 
           {error && <p role="alert" className="px-4 text-small font-medium text-walshe-danger">{error}</p>}

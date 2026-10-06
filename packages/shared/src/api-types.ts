@@ -82,6 +82,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assistant Stream
+         * @description The same assistant as ``POST /assistant``, streamed as server-sent events (AC65):
+         *     ``delta`` events carry reply text as it is generated, then one ``done`` event carries the
+         *     final (guarded) reply + cited item cards, which replaces the streamed text. On failure a
+         *     single ``error`` event is sent instead of ``done``.
+         */
+        post: operations["assistant_stream_assistant_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/audit": {
         parameters: {
             query?: never;
@@ -1461,6 +1484,8 @@ export interface components {
         };
         /** AssistantRequest */
         AssistantRequest: {
+            /** History */
+            history?: components["schemas"]["HistoryTurn"][];
             /** Message */
             message: string;
         };
@@ -2033,6 +2058,16 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HistoryTurn */
+        HistoryTurn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** Text */
+            text: string;
         };
         /** ItemCardOut */
         ItemCardOut: {
@@ -2793,6 +2828,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assistant_stream_assistant_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
                 };
             };
             /** @description Validation Error */
