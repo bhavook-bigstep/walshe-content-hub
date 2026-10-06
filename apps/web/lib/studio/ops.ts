@@ -149,6 +149,12 @@ export interface DesignPage {
   nodes: DesignNode[];
 }
 
+/** One time-cued narration line: the voiceover `text` starts at `atMs` into the scene. */
+export interface NarrationCue {
+  atMs: number;
+  text: string;
+}
+
 /** A page promoted to a storyboard scene (AC46): adds identity, lifespan and a transition. */
 export interface Scene extends DesignPage {
   readonly id: string;
@@ -157,8 +163,16 @@ export interface Scene extends DesignPage {
   durationMs: number;
   /** transition INTO the next scene */
   transition: TransitionKind;
-  /** optional voiceover script read over this scene when the video is narrated */
-  narration?: string;
+  /** optional time-cued voiceover lines read over this scene when the video is narrated */
+  narration?: NarrationCue[];
+}
+
+/** Normalise a scene's narration to cues (handles the legacy single-string form). */
+export function narrationCues(scene: Pick<Scene, "narration">): NarrationCue[] {
+  const n = scene.narration as NarrationCue[] | string | undefined;
+  if (!n) return [];
+  if (typeof n === "string") return n.trim() ? [{ atMs: 0, text: n }] : [];
+  return n.filter((c) => c && c.text?.trim()).map((c) => ({ atMs: Math.max(0, c.atMs | 0), text: c.text }));
 }
 
 export interface DesignDoc {
@@ -424,11 +438,12 @@ export function renameScene(design: DesignDoc, sceneId: string, name: string): D
   return mapScene(design, sceneId, (s) => ({ ...s, name }));
 }
 
-/** Set (or clear, with an empty string) a scene's voiceover narration script. */
-export function setSceneNarration(design: DesignDoc, sceneId: string, narration: string): DesignDoc {
+/** Set a scene's time-cued narration lines (empty/blank-only clears it). */
+export function setSceneNarration(design: DesignDoc, sceneId: string, cues: NarrationCue[]): DesignDoc {
+  const kept = cues.filter((c) => c.text.trim()).map((c) => ({ atMs: Math.max(0, Math.round(c.atMs)), text: c.text }));
   return mapScene(design, sceneId, (s) => {
     const next = { ...s };
-    if (narration.trim()) next.narration = narration;
+    if (kept.length) next.narration = kept;
     else delete next.narration;
     return next;
   });

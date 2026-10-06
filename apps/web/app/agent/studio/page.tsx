@@ -9,7 +9,7 @@ import type { BuilderCatalogItem } from "../../../components/studio/BuilderPanel
 import StudioBottomDock from "../../../components/studio/StudioBottomDock";
 import StudioRightRail from "../../../components/studio/StudioRightRail";
 import StudioMenuBar from "../../../components/studio/StudioMenuBar";
-import TimelineDrawer from "../../../components/studio/TimelineDrawer";
+import SceneEdgeControls, { type SceneRect } from "../../../components/studio/SceneEdgeControls";
 import type { CatalogImageOption } from "../../../components/studio/Toolbar";
 import WorkspaceDrawer, {
   MEDIA_DND_TYPE,
@@ -50,11 +50,11 @@ import {
   editText,
   migrateDesign,
   moveNode,
+  narrationCues,
   newDesign,
   reorderNode,
   resizeNode,
   setNodeAnim,
-  setSceneNarration,
   updateNode,
   type DesignDoc,
   type DesignNode,
@@ -165,7 +165,8 @@ function StudioEditor() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [videoMsg, setVideoMsg] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
-  const [storyboardOpen, setStoryboardOpen] = useState(false);
+  // The active scene's on-screen rect, so the per-scene edge controls can hug its edges.
+  const [sceneRect, setSceneRect] = useState<SceneRect | null>(null);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
@@ -515,7 +516,10 @@ function StudioEditor() {
         scenes: design.scenes.map((s, i) => ({
           title: s.name,
           caption: (s.nodes.find((n) => n.type === "text" && n.text?.trim())?.text ?? "").slice(0, 200),
-          narration: (s.narration ?? "").slice(0, 600),
+          narration: narrationCues(s)
+            .slice()
+            .sort((a, b) => a.atMs - b.atMs)
+            .map((c) => ({ at_ms: c.atMs, text: c.text.slice(0, 300) })),
           duration_ms: s.durationMs,
           transition: s.transition,
           frames: sceneFrames[i].frames,
@@ -713,6 +717,8 @@ function StudioEditor() {
           onSelect={(scene, nodeId) => setSelected(scene !== null && nodeId ? { scene, nodeId } : null)}
           onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
+          selectedNodeId={selected?.nodeId ?? null}
+          onActiveSceneRect={setSceneRect}
         />
       </div>
 
@@ -753,24 +759,18 @@ function StudioEditor() {
           onFit={() => controlsRef.current?.fit()}
           mediaOpen={drawerOpen}
           onToggleMedia={() => setDrawerOpen((o) => !o)}
-          timelineOpen={storyboardOpen}
-          onToggleTimeline={() => setStoryboardOpen((o) => !o)}
-          onGenerateVideo={() => void generateVideo()}
-          rendering={rendering}
-        />
-
-        {/* Timeline top drawer (scenes + video) — mirrors the left media drawer, sliding top→bottom
-            from a semicircle handle under the menu bar. */}
-        <TimelineDrawer
-          open={storyboardOpen}
-          onToggle={() => setStoryboardOpen((o) => !o)}
-          design={design}
-          activeScene={sceneIndex}
-          onChange={setDesign}
-          onSelectScene={setSceneIndex}
           onGenerateVideo={() => void generateVideo()}
           rendering={rendering}
           videoMsg={videoMsg}
+        />
+
+        {/* Per-scene controls hugging the active scene's top + bottom edges (identity + timing on
+            top; animation transport + narration on the bottom). Replaces the old timeline drawer. */}
+        <SceneEdgeControls
+          rect={sceneRect}
+          design={design}
+          sceneIndex={sceneIndex}
+          onChange={setDesign}
           playing={playing}
           playhead={playhead}
           durationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
@@ -778,11 +778,6 @@ function StudioEditor() {
           onScrub={scrub}
           narrate={narrate}
           onToggleNarrate={() => setNarrate((n) => !n)}
-          narration={design.scenes[sceneIndex]?.narration ?? ""}
-          onNarrationChange={(text) => {
-            const id = design.scenes[sceneIndex]?.id;
-            if (id) setDesign((d) => setSceneNarration(d, id, text));
-          }}
         />
 
         {/* Right tool rail: creation tools only (icons + hover names). */}

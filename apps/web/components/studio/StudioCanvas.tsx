@@ -50,6 +50,12 @@ export interface StudioCanvasProps {
   onSelectScene?: (sceneIndex: number) => void;
   /** Called when the selected element changes (null when cleared) — drives the Inspector. */
   onSelect?: (sceneIndex: number | null, nodeId: string | null) => void;
+  /** The node id currently selected in the app — re-selected after a rebuild so the Inspector
+   * persists across edits (a programmatic rebuild otherwise clears the Fabric selection). */
+  selectedNodeId?: string | null;
+  /** Reports the active scene's on-screen rectangle (container-relative px) as the canvas pans /
+   * zooms / rebuilds, so per-scene controls can anchor to the scene's edges. Null on unmount. */
+  onActiveSceneRect?: (rect: { left: number; top: number; width: number; height: number } | null) => void;
   /** Called when the user finishes editing a text node inline (double-click → type → blur). */
   onTextEdit?: (sceneIndex: number, nodeId: string, text: string) => void;
   /** Receives imperative zoom/fit controls for the top bar once mounted. */
@@ -102,6 +108,8 @@ export default function StudioCanvas({
   onSelect,
   onTextEdit,
   onControls,
+  selectedNodeId,
+  onActiveSceneRect,
 }: StudioCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dotsRef = useRef<HTMLDivElement>(null);
@@ -121,6 +129,13 @@ export default function StudioCanvas({
   designRef.current = design;
   const activeSceneRef = useRef(activeScene);
   activeSceneRef.current = activeScene;
+  const selectedNodeIdRef = useRef(selectedNodeId);
+  selectedNodeIdRef.current = selectedNodeId;
+  const sceneRectRef = useRef(onActiveSceneRect);
+  sceneRectRef.current = onActiveSceneRect;
+  // True while the render effect rebuilds the canvas, so the intermediate selection:cleared (from
+  // removing objects) does not propagate and clear the app's selection / hide the Inspector.
+  const suppressSelRef = useRef(false);
   const fittedRef = useRef<string>(""); // layout signature of the last fit, so a new layout re-fits
 
   // Keep the dotted background locked to the canvas viewport transform (pan + zoom).
@@ -139,6 +154,23 @@ export default function StudioCanvas({
       c.dataset.zoom = zoom.toFixed(3);
       c.dataset.pan = `${Math.round(tx)},${Math.round(ty)}`;
     }
+    reportSceneRect();
+  }
+
+  // Report the active scene's on-screen rect (container px) so per-scene controls can hug its edges.
+  function reportSceneRect() {
+    const canvas = canvasRef.current;
+    const cb = sceneRectRef.current;
+    if (!canvas || !cb) return;
+    const design = designRef.current;
+    const i = activeSceneRef.current;
+    if (!design.scenes[i]) {
+      cb(null);
+      return;
+    }
+    const [zoom, , , , tx, ty] = canvas.viewportTransform;
+    const originX = sceneOriginX(design, i);
+    cb({ left: originX * zoom + tx, top: ty, width: design.width * zoom, height: design.height * zoom });
   }
 
   function zoomAt(factor: number) {
@@ -336,15 +368,19 @@ export default function StudioCanvas({
       syncDots();
     });
 
-    // Report the selected node so the Inspector can edit it.
+    // Report the selected node so the Inspector can edit it. Ignored while the canvas is being
+    // rebuilt (the selection is restored afterwards), so edits never flicker the Inspector away.
     const reportSelection = () => {
+      if (suppressSelRef.current) return;
       const o = canvas.getActiveObject() as TaggedObject | undefined;
       if (o && o.nodeId && o.sceneIndex !== undefined) selectNodeRef.current?.(o.sceneIndex, o.nodeId);
       else selectNodeRef.current?.(null, null);
     };
     canvas.on("selection:created", reportSelection);
     canvas.on("selection:updated", reportSelection);
-    canvas.on("selection:cleared", () => selectNodeRef.current?.(null, null));
+    canvas.on("selection:cleared", () => {
+      if (!suppressSelRef.current) selectNodeRef.current?.(null, null);
+    });
 
     // Inline text editing: double-click a text node, type, blur → sync back to the model (only on
     // exit, so no mid-type re-render interrupts the edit).
@@ -379,6 +415,7 @@ export default function StudioCanvas({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("keydown", onDeleteKey);
       onReady?.(null);
+      sceneRectRef.current?.(null);
       canvasRef.current = null;
       void canvas.dispose();
     };
@@ -422,6 +459,8 @@ export default function StudioCanvas({
       if (cancelled || canvasRef.current !== canvas) return;
 
       const savedVpt = [...canvas.viewportTransform] as typeof canvas.viewportTransform;
+      // Suppress selection events for the whole teardown+rebuild so the Inspector doesn't blink.
+      suppressSelRef.current = true;
       canvas.remove(...canvas.getObjects());
 
       design.scenes.forEach((scene, i) => {
@@ -500,6 +539,15 @@ export default function StudioCanvas({
       if (containerRef.current) {
         containerRef.current.dataset.entities = String(design.scenes[activeScene]?.nodes.length ?? 0);
       }
+      // Restore the selection on the rebuilt objects so the Inspector persists across edits.
+      const keepId = selectedNodeIdRef.current;
+      if (keepId) {
+        const obj = canvas
+          .getObjects()
+          .find((o) => (o as TaggedObject).nodeId === keepId && (o as TaggedObject).sceneIndex === activeScene);
+        if (obj && obj.selectable) canvas.setActiveObject(obj);
+      }
+      suppressSelRef.current = false;
       canvas.requestRenderAll();
     })();
 

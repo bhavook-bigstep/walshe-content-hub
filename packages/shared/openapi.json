@@ -1760,10 +1760,12 @@
             "type": "array"
           },
           "narration": {
-            "default": "",
-            "maxLength": 600,
+            "items": {
+              "$ref": "#/components/schemas/NarrationCue"
+            },
+            "maxItems": 20,
             "title": "Narration",
-            "type": "string"
+            "type": "array"
           },
           "title": {
             "default": "",
@@ -2170,6 +2172,25 @@
           "entry_title"
         ],
         "title": "MediaItem",
+        "type": "object"
+      },
+      "NarrationCue": {
+        "properties": {
+          "at_ms": {
+            "default": 0,
+            "maximum": 60000.0,
+            "minimum": 0.0,
+            "title": "At Ms",
+            "type": "integer"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "title": "NarrationCue",
         "type": "object"
       },
       "OrganizationOut": {

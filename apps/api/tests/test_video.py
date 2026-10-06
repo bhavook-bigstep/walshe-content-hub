@@ -500,9 +500,10 @@ def test_render_video_frames_sequences_and_stitches(tmp_path):
 
 
 def test_video_frames_route(client, agent_headers, provider_headers, monkeypatch):
-    monkeypatch.setattr(
-        render_mod, "encode_frames", lambda scenes, dirs, fps=20, tts=False: _fake(scenes)
-    )
+    def _fake_frames(scenes, dirs, fps=20, tts=False, cues=None):
+        return _fake(scenes)
+
+    monkeypatch.setattr(render_mod, "encode_frames", _fake_frames)
     body = {
         "fps": 20,
         "scenes": [
@@ -539,3 +540,25 @@ def test_scene_script_uses_explicit_narration():
     )
     assert scenes[0].narration == "A custom voiceover line."  # explicit script wins
     assert scenes[1].narration == "U"  # falls back to title when no script/caption
+
+
+def test_render_frames_lays_cued_narration(tmp_path):
+    # Each narration cue is spoken (TTS) and placed at its offset via adelay + amix.
+    scenes = build_scene_script(
+        [{"title": "A", "description": "a", "duration_ms": 4000, "transition": "none"}]
+    )
+    d = tmp_path / "s0"
+    d.mkdir()
+    calls: list[list[str]] = []
+    render_video_frames(
+        scenes,
+        [str(d)],
+        fps=20,
+        tts=True,
+        cues=[[{"at_ms": 0, "text": "Hello"}, {"at_ms": 2000, "text": "the harbour"}]],
+        runner=lambda c, **k: calls.append(list(c)),
+        which={"ffmpeg": "/x/ffmpeg", "say": "/x/say"}.get,
+    )
+    assert sum(1 for c in calls if c[0] == "say") == 2  # one TTS clip per cue
+    mix = [c for c in calls if "-filter_complex" in c]
+    assert any("adelay=" in " ".join(c) and "amix=" in " ".join(c) for c in mix)

@@ -142,10 +142,15 @@ def _decode_frame(data_url: str) -> bytes | None:
         return None
 
 
+class NarrationCue(BaseModel):
+    at_ms: int = Field(default=0, ge=0, le=60000)
+    text: str = Field(default="", max_length=300)
+
+
 class FrameScene(BaseModel):
     title: str = Field(default="", max_length=200)
     caption: str = Field(default="", max_length=200)
-    narration: str = Field(default="", max_length=600)
+    narration: list[NarrationCue] = Field(default_factory=list, max_length=20)
     duration_ms: int = Field(ge=0, le=60000)
     transition: Literal["none", "fade", "slide-left", "zoom"] = "none"
     frames: list[str] = Field(min_length=1, max_length=900)
@@ -181,14 +186,14 @@ def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)
                     {
                         "title": s.title,
                         "description": s.caption,
-                        "narration": s.narration,
                         "duration_ms": s.duration_ms,
                         "transition": s.transition,
                     }
                     for s in body.scenes
                 ]
             )
-            path = encode_frames(scenes, frame_dirs, fps=body.fps, tts=body.narrate)
+            cues = [[{"at_ms": c.at_ms, "text": c.text} for c in s.narration] for s in body.scenes]
+            path = encode_frames(scenes, frame_dirs, fps=body.fps, tts=body.narrate, cues=cues)
             with open(path, "rb") as fh:
                 data = fh.read()
     except (RuntimeError, OSError, ValueError) as exc:

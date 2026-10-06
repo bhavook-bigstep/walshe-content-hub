@@ -2132,11 +2132,8 @@ export interface components {
             duration_ms: number;
             /** Frames */
             frames: string[];
-            /**
-             * Narration
-             * @default
-             */
-            narration: string;
+            /** Narration */
+            narration?: components["schemas"]["NarrationCue"][];
             /**
              * Title
              * @default
@@ -2337,6 +2334,19 @@ export interface components {
             entry_title: string;
             /** Object Key */
             object_key: string;
+        };
+        /** NarrationCue */
+        NarrationCue: {
+            /**
+             * At Ms
+             * @default 0
+             */
+            at_ms: number;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
         };
         /** OrganizationOut */
         OrganizationOut: {

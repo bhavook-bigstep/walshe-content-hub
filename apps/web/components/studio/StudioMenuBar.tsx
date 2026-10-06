@@ -46,11 +46,11 @@ interface Props {
   onFit: () => void;
   mediaOpen: boolean;
   onToggleMedia: () => void;
-  timelineOpen: boolean;
-  onToggleTimeline: () => void;
   /** File menu — export the current design as a video. */
   onGenerateVideo: () => void;
   rendering: boolean;
+  /** Last video-export result message (e.g. "Video ready."). */
+  videoMsg?: string | null;
 }
 
 // ── Small presentational primitives for the menus ──────────────────────────────────────────────
@@ -118,10 +118,9 @@ export default function StudioMenuBar(props: Props) {
     onFit,
     mediaOpen,
     onToggleMedia,
-    timelineOpen,
-    onToggleTimeline,
     onGenerateVideo,
     rendering,
+    videoMsg,
   } = props;
 
   // Exactly one pull-down is open at a time (classic menu-bar behaviour: click to open, then hover
@@ -276,7 +275,6 @@ export default function StudioMenuBar(props: Props) {
           <MenuItem label="Fit to screen" onClick={onFit} />
           <MenuSep />
           <MenuItem label="Media library" checked={mediaOpen} onClick={onToggleMedia} />
-          <MenuItem label="Timeline" checked={timelineOpen} onClick={onToggleTimeline} />
         </Menu>
       </nav>
 
@@ -301,6 +299,8 @@ export default function StudioMenuBar(props: Props) {
             <Spinner />
             {rendering ? "Rendering video…" : `Exporting ${exporting!.toUpperCase()}…`}
           </span>
+        ) : videoMsg ? (
+          <span className="hidden text-[12px] font-medium text-walshe-grey sm:inline">{videoMsg}</span>
         ) : (
           saveMsg && <span className="hidden text-[12px] font-medium text-walshe-grey sm:inline">{saveMsg}</span>
         )}

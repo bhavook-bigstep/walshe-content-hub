@@ -392,11 +392,51 @@ def build_frames_clip_cmd(pattern: str, fps: int, out: str, audio: str | None = 
     return cmd
 
 
+def _cued_audio(
+    cues: list[dict[str, Any]],
+    duration: float,
+    work: Path,
+    idx: int,
+    which: Callable[[str], str | None],
+    runner: Callable[..., Any],
+) -> str | None:
+    """Build one scene's narration track: each cue's TTS placed at its ``at_ms`` offset over a bed
+    of scene-length silence (adelay + amix). Returns None when there is no TTS tool or no cue."""
+    clips: list[tuple[int, str]] = []
+    for j, c in enumerate(cues):
+        text = str(c.get("text", "")).strip()
+        if not text:
+            continue
+        path = str(work / f"cue{idx}_{j}.aiff")
+        tcmd = _tts_cmd(which, text, path)
+        if not tcmd:
+            return None  # no TTS tool available
+        runner(tcmd, check=True, capture_output=True)
+        clips.append((max(0, int(c.get("at_ms", 0))), path))
+    if not clips:
+        return None
+    out = str(work / f"narr{idx}.wav")
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
+    cmd += ["-f", "lavfi", "-t", f"{duration}", "-i", "anullsrc=r=44100:cl=stereo"]
+    for _, path in clips:
+        cmd += ["-i", path]
+    parts, labels = [], ["0:a"]  # [0] = the silence bed (fixes the output length)
+    for k, (delay, _) in enumerate(clips, start=1):
+        parts.append(f"[{k}:a]adelay={delay}|{delay}[d{k}]")
+        labels.append(f"d{k}")
+    fc = ";".join(parts) + ";" + "".join(f"[{x}]" for x in labels)
+    fc += f"amix=inputs={len(labels)}:normalize=0:duration=first[out]"
+    cmd += ["-filter_complex", fc, "-map", "[out]", out]
+    runner(cmd, check=True, capture_output=True)
+    return out
+
+
 def render_video_frames(
     scenes: Scenes,
     frame_dirs: Sequence[str],
     *,
     fps: int,
+    cues: Sequence[list[dict[str, Any]]] | None = None,
     out_dir: str | Path | None = None,
     tts: bool = False,
     xfade: bool = True,
@@ -422,11 +462,17 @@ def render_video_frames(
         pattern = os.path.join(frame_dirs[scene.index], "frame%05d.jpg")
         audio = None
         if tts:
-            audio_path = str(work / f"scene{scene.index:02d}.aiff")
-            tcmd = _tts_cmd(which, scene.narration, audio_path)
-            if tcmd:
-                runner(tcmd, check=True, capture_output=True)
-                audio = audio_path
+            scene_cues = list(cues[scene.index]) if cues and scene.index < len(cues) else []
+            if scene_cues:
+                # Time-cued narration: each line spoken at its own offset within the scene.
+                audio = _cued_audio(scene_cues, scene.duration, work, scene.index, which, runner)
+            else:
+                # Fallback: one clip from the scene's title/caption narration.
+                audio_path = str(work / f"scene{scene.index:02d}.aiff")
+                tcmd = _tts_cmd(which, scene.narration, audio_path)
+                if tcmd:
+                    runner(tcmd, check=True, capture_output=True)
+                    audio = audio_path
         runner(build_frames_clip_cmd(pattern, fps, clip, audio), check=True, capture_output=True)
         clips.append(clip)
         srt.append(

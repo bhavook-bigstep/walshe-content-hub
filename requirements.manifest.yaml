@@ -488,5 +488,7 @@ acceptance:
     tier: P2
     api:
       - "apps/api/tests/test_video.py::test_scene_script_uses_explicit_narration"
+      - "apps/api/tests/test_video.py::test_render_frames_lays_cued_narration"
     web:
       - "apps/web/tests/studio-ops.test.ts::test_set_scene_narration"
+      - "apps/web/tests/studio-ops.test.ts::narrationCues normalises a legacy string and bad cues"
