@@ -153,7 +153,7 @@ function CollectionDetailDialog({
     if (collection.items.length === 0) return;
     setBusy(true);
     try {
-      // Seed the project's workspace from this collection (AC64); the backend expands
+      // Seed the project's workspace from this collection (AC75); the backend expands
       // reference_content.collections from collection_id.
       const project = await createProject({
         name: collection.name,

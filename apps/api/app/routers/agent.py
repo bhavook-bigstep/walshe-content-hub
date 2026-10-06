@@ -97,7 +97,7 @@ def create_project(
     agent: User = Depends(_agent_only),
     now: datetime = Depends(clock.now),
 ) -> Composition:
-    # AC64 — seed the structured workspace (from a template, a collection, or the posted item_ids).
+    # AC75 — seed the structured workspace (from a template, a collection, or the posted item_ids).
     workspace = _seed_workspace(
         db,
         agent,
@@ -176,7 +176,7 @@ def resolve_project(
     )
 
 
-# ---- AC64: structured Workspace ---------------------------------------------------------------
+# ---- AC75: structured Workspace ---------------------------------------------------------------
 
 _FORMAT_DIMS = {"social": (1080, 1080), "story": (1080, 1920), "pamphlet": (1240, 1754)}
 
@@ -340,7 +340,7 @@ def get_workspace(
     agent: User = Depends(_agent_only),
     now: datetime = Depends(clock.now),
 ) -> WorkspaceResolved:
-    """The structured workspace (AC64), resolved: references expanded to live entries + assets."""
+    """The structured workspace (AC75), resolved: references expanded to live entries + assets."""
     project = _owned_project(db, project_id, agent)
     return _resolve_workspace(db, agent, _workspace_of(project), now)
 
@@ -353,7 +353,7 @@ def save_workspace(
     agent: User = Depends(_agent_only),
     now: datetime = Depends(clock.now),
 ) -> WorkspaceResolved:
-    """Autosave the whole workspace (AC64). Validates references (visible entries, owned assets),
+    """Autosave the whole workspace (AC75). Validates references (visible entries, owned assets),
     bumps the version, and keeps item_ids/design in sync for the compat resolve/export paths."""
     project = _owned_project(db, project_id, agent)
     ws = body.model_dump()
