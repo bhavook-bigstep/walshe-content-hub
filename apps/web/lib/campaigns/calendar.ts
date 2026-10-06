@@ -97,3 +97,10 @@ export function sameLocalDay(iso: string, day: Date): boolean {
     d.getDate() === day.getDate()
   );
 }
+
+// Whether a campaign's inclusive [starts_on, ends_on] date range (YYYY-MM-DD strings) covers the
+// given local day. Lexicographic comparison is correct for zero-padded ISO dates.
+export function coversDay(range: { starts_on: string; ends_on: string }, day: Date): boolean {
+  const k = dayKey(day);
+  return range.starts_on <= k && k <= range.ends_on;
+}

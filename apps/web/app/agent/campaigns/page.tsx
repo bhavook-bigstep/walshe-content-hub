@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import CampaignsCalendar from "../../../components/campaigns/CampaignsCalendar";
 import PageHeader from "../../../components/ui/PageHeader";
 import { ApiError, createCampaign, listCampaigns, type Campaign } from "../../../lib/api";
 
@@ -74,6 +75,8 @@ export default function CampaignsPage() {
           {busy ? "Creating…" : "Create campaign"}
         </button>
       </form>
+
+      {campaigns && campaigns.length > 0 && <CampaignsCalendar campaigns={campaigns} />}
 
       {campaigns === null ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

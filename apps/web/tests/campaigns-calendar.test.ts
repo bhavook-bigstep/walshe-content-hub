@@ -3,6 +3,7 @@ import {
   addDays,
   addMonths,
   bucketByLocalDay,
+  coversDay,
   dayKey,
   HOURS,
   localDateKey,
@@ -131,5 +132,15 @@ describe("sameLocalDay", () => {
     expect(sameLocalDay(lateNight.toISOString(), new Date(2026, 7, 15))).toBe(true);
     expect(sameLocalDay(lateNight.toISOString(), new Date(2026, 7, 16))).toBe(false);
     expect(sameLocalDay(lateNight.toISOString(), new Date(2026, 7, 14))).toBe(false);
+  });
+});
+
+describe("coversDay", () => {
+  it("includes the inclusive [starts_on, ends_on] range and excludes neighbours", () => {
+    const c = { starts_on: "2026-10-08", ends_on: "2026-10-09" };
+    expect(coversDay(c, new Date(2026, 9, 8))).toBe(true);
+    expect(coversDay(c, new Date(2026, 9, 9))).toBe(true);
+    expect(coversDay(c, new Date(2026, 9, 7))).toBe(false);
+    expect(coversDay(c, new Date(2026, 9, 10))).toBe(false);
   });
 });
