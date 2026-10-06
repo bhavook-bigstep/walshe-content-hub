@@ -92,6 +92,10 @@ export interface CatalogQuery {
   season?: Season;
   type?: CatalogType;
   q?: string;
+  /** Keep entries carrying ANY of these market tags (OR facet). */
+  tags?: string[];
+  /** Keep entries from one provider organisation (exact, case-insensitive). */
+  org?: string;
 }
 
 /** Error carrying only status + server detail text; never request headers or tokens. */
@@ -150,6 +154,8 @@ export function buildCatalogQuery(p: CatalogQuery): string {
   if (p.season) qs.set("season", p.season);
   if (p.type) qs.set("type", p.type);
   if (p.q) qs.set("q", p.q);
+  for (const t of p.tags ?? []) if (t) qs.append("tags", t);
+  if (p.org) qs.set("org", p.org);
   const s = qs.toString();
   return s ? `?${s}` : "";
 }

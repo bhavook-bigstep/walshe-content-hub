@@ -116,6 +116,10 @@ describe("api client", () => {
     expect(buildCatalogQuery({ destination: "Bali", type: "event", q: "a b" })).toBe(
       "?destination=Bali&type=event&q=a+b",
     );
+    // Tags serialise as repeated params; org as a single param (AC83).
+    expect(buildCatalogQuery({ tags: ["live-music", "outdoors"], org: "Test Board" })).toBe(
+      "?tags=live-music&tags=outdoors&org=Test+Board",
+    );
   });
   it("sends bearer header on authed calls and none on login", async () => {
     setSession("tok-fake", "tourism_agent");

@@ -507,3 +507,10 @@ acceptance:
       - "apps/web/tests/grouping.test.ts::re-grouping replaces an existing tag with one fresh id (no nesting)"
       - "apps/web/tests/grouping.test.ts::applies an entrance + emphasis loop to every member, anchored at each position"
       - "apps/web/tests/grouping.test.ts::patches a shared style onto every member and ungroups them"
+  AC83:
+    tier: P2
+    api:
+      - "apps/api/tests/test_catalog_search.py::test_free_text_searches_tags_destination_and_description"
+      - "apps/api/tests/test_catalog_search.py::test_filter_by_tags_and_org"
+    web:
+      - "apps/web/tests/shell.test.ts::builds catalog query strings"

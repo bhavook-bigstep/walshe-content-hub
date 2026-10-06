@@ -3415,6 +3415,8 @@ export interface operations {
                 season?: components["schemas"]["Season"] | null;
                 type?: components["schemas"]["CatalogType"] | null;
                 q?: string | null;
+                tags?: string[] | null;
+                org?: string | null;
             };
             header?: never;
             path?: never;
