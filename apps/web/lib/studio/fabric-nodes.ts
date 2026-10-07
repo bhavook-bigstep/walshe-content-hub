@@ -1,7 +1,7 @@
 // Shared mapping from the serialisable design model (ops.ts) to Fabric objects. Used by both the
 // interactive StudioCanvas and the offscreen PNG renderer, so what you see equals what you export.
-import { Ellipse, FabricImage, Line, Rect, Textbox, type FabricObject } from "fabric";
-import { PLACEHOLDER_SRC, type DesignNode } from "./ops";
+import { Ellipse, FabricImage, Line, Polyline, Rect, Textbox, type FabricObject } from "fabric";
+import { PLACEHOLDER_SRC, sampleCurve, type DesignNode } from "./ops";
 
 const DEFAULT_FONT = "'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
 
@@ -136,7 +136,19 @@ export async function nodeToObject(n: DesignNode): Promise<FabricObject | null> 
     });
   } else if (n.type === "shape") {
     const strokeProps = n.stroke ? { stroke: n.stroke, strokeWidth: n.strokeWidth ?? 2 } : {};
-    if (n.shape === "ellipse") {
+    if (n.points && n.points.length >= 2) {
+      // An editable curve: a Polyline sampled from the smooth spline through the anchors. Scene-local
+      // coords (like Line) so the canvas's origin offset positions it; stroke only, no fill.
+      obj = new Polyline(sampleCurve(n.points), {
+        stroke: n.stroke ?? n.color ?? "#111111",
+        strokeWidth: n.strokeWidth ?? 6,
+        fill: "",
+        strokeLineCap: "round",
+        strokeLineJoin: "round",
+        objectCaching: false,
+        ...common(n),
+      });
+    } else if (n.shape === "ellipse") {
       obj = new Ellipse({ ...base, rx: n.width / 2, ry: n.height / 2, fill: color, ...strokeProps, ...common(n) });
     } else if (n.shape === "line") {
       obj = new Line([n.x, n.y, n.x + n.width, n.y + n.height], {

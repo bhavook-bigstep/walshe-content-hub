@@ -143,6 +143,10 @@ def _draw_image(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None
 
     Falls back to a neutral placeholder frame when the node has no decodable inline source.
     """
+    # An unfilled media placeholder exports transparent — never a box (matches the client, which
+    # drops it before export; this guards a design that reaches the server unprepared).
+    if node.get("placeholder"):
+        return
     data = _decode_data_url(node.get("src"))
     reader = None
     if data is not None:

@@ -2,9 +2,14 @@
 // export is always the design at its true size, never the current viewport.
 import { StaticCanvas, type FabricObject } from "fabric";
 import { nodeToObject } from "./fabric-nodes";
+import { resolveSprites } from "./graphics";
+import { prepareForExport } from "./export-prep";
 import type { DesignDoc } from "./ops";
 
-async function renderSceneCanvas(design: DesignDoc, sceneIndex: number): Promise<StaticCanvas> {
+async function renderSceneCanvas(input: DesignDoc, sceneIndex: number): Promise<StaticCanvas> {
+  // Resolve any sprite references, then normalise for a still export: unfilled placeholders drop out
+  // (transparent slot) and sprites collapse to their first frame — so neither exports as a box.
+  const design = prepareForExport(resolveSprites(input));
   const scene = design.scenes[sceneIndex];
   const canvas = new StaticCanvas(undefined, { width: design.width, height: design.height });
   canvas.backgroundColor = scene?.background ?? "#ffffff";

@@ -12,13 +12,24 @@ interface Props {
   sceneIndex: number;
   onChange: (next: DesignDoc) => void;
   items: BuilderCatalogItem[] | null;
+  /** When set, starting the Builder runs this scripted demo instead of calling the API. */
+  onDemoBuild?: (prompt: string) => void | Promise<void>;
+  /** Whether the scripted demo is currently running (disables the Generate button). */
+  demoRunning?: boolean;
 }
 
 /**
  * The studio's AI dock (AC46/47 UI): a bottom button that slides up a drawer with two tabs —
  * the grounded AI Builder and the Creative Planner. The panels themselves are unchanged.
  */
-export default function StudioBottomDock({ design, sceneIndex, onChange, items }: Props) {
+export default function StudioBottomDock({
+  design,
+  sceneIndex,
+  onChange,
+  items,
+  onDemoBuild,
+  demoRunning,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("builder");
 
@@ -77,14 +88,31 @@ export default function StudioBottomDock({ design, sceneIndex, onChange, items }
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {tab === "builder" ? (
-              items === null ? (
+              // In demo mode the Builder is always available (it falls back to sample content when no
+              // collection is open); otherwise it needs approved catalog items to draft from.
+              !onDemoBuild && items === null ? (
                 <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
-              ) : items.length === 0 ? (
+              ) : !onDemoBuild && items !== null && items.length === 0 ? (
                 <p role="status" className="text-small text-walshe-grey">
                   No approved catalog items available for the AI Builder.
                 </p>
               ) : (
-                <BuilderPanel design={design} sceneIndex={sceneIndex} items={items} onChange={onChange} />
+                <BuilderPanel
+                  design={design}
+                  sceneIndex={sceneIndex}
+                  items={items ?? []}
+                  onChange={onChange}
+                  demoRunning={demoRunning}
+                  // Starting the demo slides the dock down so the agent's build is fully visible.
+                  onDemoBuild={
+                    onDemoBuild
+                      ? (prompt) => {
+                          setOpen(false);
+                          return onDemoBuild(prompt);
+                        }
+                      : undefined
+                  }
+                />
               )
             ) : (
               <CreativePlanPanel itemIds={(items ?? []).map((i) => Number(i.id))} />
