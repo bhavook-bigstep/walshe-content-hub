@@ -575,7 +575,7 @@ acceptance:
     web:
       - "apps/web/tests/placeholder.test.ts::addPlaceholder inserts a flagged image node with the placeholder art"
       - "apps/web/tests/placeholder.test.ts::fillImageNode replaces the art, clears the flag and records the objectKey"
-      - "apps/web/tests/placeholder.test.ts::fillImageNode with a video shows a poster and records the videoKey (AC91)"
+      - "apps/web/tests/placeholder.test.ts::fillImageNode with a video keeps a poster fallback but plays the live clip (AC91)"
   AC92:
     tier: P2
     api:
