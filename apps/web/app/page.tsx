@@ -2,6 +2,7 @@ import Link from "next/link";
 import Reveal from "../components/ui/Reveal";
 import SmoothScroll from "../components/ui/SmoothScroll";
 import SiteNav from "../components/site/SiteNav";
+import PlaneTransition from "../components/site/PlaneTransition";
 
 // Public landing (AC20) — immersive editorial direction modelled on the reference's structure:
 // full-bleed cinematic hero with a framed nav, 2-column section headers (small eyebrow left, large
@@ -147,6 +148,9 @@ export default function Landing() {
           </Reveal>
         </div>
       </header>
+
+      {/* Scroll-scrubbed plane wipe from the hero into the first section. */}
+      <PlaneTransition />
 
       {/* ======================= PRODUCT IN ACTION (real UI, theme-matched) ======================= */}
       <section id="product" className="scroll-mt-24 py-24">

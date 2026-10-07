@@ -277,6 +277,12 @@
   :root[data-theme="light"] .theme-light-only { display: block; }
   :root[data-theme="dark"] .theme-dark-only { display: block; }
 
+  /* The scroll-scrubbed plane transition is motion; reduced-motion viewers skip it entirely so the
+     hero leads straight into the first section (no long empty scroll). */
+  @media (prefers-reduced-motion: reduce) {
+    .plane-transition { display: none; }
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     /* Scroll-reveal system — motion is driven by GSAP + ScrollTrigger (see Reveal.tsx); CSS only
        prevents a flash before GSAP mounts and sets up the split-text + colour-sweep painting.
