@@ -149,7 +149,9 @@ export default function AgentCatalogPage() {
       <form
         role="search"
         onSubmit={(e) => e.preventDefault()}
-        className="card mb-6 space-y-3 p-4"
+        // overflow-visible overrides .card's overflow-hidden so the Select dropdowns (absolutely
+        // positioned below their field) aren't clipped by the filter-bar card when expanded.
+        className="card mb-6 space-y-3 overflow-visible p-4"
       >
         <div className="flex flex-wrap items-end gap-3">
           <label className="relative flex-1 text-small" style={{ minWidth: "16rem" }}>
