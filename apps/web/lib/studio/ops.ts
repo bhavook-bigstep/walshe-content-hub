@@ -174,6 +174,14 @@ export interface DesignNode {
   /** image only — a built-in sprite id (e.g. "walking-panda"); the studio resolves it to `frames`
    * + `fps` on load (so templates can reference a sprite without embedding its filmstrip). */
   sprite?: string;
+  /** sprite only — the id of the sprite that plays NEXT, starting where this one finishes (same
+   * place/state). Chains sprite animations: head → successor → …; during preview/export each plays
+   * its filmstrip once in turn. */
+  successorId?: string;
+  /** sprite-chain only — how long (ms) this member holds the stage before handing off to its
+   * successor. Overrides the member's natural filmstrip length; the sprite loops its frames to fill
+   * the slot. Undefined = use the filmstrip length. */
+  chainDurMs?: number;
 }
 
 /** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
@@ -602,6 +610,8 @@ export function addGraphic(
     loop?: NodeAnimation["loop"];
     frames?: string[];
     fps?: number;
+    /** A sprite id — e.g. an imported sprite `user:<id>` — so its filmstrip can re-resolve on reload. */
+    sprite?: string;
   },
   placement: NodePlacement = {},
 ): DesignDoc {
@@ -617,6 +627,7 @@ export function addGraphic(
     height: placement.height ?? g.height,
     src: g.src ?? g.frames?.[0],
     ...(g.frames && g.frames.length > 1 ? { frames: g.frames, fps: g.fps ?? 10 } : {}),
+    ...(g.sprite ? { sprite: g.sprite } : {}),
     ...stylePlacement(placement),
   };
   if (g.enter || g.loop) {
@@ -628,6 +639,226 @@ export function addGraphic(
     };
   }
   scene.nodes.push(node);
+  return next;
+}
+
+// ── Sprite chaining (join animations: head → successor → …) ─────────────────────────────────────
+// Each member plays its filmstrip once in turn; a successor begins at its predecessor's END state
+// (position / scale / rotation / opacity), so two animations read as one continuous motion.
+
+/** A sprite's end transform (its last keyframe's values, falling back to its base) — the state a
+ * successor should start from. Lightweight + pure (no engine import). */
+export function spriteEndTransform(node: DesignNode): {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+} {
+  const base = { x: node.x, y: node.y, scale: 1, rotation: node.angle ?? 0, opacity: node.opacity ?? 1 };
+  const kfs = node.anim?.keyframes;
+  if (!kfs || kfs.length === 0) return base;
+  const last = kfs.reduce((a, b) => (b.t >= a.t ? b : a));
+  return {
+    x: last.x ?? base.x,
+    y: last.y ?? base.y,
+    scale: last.scale ?? base.scale,
+    rotation: last.rotation ?? base.rotation,
+    opacity: last.opacity ?? base.opacity,
+  };
+}
+
+/** Whether a node is a frame sprite (2+ frames or a sprite id). */
+export function isSprite(node: DesignNode): boolean {
+  return node.type === "image" && ((node.frames?.length ?? 0) > 1 || !!node.sprite);
+}
+
+/** A sprite's play-once filmstrip length in ms (0 for a non-sprite). Mirrors anim.ts `spriteOwnMs`,
+ * duplicated here to avoid an ops→anim import cycle. */
+function spriteOwnDurMs(node: DesignNode): number {
+  const n = node.frames?.length ?? 0;
+  if (n < 2) return 0;
+  const fps = node.fps && node.fps > 0 ? node.fps : 10;
+  return (n / fps) * 1000;
+}
+
+/** One chain member's slot length: an explicit `chainDurMs` override, else the longer of its
+ * filmstrip and its own keyframe track. Kept in sync with anim.ts `memberDurMs`. */
+function memberDurMs(node: DesignNode): number {
+  if (node.chainDurMs && node.chainDurMs > 0) return Math.round(node.chainDurMs);
+  const anim = node.anim?.keyframes?.length ? Math.max(...node.anim.keyframes.map((k) => k.t)) : 0;
+  return Math.max(spriteOwnDurMs(node), anim, 1);
+}
+
+/** A chain member's current on-stage duration (ms): its `chainDurMs` override or its filmstrip
+ * length. For the duration control in the chain panel. */
+export function chainMemberDurationMs(node: DesignNode): number {
+  return memberDurMs(node);
+}
+
+/** Total time (ms) a sprite chain needs to play through, back-to-back, start to finish. */
+export function chainTotalMs(scene: Scene, nodeId: string): number {
+  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+  return chainIds(scene, nodeId).reduce((sum, id) => {
+    const n = byId.get(id);
+    return sum + (n ? memberDurMs(n) : 0);
+  }, 0);
+}
+
+/** The settable range for a chain member's on-stage duration (ms). */
+export const MIN_CHAIN_MEMBER_MS = 200;
+export const MAX_CHAIN_MEMBER_MS = 10000;
+
+/** Grow (never shrink) a scene's duration so a sprite chain containing `nodeId` plays in full before
+ * the scene loops, with a short tail so the last frame reads. Mutates `scene` in place. */
+function extendSceneForChain(scene: Scene, nodeId: string): void {
+  const needed = chainTotalMs(scene, nodeId) + 300;
+  scene.durationMs = clampSceneDuration(Math.max(scene.durationMs, needed));
+}
+
+/** Set how long a chained sprite holds the stage before its successor starts. Clamped to a sane
+ * range; the scene grows to keep the whole chain visible. Pure op (design → design). */
+export function setChainDuration(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  ms: number,
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const node = scene.nodes.find((n) => n.id === nodeId);
+  if (!node || !isSprite(node)) return design;
+  node.chainDurMs = Math.min(MAX_CHAIN_MEMBER_MS, Math.max(MIN_CHAIN_MEMBER_MS, Math.round(ms)));
+  extendSceneForChain(scene, nodeId);
+  return next;
+}
+
+/** The ordered chain of sprite ids that `nodeId` belongs to (head → … → tail). A standalone sprite
+ * returns just itself. Cycle-safe. */
+export function chainIds(scene: Scene, nodeId: string): string[] {
+  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+  if (!byId.has(nodeId)) return [];
+  // Walk back to the head (the node no one points at as a successor).
+  const predOf = new Map<string, string>();
+  for (const n of scene.nodes) if (n.successorId) predOf.set(n.successorId, n.id);
+  let head = nodeId;
+  const seenBack = new Set<string>();
+  while (predOf.has(head) && !seenBack.has(head)) {
+    seenBack.add(head);
+    head = predOf.get(head)!;
+  }
+  // Walk forward collecting the chain.
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  let cur: string | undefined = head;
+  while (cur && byId.has(cur) && !seen.has(cur)) {
+    seen.add(cur);
+    ids.push(cur);
+    cur = byId.get(cur)!.successorId;
+  }
+  return ids;
+}
+
+/**
+ * Add a sprite as the successor of `parentId`: a new sprite node placed at the parent's end state
+ * (so the motion continues seamlessly), linked into the chain right after the parent. The parent is
+ * set to play once (so it finishes before the successor starts). Returns the new design.
+ */
+export function addSuccessorSprite(
+  design: DesignDoc,
+  sceneIndex: number,
+  parentId: string,
+  sprite: { frames: string[]; fps?: number; width: number; height: number; spriteRef?: string },
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const parent = scene.nodes.find((n) => n.id === parentId);
+  if (!parent || sprite.frames.length === 0) return design;
+
+  const end = spriteEndTransform(parent);
+  const w = Math.max(1, Math.round((parent.width || sprite.width) * end.scale));
+  const h = Math.max(1, Math.round((parent.height || sprite.height) * end.scale));
+  const node: DesignNode = {
+    id: nextId("image", scene),
+    type: "image",
+    x: Math.round(end.x),
+    y: Math.round(end.y),
+    width: w,
+    height: h,
+    src: sprite.frames[0],
+    frames: sprite.frames,
+    fps: sprite.fps ?? 10,
+    loopFrames: false,
+    angle: end.rotation,
+    opacity: end.opacity,
+    ...(sprite.spriteRef ? { sprite: sprite.spriteRef } : {}),
+  };
+  // Insert into the chain right after the parent (preserving any existing successor).
+  node.successorId = parent.successorId;
+  parent.successorId = node.id;
+  parent.loopFrames = false; // a chained sprite plays once so its successor can take over
+  scene.nodes.push(node);
+  extendSceneForChain(scene, parentId); // grow the scene so the whole chain actually plays
+  return next;
+}
+
+/**
+ * Normalise every sprite chain so each successor STARTS exactly where its predecessor ENDS: the
+ * child's base transform (and its t≤0 "start" keyframe, if any) is pinned to the predecessor's end
+ * state. The child's 0s state is therefore never independent — it always mirrors the parent's end.
+ * Cascades head→tail (a child's end feeds its own child). Pure + deterministic; idempotent. Returns
+ * the input unchanged when there are no chains, so non-chain edits don't allocate.
+ */
+export function syncChainStarts(design: DesignDoc): DesignDoc {
+  if (!design.scenes.some((s) => s.nodes.some((n) => n.successorId))) return design;
+  const next = cloneDesign(design);
+  for (const scene of next.scenes) {
+    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+    const hasPred = new Set<string>();
+    for (const n of scene.nodes) if (n.successorId && byId.has(n.successorId)) hasPred.add(n.successorId);
+    for (const head of scene.nodes) {
+      if (hasPred.has(head.id)) continue; // start only from a chain head
+      const seen = new Set<string>();
+      let cur: DesignNode | undefined = head;
+      while (cur && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        const child: DesignNode | undefined = cur.successorId ? byId.get(cur.successorId) : undefined;
+        if (child) {
+          const end = spriteEndTransform(cur); // cur is already synced (we walk head→tail)
+          child.x = Math.round(end.x);
+          child.y = Math.round(end.y);
+          child.angle = end.rotation;
+          child.opacity = end.opacity;
+          // Pin the child's start ("0s") keyframe to the locked start so authored motion begins there.
+          if (child.anim?.keyframes?.length) {
+            child.anim = {
+              ...child.anim,
+              keyframes: child.anim.keyframes.map((k: AnimKeyframe) =>
+                k.t <= 0
+                  ? { ...k, x: child.x, y: child.y, rotation: end.rotation, opacity: end.opacity, scale: end.scale }
+                  : k,
+              ),
+            };
+          }
+        }
+        cur = child;
+      }
+    }
+  }
+  return next;
+}
+
+/** Remove `nodeId` from its chain and delete it (its predecessor re-links to its successor). */
+export function removeSuccessor(design: DesignDoc, sceneIndex: number, nodeId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const target = scene.nodes.find((n) => n.id === nodeId);
+  if (!target) return design;
+  for (const n of scene.nodes) if (n.successorId === nodeId) n.successorId = target.successorId;
+  scene.nodes = scene.nodes.filter((n) => n.id !== nodeId);
   return next;
 }
 
