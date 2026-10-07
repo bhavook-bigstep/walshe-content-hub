@@ -80,9 +80,15 @@ test("selecting an entity and pressing Delete removes it", async ({ page }) => {
   // runners. Retrying the click until the Inspector shows makes selection deterministic.
   const inspector = page.getByRole("heading", { name: "Edit element" });
   await expect(async () => {
-    await page.mouse.click(sx, sy);
-    await expect(inspector).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 20000 });
+    // Recompute the click point each attempt: on a cold CI runner the canvas box / viewport
+    // transform can still be settling, so a coordinate computed once (sx,sy) may keep missing the
+    // rect. Reading box+pan+zoom fresh per retry makes selection deterministic.
+    const b = (await canvas.boundingBox())!;
+    const zoom = Number(await canvas.getAttribute("data-zoom"));
+    const [px, py] = (await canvas.getAttribute("data-pan"))!.split(",").map(Number);
+    await page.mouse.click(b.x + px + 164 * zoom, b.y + py + 164 * zoom);
+    await expect(inspector).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 25000 });
 
   await page.keyboard.press("Delete");
   await expect

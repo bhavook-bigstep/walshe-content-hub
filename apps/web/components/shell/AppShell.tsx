@@ -127,13 +127,14 @@ function initialsOf(name: string | null | undefined, email: string): string {
   return email.charAt(0).toUpperCase();
 }
 
-function Logo({ className = "logo-mark h-10 w-[71px]", onClick }: { className?: string; onClick?: () => void }) {
+function Logo({ className = "h-9", onClick }: { className?: string; onClick?: () => void }) {
   return (
-    <Link href="/" onClick={onClick} className="group inline-flex items-center" aria-label="The Walshe Group — home">
-      <span
-        role="img"
-        aria-label="The Walshe Group"
-        className={`${className} bg-chrome-fg transition-colors duration-300 group-hover:bg-walshe-gold`}
+    <Link href="/" onClick={onClick} className="group inline-flex items-center" aria-label="Voyago — home">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/voyago-wordmark-white.png"
+        alt="Voyago"
+        className={`${className} w-auto shrink-0 transition-transform duration-300 group-hover:-translate-y-px`}
       />
     </Link>
   );
@@ -198,10 +199,11 @@ function SidebarInner({
           <Link
             href="/"
             onClick={onNavigate}
-            aria-label="The Walshe Group — home"
-            className="grid h-9 w-9 place-items-center rounded-md bg-chrome-fg/10 text-base font-extrabold text-chrome-fg transition-colors hover:bg-walshe-gold hover:text-walshe-base"
+            aria-label="Voyago — home"
+            className="grid h-9 w-9 place-items-center overflow-hidden rounded-md transition-transform hover:scale-105"
           >
-            W
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/voyago-icon.png" alt="Voyago" className="h-7 w-7 object-contain" />
           </Link>
         ) : (
           <Logo onClick={onNavigate} />
@@ -490,7 +492,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
             </svg>
           </button>
           <span className="lg:hidden">
-            <Logo className="logo-mark h-7 w-[50px]" />
+            <Logo className="h-7" />
           </span>
           <Breadcrumbs pathname={pathname} />
           {/* Right-side top-bar controls: the provider's import-job bell (AC74) + light/dark toggle. */}
