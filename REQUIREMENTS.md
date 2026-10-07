@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.56.0 |
+| **Version** | 2.57.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -784,12 +784,24 @@ Engagement performance views (v2.55.0):
   `composition_name` and `campaign_name`; vitest asserts the per-platform / per-campaign roll-ups take
   the latest snapshot per post and sort by reach.
 
-**Priority tiers** (build order; acceptance reports honestly against all 100):
+Social organization page (v2.57.0):
+
+- **AC101** — **Social organization workspace.** The agent's Social page is an organization workspace
+  with two tabs: **Posts** (the composer → pre-send check → approval → the unified posts list, AC99)
+  and **Connected platforms** — a grid of the org's social accounts (**Instagram, Facebook, X,
+  TikTok, Snapchat**) with Connect / Connected state. In the PoC this is a **front-end illusion** (no
+  OAuth / back-end): **Instagram starts connected** (the one real publish path), the rest offer
+  **Connect**; the state is remembered per-browser, keyed by the organization (tenant) so org-mates
+  share one view. The page's dropdowns use the app's custom **`Select`** (matching Studio/catalog),
+  not native selects. Proof: vitest asserts the platform catalogue (5 platforms, Instagram first) and
+  that only Instagram is connected by default, with a stored map merging over that default.
+
+**Priority tiers** (build order; acceptance reports honestly against all 101):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 · social-approval = AC99 · performance = AC100 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 · social-approval = AC99 · performance = AC100 · social-org = AC101 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -816,6 +828,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.57.0 | 2026-10-07 | **Social organization page** (user feedback): added **AC101** — the Social page is now an organization workspace with **Posts** and **Connected platforms** tabs. Connected platforms is a front-end illusion (no OAuth): Instagram starts Connected, FB/X/TikTok/Snapchat offer **Connect**, remembered per-browser keyed by the org (tenant). Rolled the app's custom `Select` dropdowns through the Social composer (replacing native selects). All prior ACs stay green. | user + Claude |
 | 2.56.0 | 2026-10-07 | **Social posts list: unified + pending-first** (user feedback, refines **AC99**): `GET /social/posts` already returns every post built from the agent's compositions, so **campaign-scheduled posts show on the Social page** alongside social-scheduled ones; the list now sorts **pending-approval first** (newest-first within each group) so the posts needing action lead. Also fixed the engagement chart's **duplicate React keys** + overlapping axis labels (two posts can share a project name). All prior ACs stay green. | user + Claude |
 | 2.55.0 | 2026-10-07 | **Merge `origin/dev` (v2.54.0) into the publishing-pipeline branch + renumber.** Integrated dev's studio-animation lineage (AC77–AC95 scene animation → template placeholders) and its renumbered campaign ACs (AC96–AC98). This branch's new work independently used AC80/AC81, colliding with dev's, so it is **renumbered: social approval gate → AC99, engagement performance views → AC100**; code comments, tests and the manifest updated to match. The branch's **AC34 amendment** (removed the `no_content` pre-send rule so an empty composition schedules straight to the approval gate — the human reviewer is the control for empty/unverified posts; other pre-send checks unchanged) is re-applied on top of dev's AC34. Seed reconciled: the social/engagement demo seed is kept but **Instagram-only** (unconnected FB/X/LinkedIn dropped — only connected platforms carry data), alongside dev's AC84 seeded collections. Regenerated the shared API types. All prior ACs stay green. | user + Claude |
 | 2.54.0 | 2026-10-07 | **Merge `origin/dev` into `feat/studio-animation-engine` + renumber campaigns.** Integrated dev's **Campaign scheduling & live Instagram publishing** feature. Both branches had independently used AC77–AC79, so dev's campaign ACs are **renumbered to AC96 (campaign management), AC97 (self-approval gate), AC98 (live Instagram publish)** — this branch keeps AC77–AC95 (scene animation → template placeholders). Resolved manifest duplicate keys accordingly; kept dev's decision to drop synthetic engagement seeding (dashboard shows real metrics) while retaining the AC84 seeded collections; regenerated the shared API types. Behaviour of all features unchanged. All prior ACs stay green. | user + Claude |
