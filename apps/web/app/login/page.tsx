@@ -128,14 +128,19 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   required
                   autoComplete="current-password"
+                  aria-label="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="field pr-11"
                 />
+                {/* aria-label is "Show"/"Hide" (not "… password") on purpose: a label containing
+                    "password" would collide with getByLabel("Password") in the e2e login helper. The
+                    title carries the full description for sighted users. */}
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? "Hide" : "Show"}
+                  title={showPassword ? "Hide password" : "Show password"}
                   aria-pressed={showPassword}
                   className="absolute inset-y-0 right-0 grid w-11 place-items-center text-walshe-grey transition-colors hover:text-walshe-ink"
                 >
