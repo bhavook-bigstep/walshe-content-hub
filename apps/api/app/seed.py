@@ -24,7 +24,7 @@ from app.models.catalog import (
 )
 from app.models.composition import Composition
 from app.models.engagement import Engagement
-from app.models.post import Post
+from app.models.post import Post, PostStatus
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
 from app.services.catalog_migration import decompose_entries_to_items
@@ -498,6 +498,83 @@ def _upsert_composition(db: Session, agent_id: int, name: str, item_ids: list[in
     return comp
 
 
+# Synthetic published posts + engagement so the Performance and Engagement dashboards show data in
+# the demo (deterministic, clearly-seeded numbers). Each tuple is: a composition name, the entry
+# titles it uses, the post's final reach, and its engagement rate (interactions ÷ reach).
+_SEED_POSTS: list[tuple[str, list[str], int, float]] = [
+    ("Great Barrier Reef splash", ["Great Barrier Reef"], 8600, 0.061),
+    ("Vivid Sydney promo", ["Vivid Sydney", "Sydney Opera House"], 6100, 0.047),
+    ("Galway launch post", ["Harbour Festival", "Cliffs of Moher"], 5200, 0.052),
+    ("Great Ocean Road reel", ["Great Ocean Road Drive", "Twelve Apostles"], 4700, 0.055),
+    ("Red Centre feature", ["Red Centre Getaway", "Uluru-Kata Tjuta"], 3300, 0.069),
+    ("Trade Showcase teaser", ["Trade Showcase"], 1400, 0.038),
+]
+
+
+def _seed_metrics(reach: int, rate: float) -> dict[str, int]:
+    """A registry-shaped Instagram metrics snapshot derived from a reach + engagement rate."""
+    inter = round(reach * rate)
+    likes = round(inter * 0.60)
+    comments = round(inter * 0.12)
+    saved = round(inter * 0.18)
+    shares = max(0, inter - likes - comments - saved)
+    return {
+        "reach": reach,
+        "views": round(reach * 1.25),
+        "likes": likes,
+        "comments": comments,
+        "saved": saved,
+        "shares": shares,
+        "total_interactions": inter,
+    }
+
+
+def _seed_performance(db: Session, agent_id: int, by_title: dict[str, int], now: datetime) -> None:
+    """Published posts + two engagement snapshots each (so the dashboards plot growth and the
+    provider's performance page has reach/engagement figures). Idempotent: posts upsert by a stable
+    external_id; engagement is written once per post."""
+    for i, (name, titles, reach, rate) in enumerate(_SEED_POSTS):
+        item_ids = [by_title[t] for t in titles if t in by_title]
+        if not item_ids:
+            continue
+        comp = _upsert_composition(db, agent_id, name, item_ids)
+        db.flush()  # ensure comp.id is available for the post FK + external id
+        ext = f"seed-ig-{comp.id}"
+        published_at = now - timedelta(days=14 - i)  # staggered recent publish dates
+        post = db.execute(select(Post).where(Post.external_id == ext)).scalar_one_or_none()
+        if post is None:
+            post = Post(
+                composition_id=comp.id,
+                channel="instagram",
+                platform="instagram",
+                status=PostStatus.published,
+                caption=f"{name} ✈️",
+                external_id=ext,
+                permalink=f"https://example.test/p/{ext}",
+                published_at=published_at,
+            )
+            db.add(post)
+            db.flush()
+        else:
+            post.composition_id = comp.id
+            post.status = PostStatus.published
+            post.published_at = published_at
+        # Only seed engagement once (keeps re-runs idempotent — fetched_at is clock-derived).
+        has_eng = db.scalar(
+            select(func.count()).select_from(Engagement).where(Engagement.post_id == post.id)
+        )
+        if not has_eng:
+            for days_ago, factor in ((7, 0.6), (0, 1.0)):  # a week ago ~60%, then the final figure
+                db.add(
+                    Engagement(
+                        post_id=post.id,
+                        platform="instagram",
+                        metrics=_seed_metrics(round(reach * factor), rate),
+                        fetched_at=now - timedelta(days=days_ago),
+                    )
+                )
+
+
 def _upsert_collection(db: Session, agent_id: int, name: str, item_ids: list[int]) -> Collection:
     """Upsert a saved collection by (agent, name) so the seed stays idempotent (AC84)."""
     c = db.execute(
@@ -590,10 +667,13 @@ def seed(db: Session) -> dict[str, int]:
         _pick("Great Barrier Reef", "Sydney Opera House", "Great Ocean Road Drive"),
     )
 
+    # Synthetic published posts + engagement so the Performance + Engagement dashboards show real-
+    # shaped data in the demo (idempotent; deterministic figures).
+    _seed_performance(db, agent.id, by_title, t)
+
     # AC4/AC17: give every entry a real cover image in object storage (MinIO / the on-disk store),
     # so the catalog is photo-led and the Design Studio has genuine, droppable media. Done before
-    # decompose so each cover becomes an image item too. (No seeded post/engagement — the dashboard
-    # shows real metrics only, its designed empty state until an agent publishes.)
+    # decompose so each cover becomes an image item too.
     seed_covers(db, entries)
 
     # AC50: decompose each entry's text + assets into first-class items so the catalog library and

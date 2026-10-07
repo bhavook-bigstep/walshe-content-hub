@@ -53,9 +53,8 @@ test("agent dashboard renders stat tiles and a designed engagement panel", async
   await loginAsAgent(page);
   await expect(page.getByTestId("stat-tile").first()).toBeVisible();
   expect(await page.getByTestId("stat-tile").count()).toBeGreaterThanOrEqual(3);
-  // With no seeded engagement the panel shows its designed empty state; once a post is published
-  // and metrics arrive, the same slot renders the chart (data-testid="engagement-chart").
-  await expect(page.getByRole("heading", { name: /no engagement yet/i })).toBeVisible();
+  // Seeded engagement renders the chart in the engagement slot (data-testid="engagement-chart").
+  await expect(page.getByTestId("engagement-chart").first()).toBeVisible();
 });
 
 // AC23 — responsive: no horizontal overflow on the agent dashboard at mobile width.
