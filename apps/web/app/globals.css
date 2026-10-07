@@ -277,6 +277,13 @@
   :root[data-theme="light"] .theme-light-only { display: block; }
   :root[data-theme="dark"] .theme-dark-only { display: block; }
 
+  /* The scroll-scrubbed plane hero wipe is motion; reduced-motion viewers get a static hero (the
+     section collapses to its pinned height and the plane/white sheet are hidden). */
+  @media (prefers-reduced-motion: reduce) {
+    .hero-flight { height: auto; }
+    .hero-flight .hero-fx { display: none; }
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     /* Scroll-reveal system — motion is driven by GSAP + ScrollTrigger (see Reveal.tsx); CSS only
        prevents a flash before GSAP mounts and sets up the split-text + colour-sweep painting.

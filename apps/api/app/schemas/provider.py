@@ -30,9 +30,19 @@ class PerformanceRow(BaseModel):
     title: str
     uses: int
     reach: int
+    # interactions (likes/comments/saves/shares) on posts built from this entry
+    engagements: int = 0
+
+
+class TrendPoint(BaseModel):
+    date: str  # ISO day (YYYY-MM-DD)
+    reach: int
+    engagements: int
 
 
 class PerformanceOut(BaseModel):
     total_uses: int
     total_reach: int
+    total_engagements: int = 0
     rows: list[PerformanceRow]
+    trend: list[TrendPoint] = []  # reach/engagements over time (from dated engagement snapshots)

@@ -2889,13 +2889,28 @@ export interface components {
         PerformanceOut: {
             /** Rows */
             rows: components["schemas"]["PerformanceRow"][];
+            /**
+             * Total Engagements
+             * @default 0
+             */
+            total_engagements: number;
             /** Total Reach */
             total_reach: number;
             /** Total Uses */
             total_uses: number;
+            /**
+             * Trend
+             * @default []
+             */
+            trend: components["schemas"]["TrendPoint"][];
         };
         /** PerformanceRow */
         PerformanceRow: {
+            /**
+             * Engagements
+             * @default 0
+             */
+            engagements: number;
             /** Entry Id */
             entry_id: number;
             /** Reach */
@@ -3217,6 +3232,15 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+        };
+        /** TrendPoint */
+        TrendPoint: {
+            /** Date */
+            date: string;
+            /** Engagements */
+            engagements: number;
+            /** Reach */
+            reach: number;
         };
         /**
          * UserAssetOut

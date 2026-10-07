@@ -184,12 +184,17 @@ function JobRow({ job, onNavigate }: { job: Job; onNavigate: () => void }) {
       </span>
     </div>
   );
-  // A finished job links to the catalog, pre-filtered to the AI-created drafts it produced.
+  // A finished job opens the catalog and refreshes it so the new drafts show immediately — the whole
+  // catalog stays visible (the drafts land in the Drafts section). Dispatching JOBS_CHANGED_EVENT
+  // makes an already-open catalog refetch even though the route doesn't remount.
   return ready ? (
     <Link
-      href="/provider/catalog?ai_created=true"
+      href="/provider/catalog"
       role="menuitem"
-      onClick={onNavigate}
+      onClick={() => {
+        onNavigate();
+        window.dispatchEvent(new Event(JOBS_CHANGED_EVENT));
+      }}
       className="block transition-colors hover:bg-chrome-fg/5"
     >
       {body}

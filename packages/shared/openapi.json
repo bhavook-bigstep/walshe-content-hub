@@ -2917,6 +2917,11 @@
             "title": "Rows",
             "type": "array"
           },
+          "total_engagements": {
+            "default": 0,
+            "title": "Total Engagements",
+            "type": "integer"
+          },
           "total_reach": {
             "title": "Total Reach",
             "type": "integer"
@@ -2924,6 +2929,14 @@
           "total_uses": {
             "title": "Total Uses",
             "type": "integer"
+          },
+          "trend": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "title": "Trend",
+            "type": "array"
           }
         },
         "required": [
@@ -2936,6 +2949,11 @@
       },
       "PerformanceRow": {
         "properties": {
+          "engagements": {
+            "default": 0,
+            "title": "Engagements",
+            "type": "integer"
+          },
           "entry_id": {
             "title": "Entry Id",
             "type": "integer"
@@ -3780,6 +3798,29 @@
           "access_token"
         ],
         "title": "TokenResponse",
+        "type": "object"
+      },
+      "TrendPoint": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "engagements": {
+            "title": "Engagements",
+            "type": "integer"
+          },
+          "reach": {
+            "title": "Reach",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "reach",
+          "engagements"
+        ],
+        "title": "TrendPoint",
         "type": "object"
       },
       "UserAssetOut": {

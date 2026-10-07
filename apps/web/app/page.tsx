@@ -2,6 +2,8 @@ import Link from "next/link";
 import Reveal from "../components/ui/Reveal";
 import SmoothScroll from "../components/ui/SmoothScroll";
 import SiteNav from "../components/site/SiteNav";
+import HeroFlight from "../components/site/HeroFlight";
+import HeroPreloader from "../components/site/HeroPreloader";
 
 // Public landing (AC20) — immersive editorial direction modelled on the reference's structure:
 // full-bleed cinematic hero with a framed nav, 2-column section headers (small eyebrow left, large
@@ -115,38 +117,11 @@ const SOCIALS = [
 export default function Landing() {
   return (
     <main className="bg-walshe-paper [overflow-x:clip]">
+      <HeroPreloader />
       <SmoothScroll />
       <SiteNav />
-      {/* ======================= HERO ======================= */}
-      <header className="relative min-h-[108vh] overflow-hidden text-white">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/img/hero-uluru.jpg" alt="Uluru at sunset, Northern Territory" className="absolute inset-0 z-0 h-full w-full object-cover object-center" />
-        <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(3,22,15,.62)_0%,rgba(3,22,15,.32)_30%,rgba(3,22,15,.44)_66%,rgba(3,22,15,.86)_100%)]" />
-
-        <div className="relative z-10 mx-auto flex min-h-[108vh] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-20 text-center">
-          {/* The Voyago wordmark carries the hero; the Walshe Group is the parent. A visually-hidden
-              h1 keeps a real page heading for screen readers and SEO. */}
-          <Reveal variant="slidey" dir="down" className="flex flex-col items-center gap-0">
-            <h1 className="sr-only">Voyago — verified destination content for the travel trade</h1>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/voyago-wordmark-white.png" alt="Voyago" className="h-auto w-[min(86vw,640px)] drop-shadow-[0_10px_36px_rgba(0,0,0,0.45)]" />
-            <span className="-mt-3 text-eyebrow uppercase text-white/70">A Walshe Group product</span>
-          </Reveal>
-          <Reveal as="p" variant="color" dir="up" delayMs={260} full="#ffffff" dull="rgba(255,255,255,0.42)" className="mt-8 max-w-[48ch] text-[clamp(17px,2vw,22px)] font-light leading-snug">
-            Every Destination, Ready To Go!
-          </Reveal>
-          <Reveal variant="slidey" dir="up" className="mt-10 flex items-center justify-center" delayMs={520}>
-            {/* Subtle outlined pill by default; on hover it fills to the solid white pill (teal text
-                + teal arrow badge). */}
-            <Link href="/login" className="group inline-flex items-center gap-3 rounded-pill border border-white/40 py-4 pl-7 pr-5 text-[15px] font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white hover:bg-white hover:text-walshe-teal">
-              Go to App
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-white/15 text-white transition-colors group-hover:bg-walshe-teal group-hover:text-white">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-              </span>
-            </Link>
-          </Reveal>
-        </div>
-      </header>
+      {/* Hero + scroll-scrubbed plane wipe into the first section. */}
+      <HeroFlight />
 
       {/* ======================= PRODUCT IN ACTION (real UI, theme-matched) ======================= */}
       <section id="product" className="scroll-mt-24 py-24">
