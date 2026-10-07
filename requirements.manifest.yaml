@@ -198,6 +198,7 @@ acceptance:
       - "apps/api/tests/test_preflight.py::test_preflight_passes_clean_composition"
       - "apps/api/tests/test_preflight.py::test_preflight_flags_expired_item"
       - "apps/api/tests/test_preflight.py::test_publish_blocked_until_preflight_clean"
+      - "apps/api/tests/test_preflight.py::test_empty_composition_passes_preflight_and_reaches_approval_gate"
     e2e:
       - "apps/web/e2e/trust-smoke.spec.ts::agent sees a preflight issue before sending"
   AC35:

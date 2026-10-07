@@ -99,11 +99,23 @@ def test_publish_blocked_until_preflight_clean(client, provider_headers, agent_h
     assert approved.status_code == 200 and approved.json()["status"] == "published"
 
 
-def test_preflight_no_content_and_unsupported_channel(client, agent_headers, app):
-    """Empty composition + bad channel accumulate both issues in one result (ok stays False)."""
+def test_empty_composition_passes_preflight_and_reaches_approval_gate(client, agent_headers, app):
+    """An empty composition (no catalog items) is NO LONGER blocked at send: preflight passes and
+    the schedule lands in pending_approval, so the human approval gate is the control. Only a
+    genuinely bad state (an unsupported channel) still fails; emptiness alone does not."""
     _fix_clock(app, T0)
     empty = _project(client, agent_headers, [])
 
+    # Clean preflight on a supported channel: emptiness no longer raises an issue.
+    r = client.post(
+        "/social/preflight",
+        headers=agent_headers,
+        json={"composition_id": empty, "channel": "instagram"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == {"ok": True, "issues": []}
+
+    # A bad channel still fails — but with ONLY the channel issue, never a "no content" one.
     r = client.post(
         "/social/preflight",
         headers=agent_headers,
@@ -112,9 +124,16 @@ def test_preflight_no_content_and_unsupported_channel(client, agent_headers, app
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["ok"] is False
-    codes = {i["code"] for i in body["issues"]}
-    assert codes == {"no_content", "unsupported_channel"}
-    assert all(i["message"] and i["fix"] for i in body["issues"])
+    assert {i["code"] for i in body["issues"]} == {"unsupported_channel"}
+
+    # And an empty composition schedules straight to the approval gate.
+    r = client.post(
+        "/social/schedule",
+        headers=agent_headers,
+        json={"composition_id": empty, "channel": "instagram"},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["status"] == "pending_approval"
 
 
 def test_preflight_flags_stale_item(client, provider_headers, agent_headers, app):

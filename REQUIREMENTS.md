@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.33.0 |
+| **Version** | 2.34.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -205,8 +205,12 @@ Increment 2 — **Trust, approval & audit**:
   check runs over the composition — every referenced item must be currently visible+valid (approved,
   brand-safe, in scope, not expired, not off-limits), the channel must be supported, and stale
   (master-edited) items are flagged. On failure it returns the **specific fixes in plain words** and
-  the send is blocked (FR-42). Proof: pytest asserts a composition with an expired item fails
-  preflight and publish is blocked until clean; Playwright shows the preflight message in the UI.
+  the send is blocked (FR-42). An **empty composition (no catalog items) is NOT a preflight
+  failure** (v2.34.0): it proceeds straight to the approval gate (AC80), where the **human reviewer
+  is the control** for empty/unverified posts — preflight only validates items that are present.
+  Proof: pytest asserts a composition with an expired item fails preflight and publish is blocked
+  until clean, and that an empty composition passes preflight and schedules to `pending_approval`;
+  Playwright shows the preflight message in the UI.
 - **AC35** — **Send-back-with-reason**: a reviewer returns an entry to its owner with a reason; the
   entry drops to `draft` with the reason recorded and shown, and re-enters review on resubmit
   (FR-14). Proof: pytest asserts send-back sets draft + stores the reason + writes an audit row, and
@@ -621,6 +625,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.34.0 | 2026-10-07 | **Empty composition no longer blocked at send** (user feedback): removed the `no_content` pre-send rule from **AC34** so a composition with no catalog items schedules straight to the approval gate (**AC80**) instead of being blocked — the **human approval gate becomes the control** for empty/unverified posts. The other pre-send checks (unsupported channel, expired/withdrawn/off-limits items, stale items) are unchanged, so posts that _do_ reference items are still validated. This intentionally loosens the automated edge of Contract 1 at the send boundary; approval-time human review is the compensating control. All prior ACs stay green. | user + Claude |
 | 2.33.0 | 2026-10-07 | **Engagement performance views** (user feedback): added **AC81** — `/engagement` rows now carry the **project/composition name** and **campaign** (id + name), so the dashboard reads posts by project name and rolls performance up **per platform** and **per campaign** (latest snapshot per post, summed, strongest reach first); the campaigns calendar colours each campaign distinctly. Expanded the demo seed (3 campaigns across FB/IG/X/LinkedIn with engagement + standalone project posts). All prior ACs stay green. | user + Claude |
 | 2.32.0 | 2026-10-07 | **Social send now goes through approval** (user feedback): added **AC80** — `/social/schedule` lands a post in `pending_approval` (no direct publish); the owning agent approves (→ publishes via the simulated connector) or rejects (with a reason), mirroring the campaign gate; posts are listed from the server (`GET /social/posts`, carrying the project name) so the list survives a refresh. Removed the direct `/social/publish` + `/social/unpublish`. All prior ACs stay green. | user + Claude |
 | 2.31.0 | 2026-10-07 | **Merge `origin/dev` into the campaign/Instagram branch + renumber.** Integrated dev's AC64–76 (Auto-Catalog agent, Auto-Catalog v2, Structured-Workspace renumber to AC75, conversational assistant, Studio redesign). The campaign increment (originally AC65–67 on this branch) is **renumbered to AC77 (campaign management), AC78 (self-approval gate), AC79 (live Instagram publish)** to resolve the AC-number collision with dev's Auto-Catalog ACs; the manifest, tests and code comments were updated to match, and the generated API types regenerated. Behaviour unchanged: approve = publish (one action), preflight + duplicate-guard + S3 hosting + receipt, missing-capture → 409, Graph error 200/10 mapped. All prior ACs stay green. | user + Claude |

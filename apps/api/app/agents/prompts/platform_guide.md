@@ -187,10 +187,10 @@ Pre-send check
 - Every schedule or publish runs the pre-send check first.
 - If the check passes, you see "All checks passed — this post is ready to send."
 - If it fails, the send is blocked and a "Fix before sending" list explains each problem and how to fix it. Common problems:
-  - The post has no catalog content yet. Fix: add approved catalog content to the project.
   - Items are no longer available (expired, withdrawn, or outside your permissions). Fix: remove them or replace them with current content.
   - Items changed since you added them.
   - The channel isn't supported.
+- A post with no catalog content yet is NOT blocked — it goes to the approval gate, where a reviewer decides. (Adding approved content first is still recommended.)
 
 Posts list
 - Shows the posts you sent during the current visit, with channel, scheduled or published time, and a status of "scheduled" or "published".
