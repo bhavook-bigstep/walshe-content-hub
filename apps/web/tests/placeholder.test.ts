@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PLACEHOLDER_SRC,
   VIDEO_POSTER_SRC,
+  addCatalogImage,
   addPlaceholder,
   fillImageNode,
   isPlaceholder,
@@ -37,15 +38,30 @@ describe("image placeholder", () => {
     expect(node.catalogItemId).toBe("item-9");
   });
 
-  it("fillImageNode with a video shows a poster and records the videoKey (AC91)", () => {
+  it("fillImageNode with a video keeps a poster fallback but plays the live clip (AC91)", () => {
     let d = addPlaceholder(newDesign("social"), 0);
     const id = d.scenes[0].nodes[0].id;
     d = fillImageNode(d, 0, id, { src: "blob:clip", objectKey: "users/1/vid", kind: "video" });
     const node = d.scenes[0].nodes[0];
     expect(node.placeholder).toBeUndefined();
-    expect(node.src).toBe(VIDEO_POSTER_SRC); // a video shows a poster still
-    expect(node.videoKey).toBe("users/1/vid"); // clip referenced for a future export
-    expect(node.objectKey).toBeUndefined(); // the poster is self-contained; not re-resolved as image
+    expect(node.src).toBe(VIDEO_POSTER_SRC); // poster is the serialisable fallback still
+    expect(node.videoSrc).toBe("blob:clip"); // the live clip the canvas plays + the export composites
+    expect(node.videoKey).toBe("users/1/vid"); // stable key re-resolves videoSrc after a reload
+    expect(node.objectKey).toBeUndefined(); // not re-resolved as a still image
+  });
+
+  it("addCatalogImage places a video as a live clip (videoSrc) with a poster fallback", () => {
+    const d = addCatalogImage(
+      newDesign("social"),
+      0,
+      { src: "blob:catclip", catalogItemId: "asset-3", videoKey: "users/1/c.mp4", kind: "video" },
+      { x: 0, y: 0, width: 20, height: 20 },
+    );
+    const node = d.scenes[0].nodes.at(-1)!;
+    expect(node.src).toBe(VIDEO_POSTER_SRC); // poster fallback
+    expect(node.videoSrc).toBe("blob:catclip"); // falls back to the passed src when no explicit videoSrc
+    expect(node.videoKey).toBe("users/1/c.mp4");
+    expect(node.objectKey).toBeUndefined();
   });
 
   it("a plain image node is not a placeholder", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENTER_TYPES, enterTrack, frameIndexAt, hasAnimation, nodeStateAt } from "../lib/studio/anim";
+import { ENTER_TYPES, enterTrack, frameIndexAt, hasAnimation, nodeStateAt, videoTimeAt } from "../lib/studio/anim";
 import { addText, newDesign, setNodeAnim, type DesignNode } from "../lib/studio/ops";
 
 function textNode(extra: Partial<DesignNode> = {}): DesignNode {
@@ -99,6 +99,21 @@ describe("animation engine", () => {
     const slow = textNode({ frames: ["a", "b", "c", "d"], fps: 5 });
     expect(frameIndexAt(slow, 250)).toBe(1);
     expect(frameIndexAt(slow, 650)).toBe(3);
+  });
+
+  it("videoTimeAt slaves a clip to the scene clock from its in-point (no drift, no self-loop)", () => {
+    // Clip in-point at 2s; it advances with scene time.
+    const clip = textNode({ videoKey: "k", videoStartMs: 2000 });
+    expect(videoTimeAt(clip, 0, 10)).toBeCloseTo(2, 5); // scene start → in-point
+    expect(videoTimeAt(clip, 1000, 10)).toBeCloseTo(3, 5); // +1s scene → +1s clip
+    // A scene loop resets scene time to 0 → clip returns to its in-point (not wherever it was).
+    expect(videoTimeAt(clip, 0, 10)).toBeCloseTo(2, 5);
+    // Clip shorter than the scene → holds the last frame (clamped just below the end), never wraps.
+    const short = textNode({ videoKey: "k", videoStartMs: 0 });
+    expect(videoTimeAt(short, 9000, 3)).toBeCloseTo(2.96, 2); // want 9s, clip 3s → held near end
+    expect(videoTimeAt(short, 9000, 3)).toBeLessThan(3);
+    // Default in-point is 0; unknown duration → no clamp.
+    expect(videoTimeAt(textNode({ videoKey: "k" }), 500)).toBeCloseTo(0.5, 5);
   });
 
   it("setNodeAnim sets and clears a node's animation", () => {

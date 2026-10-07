@@ -96,6 +96,21 @@ export function frameIndexAt(node: DesignNode, t: number): number | null {
   return raw % frames.length;
 }
 
+/** The clip currentTime (seconds) a slaved video shows at scene time `tMs`: its in-point
+ * (`videoStartMs`) plus the elapsed scene time, so the video is driven by the scene clock — it does
+ * NOT loop on its own. When the clip is shorter than the scene it holds its last frame (clamped just
+ * below the clip's end). `clipDurationSec` is the real decoded duration (unknown → no clamp). Pure +
+ * deterministic, so the canvas preview and the video export pick the same clip time at the same t. */
+export function videoTimeAt(node: DesignNode, tMs: number, clipDurationSec?: number): number {
+  const startSec = Math.max(0, (node.videoStartMs ?? 0) / 1000);
+  const want = startSec + Math.max(0, tMs) / 1000;
+  if (clipDurationSec !== undefined && Number.isFinite(clipDurationSec) && clipDurationSec > 0) {
+    // Stay a frame below the exact end: landing on duration can snap some decoders back to 0.
+    return Math.min(want, Math.max(0, clipDurationSec - 0.04));
+  }
+  return want;
+}
+
 /** The node's resolved transform at time `t` (ms from the scene start). Pure + deterministic. */
 export function nodeStateAt(node: DesignNode, t: number): AnimState {
   const base = baseState(node);

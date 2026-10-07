@@ -2,8 +2,8 @@
 // SAME Fabric renderer as the canvas and the SAME animation engine as the preview — so the exported
 // video is exactly what you scrub in the editor. The server just sequences + stitches the frames.
 import { StaticCanvas, type FabricObject } from "fabric";
-import { nodeToObject, setSpriteFrame } from "./fabric-nodes";
-import { frameIndexAt, nodeStateAt } from "./anim";
+import { getVideoDuration, isVideoObject, nodeToObject, seekVideoObject, setSpriteFrame } from "./fabric-nodes";
+import { frameIndexAt, nodeStateAt, videoTimeAt } from "./anim";
 import type { DesignDoc, Scene } from "./ops";
 
 export const EXPORT_FPS = 20;
@@ -52,6 +52,17 @@ export async function renderSceneFrames(
         const fi = frameIndexAt(p.node, t);
         if (fi !== null) setSpriteFrame(p.o, fi); // advance a frame sprite's filmstrip
         p.o.setCoords();
+      }
+      // Composite any placed video clips: seek each to its slaved clip time (in-point + elapsed scene
+      // time, held at the last frame past the clip's end — never looping) and wait for the decoded
+      // frame, so the exported MP4 carries the real moving video in sync with the scene, not a poster.
+      const videoPairs = pairs.filter((p) => isVideoObject(p.o));
+      if (videoPairs.length) {
+        await Promise.all(
+          videoPairs.map((p) =>
+            seekVideoObject(p.o, videoTimeAt(p.node, t, getVideoDuration(p.o))),
+          ),
+        );
       }
       canvas.renderAll();
       // multiplier scales the output down to the capped size, keeping the design's aspect.

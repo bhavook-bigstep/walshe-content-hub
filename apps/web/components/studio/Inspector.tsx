@@ -537,6 +537,29 @@ export default function Inspector({ node, onChange, onDuplicate, onDelete, onLay
         </div>
       )}
 
+      {isImage && (node.videoKey || node.videoSrc) && (
+        <div className="space-y-2.5 border-t border-walshe-line/70 pt-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">Video</p>
+          <div className={row}>
+            <span className={label}>Start at (s)</span>
+            <input
+              type="number"
+              min={0}
+              step={0.1}
+              value={((node.videoStartMs ?? 0) / 1000).toFixed(1)}
+              onChange={(e) =>
+                onChange({ videoStartMs: Math.max(0, Math.round((Number(e.target.value) || 0) * 1000)) })
+              }
+              aria-label="Video start time (seconds)"
+              className="field h-8 w-20 text-right tabular-nums"
+            />
+          </div>
+          <p className="text-[11px] leading-snug text-walshe-grey">
+            The clip plays from here with the scene and restarts from this point each loop — no drift.
+          </p>
+        </div>
+      )}
+
       <AnimControls node={node} onAnim={onAnim} />
 
       <KeyframeEditor node={node} onAnim={onAnim} sceneDurationMs={sceneDurationMs} playheadMs={playheadMs} />

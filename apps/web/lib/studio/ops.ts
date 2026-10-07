@@ -151,9 +151,17 @@ export interface DesignNode {
   /** image only — an unfilled media placeholder (dashed frame); clicking it opens the media drawer
    * to fill it with a photo or video (cleared once filled). */
   placeholder?: boolean;
-  /** image only — set when a placeholder was filled with a VIDEO: the video's stable object key
-   * (the node shows a video poster; the key lets a future export composite the clip). */
+  /** image only — set when a node holds a VIDEO clip: the video's stable object key. `src` keeps a
+   * poster still as the serialisable fallback; the key re-resolves `videoSrc` after a reload. */
   videoKey?: string;
+  /** image only — the ephemeral served URL (blob/data) of the video clip itself, resolved from
+   * `videoKey`. When present the canvas + export render the live video frame (not the poster); it
+   * is re-resolved on open (like `src`) and is dead across a reload until then. */
+  videoSrc?: string;
+  /** image only — the clip's in-point in ms: the scene starts the video from here and advances it
+   * with scene time (slaved to the scene, not looping on its own). On a scene loop it restarts from
+   * this point; if the clip ends before the scene does it holds its last frame. Defaults to 0. */
+  videoStartMs?: number;
   /** image only — a built-in sprite id (e.g. "walking-panda"); the studio resolves it to `frames`
    * + `fps` on load (so templates can reference a sprite without embedding its filmstrip). */
   sprite?: string;
@@ -179,6 +187,7 @@ export type NodeStyle = Pick<
   | "strokeWidth"
   | "fps"
   | "loopFrames"
+  | "videoStartMs"
 >;
 
 /** The base page shape the server PDF/HTML export consumes (a list of these). */
@@ -403,13 +412,23 @@ export function setBackground(design: DesignDoc, sceneIndex: number, color: stri
 export function addCatalogImage(
   design: DesignDoc,
   sceneIndex: number,
-  image: { src: string; catalogItemId: string; objectKey?: string; videoKey?: string; kind?: "image" | "video" },
+  image: {
+    src: string;
+    catalogItemId: string;
+    objectKey?: string;
+    videoKey?: string;
+    videoSrc?: string;
+    kind?: "image" | "video";
+  },
   placement: NodePlacement = {},
 ): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
   const isVideo = image.kind === "video";
+  // For a video, the clip itself is `videoSrc` (what the canvas plays); `src` keeps a poster still as
+  // the serialisable fallback. `image.src` already holds the video blob URL, so fall back to it.
+  const videoSrc = isVideo ? (image.videoSrc ?? image.src) : undefined;
   scene.nodes.push({
     id: nextId("image", scene),
     type: "image",
@@ -417,12 +436,13 @@ export function addCatalogImage(
     y: placement.y ?? DEFAULT_PLACEMENT.y,
     width: placement.width ?? 480,
     height: placement.height ?? 480,
-    // A video shows a poster still on the canvas; its clip is referenced by videoKey.
+    // A video shows a poster still as the fallback; its clip is referenced by videoKey/videoSrc.
     src: isVideo ? VIDEO_POSTER_SRC : image.src,
     catalogItemId: image.catalogItemId,
     // Persist the stable object key so the (ephemeral) blob src can be re-resolved on reopen.
     ...(!isVideo && image.objectKey ? { objectKey: image.objectKey } : {}),
     ...(isVideo && image.videoKey ? { videoKey: image.videoKey } : {}),
+    ...(videoSrc ? { videoSrc } : {}),
     ...stylePlacement(placement),
   });
   return next;
@@ -542,8 +562,10 @@ export function fillImageNode(
     const next: DesignNode = { ...n };
     delete next.placeholder;
     delete next.videoKey;
+    delete next.videoSrc;
     if (media.kind === "video") {
-      next.src = VIDEO_POSTER_SRC; // the canvas shows a video poster
+      next.src = VIDEO_POSTER_SRC; // the poster is the serialisable fallback still
+      next.videoSrc = media.src; // the live clip the canvas plays + the export composites
       if (media.objectKey) next.videoKey = media.objectKey;
       delete next.objectKey; // the poster is a self-contained data URL; don't re-resolve as image
     } else {

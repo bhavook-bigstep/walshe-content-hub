@@ -120,7 +120,7 @@ export default function WorkspaceDrawer({
             <div className="absolute right-0 top-9 z-10 w-48 overflow-hidden rounded-lg border border-walshe-line bg-walshe-base py-1 shadow-lift">
               {[
                 { label: "Add a collection", fn: onAddCollection, icon: <path d="M3 7h6l2 2h10v9a2 2 0 01-2 2H3z" /> },
-                { label: "Upload an image", fn: onUpload, icon: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" /></> },
+                { label: "Upload image or video", fn: onUpload, icon: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" /></> },
                 { label: "Generate with AI", fn: onGenerate, icon: <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15l-1.9-4.1L5.5 9l4.6-1.4z" /> },
               ].map((a) => (
                 <button
@@ -155,7 +155,7 @@ export default function WorkspaceDrawer({
           <div className="px-3 py-8 text-center">
             <p className="text-small font-medium text-walshe-ink">No media yet</p>
             <p className="mt-1 text-[12px] text-walshe-grey">
-              Use the + to add a collection, upload an image, or generate one with AI.
+              Use the + to add a collection, upload an image or video, or generate one with AI.
             </p>
           </div>
         ) : (

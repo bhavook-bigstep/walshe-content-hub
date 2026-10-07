@@ -14,10 +14,10 @@ import {
   type FabricObject,
   type TPointerEventInfo,
 } from "fabric";
-import { nodeToObject, setSpriteFrame } from "../../lib/studio/fabric-nodes";
+import { isVideoObject, nodeToObject, seekVideoObject, setSpriteFrame } from "../../lib/studio/fabric-nodes";
 import { pointerMode, shouldDeleteSelection } from "../../lib/studio/keys";
-import { frameIndexAt, nodeStateAt } from "../../lib/studio/anim";
-import type { DesignDoc } from "../../lib/studio/ops";
+import { frameIndexAt, nodeStateAt, videoTimeAt } from "../../lib/studio/anim";
+import type { DesignDoc, DesignNode } from "../../lib/studio/ops";
 
 export interface NodeBox {
   x: number;
@@ -34,8 +34,10 @@ export interface StudioControls {
    * placement from the media drawer. Returns null before the canvas has mounted. */
   clientToScenePoint: (clientX: number, clientY: number) => { x: number; y: number } | null;
   /** Preview the active scene's animation at time `t` ms (imperative, no React re-render). Pass
-   * null to restore the static/editable layout. Used by the timeline play/scrub. */
-  previewAt: (timeMs: number | null) => void;
+   * null to restore the static/editable layout. Used by the timeline play/scrub. `opts.playing`
+   * marks continuous playback (the RAF loop) so live video clips play natively instead of seeking
+   * frame-by-frame. */
+  previewAt: (timeMs: number | null, opts?: { playing?: boolean }) => void;
 }
 
 export interface StudioCanvasProps {
@@ -102,6 +104,44 @@ function sceneOriginX(design: DesignDoc, i: number): number {
 function storyboardWidth(design: DesignDoc): number {
   const n = design.scenes.length;
   return n * design.width + Math.max(0, n - 1) * SCENE_GAP;
+}
+
+const VIDEO_RESYNC_S = 0.34; // drift beyond this (scene loop, scrub jump, start) → hard reseek
+
+/** Drive a placed video clip during preview, slaved to the scene clock (never native-looping). The
+ * clip time is the in-point + elapsed scene time (anim.ts `videoTimeAt`): on continuous playback it
+ * plays and is resynced if it drifts (so a scene loop restarts it from the in-point); once the clip
+ * is exhausted within the scene it holds its last frame; a scrub pauses and seeks to the exact
+ * frame. */
+function driveVideo(obj: FabricObject, node: DesignNode, timeMs: number, playing: boolean, canvas: Canvas): void {
+  if (!isVideoObject(obj)) return;
+  const v = (obj as FabricObject & { videoEl?: HTMLVideoElement }).videoEl;
+  if (!v) return;
+  v.loop = false; // the scene clock drives it, not the element's own loop
+  const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : undefined;
+  const want = videoTimeAt(node, timeMs, dur);
+  if (playing) {
+    if (Math.abs(v.currentTime - want) > VIDEO_RESYNC_S) v.currentTime = want; // loop-wrap / jump
+    const exhausted = dur !== undefined && want >= dur - 0.05; // clip ends before the scene does
+    if (exhausted) {
+      if (!v.paused) v.pause(); // freeze on the last frame
+    } else if (v.paused) {
+      void v.play().catch(() => {});
+    }
+    obj.dirty = true; // force Fabric to re-read the current video frame on the next render
+  } else {
+    if (!v.paused) v.pause();
+    void seekVideoObject(obj, want).then(() => canvas.requestRenderAll());
+  }
+}
+
+/** Pause a placed video clip and rest it on its in-point frame (when the preview stops). */
+function restVideo(obj: FabricObject, node: DesignNode, canvas: Canvas): void {
+  if (!isVideoObject(obj)) return;
+  const v = (obj as FabricObject & { videoEl?: HTMLVideoElement }).videoEl;
+  if (!v) return;
+  if (!v.paused) v.pause();
+  void seekVideoObject(obj, (node.videoStartMs ?? 0) / 1000).then(() => canvas.requestRenderAll());
 }
 
 /**
@@ -263,7 +303,7 @@ export default function StudioCanvas({
         const gy = (clientY - rect.top - ty) / zoom;
         return { x: gx - sceneOriginX(designRef.current, activeSceneRef.current), y: gy };
       },
-      previewAt: (timeMs) => {
+      previewAt: (timeMs, opts) => {
         const c = canvasRef.current;
         if (!c) return;
         const design = designRef.current;
@@ -284,6 +324,7 @@ export default function StudioCanvas({
               opacity: obj.baseOpacity,
             });
             setSpriteFrame(obj, 0); // rest on frame 0 when stopped
+            restVideo(obj, node, c); // pause + rest a live clip on its in-point frame
             obj.selectable = true;
             obj.evented = true;
           } else {
@@ -298,6 +339,7 @@ export default function StudioCanvas({
             });
             const fi = frameIndexAt(node, timeMs);
             if (fi !== null) setSpriteFrame(obj, fi); // advance the frame sprite's filmstrip
+            driveVideo(obj, node, timeMs, !!opts?.playing, c); // slave the clip to the scene clock
             obj.selectable = false;
             obj.evented = false;
           }

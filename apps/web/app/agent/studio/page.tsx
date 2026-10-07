@@ -710,7 +710,7 @@ function StudioEditor() {
         t = 0;
       }
       setPlayhead(t);
-      controlsRef.current?.previewAt(t);
+      controlsRef.current?.previewAt(t, { playing: true });
       playLoop();
     });
   }, [stopRaf]);
@@ -1146,11 +1146,14 @@ function MediaDialog({
   return (
     <Dialog title="Add media" size="md" open onClose={onClose}>
       <label className="block">
-        <span className="label">Upload an image (local)</span>
-        <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" disabled={busy}
+        <span className="label">Upload an image or video (local)</span>
+        <input type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/avif,video/mp4,video/webm,video/quicktime"
+          disabled={busy}
           aria-label="Upload media file"
           className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => uploadLibraryMedia(f), "Uploaded.", "uploads"); }} />
+        <span className="mt-1 block text-small text-walshe-grey">MP4, WebM or MOV play live on the canvas and render into the exported video.</span>
       </label>
       <div className="mt-4 flex items-end gap-2 border-t border-walshe-line pt-4">
         <label className="block flex-1">
