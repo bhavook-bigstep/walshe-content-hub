@@ -1407,6 +1407,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/sprites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sprites
+         * @description List the caller's imported sprites (newest first). Owner-scoped.
+         */
+        get: operations["list_sprites_me_sprites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sprites/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Sprite Sheets
+         * @description Slice an uploaded sprite sheet (PNG) or a ZIP of sheets into frame images and save them as
+         *     the caller's sprites. `cols`/`rows` override the auto-detected grid; `fps` sets the speed.
+         */
+        post: operations["import_sprite_sheets_me_sprites_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sprites/{sprite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Sprite
+         * @description Delete one of the caller's sprites (the frame objects are left in storage, owner-only).
+         */
+        delete: operations["delete_sprite_me_sprites__sprite_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/suggestions": {
         parameters: {
             query?: never;
@@ -1861,6 +1922,20 @@ export interface components {
         Body_import_document_me_auto_catalog_import_post: {
             /** File */
             file: string;
+        };
+        /** Body_import_sprite_sheets_me_sprites_import_post */
+        Body_import_sprite_sheets_me_sprites_import_post: {
+            /** Cols */
+            cols?: number | null;
+            /** File */
+            file: string;
+            /**
+             * Fps
+             * @default 10
+             */
+            fps: number;
+            /** Rows */
+            rows?: number | null;
         };
         /** Body_publish_social_instagram_publish_post */
         Body_publish_social_instagram_publish_post: {
@@ -3203,6 +3278,24 @@ export interface components {
             role: components["schemas"]["Role"];
             /** Tenant Id */
             tenant_id: number | null;
+        };
+        /**
+         * UserSpriteOut
+         * @description An imported sprite animation: its ordered frame object keys + playback metadata.
+         */
+        UserSpriteOut: {
+            /** Fps */
+            fps: number;
+            /** Frame Height */
+            frame_height: number;
+            /** Frame Keys */
+            frame_keys: string[];
+            /** Frame Width */
+            frame_width: number;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -6022,6 +6115,88 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["WorkspaceResolved"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sprites_me_sprites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSpriteOut"][];
+                };
+            };
+        };
+    };
+    import_sprite_sheets_me_sprites_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_sprite_sheets_me_sprites_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSpriteOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_sprite_me_sprites__sprite_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sprite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

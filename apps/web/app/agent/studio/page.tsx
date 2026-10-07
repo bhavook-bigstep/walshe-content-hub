@@ -26,6 +26,7 @@ import {
   getProject,
   getWorkspace,
   listCollections,
+  listMySprites,
   listDesignTemplates,
   renderVideoFrames,
   resolveCollection,
@@ -43,14 +44,18 @@ import {
 import { applyBrandKit } from "../../../lib/studio/branding";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
 import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
+import { resolveUserSprites } from "../../../lib/studio/resolve-sprites";
 import { resolveSprites } from "../../../lib/studio/graphics";
 import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
 import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/studio/formats";
 import {
   DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
+  chainIds,
+  chainMemberDurationMs,
   deleteNode,
   insertCurveAnchor,
+  isSprite,
   moveCurvePoint,
   translateCurve,
   duplicateNode,
@@ -67,6 +72,7 @@ import {
   newDesign,
   reorderNode,
   speakableCues,
+  syncChainStarts,
   resizeNode,
   setNodeAnim,
   updateNode,
@@ -79,6 +85,7 @@ import {
 import Inspector from "../../../components/studio/Inspector";
 import GroupPanel from "../../../components/studio/GroupPanel";
 import BuilderDemoOverlay, { type DemoCursor } from "../../../components/studio/BuilderDemoOverlay";
+import SpriteChainPanel from "../../../components/studio/SpriteChainPanel";
 import {
   runBuilderDemo,
   type DemoController,
@@ -161,7 +168,12 @@ export default function StudioPage() {
 }
 
 function StudioEditor() {
-  const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
+  const [design, setDesignRaw] = useState<DesignDoc>(() => seeded("social"));
+  // Every design update is normalised so each chained successor's start keeps mirroring its
+  // predecessor's end (a child's 0s state is never independent). Stable identity for callback deps.
+  const setDesign = useCallback((arg: DesignDoc | ((prev: DesignDoc) => DesignDoc)) => {
+    setDesignRaw((prev) => syncChainStarts(typeof arg === "function" ? (arg as (p: DesignDoc) => DesignDoc)(prev) : arg));
+  }, []);
   // The selected element (for the Inspector). Scene-scoped by index + node id.
   const [selected, setSelected] = useState<{ scene: number; nodeId: string } | null>(null);
   // The full selection (one id = single element; many = a group / multi-selection) + its scene.
@@ -354,6 +366,19 @@ function StudioEditor() {
           // its stable object key so the media reappears (AC75).
           const resolved = await resolveDesignImageSrcs(migrated, fetchAssetObjectUrl);
           if (!cancelled) setDesign(resolved);
+          // Imported sprites store an ephemeral `frames` (dead now) + a stable `user:<id>` ref —
+          // re-resolve their frame URLs from the server so the animation reappears.
+          try {
+            const mine = await listMySprites();
+            const byId = new Map(mine.map((s) => [s.id, s]));
+            const withSprites = await resolveUserSprites(resolved, async (id) => {
+              const sp = byId.get(id);
+              return sp ? Promise.all(sp.frame_keys.map(fetchAssetObjectUrl)) : [];
+            });
+            if (!cancelled) setDesign(withSprites);
+          } catch {
+            /* imported sprites optional */
+          }
         })
         .catch(() => {});
       return () => {
@@ -1347,7 +1372,7 @@ function StudioEditor() {
         {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props).
             Hidden while the AI Builder demo runs so its selections don't pop edit chrome. */}
         {!demoRunning && selectedIds.length > 1 && selectedScene !== null && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <GroupPanel
               count={selectedIds.length}
               isGroup={Boolean(selectedGroupId)}
@@ -1360,12 +1385,48 @@ function StudioEditor() {
           </div>
         )}
 
+        {/* Sprite chain: vertical numbered cards to the left of the Inspector — join a sprite to a
+            successor that starts where it ends. Shown for a selected sprite. */}
+        {!demoRunning && selected && selectedNode && selectedIds.length <= 1 && isSprite(selectedNode) && (
+          <SpriteChainPanel
+            design={design}
+            sceneIndex={selected.scene}
+            selectedNodeId={selected.nodeId}
+            onChange={setDesign}
+            onSelect={(scene, nodeId) => {
+              setSceneIndex(scene);
+              setSceneSelected(true);
+              setSelectedScene(scene);
+              setSelectedIds([nodeId]);
+              setSelected({ scene, nodeId });
+            }}
+          />
+        )}
+
         {/* Inspector: appears when a single element is selected, styling controls for it.
             Hidden while the AI Builder demo runs (the agent's own selections shouldn't open it). */}
         {!demoRunning && selectedNode && selectedIds.length <= 1 && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-small font-bold text-walshe-ink">Edit element</h2>
+              {(() => {
+                // When the selected element is part of a sprite chain, say which member this is —
+                // so it reads as the SAME Edit-element box now editing the successor, not a new one.
+                const scene = selected && design.scenes[selected.scene];
+                const chain = scene && selected ? chainIds(scene, selected.nodeId) : [];
+                const pos = selected ? chain.indexOf(selected.nodeId) : -1;
+                return (
+                  <h2 className="text-small font-bold text-walshe-ink">
+                    {chain.length > 1 && pos >= 0 ? (
+                      <>
+                        Edit sprite{" "}
+                        <span className="font-medium text-walshe-grey">· {pos + 1} of {chain.length} in chain</span>
+                      </>
+                    ) : (
+                      "Edit element"
+                    )}
+                  </h2>
+                );
+              })()}
               <button
                 type="button"
                 aria-label="Deselect"
@@ -1382,8 +1443,31 @@ function StudioEditor() {
               onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
               onLayer={layerSelected}
               onAnim={animSelected}
-              sceneDurationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
-              playheadMs={playhead}
+              {...(() => {
+                const sceneDur = design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS;
+                const sc = selected ? design.scenes[selected.scene] : undefined;
+                const chain = sc && selected ? chainIds(sc, selected.nodeId) : [];
+                const pos = selected ? chain.indexOf(selected.nodeId) : -1;
+                if (!sc || chain.length <= 1 || pos < 0) {
+                  return { sceneDurationMs: sceneDur, playheadMs: playhead, startLocked: false };
+                }
+                // Chained sprite: scope the keyframe track to THIS member's slot (its own 0..slotDur)
+                // with a playhead local to its on-stage window — so keyframes are confined to the
+                // time it actually animates, not the whole scene run.
+                const byId = new Map(sc.nodes.map((n) => [n.id, n]));
+                const slotDur = chainMemberDurationMs(selectedNode);
+                let start = 0;
+                for (let i = 0; i < pos; i++) {
+                  const m = byId.get(chain[i]);
+                  if (m) start += chainMemberDurationMs(m);
+                }
+                // A successor (pos > 0) starts where its predecessor ends — its 0s state is locked.
+                return {
+                  sceneDurationMs: slotDur,
+                  playheadMs: Math.max(0, Math.min(slotDur, playhead - start)),
+                  startLocked: pos > 0,
+                };
+              })()}
             />
           </div>
         )}

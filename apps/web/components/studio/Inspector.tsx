@@ -30,6 +30,9 @@ interface Props {
   /** The scene's duration + the current preview playhead (ms), for the keyframe track. */
   sceneDurationMs: number;
   playheadMs: number;
+  /** True when this element is a successor in a sprite chain: its 0s ("start") state is locked to the
+   * previous sprite's end and shown read-only (greyed) — it can never be edited independently. */
+  startLocked?: boolean;
 }
 
 const ENTER_LABEL: Record<EnterType | "none", string> = {
@@ -155,16 +158,19 @@ const field =
 const iconBtn =
   "grid h-8 w-8 place-items-center rounded-md border border-walshe-line text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
-function NumBox({ label, value, onChange }: { label: string; value: number | undefined; onChange: (v: number) => void }) {
+function NumBox({ label, value, onChange, disabled }: { label: string; value: number | undefined; onChange: (v: number) => void; disabled?: boolean }) {
   return (
-    <label className="flex items-center gap-0.5" title={label}>
+    <label className={`flex items-center gap-0.5 ${disabled ? "opacity-50" : ""}`} title={label}>
       <span className="text-walshe-grey">{label}</span>
       <input
         type="number"
         value={value ?? 0}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
+        disabled={disabled}
         aria-label={label}
-        className="h-6 w-12 rounded border border-walshe-line bg-walshe-base px-1 text-right text-[11px] text-walshe-ink focus:border-walshe-mint focus:outline-none"
+        className={`h-6 w-12 rounded border border-walshe-line px-1 text-right text-[11px] text-walshe-ink focus:border-walshe-mint focus:outline-none ${
+          disabled ? "cursor-not-allowed bg-walshe-stone/60" : "bg-walshe-base"
+        }`}
       />
     </label>
   );
@@ -177,16 +183,20 @@ function KeyframeEditor({
   onAnim,
   sceneDurationMs,
   playheadMs,
+  startLocked,
 }: {
   node: DesignNode;
   onAnim: Props["onAnim"];
   sceneDurationMs: number;
   playheadMs: number;
+  startLocked?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragT = useRef<number | null>(null); // the t of the keyframe currently being dragged
   const kfs = (node.anim?.keyframes ?? []).slice().sort((a, b) => a.t - b.t);
   const dur = Math.max(1, sceneDurationMs);
+  // A chained successor's 0s keyframe mirrors the previous sprite's end — it is read-only.
+  const isLocked = (t: number) => Boolean(startLocked) && t <= 0;
 
   function commit(next: AnimKeyframe[]) {
     const sorted = next.slice().sort((a, b) => a.t - b.t);
@@ -248,6 +258,14 @@ function KeyframeEditor({
           + at {(playheadMs / 1000).toFixed(1)}s
         </button>
       </div>
+      {startLocked && (
+        <p className="flex items-center gap-1 text-[11px] leading-snug text-walshe-grey">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+          Its start (0s) is locked to the previous sprite’s end.
+        </p>
+      )}
       {/* Dope-sheet track: diamonds = keyframes (drag to retime); double-click to add; line = playhead. */}
       <div
         ref={trackRef}
@@ -258,19 +276,29 @@ function KeyframeEditor({
           className="pointer-events-none absolute bottom-0 top-0 w-px bg-walshe-teal/70"
           style={{ left: `${(Math.min(playheadMs, dur) / dur) * 100}%` }}
         />
-        {kfs.map((k, i) => (
-          <button
-            key={i}
-            type="button"
-            title={`${(k.t / 1000).toFixed(2)}s — drag to move`}
-            onPointerDown={(e) => {
-              dragT.current = k.t;
-              (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-            }}
-            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-ew-resize rounded-[2px] border border-white bg-walshe-teal shadow"
-            style={{ left: `${(Math.min(k.t, dur) / dur) * 100}%` }}
-          />
-        ))}
+        {kfs.map((k, i) => {
+          const locked = isLocked(k.t);
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={locked}
+              title={locked ? "Start locked to the previous sprite’s end" : `${(k.t / 1000).toFixed(2)}s — drag to move`}
+              onPointerDown={
+                locked
+                  ? undefined
+                  : (e) => {
+                      dragT.current = k.t;
+                      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                    }
+              }
+              className={`absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border border-white shadow ${
+                locked ? "cursor-not-allowed bg-walshe-grey" : "cursor-ew-resize bg-walshe-teal"
+              }`}
+              style={{ left: `${(Math.min(k.t, dur) / dur) * 100}%` }}
+            />
+          );
+        })}
       </div>
       {kfs.length === 0 ? (
         <p className="text-[11px] text-walshe-grey">
@@ -279,23 +307,34 @@ function KeyframeEditor({
         </p>
       ) : (
         <div className="space-y-1.5">
-          {kfs.map((k, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-[11px]">
-              <span className="w-9 tabular-nums text-walshe-grey">{(k.t / 1000).toFixed(2)}s</span>
-              <NumBox label="X" value={k.x} onChange={(v) => patchKf(i, { x: v })} />
-              <NumBox label="Y" value={k.y} onChange={(v) => patchKf(i, { y: v })} />
-              <NumBox label="%" value={Math.round((k.scale ?? 1) * 100)} onChange={(v) => patchKf(i, { scale: v / 100 })} />
-              <NumBox label="°" value={Math.round(k.rotation ?? 0)} onChange={(v) => patchKf(i, { rotation: v })} />
-              <button
-                type="button"
-                aria-label="Delete keyframe"
-                onClick={() => commit(kfs.filter((_, idx) => idx !== i))}
-                className="ml-auto grid h-6 w-6 place-items-center rounded text-walshe-danger transition-colors hover:bg-walshe-danger/10"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
-              </button>
-            </div>
-          ))}
+          {kfs.map((k, i) => {
+            const locked = isLocked(k.t);
+            return (
+              <div key={i} className={`flex items-center gap-1.5 text-[11px] ${locked ? "opacity-60" : ""}`}>
+                <span className="w-9 tabular-nums text-walshe-grey">{(k.t / 1000).toFixed(2)}s</span>
+                <NumBox label="X" value={k.x} disabled={locked} onChange={(v) => patchKf(i, { x: v })} />
+                <NumBox label="Y" value={k.y} disabled={locked} onChange={(v) => patchKf(i, { y: v })} />
+                <NumBox label="%" value={Math.round((k.scale ?? 1) * 100)} disabled={locked} onChange={(v) => patchKf(i, { scale: v / 100 })} />
+                <NumBox label="°" value={Math.round(k.rotation ?? 0)} disabled={locked} onChange={(v) => patchKf(i, { rotation: v })} />
+                {locked ? (
+                  <span className="ml-auto grid h-6 w-6 place-items-center text-walshe-grey" title="Start locked to the previous sprite’s end" aria-label="Start locked">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                    </svg>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label="Delete keyframe"
+                    onClick={() => commit(kfs.filter((_, idx) => idx !== i))}
+                    className="ml-auto grid h-6 w-6 place-items-center rounded text-walshe-danger transition-colors hover:bg-walshe-danger/10"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -360,7 +399,7 @@ function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => 
 }
 
 /** The selected-element Inspector: type-specific styling controls + layer/duplicate/delete. */
-export default function Inspector({ node, onChange, onDuplicate, onDelete, onLayer, onAnim, sceneDurationMs, playheadMs }: Props) {
+export default function Inspector({ node, onChange, onDuplicate, onDelete, onLayer, onAnim, sceneDurationMs, playheadMs, startLocked }: Props) {
   if (!node) {
     return <p className="px-1 py-6 text-center text-small text-walshe-grey">Select an element to style it.</p>;
   }
@@ -562,7 +601,7 @@ export default function Inspector({ node, onChange, onDuplicate, onDelete, onLay
 
       <AnimControls node={node} onAnim={onAnim} />
 
-      <KeyframeEditor node={node} onAnim={onAnim} sceneDurationMs={sceneDurationMs} playheadMs={playheadMs} />
+      <KeyframeEditor node={node} onAnim={onAnim} sceneDurationMs={sceneDurationMs} playheadMs={playheadMs} startLocked={startLocked} />
 
       <div className="flex items-center justify-between gap-2 border-t border-walshe-line/70 pt-2.5">
         <div className="flex gap-1.5">

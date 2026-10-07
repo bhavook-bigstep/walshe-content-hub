@@ -19,6 +19,7 @@ import {
   type GraphicDef,
   type SpriteDef,
 } from "../../lib/studio/graphics";
+import SpriteImportPanel from "./SpriteImportPanel";
 
 type Tool = "text" | "shapes" | "photo" | "background" | "graphics" | "animated";
 
@@ -145,7 +146,7 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
   return (
     <div ref={rootRef} className="pointer-events-auto absolute right-3 top-24 z-30 flex items-start gap-2">
       {activeTool && (
-        <div className="w-64 rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+        <div className="no-scrollbar max-h-[calc(100vh-9rem)] w-64 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
           <h2 className="mb-3 text-small font-bold text-walshe-ink">{activeTool.label}</h2>
 
           {active === "text" && (
@@ -249,15 +250,22 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
           )}
 
           {active === "animated" && (
-            <GraphicGrid
-              title="Sprite animations"
-              items={SPRITE_ANIMATIONS}
-              onPick={(g) => {
-                const s = g as SpriteDef;
-                // Insert as a frame-by-frame sprite: its filmstrip plays on preview + export.
-                onChange(addGraphic(design, sceneIndex, { width: s.width, height: s.height, frames: s.frames, fps: s.fps }));
-              }}
-            />
+            <div className="space-y-3">
+              {/* Your imported sprites + the "+" upload button, at the top of the window. */}
+              <SpriteImportPanel design={design} sceneIndex={sceneIndex} onChange={onChange} />
+              <div className="border-t border-walshe-line/70 pt-3">
+                <GraphicGrid
+                  title="Sprite library"
+                  items={SPRITE_ANIMATIONS}
+                  onPick={(g) => {
+                    const s = g as SpriteDef;
+                    // Insert as a frame-by-frame sprite. Carry the sprite id so the node references the
+                    // sprite in the workspace JSON (agent-/MCP-friendly); `frames` is the resolvable cache.
+                    onChange(addGraphic(design, sceneIndex, { width: s.width, height: s.height, frames: s.frames, fps: s.fps, sprite: s.id }));
+                  }}
+                />
+              </div>
+            </div>
           )}
         </div>
       )}

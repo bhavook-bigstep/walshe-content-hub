@@ -101,6 +101,28 @@ describe("animation engine", () => {
     expect(frameIndexAt(slow, 650)).toBe(3);
   });
 
+  it("a frame sprite moves at a steady (linear) pace — its motion ignores keyframe easing", () => {
+    // Same keyframes with the DEFAULT ease (easeInOut) on a plain node vs. a frame sprite.
+    const kfs = { anim: { keyframes: [{ t: 0, x: 0 }, { t: 1000, x: 1000 }] } };
+    const plain = textNode({ ...kfs, x: 0 });
+    const sprite = textNode({ ...kfs, x: 0, frames: ["a", "b", "c", "d"], fps: 10 });
+    // At quarter-time the two diverge: linear → 250; the plain node's easeInOut → ~125 (slow start).
+    // (The half-time point is useless here — easeInOut(0.5) == 0.5, same as linear.)
+    expect(nodeStateAt(sprite, 250).x).toBeCloseTo(250, 5);
+    expect(nodeStateAt(plain, 250).x).toBeLessThan(200);
+    expect(nodeStateAt(plain, 250).x).toBeCloseTo(125, 0); // confirms the plain node really is eased
+    // Three-quarter-time: linear → 750; easeInOut → ~875 (fast finish).
+    expect(nodeStateAt(sprite, 750).x).toBeCloseTo(750, 5);
+    expect(nodeStateAt(plain, 750).x).toBeGreaterThan(800);
+  });
+
+  it("frameIndexAt forceLoop keeps a play-once sprite looping (chained member fills a long slot)", () => {
+    const once = textNode({ frames: ["a", "b", "c", "d"], fps: 10, loopFrames: false });
+    expect(frameIndexAt(once, 5000)).toBe(3); // play-once holds the last frame…
+    expect(frameIndexAt(once, 5000, true)).toBe((Math.floor(5000 / 100)) % 4); // …but forceLoop wraps
+    expect(frameIndexAt(once, 450, true)).toBe(0); // wraps right after the last frame
+  });
+
   it("videoTimeAt slaves a clip to the scene clock from its in-point (no drift, no self-loop)", () => {
     // Clip in-point at 2s; it advances with scene time.
     const clip = textNode({ videoKey: "k", videoStartMs: 2000 });

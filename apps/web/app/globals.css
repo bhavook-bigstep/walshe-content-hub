@@ -151,6 +151,14 @@
   .btn-on-dark {
     @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-white px-6 py-3 text-small font-semibold text-walshe-teal transition-all hover:bg-walshe-teal hover:text-white hover:-translate-y-0.5;
   }
+  /* Scroll but hide the scrollbar (used by the studio's floating panels/popovers). */
+  .no-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
   /* Card — themed surface, hairline, crisp corners; lift on hover. */
   .card {
     @apply overflow-hidden rounded-none border;
