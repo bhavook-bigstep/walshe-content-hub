@@ -58,6 +58,7 @@ export type CatalogType = Entry["type"];
 export type EntryStatus = Entry["status"];
 export type DesignRequest = Schemas["DesignRequest"];
 export type VideoRequest = Schemas["VideoRequest"];
+export type FramesVideoRequest = Schemas["FramesVideoRequest"];
 export type ScheduleRequest = Schemas["ScheduleRequest"];
 export type PublishRequest = Schemas["PublishRequest"];
 export type Post = Schemas["PostOut"];
@@ -92,6 +93,10 @@ export interface CatalogQuery {
   season?: Season;
   type?: CatalogType;
   q?: string;
+  /** Keep entries carrying ANY of these market tags (OR facet). */
+  tags?: string[];
+  /** Keep entries from one provider organisation (exact, case-insensitive). */
+  org?: string;
 }
 
 /** Error carrying only status + server detail text; never request headers or tokens. */
@@ -161,6 +166,8 @@ export function buildCatalogQuery(p: CatalogQuery): string {
   if (p.season) qs.set("season", p.season);
   if (p.type) qs.set("type", p.type);
   if (p.q) qs.set("q", p.q);
+  for (const t of p.tags ?? []) if (t) qs.append("tags", t);
+  if (p.org) qs.set("org", p.org);
   const s = qs.toString();
   return s ? `?${s}` : "";
 }
@@ -460,6 +467,12 @@ export async function getBrandKit(): Promise<BrandKit> {
 export async function updateBrandKit(body: BrandKitUpdate): Promise<BrandKit> {
   return (await (await send("/me/brand-kit", { ...json(body), method: "PUT" })).json()) as BrandKit;
 }
+/** Upload a brand logo image; returns the updated brand kit (its logo_url now points at the asset). */
+export async function uploadBrandLogo(file: File): Promise<BrandKit> {
+  const form = new FormData();
+  form.append("file", file);
+  return (await (await send("/me/brand-kit/logo", { method: "POST", body: form })).json()) as BrandKit;
+}
 
 export async function listDesignTemplates(): Promise<DesignTemplate[]> {
   return (await (await send("/me/design-templates")).json()) as DesignTemplate[];
@@ -607,6 +620,11 @@ export async function generateKeywords(compositionId: number): Promise<{ hashtag
 /** Renders items to an MP4 blob (server never accepts client file paths). */
 export async function renderVideo(body: VideoRequest): Promise<Blob> {
   return (await send("/render/video", json(body))).blob();
+}
+
+/** WYSIWYG frame-capture video: the client posts pre-rendered animation frames; server encodes. */
+export async function renderVideoFrames(body: FramesVideoRequest): Promise<Blob> {
+  return (await send("/render/video-frames", json(body))).blob();
 }
 
 /** Dry-run the pre-send checks (AC34) so the agent sees issues before trying to send. */

@@ -29,7 +29,7 @@ test("studio smoke", async ({ page }) => {
 
   // Pick a format (menu bar → Size menu).
   await page.getByRole("button", { name: "Size" }).click();
-  await page.getByRole("menuitem", { name: /Social image/ }).click();
+  await page.getByRole("menuitem", { name: /Square post/ }).click();
 
   // Add a text element (right-rail Text tool → Heading preset).
   await page.getByRole("button", { name: "Text", exact: true }).click();

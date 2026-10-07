@@ -37,6 +37,61 @@ export type FontWeight = "normal" | "bold";
 export type FontStyle = "normal" | "italic";
 export type TextAlign = "left" | "center" | "right";
 
+// ── Animation model (declarative, JSON-serialisable; lives in the workspace scenes) ─────────────
+// Each element may carry a keyframe track: at time `t` (ms from the scene start) it has a position,
+// scale, rotation and opacity. A pure engine (lib/studio/anim.ts) interpolates between keyframes —
+// the SAME engine drives the live canvas preview and the video frame-capture, so export == preview.
+export type Easing = "linear" | "easeIn" | "easeOut" | "easeInOut" | "back" | "bounce";
+export const EASINGS: readonly Easing[] = ["linear", "easeIn", "easeOut", "easeInOut", "back", "bounce"];
+
+/** Entrance presets the engine expands into keyframes (authoring sugar). */
+export type EnterType = "fade" | "rise" | "slide-left" | "slide-right" | "scale";
+export const ENTER_TYPES: readonly EnterType[] = ["fade", "rise", "slide-left", "slide-right", "scale"];
+
+export interface AnimKeyframe {
+  /** Time in ms from the scene's start. */
+  t: number;
+  /** Absolute x/y (canvas units). Omitted → the node's base x/y. Two+ keyframes = a motion path. */
+  x?: number;
+  y?: number;
+  /** Size multiplier on the node's base box (1 = base). */
+  scale?: number;
+  /** Absolute rotation in degrees. */
+  rotation?: number;
+  /** 0..1. */
+  opacity?: number;
+  /** Easing used to interpolate INTO this keyframe from the previous one. */
+  ease?: Easing;
+}
+
+export interface NodeAnimation {
+  /** The resolved keyframe track the engine plays. Empty/one keyframe = effectively static. */
+  keyframes: AnimKeyframe[];
+  /** Authoring intent for the entrance preset, so the Inspector can round-trip the controls. The
+   * engine ignores this and plays `keyframes` (which the UI regenerates from it). */
+  enter?: { type: EnterType; startMs: number; durationMs: number; ease?: Easing };
+  /** Optional emphasis/character loop applied on top of the track, after the last keyframe time.
+   * The engine (anim.ts) interprets each type as a periodic transform (see `LOOP_TYPES`). */
+  loop?: { type: LoopType; periodMs: number };
+}
+
+/** The periodic loop motions the engine can layer on a node (anim.ts `nodeStateAt`). Named so a
+ * sprite reads as its character: a boat rocks, a balloon floats, the sun spins, a star twinkles. */
+export type LoopType =
+  | "pulse" // scale wobble
+  | "bob" // vertical bounce
+  | "sway" // tilt side to side
+  | "waddle" // walk-cycle tilt + hop
+  | "float" // drift up/down with a slight tilt
+  | "spin" // continuous rotation
+  | "twinkle" // opacity + scale sparkle
+  | "drift" // horizontal glide
+  | "rock"; // tilt + bob, like a boat on water
+
+export const LOOP_TYPES: readonly LoopType[] = [
+  "pulse", "bob", "sway", "waddle", "float", "spin", "twinkle", "drift", "rock",
+];
+
 export interface DesignNode {
   readonly id: string;
   readonly type: NodeType;
@@ -80,6 +135,36 @@ export interface DesignNode {
   stroke?: string;
   /** shape: stroke width in px */
   strokeWidth?: number;
+
+  /** optional keyframe animation (position/scale/rotation/opacity over time within the scene) */
+  anim?: NodeAnimation;
+  /** group membership — nodes sharing a groupId move/animate together (flat; no nested groups) */
+  groupId?: string;
+
+  /** image only — a frame-by-frame sprite: an ordered list of frame image srcs cycled over time
+   * (classic 2D game-sprite animation). `src` holds frame 0 as the static fallback. */
+  frames?: string[];
+  /** frames playback rate (frames per second); defaults to 10 when `frames` is set. */
+  fps?: number;
+  /** frames: whether the filmstrip loops (default true) or plays once and holds the last frame. */
+  loopFrames?: boolean;
+  /** image only — an unfilled media placeholder (dashed frame); clicking it opens the media drawer
+   * to fill it with a photo or video (cleared once filled). */
+  placeholder?: boolean;
+  /** image only — set when a node holds a VIDEO clip: the video's stable object key. `src` keeps a
+   * poster still as the serialisable fallback; the key re-resolves `videoSrc` after a reload. */
+  videoKey?: string;
+  /** image only — the ephemeral served URL (blob/data) of the video clip itself, resolved from
+   * `videoKey`. When present the canvas + export render the live video frame (not the poster); it
+   * is re-resolved on open (like `src`) and is dead across a reload until then. */
+  videoSrc?: string;
+  /** image only — the clip's in-point in ms: the scene starts the video from here and advances it
+   * with scene time (slaved to the scene, not looping on its own). On a scene loop it restarts from
+   * this point; if the clip ends before the scene does it holds its last frame. Defaults to 0. */
+  videoStartMs?: number;
+  /** image only — a built-in sprite id (e.g. "walking-panda"); the studio resolves it to `frames`
+   * + `fps` on load (so templates can reference a sprite without embedding its filmstrip). */
+  sprite?: string;
 }
 
 /** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
@@ -100,6 +185,9 @@ export type NodeStyle = Pick<
   | "radius"
   | "stroke"
   | "strokeWidth"
+  | "fps"
+  | "loopFrames"
+  | "videoStartMs"
 >;
 
 /** The base page shape the server PDF/HTML export consumes (a list of these). */
@@ -107,6 +195,12 @@ export interface DesignPage {
   /** page background colour; undefined = transparent/white */
   background?: string;
   nodes: DesignNode[];
+}
+
+/** One time-cued narration line: the voiceover `text` starts at `atMs` into the scene. */
+export interface NarrationCue {
+  atMs: number;
+  text: string;
 }
 
 /** A page promoted to a storyboard scene (AC46): adds identity, lifespan and a transition. */
@@ -117,6 +211,26 @@ export interface Scene extends DesignPage {
   durationMs: number;
   /** transition INTO the next scene */
   transition: TransitionKind;
+  /** optional time-cued voiceover lines read over this scene when the video is narrated */
+  narration?: NarrationCue[];
+}
+
+/** Normalise a scene's narration to cues (handles the legacy single-string form). Keeps blank-text
+ * cues so a line can be added and typed into; drop blanks at export via `speakableCues`. */
+export function narrationCues(scene: Pick<Scene, "narration">): NarrationCue[] {
+  const n = scene.narration as NarrationCue[] | string | undefined;
+  if (!n) return [];
+  if (typeof n === "string") return n.trim() ? [{ atMs: 0, text: n }] : [];
+  return n
+    .filter((c) => c && typeof c.text === "string")
+    .map((c) => ({ atMs: Math.max(0, Math.round(c.atMs) || 0), text: c.text }));
+}
+
+/** The cues that actually get spoken: narration lines with non-blank text, in time order. */
+export function speakableCues(scene: Pick<Scene, "narration">): NarrationCue[] {
+  return narrationCues(scene)
+    .filter((c) => c.text.trim())
+    .sort((a, b) => a.atMs - b.atMs);
 }
 
 export interface DesignDoc {
@@ -298,9 +412,122 @@ export function setBackground(design: DesignDoc, sceneIndex: number, color: stri
 export function addCatalogImage(
   design: DesignDoc,
   sceneIndex: number,
-  image: { src: string; catalogItemId: string; objectKey?: string },
+  image: {
+    src: string;
+    catalogItemId: string;
+    objectKey?: string;
+    videoKey?: string;
+    videoSrc?: string;
+    kind?: "image" | "video";
+  },
   placement: NodePlacement = {},
 ): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const isVideo = image.kind === "video";
+  // For a video, the clip itself is `videoSrc` (what the canvas plays); `src` keeps a poster still as
+  // the serialisable fallback. `image.src` already holds the video blob URL, so fall back to it.
+  const videoSrc = isVideo ? (image.videoSrc ?? image.src) : undefined;
+  scene.nodes.push({
+    id: nextId("image", scene),
+    type: "image",
+    x: placement.x ?? DEFAULT_PLACEMENT.x,
+    y: placement.y ?? DEFAULT_PLACEMENT.y,
+    width: placement.width ?? 480,
+    height: placement.height ?? 480,
+    // A video shows a poster still as the fallback; its clip is referenced by videoKey/videoSrc.
+    src: isVideo ? VIDEO_POSTER_SRC : image.src,
+    catalogItemId: image.catalogItemId,
+    // Persist the stable object key so the (ephemeral) blob src can be re-resolved on reopen.
+    ...(!isVideo && image.objectKey ? { objectKey: image.objectKey } : {}),
+    ...(isVideo && image.videoKey ? { videoKey: image.videoKey } : {}),
+    ...(videoSrc ? { videoSrc } : {}),
+    ...stylePlacement(placement),
+  });
+  return next;
+}
+
+/** Add a built-in decorative graphic/sticker/sprite (an image node from an SVG data URL). A sprite
+ * also carries an entrance/loop intent, resolved into a keyframe track anchored at its placement, or
+ * a `frames` filmstrip for classic frame-by-frame sprite animation (src defaults to frame 0). */
+export function addGraphic(
+  design: DesignDoc,
+  sceneIndex: number,
+  g: {
+    src?: string;
+    width: number;
+    height: number;
+    enter?: EnterType | null;
+    loop?: NodeAnimation["loop"];
+    frames?: string[];
+    fps?: number;
+  },
+  placement: NodePlacement = {},
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const node: DesignNode = {
+    id: nextId("image", scene),
+    type: "image",
+    x: placement.x ?? DEFAULT_PLACEMENT.x,
+    y: placement.y ?? DEFAULT_PLACEMENT.y,
+    width: placement.width ?? g.width,
+    height: placement.height ?? g.height,
+    src: g.src ?? g.frames?.[0],
+    ...(g.frames && g.frames.length > 1 ? { frames: g.frames, fps: g.fps ?? 10 } : {}),
+    ...stylePlacement(placement),
+  };
+  if (g.enter || g.loop) {
+    const keyframes = g.enter ? enterTrack(node, g.enter, 0, 600).keyframes : [];
+    node.anim = {
+      keyframes,
+      ...(g.enter ? { enter: { type: g.enter, startMs: 0, durationMs: 600, ease: "easeOut" as Easing } } : {}),
+      ...(g.loop ? { loop: g.loop } : {}),
+    };
+  }
+  scene.nodes.push(node);
+  return next;
+}
+
+// A MEDIA-frame placeholder: a transparent frame with a dashed subtle-grey border, a photo+video
+// glyph and an "Add media" prompt. Inserted as an image node flagged `placeholder: true`; clicking
+// it opens the media drawer to fill it with an image OR a video. Transparent so the scene shows
+// through; grey (#9ca3af) so it reads on any background.
+const _GREY = "#9ca3af";
+const PLACEHOLDER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">' +
+  `<rect x="3" y="3" width="394" height="294" rx="18" fill="none" stroke="${_GREY}" ` +
+  'stroke-width="3" stroke-dasharray="14 12"/>' +
+  // image glyph (frame + sun + mountains)
+  `<g transform="translate(192 120)" fill="none" stroke="${_GREY}" stroke-width="5" ` +
+  'stroke-linecap="round" stroke-linejoin="round">' +
+  '<rect x="-46" y="-30" width="92" height="64" rx="8"/><circle cx="-20" cy="-8" r="8"/>' +
+  '<path d="M-46 24l24 -22 16 14 14 -12 38 30"/></g>' +
+  // video play badge (signals it takes video too)
+  `<g transform="translate(250 150)"><circle r="19" fill="${_GREY}"/>` +
+  '<path d="M-6 -9L10 0-6 9Z" fill="#fff"/></g>' +
+  `<text x="200" y="202" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" ` +
+  `font-size="22" font-weight="600" fill="${_GREY}">Add media</text></svg>`;
+
+/** The data: URL shown for an unfilled media placeholder. */
+export const PLACEHOLDER_SRC = `data:image/svg+xml,${encodeURIComponent(PLACEHOLDER_SVG)}`;
+
+// The poster shown on the canvas for a placed VIDEO (a dark frame + play glyph). The video itself
+// is referenced by `videoKey` for a future export composite; the canvas shows this still.
+const VIDEO_POSTER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">' +
+  '<rect width="400" height="300" rx="14" fill="#111827"/>' +
+  '<circle cx="200" cy="138" r="42" fill="#ffffff" opacity="0.95"/>' +
+  '<path d="M186 116l34 22-34 22z" fill="#111827"/>' +
+  '<text x="200" y="214" text-anchor="middle" font-family="\'Inter\',system-ui,sans-serif" ' +
+  'font-size="20" font-weight="600" fill="#e5e7eb">Video</text></svg>';
+export const VIDEO_POSTER_SRC = `data:image/svg+xml,${encodeURIComponent(VIDEO_POSTER_SVG)}`;
+
+/** Insert an image-frame placeholder — click it on the canvas to pick a photo from the media
+ * drawer, which fills it in place (via {@link fillImageNode}). */
+export function addPlaceholder(design: DesignDoc, sceneIndex: number, placement: NodePlacement = {}): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
@@ -309,15 +536,46 @@ export function addCatalogImage(
     type: "image",
     x: placement.x ?? DEFAULT_PLACEMENT.x,
     y: placement.y ?? DEFAULT_PLACEMENT.y,
-    width: placement.width ?? 480,
-    height: placement.height ?? 480,
-    src: image.src,
-    catalogItemId: image.catalogItemId,
-    // Persist the stable object key so the (ephemeral) blob src can be re-resolved on reopen.
-    ...(image.objectKey ? { objectKey: image.objectKey } : {}),
+    width: placement.width ?? 440,
+    height: placement.height ?? 330,
+    src: PLACEHOLDER_SRC,
+    placeholder: true,
     ...stylePlacement(placement),
   });
   return next;
+}
+
+/** Whether a node is an unfilled image placeholder. */
+export function isPlaceholder(node: DesignNode): boolean {
+  return node.type === "image" && node.placeholder === true;
+}
+
+/** Fill a media placeholder with a chosen photo or video, clearing the placeholder flag. A photo
+ * records its objectKey (so it survives reload); a video shows a poster and records `videoKey`. */
+export function fillImageNode(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  media: { src: string; objectKey?: string; catalogItemId?: string; kind?: "image" | "video" },
+): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    const next: DesignNode = { ...n };
+    delete next.placeholder;
+    delete next.videoKey;
+    delete next.videoSrc;
+    if (media.kind === "video") {
+      next.src = VIDEO_POSTER_SRC; // the poster is the serialisable fallback still
+      next.videoSrc = media.src; // the live clip the canvas plays + the export composites
+      if (media.objectKey) next.videoKey = media.objectKey;
+      delete next.objectKey; // the poster is a self-contained data URL; don't re-resolve as image
+    } else {
+      next.src = media.src;
+      if (media.objectKey) next.objectKey = media.objectKey;
+      else delete next.objectKey;
+    }
+    if (media.catalogItemId) next.catalogItemId = media.catalogItemId;
+    return next;
+  });
 }
 
 /** Append a blank scene (AC46; also the pamphlet multi-page op, AC9). */
@@ -380,6 +638,18 @@ export function setSceneTransition(
 /** Rename a scene (AC46). */
 export function renameScene(design: DesignDoc, sceneId: string, name: string): DesignDoc {
   return mapScene(design, sceneId, (s) => ({ ...s, name }));
+}
+
+/** Set a scene's time-cued narration lines. Blank lines are kept (so a new line can be typed into);
+ * an empty list clears the narration. */
+export function setSceneNarration(design: DesignDoc, sceneId: string, cues: NarrationCue[]): DesignDoc {
+  const kept = cues.map((c) => ({ atMs: Math.max(0, Math.round(c.atMs) || 0), text: c.text }));
+  return mapScene(design, sceneId, (s) => {
+    const next = { ...s };
+    if (kept.length) next.narration = kept;
+    else delete next.narration;
+    return next;
+  });
 }
 
 function mapNode(
@@ -468,6 +738,122 @@ export function updateNode(
     }
     return next;
   });
+}
+
+/** Generate a keyframe track for a common entrance, anchored at the node's base transform. */
+export function enterTrack(
+  node: Pick<DesignNode, "x" | "y">,
+  type: EnterType,
+  startMs: number,
+  durationMs: number,
+  ease: Easing = "easeOut",
+): NodeAnimation {
+  const end = startMs + Math.max(1, durationMs);
+  const from: AnimKeyframe = { t: startMs, opacity: 0 };
+  const to: AnimKeyframe = { t: end, opacity: 1, ease };
+  const dist = 80;
+  if (type === "rise") {
+    from.y = node.y + dist;
+    to.y = node.y;
+  } else if (type === "slide-left") {
+    from.x = node.x + dist;
+    to.x = node.x;
+  } else if (type === "slide-right") {
+    from.x = node.x - dist;
+    to.x = node.x;
+  } else if (type === "scale") {
+    from.scale = 0.6;
+    to.scale = 1;
+  }
+  return { keyframes: [from, to] };
+}
+
+/** Set (or clear, with `undefined`) a node's keyframe animation. Returns the new design. */
+export function setNodeAnim(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  anim: NodeAnimation | undefined,
+): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    const next = { ...n };
+    if (anim && (anim.keyframes.length > 0 || anim.loop)) next.anim = anim;
+    else delete next.anim;
+    return next;
+  });
+}
+
+/** Node ids belonging to a group, in scene order. */
+export function groupMemberIds(scene: Scene, groupId: string): string[] {
+  return scene.nodes.filter((n) => n.groupId === groupId).map((n) => n.id);
+}
+
+/** Group the given nodes (flat, no nesting): assign them all a fresh shared groupId, replacing any
+ * existing group tags. Returns the new design. */
+export function groupNodes(design: DesignDoc, sceneIndex: number, nodeIds: readonly string[]): DesignDoc {
+  assertScene(design, sceneIndex);
+  const ids = new Set(nodeIds);
+  if (ids.size < 2) return design;
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  let max = 0;
+  for (const n of scene.nodes) {
+    const m = /^group-(\d+)$/.exec(n.groupId ?? "");
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  const gid = `group-${max + 1}`;
+  for (const n of scene.nodes) if (ids.has(n.id)) n.groupId = gid;
+  return next;
+}
+
+/** Remove a group's tag from all its members (ungroup). */
+export function ungroupNodes(design: DesignDoc, sceneIndex: number, groupId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  for (const n of next.scenes[sceneIndex].nodes) if (n.groupId === groupId) delete n.groupId;
+  return next;
+}
+
+/** Apply an entrance + emphasis-loop intent to every member of a group, each track anchored at the
+ * member's own position (so a group rises/slides from each element's offset). Clears when neither. */
+export function setGroupAnim(
+  design: DesignDoc,
+  sceneIndex: number,
+  groupId: string,
+  enter: EnterType | null,
+  loop?: NodeAnimation["loop"],
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  for (const n of next.scenes[sceneIndex].nodes) {
+    if (n.groupId !== groupId) continue;
+    if (enter || loop) {
+      const keyframes = enter ? enterTrack(n, enter, 0, 600).keyframes : [];
+      n.anim = {
+        keyframes,
+        ...(enter ? { enter: { type: enter, startMs: 0, durationMs: 600, ease: "easeOut" as Easing } } : {}),
+        ...(loop ? { loop } : {}),
+      };
+    } else {
+      delete n.anim;
+    }
+  }
+  return next;
+}
+
+/** Patch a style property on every member of a group (e.g. opacity). */
+export function updateGroupStyle(design: DesignDoc, sceneIndex: number, groupId: string, patch: Partial<NodeStyle>): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  for (const n of next.scenes[sceneIndex].nodes) {
+    if (n.groupId !== groupId) continue;
+    const rec = n as unknown as Record<string, unknown>;
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete rec[k];
+      else rec[k] = v;
+    }
+  }
+  return next;
 }
 
 /** Duplicate a node on the same scene, offset slightly, placed just above the original. Returns

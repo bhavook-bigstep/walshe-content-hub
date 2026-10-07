@@ -169,6 +169,8 @@ class BrandKitUpdate(BaseModel):
     logo_url: str | None = Field(default=None, max_length=512)
     primary_color: str | None = Field(default=None, max_length=9)
     accent_color: str | None = Field(default=None, max_length=9)
+    heading_font: str | None = Field(default=None, max_length=32)
+    body_font: str | None = Field(default=None, max_length=32)
     contact_name: str | None = Field(default=None, max_length=160)
     contact_email: str | None = Field(default=None, max_length=320)
     website: str | None = Field(default=None, max_length=512)
@@ -178,6 +180,8 @@ class BrandKitOut(BaseModel):
     logo_url: str | None
     primary_color: str
     accent_color: str
+    heading_font: str
+    body_font: str
     contact_name: str | None
     contact_email: str | None
     website: str | None

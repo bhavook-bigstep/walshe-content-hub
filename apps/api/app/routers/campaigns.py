@@ -271,7 +271,7 @@ def edit_post(
     return CampaignPostOut.model_validate(post)
 
 
-# ── Approval gate + publish (AC78/AC79) ──────────────────────────────────────────────────────────
+# ── Approval gate + publish (AC97/AC98) ──────────────────────────────────────────────────────────
 #
 # Approve IS the publish decision (one action): approving a pending post records the approver and
 # publishes it immediately through the shared path. There is no separate "publish" step — the PoC
@@ -316,7 +316,7 @@ def approve_post(
     storage: Storage = Depends(get_storage),
     now: datetime = Depends(clock.now),
 ) -> CampaignPostOut:
-    """Approve AND publish a pending post in one action (AC78/AC79). PoC self-approval: the owning
+    """Approve AND publish a pending post in one action (AC97/AC98). PoC self-approval: the owning
     agent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records
     the reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a
     guard/publish failure nothing is approved and the reason is returned (422/409/503/502)."""
@@ -353,7 +353,7 @@ def reject_post(
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
 ) -> CampaignPostOut:
-    """Reject a pending post with a reason (AC78); it drops to rejected and is editable again."""
+    """Reject a pending post with a reason (AC97); it drops to rejected and is editable again."""
     campaign = _owned_campaign(db, campaign_id, user)
     post = _campaign_post(db, campaign, post_id)
     if post.status != PostStatus.pending_approval:

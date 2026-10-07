@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  ActiveSelection,
   Canvas,
   FabricText,
   Line,
@@ -9,12 +10,14 @@ import {
   Rect,
   Shadow,
   Triangle,
+  util,
   type FabricObject,
   type TPointerEventInfo,
 } from "fabric";
-import { nodeToObject } from "../../lib/studio/fabric-nodes";
-import { shouldDeleteSelection } from "../../lib/studio/keys";
-import type { DesignDoc } from "../../lib/studio/ops";
+import { isVideoObject, nodeToObject, seekVideoObject, setSpriteFrame } from "../../lib/studio/fabric-nodes";
+import { pointerMode, shouldDeleteSelection } from "../../lib/studio/keys";
+import { frameIndexAt, nodeStateAt, videoTimeAt } from "../../lib/studio/anim";
+import type { DesignDoc, DesignNode } from "../../lib/studio/ops";
 
 export interface NodeBox {
   x: number;
@@ -30,6 +33,11 @@ export interface StudioControls {
   /** Map a viewport (clientX/clientY) point to the active scene's local coordinates, for drop
    * placement from the media drawer. Returns null before the canvas has mounted. */
   clientToScenePoint: (clientX: number, clientY: number) => { x: number; y: number } | null;
+  /** Preview the active scene's animation at time `t` ms (imperative, no React re-render). Pass
+   * null to restore the static/editable layout. Used by the timeline play/scrub. `opts.playing`
+   * marks continuous playback (the RAF loop) so live video clips play natively instead of seeking
+   * frame-by-frame. */
+  previewAt: (timeMs: number | null, opts?: { playing?: boolean }) => void;
 }
 
 export interface StudioCanvasProps {
@@ -44,12 +52,27 @@ export interface StudioCanvasProps {
   onNodeDelete?: (sceneIndex: number, nodeId: string) => void;
   /** Called when the user clicks a scene on the canvas — make it active. */
   onSelectScene?: (sceneIndex: number) => void;
-  /** Called when the selected element changes (null when cleared) — drives the Inspector. */
-  onSelect?: (sceneIndex: number | null, nodeId: string | null) => void;
+  /** Called when the user clicks the empty workspace (outside every artboard) — deselect. */
+  onBackgroundClick?: () => void;
+  /** Whether a scene is currently selected — when false, no artboard is highlighted. */
+  highlightActive?: boolean;
+  /** Called when the selection changes — the selected node ids (empty when cleared), plus the
+   * scene they're on. One id = single element; many = a group / multi-selection. */
+  onSelect?: (sceneIndex: number | null, nodeIds: string[]) => void;
+  /** The node id currently selected in the app — re-selected after a rebuild so the Inspector
+   * persists across edits (a programmatic rebuild otherwise clears the Fabric selection). */
+  selectedNodeId?: string | null;
+  /** Reports the active scene's on-screen rectangle (container-relative px) as the canvas pans /
+   * zooms / rebuilds, so per-scene controls can anchor to the scene's edges. Null on unmount. */
+  onActiveSceneRect?: (rect: { left: number; top: number; width: number; height: number } | null) => void;
   /** Called when the user finishes editing a text node inline (double-click → type → blur). */
   onTextEdit?: (sceneIndex: number, nodeId: string, text: string) => void;
   /** Receives imperative zoom/fit controls for the top bar once mounted. */
   onControls?: (controls: StudioControls) => void;
+  /** Active workspace tool. "select" (default): click selects, drag on empty rubber-bands a
+   * marquee over the items inside it. "hand": drag anywhere pans the workspace. Space-hold,
+   * Alt-drag and middle-drag always pan regardless of the tool (CorelDraw-style). */
+  tool?: "select" | "hand";
 }
 
 const DOT_BASE = 26; // dot spacing at 100% zoom (px) — a touch wider than before so it reads cleaner
@@ -59,7 +82,18 @@ const ZOOM_MAX = 4;
 const SCENE_GAP = 160; // scene-space px between consecutive artboards
 const CLICK_SLOP_PX = 3; // pointer travel under this counts as a click (select), not a drag (pan)
 
-type TaggedObject = FabricObject & { nodeId?: string; sceneIndex?: number };
+type TaggedObject = FabricObject & {
+  nodeId?: string;
+  sceneIndex?: number;
+  groupId?: string;
+  // Base transform captured at build time, so the animation preview can compute animated = base × state.
+  baseLeft?: number;
+  baseTop?: number;
+  baseScaleX?: number;
+  baseScaleY?: number;
+  baseAngle?: number;
+  baseOpacity?: number;
+};
 
 /** Left edge (scene-space x) of scene i, laid out left-to-right with a fixed gap. */
 function sceneOriginX(design: DesignDoc, i: number): number {
@@ -70,6 +104,44 @@ function sceneOriginX(design: DesignDoc, i: number): number {
 function storyboardWidth(design: DesignDoc): number {
   const n = design.scenes.length;
   return n * design.width + Math.max(0, n - 1) * SCENE_GAP;
+}
+
+const VIDEO_RESYNC_S = 0.34; // drift beyond this (scene loop, scrub jump, start) → hard reseek
+
+/** Drive a placed video clip during preview, slaved to the scene clock (never native-looping). The
+ * clip time is the in-point + elapsed scene time (anim.ts `videoTimeAt`): on continuous playback it
+ * plays and is resynced if it drifts (so a scene loop restarts it from the in-point); once the clip
+ * is exhausted within the scene it holds its last frame; a scrub pauses and seeks to the exact
+ * frame. */
+function driveVideo(obj: FabricObject, node: DesignNode, timeMs: number, playing: boolean, canvas: Canvas): void {
+  if (!isVideoObject(obj)) return;
+  const v = (obj as FabricObject & { videoEl?: HTMLVideoElement }).videoEl;
+  if (!v) return;
+  v.loop = false; // the scene clock drives it, not the element's own loop
+  const dur = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : undefined;
+  const want = videoTimeAt(node, timeMs, dur);
+  if (playing) {
+    if (Math.abs(v.currentTime - want) > VIDEO_RESYNC_S) v.currentTime = want; // loop-wrap / jump
+    const exhausted = dur !== undefined && want >= dur - 0.05; // clip ends before the scene does
+    if (exhausted) {
+      if (!v.paused) v.pause(); // freeze on the last frame
+    } else if (v.paused) {
+      void v.play().catch(() => {});
+    }
+    obj.dirty = true; // force Fabric to re-read the current video frame on the next render
+  } else {
+    if (!v.paused) v.pause();
+    void seekVideoObject(obj, want).then(() => canvas.requestRenderAll());
+  }
+}
+
+/** Pause a placed video clip and rest it on its in-point frame (when the preview stops). */
+function restVideo(obj: FabricObject, node: DesignNode, canvas: Canvas): void {
+  if (!isVideoObject(obj)) return;
+  const v = (obj as FabricObject & { videoEl?: HTMLVideoElement }).videoEl;
+  if (!v) return;
+  if (!v.paused) v.pause();
+  void seekVideoObject(obj, (node.videoStartMs ?? 0) / 1000).then(() => canvas.requestRenderAll());
 }
 
 /**
@@ -88,6 +160,11 @@ export default function StudioCanvas({
   onSelect,
   onTextEdit,
   onControls,
+  selectedNodeId,
+  onActiveSceneRect,
+  onBackgroundClick,
+  highlightActive = true,
+  tool = "select",
 }: StudioCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dotsRef = useRef<HTMLDivElement>(null);
@@ -103,10 +180,21 @@ export default function StudioCanvas({
   textEditRef.current = onTextEdit;
   const selectRef = useRef(onSelectScene);
   selectRef.current = onSelectScene;
+  const bgClickRef = useRef(onBackgroundClick);
+  bgClickRef.current = onBackgroundClick;
   const designRef = useRef(design);
   designRef.current = design;
   const activeSceneRef = useRef(activeScene);
   activeSceneRef.current = activeScene;
+  const selectedNodeIdRef = useRef(selectedNodeId);
+  selectedNodeIdRef.current = selectedNodeId;
+  const sceneRectRef = useRef(onActiveSceneRect);
+  sceneRectRef.current = onActiveSceneRect;
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  // True while the render effect rebuilds the canvas, so the intermediate selection:cleared (from
+  // removing objects) does not propagate and clear the app's selection / hide the Inspector.
+  const suppressSelRef = useRef(false);
   const fittedRef = useRef<string>(""); // layout signature of the last fit, so a new layout re-fits
 
   // Keep the dotted background locked to the canvas viewport transform (pan + zoom).
@@ -125,6 +213,23 @@ export default function StudioCanvas({
       c.dataset.zoom = zoom.toFixed(3);
       c.dataset.pan = `${Math.round(tx)},${Math.round(ty)}`;
     }
+    reportSceneRect();
+  }
+
+  // Report the active scene's on-screen rect (container px) so per-scene controls can hug its edges.
+  function reportSceneRect() {
+    const canvas = canvasRef.current;
+    const cb = sceneRectRef.current;
+    if (!canvas || !cb) return;
+    const design = designRef.current;
+    const i = activeSceneRef.current;
+    if (!design.scenes[i]) {
+      cb(null);
+      return;
+    }
+    const [zoom, , , , tx, ty] = canvas.viewportTransform;
+    const originX = sceneOriginX(design, i);
+    cb({ left: originX * zoom + tx, top: ty, width: design.width * zoom, height: design.height * zoom });
   }
 
   function zoomAt(factor: number) {
@@ -156,6 +261,14 @@ export default function StudioCanvas({
   }
 
   // Mount once: create the canvas + wire pan/zoom/selection handlers.
+  // Reflect the active tool in the idle cursor (the Hand tool shows a grab cursor).
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    c.defaultCursor = tool === "hand" ? "grab" : "default";
+    c.setCursor(c.defaultCursor);
+  }, [tool]);
+
   useEffect(() => {
     const el = elRef.current;
     const container = containerRef.current;
@@ -166,6 +279,13 @@ export default function StudioCanvas({
       selection: true,
       preserveObjectStacking: true,
       backgroundColor: "",
+      // CorelDraw-style marquee: a dashed teal rectangle that selects only the items fully inside
+      // it (not merely touched), so dragging a box over empty space rubber-band-selects a group.
+      selectionFullyContained: true,
+      selectionColor: "rgba(20, 184, 166, 0.10)",
+      selectionBorderColor: "rgba(13, 148, 136, 0.9)",
+      selectionLineWidth: 1.5,
+      selectionDashArray: [5, 4],
     });
     canvasRef.current = canvas;
     onReady?.(canvas);
@@ -182,6 +302,51 @@ export default function StudioCanvas({
         const gx = (clientX - rect.left - tx) / zoom;
         const gy = (clientY - rect.top - ty) / zoom;
         return { x: gx - sceneOriginX(designRef.current, activeSceneRef.current), y: gy };
+      },
+      previewAt: (timeMs, opts) => {
+        const c = canvasRef.current;
+        if (!c) return;
+        const design = designRef.current;
+        const active = activeSceneRef.current;
+        const originX = sceneOriginX(design, active);
+        const scene = design.scenes[active];
+        for (const obj of c.getObjects() as TaggedObject[]) {
+          if (obj.sceneIndex !== active || !obj.nodeId) continue;
+          const node = scene?.nodes.find((n) => n.id === obj.nodeId);
+          if (!node) continue;
+          if (timeMs === null) {
+            obj.set({
+              left: obj.baseLeft,
+              top: obj.baseTop,
+              scaleX: obj.baseScaleX,
+              scaleY: obj.baseScaleY,
+              angle: obj.baseAngle,
+              opacity: obj.baseOpacity,
+            });
+            setSpriteFrame(obj, 0); // rest on frame 0 when stopped
+            restVideo(obj, node, c); // pause + rest a live clip on its in-point frame
+            obj.selectable = true;
+            obj.evented = true;
+          } else {
+            const st = nodeStateAt(node, timeMs);
+            obj.set({
+              left: originX + st.x,
+              top: st.y,
+              scaleX: (obj.baseScaleX ?? 1) * st.scale,
+              scaleY: (obj.baseScaleY ?? 1) * st.scale,
+              angle: st.rotation,
+              opacity: st.opacity,
+            });
+            const fi = frameIndexAt(node, timeMs);
+            if (fi !== null) setSpriteFrame(obj, fi); // advance the frame sprite's filmstrip
+            driveVideo(obj, node, timeMs, !!opts?.playing, c); // slave the clip to the scene clock
+            obj.selectable = false;
+            obj.evented = false;
+          }
+          obj.setCoords();
+        }
+        if (timeMs !== null) c.discardActiveObject();
+        c.requestRenderAll();
       },
     });
 
@@ -202,7 +367,7 @@ export default function StudioCanvas({
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") {
         spaceHeld = false;
-        canvas.defaultCursor = "default";
+        canvas.defaultCursor = toolRef.current === "hand" ? "grab" : "default";
       }
     };
     // Delete / Backspace removes the selected entities — unless an input or inline text edit is focused.
@@ -227,25 +392,39 @@ export default function StudioCanvas({
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("keydown", onDeleteKey);
 
-    // Pan by dragging empty canvas (or with space / alt / middle button); drag an element to move it.
+    // Pointer model (CorelDraw/Figma-style):
+    //  • Hand tool, Space-hold, Alt-drag or middle button → PAN the workspace.
+    //  • Select tool, left-drag on empty → Fabric's rubber-band MARQUEE (selects items inside it).
+    //  • Click an element → select it; drag it → move it.
+    //  • A click (no drag) on empty space → select the scene under it, or deselect off-artboard.
+    let downOnEmpty = false;
+
     canvas.on("mouse:down", (opt: TPointerEventInfo) => {
       const e = opt.e as MouseEvent;
       downX = e.clientX;
       downY = e.clientY;
-      const onEmpty = !opt.target; // artboards + inactive scenes are non-evented → count as empty
-      if (spaceHeld || e.altKey || e.button === 1 || (e.button === 0 && onEmpty)) {
+      moved = false;
+      downOnEmpty = !opt.target; // artboards + inactive scenes are non-evented → count as empty
+      const mode = pointerMode({
+        tool: toolRef.current,
+        spaceHeld,
+        alt: e.altKey,
+        button: e.button,
+        onEmpty: downOnEmpty,
+      });
+      if (mode === "pan") {
         panning = true;
-        moved = false;
-        canvas.selection = false;
+        canvas.selection = false; // suppress the marquee while panning
         canvas.defaultCursor = "grabbing";
         lastX = e.clientX;
         lastY = e.clientY;
       }
+      // else: leave canvas.selection = true so an empty-space drag draws the marquee.
     });
     canvas.on("mouse:move", (opt: TPointerEventInfo) => {
-      if (!panning) return;
       const e = opt.e as MouseEvent;
       if (Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY) > CLICK_SLOP_PX) moved = true;
+      if (!panning) return;
       const vpt = canvas.viewportTransform;
       vpt[4] += e.clientX - lastX;
       vpt[5] += e.clientY - lastY;
@@ -255,19 +434,24 @@ export default function StudioCanvas({
       syncDots();
     });
     canvas.on("mouse:up", (opt: TPointerEventInfo) => {
-      const wasPanning = panning;
       panning = false;
       canvas.selection = true;
-      canvas.defaultCursor = spaceHeld ? "grab" : "default";
-      // A click on empty canvas (pan that never moved) selects the scene under the pointer.
-      if (wasPanning && !moved) {
+      canvas.defaultCursor = toolRef.current === "hand" || spaceHeld ? "grab" : "default";
+      // A click (no drag) on empty canvas selects the scene under the pointer, or deselects when it
+      // lands outside every artboard. A drag (marquee or pan) is handled by its own path.
+      if (!moved && downOnEmpty) {
         const pt = canvas.getScenePoint(opt.e);
         const design = designRef.current;
         const step = design.width + SCENE_GAP;
         const i = Math.floor(pt.x / step);
-        if (i >= 0 && i < design.scenes.length && pt.x - i * step <= design.width) {
-          selectRef.current?.(i);
-        }
+        const onArtboard =
+          i >= 0 &&
+          i < design.scenes.length &&
+          pt.x - i * step <= design.width &&
+          pt.y >= 0 &&
+          pt.y <= design.height;
+        if (onArtboard) selectRef.current?.(i);
+        else bgClickRef.current?.();
       }
     });
 
@@ -282,15 +466,39 @@ export default function StudioCanvas({
       syncDots();
     });
 
-    // Report the selected node so the Inspector can edit it.
+    // Report the selected node so the Inspector can edit it. Ignored while the canvas is being
+    // rebuilt (the selection is restored afterwards), so edits never flicker the Inspector away.
     const reportSelection = () => {
-      const o = canvas.getActiveObject() as TaggedObject | undefined;
-      if (o && o.nodeId && o.sceneIndex !== undefined) selectNodeRef.current?.(o.sceneIndex, o.nodeId);
-      else selectNodeRef.current?.(null, null);
+      if (suppressSelRef.current) return;
+      const objs = canvas.getActiveObjects() as TaggedObject[];
+      if (objs.length === 0) {
+        selectNodeRef.current?.(null, []);
+        return;
+      }
+      // Clicking one member of a group selects the whole group (so it moves/animates together).
+      if (objs.length === 1 && objs[0].groupId && objs[0].sceneIndex !== undefined) {
+        const gid = objs[0].groupId;
+        const si = objs[0].sceneIndex;
+        const members = (canvas.getObjects() as TaggedObject[]).filter(
+          (x) => x.groupId === gid && x.sceneIndex === si && x.selectable,
+        );
+        if (members.length > 1) {
+          canvas.setActiveObject(new ActiveSelection(members, { canvas }));
+          canvas.requestRenderAll();
+          return; // selection:updated re-fires with the full group
+        }
+      }
+      const sceneIdx = objs[0].sceneIndex ?? null;
+      selectNodeRef.current?.(
+        sceneIdx,
+        objs.map((o) => o.nodeId).filter((id): id is string => !!id),
+      );
     };
     canvas.on("selection:created", reportSelection);
     canvas.on("selection:updated", reportSelection);
-    canvas.on("selection:cleared", () => selectNodeRef.current?.(null, null));
+    canvas.on("selection:cleared", () => {
+      if (!suppressSelRef.current) selectNodeRef.current?.(null, []);
+    });
 
     // Inline text editing: double-click a text node, type, blur → sync back to the model (only on
     // exit, so no mid-type re-render interrupts the edit).
@@ -302,14 +510,33 @@ export default function StudioCanvas({
     });
 
     canvas.on("object:modified", (opt) => {
-      const obj = opt.target as TaggedObject | undefined;
-      if (!obj || !obj.nodeId || obj.sceneIndex === undefined) return;
-      const originX = sceneOriginX(designRef.current, obj.sceneIndex);
-      changeRef.current?.(obj.sceneIndex, obj.nodeId, {
-        x: Math.round((obj.left ?? 0) - originX),
-        y: Math.round(obj.top ?? 0),
-        width: Math.round(obj.getScaledWidth()),
-        height: Math.round(obj.getScaledHeight()),
+      const target = opt.target as (TaggedObject & { getObjects?: () => TaggedObject[] }) | undefined;
+      if (!target) return;
+      // A group / multi-selection move: write back each member's absolute box.
+      const members = typeof target.getObjects === "function" ? target.getObjects() : null;
+      if (members && members.length > 0 && !target.nodeId) {
+        for (const member of members) {
+          if (!member.nodeId || member.sceneIndex === undefined) continue;
+          const d = util.qrDecompose(member.calcTransformMatrix());
+          const w = (member.width ?? 0) * d.scaleX;
+          const h = (member.height ?? 0) * d.scaleY;
+          const originX = sceneOriginX(designRef.current, member.sceneIndex);
+          changeRef.current?.(member.sceneIndex, member.nodeId, {
+            x: Math.round(d.translateX - w / 2 - originX),
+            y: Math.round(d.translateY - h / 2),
+            width: Math.round(w),
+            height: Math.round(h),
+          });
+        }
+        return;
+      }
+      if (!target.nodeId || target.sceneIndex === undefined) return;
+      const originX = sceneOriginX(designRef.current, target.sceneIndex);
+      changeRef.current?.(target.sceneIndex, target.nodeId, {
+        x: Math.round((target.left ?? 0) - originX),
+        y: Math.round(target.top ?? 0),
+        width: Math.round(target.getScaledWidth()),
+        height: Math.round(target.getScaledHeight()),
       });
     });
 
@@ -325,6 +552,7 @@ export default function StudioCanvas({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("keydown", onDeleteKey);
       onReady?.(null);
+      sceneRectRef.current?.(null);
       canvasRef.current = null;
       void canvas.dispose();
     };
@@ -350,6 +578,14 @@ export default function StudioCanvas({
             const t = o as TaggedObject;
             t.left = (t.left ?? 0) + originX;
             t.sceneIndex = i;
+            t.groupId = scene.nodes.find((n) => n.id === t.nodeId)?.groupId;
+            // Capture the base transform for the animation engine (animated = base × state).
+            t.baseLeft = t.left;
+            t.baseTop = t.top ?? 0;
+            t.baseScaleX = t.scaleX ?? 1;
+            t.baseScaleY = t.scaleY ?? 1;
+            t.baseAngle = t.angle ?? 0;
+            t.baseOpacity = t.opacity ?? 1;
             const editable = i === activeScene;
             t.selectable = editable;
             t.evented = editable;
@@ -361,11 +597,13 @@ export default function StudioCanvas({
       if (cancelled || canvasRef.current !== canvas) return;
 
       const savedVpt = [...canvas.viewportTransform] as typeof canvas.viewportTransform;
+      // Suppress selection events for the whole teardown+rebuild so the Inspector doesn't blink.
+      suppressSelRef.current = true;
       canvas.remove(...canvas.getObjects());
 
       design.scenes.forEach((scene, i) => {
         const originX = sceneOriginX(design, i);
-        const active = i === activeScene;
+        const active = i === activeScene && highlightActive;
         // Artboard frame: transparent unless a background colour is set, so the dots show through.
         const artboard = new Rect({
           left: originX,
@@ -439,6 +677,15 @@ export default function StudioCanvas({
       if (containerRef.current) {
         containerRef.current.dataset.entities = String(design.scenes[activeScene]?.nodes.length ?? 0);
       }
+      // Restore the selection on the rebuilt objects so the Inspector persists across edits.
+      const keepId = selectedNodeIdRef.current;
+      if (keepId) {
+        const obj = canvas
+          .getObjects()
+          .find((o) => (o as TaggedObject).nodeId === keepId && (o as TaggedObject).sceneIndex === activeScene);
+        if (obj && obj.selectable) canvas.setActiveObject(obj);
+      }
+      suppressSelRef.current = false;
       canvas.requestRenderAll();
     })();
 
@@ -446,7 +693,7 @@ export default function StudioCanvas({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [design, activeScene]);
+  }, [design, activeScene, highlightActive]);
 
   return (
     <div

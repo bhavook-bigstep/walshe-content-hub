@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import tempfile
 from datetime import datetime
@@ -17,6 +18,7 @@ from app.media.html_export import design_to_email_html
 from app.media.pdf import design_to_pdf
 from app.media.video import build_scene_script
 from app.media.video import render_video as encode_video
+from app.media.video import render_video_frames as encode_frames
 from app.models.user import Role, User
 from app.routers.assets import get_storage
 from app.services.visibility import agent_visible_entries_by_ids
@@ -113,6 +115,85 @@ def render_video(
                 ]
             )
             path = encode_video(scenes, images, tts=body.narrate)
+            with open(path, "rb") as fh:
+                data = fh.read()
+    except (RuntimeError, OSError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail="video rendering unavailable") from exc
+    except Exception as exc:  # e.g. ffmpeg CalledProcessError
+        raise HTTPException(status_code=500, detail="video rendering failed") from exc
+    return Response(content=data, media_type="video/mp4")
+
+
+# ── WYSIWYG frame-capture video (AC78): the client rasterises each animated scene frame-by-frame
+# and posts the frames; the server just sequences + stitches them. Frames are inert image bytes
+# (data: URLs) the agent composed from approved assets — never file paths, never a network fetch.
+_MAX_TOTAL_FRAMES = 2400
+
+
+def _decode_frame(data_url: str) -> bytes | None:
+    if not data_url.startswith("data:"):
+        return None
+    header, _, payload = data_url.partition(",")
+    if not payload or ";base64" not in header:
+        return None
+    try:
+        return base64.b64decode(payload, validate=True)
+    except Exception:
+        return None
+
+
+class NarrationCue(BaseModel):
+    at_ms: int = Field(default=0, ge=0, le=60000)
+    text: str = Field(default="", max_length=300)
+
+
+class FrameScene(BaseModel):
+    title: str = Field(default="", max_length=200)
+    caption: str = Field(default="", max_length=200)
+    narration: list[NarrationCue] = Field(default_factory=list, max_length=20)
+    duration_ms: int = Field(ge=0, le=60000)
+    transition: Literal["none", "fade", "slide-left", "zoom"] = "none"
+    frames: list[str] = Field(min_length=1, max_length=900)
+
+
+class FramesVideoRequest(BaseModel):
+    fps: int = Field(default=20, ge=1, le=30)
+    scenes: list[FrameScene] = Field(min_length=1, max_length=20)
+    narrate: bool = False
+
+
+@router.post("/video-frames")
+def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)) -> Response:
+    """Encode pre-rendered WYSIWYG animation frames into an MP4 (preview == export)."""
+    total = sum(len(s.frames) for s in body.scenes)
+    if total > _MAX_TOTAL_FRAMES:
+        raise HTTPException(status_code=413, detail="too many frames")
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            frame_dirs: list[str] = []
+            for i, scene in enumerate(body.scenes):
+                d = os.path.join(tmp, f"scene{i}")
+                os.makedirs(d, exist_ok=True)
+                for j, frame in enumerate(scene.frames):
+                    raw = _decode_frame(frame)
+                    if raw is None:
+                        raise ValueError("invalid frame")
+                    with open(os.path.join(d, f"frame{j:05d}.jpg"), "wb") as fh:
+                        fh.write(raw)
+                frame_dirs.append(d)
+            scenes = build_scene_script(
+                [
+                    {
+                        "title": s.title,
+                        "description": s.caption,
+                        "duration_ms": s.duration_ms,
+                        "transition": s.transition,
+                    }
+                    for s in body.scenes
+                ]
+            )
+            cues = [[{"at_ms": c.at_ms, "text": c.text} for c in s.narration] for s in body.scenes]
+            path = encode_frames(scenes, frame_dirs, fps=body.fps, tts=body.narrate, cues=cues)
             with open(path, "rb") as fh:
                 data = fh.read()
     except (RuntimeError, OSError, ValueError) as exc:

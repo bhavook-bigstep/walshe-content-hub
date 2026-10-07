@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.31.0 |
+| **Version** | 2.54.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -533,26 +533,215 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   without the marker; stream endpoint roles + event order; stable per-role system prompt; Gemini
   streaming request shape).
 
-Campaign scheduling & live publishing (v2.31.0) — renumbered from AC65–67 on the dev merge to
-avoid the collision with the Auto-Catalog ACs:
+### Scene animation — AC77
 
-- **AC77** — **Campaign management.** A Tourism Agent creates **campaigns** (name, optional
+- **AC77** — **Declarative keyframe animation + timeline preview.** Every studio element may carry a
+  JSON **animation** on its node — `anim = { keyframes:[{t,x,y,scale,rotation,opacity,ease}], enter?, loop? }`
+  — stored in the workspace scenes like any other property. A pure, framework-free **engine**
+  (`nodeStateAt(node, t)`) interpolates the track (holding the first/last value so elements *arrive*
+  and *settle*), supports **motion paths** (x/y keyframes), size/opacity/rotation changes, entrance
+  presets (fade/rise/slide/scale) and an **emphasis loop** (pulse/bob). The **same deterministic
+  engine** drives the live canvas preview (the Timeline's play/scrub transport applies it to the
+  Fabric objects) and, in the next increment, the video frame-capture — so preview == export
+  (Contract 4). The Inspector edits an element's entrance + emphasis. Proof: web (engine
+  interpolation, arrival/settle hold, motion-path lerp, determinism, loop, presets, set/clear op).
+- **AC78** — **WYSIWYG frame-capture video export.** "Generate video" renders each scene's
+  animation **frame-by-frame in the browser** — the same Fabric renderer as the canvas, driven by
+  the same engine (AC77) at `nodeStateAt(node, t)` — and posts the JPEG frame sequences to
+  `POST /render/video-frames`. The server **sequences each scene's frames into a clip** (image2 →
+  H.264, even dimensions forced) and **stitches the scenes with their transitions** (reusing the
+  crossfade/concat path), optional TTS narration under each scene (off by default). So the exported
+  MP4 is exactly the animated preview (no server-side text/zoom synthesis). Frames are inert image
+  bytes (`data:` URLs) composed from approved assets — never file paths, never a network fetch
+  (Contracts 1/2); deterministic given the design (Contract 4). Proof: api (frame-clip command
+  shape, per-scene sequence + stitch, the agent-only route decodes frames and rejects non-`data:`).
+- **AC79** — **Keyframe / dope-sheet editor.** Beyond the entrance presets, an element's animation
+  can be authored as a **custom keyframe track**: the Inspector shows a **dope-sheet** — a draggable
+  keyframe track (diamonds the agent drags to **retime**, double-click to add) plus an editable
+  keyframe list (per-keyframe time · x · y · scale · rotation, add/delete). "Add keyframe at the
+  playhead" captures the element's current state, so scrubbing + adding keyframes builds a **custom
+  motion path** (editing keyframes supersedes the preset). The engine (AC77) plays the track —
+  multi-point motion paths, scale/rotation ramps — regardless of keyframe order. Proof: web
+  (3-point polyline motion path, scale/rotation interpolation, out-of-order sort, custom-track op).
+- **AC80** — **Per-scene time-cued narration.** Each scene carries optional **narration cues** —
+  `{atMs, text}` lines, each spoken starting at its own time into the scene — stored on the scene
+  (a legacy single string normalises to one cue at 0). The scene's bottom-edge control has a
+  narration editor (per-line time + text, add/remove) and a **Voiceover** toggle (off by default);
+  when on, the video export sends the cues and the render generates **TTS per cue placed at its
+  offset** (adelay + amix over a scene-length silence bed), falling back to the title/caption when a
+  scene has none. Proof: api (explicit narration fallback; per-cue TTS positioned via adelay/amix) +
+  web (set/clear cued lines; legacy-string + bad-cue normalisation).
+
+- **AC81** — **Built-in graphics, stickers & sprite animations.** The studio's right rail gains a
+  **Graphics** tool (decorative **abstract artifacts** — blob/wave/burst/ring/arch/dot-grid — and
+  **stickers** — star/heart/sparkle/sun/pin/bolt/check/speech) and an **Animated** tool (**prebuilt
+  sprite animations**). Each entity is a self-contained SVG inserted as an image node (renders on
+  the canvas, PNG and video frames); a sprite also carries a ready **animation intent** (entrance +
+  emphasis loop) built into a keyframe track **anchored at its placement** via the AC77 engine.
+  Proof: web (each entity has a usable SVG data URL + unique ids; `addGraphic` inserts the node;
+  a sprite's track is built from its entrance/loop at the placed position).
+
+- **AC82** — **Group elements (flat, no nesting).** An agent can select **2+ elements** on a scene
+  and **group** them under a single shared tag (`groupId`); selecting any one member re-selects the
+  **whole group** so they **move/scale/rotate together** (member boxes are written back from the
+  group transform). A group can be given a **shared entrance + emphasis loop** (applied to every
+  member, each anchored at its own position via the AC77 engine) and a **shared style** (e.g.
+  opacity). Grouping is **flat**: re-grouping replaces a member's tag with one fresh id — groups
+  never nest. **Ungroup** removes the tag from every member, leaving their styling intact.
+  Proof: web (`groupNodes` tags 2+ nodes with one fresh id and is a no-op below two; re-grouping
+  issues a new id without nesting; `setGroupAnim`/`updateGroupStyle` apply to every member;
+  `ungroupNodes` clears the tag only).
+
+- **AC83** — **Catalog search that actually searches + tag/provider filters.** The agent catalog's
+  free-text search matches an entry's **full searchable text** — title, destination, description,
+  market tags, highlights, custom sections and structured attribute values (`_entry_text`) — not
+  just title/description, so a keyword living in a tag, city or attribute still finds the entry.
+  New **tag facet** (`tags`, OR — adding a tag broadens) and **provider** (`org`, exact) filters
+  flow end-to-end (API query params → shared client → UI). The top filter bar is reworked to
+  **filter instantly** (debounced text, no Search button), with selectable **tag chips** and a
+  provider select whose options the UI accumulates from results. Proof: api (free-text finds an
+  entry by a tag/destination/description word; `tags` OR-matches; `org` exact-matches) + web
+  (`buildCatalogQuery` serialises `tags` as repeated params and `org`).
+
+- **AC84** — **Seed collections.** The demo seed creates several named, non-empty collections per
+  agent (Alex: *West coast favourites*, *Honeymoon highlights*, *Festival season*; Sam: *City
+  breaks*, *Winter escapes*, *Heritage & harbours*), each referencing only approved (agent-visible)
+  catalog entries, so a fresh agent workspace opens with real, resolvable collections. Idempotent
+  (upsert by agent+name). Proof: api (both agents have their named collections; each is non-empty
+  and references only approved entries).
+
+- **AC85** — **Real frame-by-frame sprites.** The right-rail "Animated" set is a roster of 10 cute,
+  recognisable characters animated like a classic 2D **game sprite** — a filmstrip of distinct SVG
+  frames cycled over time so the **parts themselves move**: the walking panda's legs step, the
+  blooming flower's petals open in sequence, the flapping bird's wings beat, the spinning sun's rays
+  turn, the falling leaf tumbles, the swimming fish's tail swishes, the boat rocks on scrolling
+  waves, the star twinkles, the breeze flows, the balloon's flame flickers. A node carries
+  `frames[]` + `fps`; `frameIndexAt(node, t)` picks the frame (looping), and the SAME selection
+  drives the live canvas preview (Fabric `setElement` swaps the shown frame) and the video export,
+  so preview == export. The sprite **loops for the whole scene runtime** and preview playback loops
+  so it keeps running until paused. Proof: web (the roster has ≥10 frame sprites, each with ≥4
+  frames and ≥3 distinct poses at a positive fps; `frameIndexAt` cycles the filmstrip and loops;
+  `addGraphic` inserts a frame sprite with `frames`/`fps` and frame-0 fallback).
+
+- **AC86** — **CorelDraw-style selection vs pan.** The studio workspace distinguishes the three
+  gestures cleanly through a tool model: a **Select** tool (default) where a left-drag on empty
+  space draws a **marquee** that rubber-band-selects the items **fully inside** it (dashed box),
+  a click selects a single item and a drag moves it; and a **Hand** tool that pans. **Space-hold,
+  Alt-drag and middle-mouse always pan** regardless of tool; the wheel still zooms to the cursor. A
+  floating Select/Hand toggle (keys **V** / **H**) sits on the workspace. Proof: web (`pointerMode`
+  returns `marquee` for a Select-tool empty press, `object` over an element, and `pan` for
+  Hand/Space/Alt/middle).
+
+- **AC87** — **One-click brand kit in the studio.** The brand kit gains **typography** (a heading
+  and body font key, editable on the Brand-kit page, seeded per agent), and the Design Studio gets
+  an **Apply brand kit** button that, in one click, brands the whole design: a **logo watermark on
+  every scene** and a **designed closing "Contact" scene** (logo centred, a name heading, an accent
+  divider, the email, and the website as a highlighted link, with text colour chosen for contrast
+  on the brand-primary card). A **"Recolour scenes to brand"** toggle controls the palette/font pass
+  independently: when on (default) each content scene takes a soft brand-accent background, primary
+  headings in the heading font, inked body in the body font and brand-filled shapes; when off the
+  template keeps its own colours while the logo + contact scene still apply. Pure/deterministic
+  (same kit + options → same design) so preview == export, and idempotent on re-apply (watermarks +
+  contact scene are replaced, never stacked). Proof: web (`applyBrandKit` recolours
+  headings/body/shapes + tinted background, places a per-scene logo watermark, appends the contact
+  scene with email + website link, honours `colors:false`, and is deterministic + idempotent;
+  `hexMix` blends the tint).
+
+- **AC88** — **A modern template gallery across sizes + orientations.** The studio adds **five new
+  formats** beyond square/story/pamphlet — **Portrait post** (1080×1350), **Presentation**
+  (1920×1080 landscape), **Banner** (1200×628), **Flyer** (A4 1480×2096) and **Business card**
+  (1050×600 landscape) — wired end-to-end (`formats.ts` presets → menu-bar Size picker → backend
+  `_FORMAT_DIMS`). Twelve new, research-grounded templates lead the gallery (Aegean Minimal, Sunset
+  Coast, Alpine Clean, Tropical Pop, Desert Luxe, City Grid, Festival Night, Heritage Trail, Slow
+  Travel, Welcome Banner, Trip Card, Island Breeze), each a self-contained workspace with a photo
+  zone, a type hierarchy and a CTA, authored on current travel-design palettes. Proof: api (the
+  gallery spans multiple formats incl. square/portrait/landscape with ≥15 templates, each
+  well-formed with a background + nodes + description; a landscape template seeds a 1920×1080
+  workspace) + web (`test_format_presets` covers every new size/orientation).
+
+- **AC89** — **Accurate catalog media + browsable seeded collections.** Entry covers are now **real,
+  curated scenic photos** picked **deterministically per entry** (same entry → same photo) from the
+  same landscape pool the web thumbnail uses — replacing the random stock photos that made covers
+  look mismatched; offline/under tests each image falls back to a drawn, labelled scene so the seed
+  stays hermetic. Each entry carries a small **photo gallery** (cover + two frames) so decompose
+  yields real **image items**, not only text — fixing a stale-relationship bug where appended cover
+  assets never reached the item decomposition. The baseline seed also plants **browsable
+  collections** for the agent (*West coast favourites*, *Australia highlights*) referencing visible
+  entries, so the dev app shows collections out of the box. Proof: api (after seed, the agent has
+  the named non-empty collections referencing approved entries, and an entry exposes both image and
+  text items with a cover).
+
+- **AC90** — **Brand logo upload.** The agent's Brand kit replaces the paste-a-URL logo field with a
+  **file upload**: the image is stored under the agent's own `users/<id>/brand-logo/` prefix
+  (owner-only, readable by its owner through the asset gate) and recorded as the kit's `logo_url`.
+  The Brand-kit page previews it via an authed blob, and the studio's Apply brand kit resolves it to
+  a blob + keeps its `objectKey` so the placed logo survives a reload. Non-image uploads are
+  rejected (415). Proof: api (upload returns a `/assets/users/<id>/brand-logo/…` logo_url that
+  persists on the kit and is fetchable by the owner; a non-image is 415).
+
+- **AC91** — **Media placeholder item (image + video).** A first-class **media placeholder** — a
+  **transparent** frame with a **dashed subtle-grey border**, a photo+video glyph and an "Add media"
+  prompt (visible on any background) — is inserted from the right-rail Photo tool. Clicking it opens
+  the left media drawer; the next pick **fills that frame in place**. An **image** records its
+  `objectKey` (survives reload); a **video** (the drawer now surfaces video assets, previewed with a
+  `<video>` + play badge) shows a **video poster** and records `videoKey` for a future export
+  composite. Replaces hand-building a placeholder from a box + text. Proof: web (`addPlaceholder`
+  inserts a flagged node; `fillImageNode` fills with an image (objectKey) or a video (poster +
+  videoKey), clearing the flag; `isPlaceholder` distinguishes them).
+
+- **AC92** — **Animated video templates.** The gallery leads with **multi-scene animated video
+  templates** (*Destination Reel ▶*, *Social Promo ▶*, *Event Teaser ▶*) that showcase the whole
+  studio: **frame sprites** referenced by id (a node's `sprite` id resolves to its filmstrip on
+  load, `resolveSprites`), **sprite motion** (keyframe transforms moving a balloon/bird across a
+  scene *on top of* its frame animation), **text entry + exit** animation (rise-in then fade-out),
+  **image-placeholder** photo heroes, **abstract shapes**, scene **transitions**, and per-scene
+  **narration** cues — so they export as a narrated, animated MP4. Proof: api (each video template
+  is multi-scene with narration, valid sprite refs, a placeholder hero and node animation; opening
+  one seeds its multi-scene workspace) + web (`resolveSprites` expands a sprite id into its
+  filmstrip, idempotently).
+
+- **AC93** — **Sprite loop + speed controls.** The Inspector shows, for a frame sprite, a **Loop
+  animation** toggle and a **Speed (fps)** slider. `loopFrames: false` plays the filmstrip once and
+  **holds the last frame**; `fps` sets playback speed — both honoured identically by the canvas
+  preview and the video export (`frameIndexAt`). Proof: web (`frameIndexAt` with `loopFrames:false`
+  holds the last frame and never wraps; a lower `fps` advances frames more slowly).
+
+- **AC94** — **Seed catalog images from a project folder.** Seeding prefers a **real image the user
+  drops** at `seed-assets/catalog/<slug>/{cover,photo-1,photo-2}.{jpg,png,webp}` over the generated
+  fallback (curated photo, then drawn scene), so the demo can show exact, on-brand imagery. A
+  committed `seed-assets/` with a `README` + a `MANIFEST` (one row per entry: slug, title, type,
+  destination, suggested image) tells the user what to provide; `SEED_ASSETS_DIR` overrides the
+  location. Proof: api (`slugify`; `_provided_image` returns a dropped file's bytes and None when
+  absent, so the seed uses it over the fallback).
+
+- **AC95** — **Templates use the media-placeholder item.** Every photo-led template (the original
+  set, the AC88 modern set and the AC92 video set) now drops the first-class **media placeholder**
+  for its hero photo zone instead of a hand-built colour box + hint text, so the agent fills it from
+  the drawer. Proof: api (known photo templates carry a `placeholder` node and no leftover
+  `photo`-box shape or `photo_hint` text).
+
+### Campaign scheduling & live publishing — AC96–AC98
+
+Campaign scheduling & live publishing (from the `dev` branch) — **renumbered from AC77–AC79 to
+AC96–AC98 on the studio-animation merge** to avoid the collision with the animation ACs (AC77–AC95):
+
+- **AC96** — **Campaign management.** A Tourism Agent creates **campaigns** (name, optional
   destination, start/end window) and schedules posts into a campaign from a saved project,
   **capturing the rendered creative at schedule time**; a post carries a lifecycle status
   (`draft → pending_approval → approved → published`, plus `rejected`/`cancelled`). Campaigns and
   their posts are **agent-scoped** (an agent sees only their own). Proof: pytest asserts
   create/list/detail are agent-scoped and a scheduled post captures media + enters
   `pending_approval`.
-- **AC78** — **Post approval gate (self-approval, PoC).** A scheduled post sits in
+- **AC97** — **Post approval gate (self-approval, PoC).** A scheduled post sits in
   `pending_approval`; the **owning agent approves or rejects** it — a deliberate PoC simplification
   of the design's *approver ≠ owner* principle (a separate reviewer person/role is a backlog item).
   **Approval is the publish decision: one action** records the reviewer (approver + time), audits
-  it, and publishes the post immediately (AC79) — there is no separate publish step. Reject →
+  it, and publishes the post immediately (AC98) — there is no separate publish step. Reject →
   `rejected` with a reason (audited, editable again). Only the owner may act; a non-owner gets a
   404; a non-pending post is a 409; when approval's publish is refused the post stays
   `pending_approval` (nothing is approved). Proof: pytest asserts approve-publishes + reject
   transitions + audit rows, a non-owner cannot approve, and a non-pending post is a 409.
-- **AC79** — **Live Instagram publish (triggered by approval).** Approving a post publishes it to a
+- **AC98** — **Live Instagram publish (triggered by approval).** Approving a post publishes it to a
   real Instagram account via the Graph API connector selected from env (AC16-style abstraction;
   deterministic stub with no keys → hermetic tests). Publish **enforces preflight (AC34)**, **blocks
   a duplicate publish** of a composition, hosts the captured image at a public URL (S3), and stores
@@ -565,12 +754,12 @@ avoid the collision with the Auto-Catalog ACs:
   publishes via the stub (receipt stored), preflight blocks unapproved content (post stays pending),
   and a missing capture returns 409; a real post is a manual, user-triggered check.
 
-**Priority tiers** (build order; acceptance reports honestly against all 79):
+**Priority tiers** (build order; acceptance reports honestly against all 98):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · campaigns = AC77,78,79 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -597,6 +786,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.54.0 | 2026-10-07 | **Merge `origin/dev` into `feat/studio-animation-engine` + renumber campaigns.** Integrated dev's **Campaign scheduling & live Instagram publishing** feature. Both branches had independently used AC77–AC79, so dev's campaign ACs are **renumbered to AC96 (campaign management), AC97 (self-approval gate), AC98 (live Instagram publish)** — this branch keeps AC77–AC95 (scene animation → template placeholders). Resolved manifest duplicate keys accordingly; kept dev's decision to drop synthetic engagement seeding (dashboard shows real metrics) while retaining the AC84 seeded collections; regenerated the shared API types. Behaviour of all features unchanged. All prior ACs stay green. | user + Claude |
 | 2.31.0 | 2026-10-07 | **Merge `origin/dev` into the campaign/Instagram branch + renumber.** Integrated dev's AC64–76 (Auto-Catalog agent, Auto-Catalog v2, Structured-Workspace renumber to AC75, conversational assistant, Studio redesign). The campaign increment (originally AC65–67 on this branch) is **renumbered to AC77 (campaign management), AC78 (self-approval gate), AC79 (live Instagram publish)** to resolve the AC-number collision with dev's Auto-Catalog ACs; the manifest, tests and code comments were updated to match, and the generated API types regenerated. Behaviour unchanged: approve = publish (one action), preflight + duplicate-guard + S3 hosting + receipt, missing-capture → 409, Graph error 200/10 mapped. All prior ACs stay green. | user + Claude |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
@@ -610,6 +800,28 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.53.0 | 2026-10-07 | **Refined brand apply** (reworked **AC87** on ⏸G feedback): Apply brand kit now places a **logo watermark on every scene** (was scene 1 only) and appends a **designed closing "Contact" scene** (centred logo, name heading, accent divider, email, website as a highlighted link, contrast-aware text on the brand-primary card) — so every workspace gains a polished last page with the agent's contact + website. Added a **"Recolour scenes to brand"** toggle: off keeps the template's own colours/fonts while still applying the logo + contact scene (`applyBrandKit(design, brand, { colors })`). Pure/deterministic + idempotent (watermarks + contact scene replaced, never stacked). Same cycle shipped **full video media** (local upload, live canvas render, scene-synced export composite with a per-clip in-point) — refines AC47/AC79/AC80/AC92, no new AC. All prior ACs stay green. | user + Claude |
+| 2.52.0 | 2026-10-07 | **Media placeholder (image+video) · sprite loop/speed · seed-from-folder · template placeholders** (reworked **AC91**; added **AC93**, **AC94**, **AC95**): the placeholder is now a transparent dashed subtle-grey "Add media" frame that fills from the drawer with an image (objectKey) or a video (poster + videoKey; the drawer surfaces video assets). The Inspector gains a sprite **Loop** toggle + **Speed (fps)** slider (`frameIndexAt` honours `loopFrames`/`fps`). Seeding prefers real images dropped in `seed-assets/catalog/<slug>/…` (committed README + MANIFEST guide); `SEED_ASSETS_DIR` overrides. Every photo-led template now uses the media-placeholder item instead of a box + hint. All prior ACs stay green. | user + Claude |
+| 2.51.0 | 2026-10-07 | **Fix video export of multi-scene designs** (refines AC47/AC79/AC80): a multi-scene render (e.g. the Destination Reel template) posts ~12 MB of WYSIWYG frames to `/render/video-frames`; the dev same-origin `/api` **rewrite proxy dropped the large body** and returned 500 ("Video rendering unavailable") before it reached the API — the backend + ffmpeg render the exact payload fine (verified by a direct POST → valid MP4). Added a streaming proxy route handler (`app/api/render/video-frames/route.ts`) that forwards the full body with no size cap (inert in prod/e2e, which use an absolute API URL). No AC/test change. | user + Claude |
+| 2.50.0 | 2026-10-07 | **Animated video templates** (added **AC92**): the gallery leads with three multi-scene animated video templates (Destination Reel ▶, Social Promo ▶, Event Teaser ▶) showcasing the whole studio — frame sprites referenced by id (`resolveSprites` expands id→filmstrip on load), sprite motion via keyframes on top of the frame animation, text entry+exit animation, image-placeholder heroes, abstract shapes, transitions and per-scene narration — so they export as narrated animated MP4s. All prior ACs stay green. | user + Claude |
+| 2.49.0 | 2026-10-07 | **Brand logo upload + image placeholder item** (added **AC90**, **AC91**): the Brand kit swaps the paste-a-URL logo for a **file upload** (stored owner-only under `users/<id>/brand-logo/`, set as `logo_url`, previewed via an authed blob, resolved + objectKey-persisted when Apply brand kit places it). Added a first-class **photo placeholder** node (dashed "Add photo" frame) insertable from a right-rail Photo tool: clicking it opens the media drawer and the next pick fills that frame in place (records objectKey, clears the flag) — replacing hand-built box+text placeholders and powering the video templates. All prior ACs stay green. | user + Claude |
+| 2.47.0 | 2026-10-07 | **Accurate catalog media + seeded collections** (added **AC89**): entry covers are now deterministic, type-themed, labelled banners (title + destination + type tag) instead of random stock photos (fixes the cover mismatch); each entry gains a 3-image gallery so decompose yields real image items — fixing a stale-relationship bug where appended cover assets never reached decomposition (entries previously had only text items). The baseline seed also plants browsable agent collections (West coast favourites, Australia highlights) so the dev app shows collections out of the box. All prior ACs stay green. | user + Claude |
+| 2.46.0 | 2026-10-07 | **Frame-by-frame sprites** (reworked **AC85** on user feedback): replaced the transform-wiggle sprites with true 2D game-style sprite animation — each sprite is a filmstrip of distinct SVG frames (`frames[]` + `fps`) cycled over time so the parts move (panda legs step, flower petals bloom, bird wings flap, sun rays spin, leaf tumbles, fish tail swishes…). `frameIndexAt` drives both the canvas preview (Fabric `setElement` frame swap) and the video export identically, looping for the whole scene; preview playback now loops so it keeps running until paused. 10 frame sprites, visually verified live (panda legs change between playhead times). Prior ACs stay green. | user + Claude |
+| 2.45.0 | 2026-10-07 | **Modern template gallery + new sizes/orientations** (added **AC88**): added five formats — Portrait post (1080×1350), Presentation (1920×1080), Banner (1200×628), Flyer (A4 1480×2096) and Business card (1050×600) — wired through `formats.ts`, the Size picker and backend `_FORMAT_DIMS`, and twelve new research-grounded templates leading the gallery (Aegean Minimal, Sunset Coast, Alpine Clean, Tropical Pop, Desert Luxe, City Grid, Festival Night, Heritage Trail, Slow Travel, Welcome Banner, Trip Card, Island Breeze), each a self-contained workspace with a photo zone, type hierarchy and CTA on a current travel palette. All prior ACs stay green. | user + Claude |
+| 2.44.0 | 2026-10-07 | **One-click brand kit in the studio** (added **AC87**): the brand kit gains typography (heading + body font keys, editable on the Brand-kit page, seeded per agent), and the studio gets an **Apply brand kit** button that applies palette + fonts + logo + contact across the whole design in one click (soft accent background, primary-coloured headings in the heading font, inked body in the body font, brand-filled shapes, logo/contact injected on scene 1). Pure/deterministic + idempotent (`applyBrandKit`, `hexMix`); shared `fonts.ts` font palette now drives the Inspector, brand kit and brand-apply. All prior ACs stay green. | user + Claude |
+| 2.43.0 | 2026-10-07 | **CorelDraw-style selection vs pan** (added **AC86**): the studio workspace now distinguishes marquee-select, click-an-item and pan. A **Select** tool (default) rubber-bands a dashed marquee over items fully inside a dragged box; a **Hand** tool pans; Space-hold / Alt-drag / middle-mouse always pan; the wheel still zooms. Added a floating Select/Hand toggle (keys V/H) and a tested pure `pointerMode` decision so the gestures never collide. All prior ACs stay green. | user + Claude |
+| 2.42.0 | 2026-10-07 | **Real animated sprites** (added **AC85**): replaced the reused-sticker sprites with 12 cute, recognisable multi-colour SVG characters (walking panda, blooming flower, breeze, hot-air balloon, drifting cloud, gliding bird, bobbing boat, spinning sun, falling leaf, twinkling star, party balloon, pulsing pin). Each moves on canvas/preview/video via the keyframe engine (in-SVG SMIL/CSS can't survive Fabric's raster, per the studio-svg-animation-rasterization note). Added named character loops to the engine — sway, waddle, float, spin, twinkle, drift, rock (with pulse/bob) — each a periodic whole-node transform, pickable per element in the Inspector with a speed control. All prior ACs stay green. | user + Claude |
+| 2.41.0 | 2026-10-07 | **Seed collections** (added **AC84**): the demo seed now creates three named, non-empty collections per agent (Alex: West coast favourites / Honeymoon highlights / Festival season; Sam: City breaks / Winter escapes / Heritage & harbours), each referencing only approved agent-visible entries, so a fresh workspace opens with real collections. Idempotent (upsert by agent+name). All prior ACs stay green. | user + Claude |
+| 2.40.0 | 2026-10-07 | **Catalog search + tag/provider filters** (added **AC83**): the agent catalog's free-text `q` now matches an entry's **full searchable text** (`_entry_text`: title, destination, description, market tags, highlights, custom sections, attribute values) instead of only title/description — fixing searches by tag/city/attribute returning nothing. Added **tag** (`tags`, OR facet) and **provider** (`org`, exact) filters end-to-end (API → shared client `buildCatalogQuery` → UI). The top filter bar now **filters instantly** (debounced text, no Search button) with tag chips + a provider select populated from results. All prior ACs stay green. | user + Claude |
+| 2.39.0 | 2026-10-07 | **Group elements together** (added **AC82**): selecting 2+ elements on a scene can **group** them under one flat, non-nested tag (`groupId`); clicking any member re-selects the whole group so they move/scale/rotate together (member boxes written back from the group transform), and a group takes a **shared entrance + emphasis loop** and **shared style** (opacity) applied to every member. Re-grouping replaces the tag with a fresh id (never nests); **ungroup** clears the tag and keeps styling. New right-panel `GroupPanel`; ops `groupNodes`/`ungroupNodes`/`groupMemberIds`/`setGroupAnim`/`updateGroupStyle`. All prior ACs stay green. | user + Claude |
+| 2.38.0 | 2026-10-07 | **Built-in graphics, stickers & sprite animations** (added **AC81**): the right rail gains a **Graphics** tool (abstract artifacts + stickers) and an **Animated** tool (prebuilt sprite animations). Each is a self-contained SVG inserted as an image node (`addGraphic`), rendering on the canvas/PNG/video; a sprite also carries an entrance + loop built into a keyframe track anchored at its placement. All prior ACs stay green. | user + Claude |
+| 2.37.0 | 2026-10-07 | **Scene bars scale to the scene + fix adding narration lines** (⏸G feedback, refines **AC46**/**AC80**): the top/bottom scene bars now lay out at a fixed internal width and are **scaled to exactly the scene's on-screen width** (a CSS transform), so they hug the scene's edges and scale *with* it on zoom — no min-width clamp, no wrapping (zoom in to use them when small). Fixed a bug where **narration lines couldn't be added**: `setSceneNarration`/`narrationCues` dropped blank-text cues, so a freshly-added empty line vanished before it could be typed into. Blank lines are now **kept while editing**; a new `speakableCues` drops blanks + sorts only at video-export time. All prior ACs stay green. | user + Claude |
+| 2.36.0 | 2026-10-07 | **Scene controls: split top/bottom bars, fixed size, full deselect** (⏸G feedback, refines **AC46**): restored the **split** per-scene UI — a top menu (identity + timing) stuck to the scene's top edge and a bottom menu (player + time-cued narration) stuck to its bottom edge, each a subtle dotted box. The bars **follow the scene on pan/zoom but are fixed pixel size** (no scaling). Completed deselect: clicking the empty workspace now also **clears the scene's highlight** on the canvas (not just the bars); clicking a scene or an element re-selects it. All prior ACs stay green. | user + Claude |
+| 2.35.0 | 2026-10-06 | **Scene control panel: fixed-size, dotted box, deselect on empty click** (⏸G feedback, refines **AC46**): the per-scene controls are now one **fixed-size card** — the top menu (identity + timing) and the bottom menu (player + time-cued narration) enclosed together in a **subtle dotted box**, equal width — anchored below the selected scene and following it as it pans, but **no longer resizing as the canvas zooms** (its size is content-driven, not scene-screen-driven). Clicking the **empty workspace** (outside every artboard) now **deselects the scene** and hides the panel; clicking a scene re-selects it. All prior ACs stay green. | user + Claude |
+| 2.34.0 | 2026-10-06 | **Per-scene edge controls + time-cued narration + Inspector persistence** (⏸G feedback; refines **AC46**/**AC80**/**AC77**): removed the top timeline drawer — per-scene controls now **hug the selected scene's edges** in the workspace and follow it as it pans/zooms. The **top edge** holds identity + timing (name · scene N of M · duration · transition · reorder/add/delete); the **bottom edge** is a two-row card — the **animation player** (play/scrub) above a **time-cued narration editor**, where each line (`{atMs, text}`) is spoken starting at its own cue time (video lays per-cue TTS via adelay/amix; a legacy single string normalises to one cue). Also fixed the **Inspector** disappearing on every edit: a programmatic canvas rebuild no longer clears the selection — the panel now persists until you deselect or pick another element. All prior ACs stay green. | user + Claude |
+| 2.33.0 | 2026-10-06 | **Keyframe/dope-sheet editor + per-scene narration (phase 3)** (added **AC79**, **AC80**): the Inspector gained a **dope-sheet** — a draggable keyframe track (retime by dragging the diamonds, double-click to add) plus an editable keyframe list (time · x · y · scale · rotation, add/delete) and "+ at playhead" (captures the element's current state) — so agents author **custom motion paths** beyond the entrance presets; editing keyframes supersedes the preset and the AC77 engine plays the track. Each scene also gained an optional **narration script** (stored on the scene) with a Timeline field and a **Voiceover** toggle (off by default); when on, the video lays per-scene **TTS** under each clip (an explicit script overrides the title/caption fallback). All prior ACs stay green. | user + Claude |
+| 2.32.0 | 2026-10-06 | **WYSIWYG frame-capture video export (phase 2)** (added **AC78**): "Generate video" no longer stitches catalog covers with synthesised captions (which rendered as empty colour screens on ffmpeg builds without `drawtext`). It now **rasterises each scene's animation frame-by-frame in the browser** — the same Fabric renderer + the AC77 engine — and posts the JPEG frames to a new `POST /render/video-frames`; the server sequences each scene's frames into an H.264 clip and **stitches them with the scenes' transitions** (optional TTS narration, off by default). The MP4 is exactly the animated preview. Frames are inert `data:` image bytes (no file paths, no network fetch); the frame-encode path reuses the ultrafast/stitch machinery. Regenerated the API types for the new endpoint. All prior ACs stay green. | user + Claude |
+| 2.31.0 | 2026-10-06 | **Scene animation — keyframe model + engine + timeline preview (phase 1)** (added **AC77**): elements now carry a declarative, JSON keyframe **animation** on their node (`{keyframes:[{t,x,y,scale,rotation,opacity,ease}], enter?, loop?}`), stored in the workspace scenes. A pure, deterministic **engine** (`lib/studio/anim.ts` `nodeStateAt`) interpolates the track — motion paths, size/opacity/rotation, entrance presets (fade/rise/slide/scale) and pulse/bob emphasis — and the **same engine** drives the live canvas preview: the Timeline gained a **play/scrub transport** that animates the Fabric objects, and the Inspector gained **Animation** controls (entrance type/start/duration/easing + emphasis). The chosen mechanism is in-boundary (no cloud/egress), with the workspace JSON as the single source of truth; phase 2 will reuse this engine for WYSIWYG video frame-capture export. All prior ACs stay green. | user + Claude |
 | 2.30.0 | 2026-10-06 | **Video renders on ffmpeg builds without `drawtext` + export progress spinner** (fixes within **AC13**/**AC47**, enhances **AC12**): "Generate video" failed (500 → "Video rendering unavailable") on ffmpeg builds that omit the `drawtext` filter (e.g. a minimal Homebrew ffmpeg). The renderer now **probes the binary once and degrades gracefully** — when `drawtext` is absent it drops the burned-in title/caption overlay and still produces the MP4 (captions remain in the sidecar `.srt`). Also added a **circular processing spinner** shown in the always-visible menu bar (and on the Timeline button) while a PNG/PDF/HTML export or a video render is in progress. All prior ACs stay green. | user + Claude |
 | 2.29.0 | 2026-10-06 | **Long Travel Itinerary template (multi-page PDF + video)** (enhances **AC62**/**AC12**/**AC47**): added a sixth built-in template — an 8-scene pamphlet itinerary (cover · six day pages with photo zones · closing). Because one scene = one PDF page and one video clip, the same template exports as a **multi-page PDF** and as a **video**: each day's dropped catalog photo becomes that scene's picture, the scene name is the video title and its one-line summary the caption. All prior ACs stay green. | user + Claude |
 | 2.28.0 | 2026-10-06 | **Studio persistence fixes + Projects table** (fixes within **AC75**/**AC47**, enhances **AC28**): placed **media now survives reopen** — an image node persists its stable storage **object key** and the studio re-resolves a fresh URL on open (the old ephemeral `blob:` src died across reloads, so media vanished); a **renamed workspace keeps its name** — the rename now also updates `metadata.name`, which the autosave sends (previously the next autosave reverted the project name to the stale workspace name); and **video rendering gets its scene photos back** — the request builder now parses the prefixed `entry-<id>` image tag to the catalog entry id (it was parsed as a bare number → `NaN` → every scene lost its image). The **Projects** page is now a paginated table (20/page) with icon row-actions (open / delete). All prior ACs stay green. | user + Claude |

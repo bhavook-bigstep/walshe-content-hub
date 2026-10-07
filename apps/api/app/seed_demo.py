@@ -257,6 +257,8 @@ def seed_demo(db: Session) -> dict[str, int]:
         agent1.id,
         primary_color="#0E6B5E",
         accent_color="#F3C96B",
+        heading_font="display",
+        body_font="sans",
         contact_name="Alex Rivera",
         contact_email="alex@riveratravel.example",
         website="riveratravel.example",
@@ -266,6 +268,18 @@ def seed_demo(db: Session) -> dict[str, int]:
         agent1.id,
         "West coast favourites",
         [by_title["Cliffs of Moher"], by_title["Wild Atlantic Way"]],
+    )
+    _collection(
+        db,
+        agent1.id,
+        "Honeymoon highlights",
+        [by_title["Cliffs of Moher"], by_title["Autumn Escapes"], by_title["Wild Atlantic Way"]],
+    )
+    _collection(
+        db,
+        agent1.id,
+        "Festival season",
+        [by_title["Harbour Festival"], by_title["Dublin Lights"]],
     )
     _composition(
         db,
@@ -280,12 +294,26 @@ def seed_demo(db: Session) -> dict[str, int]:
         agent2.id,
         primary_color="#1F3A5F",
         accent_color="#E06A63",
+        heading_font="serif",
+        body_font="sans",
         contact_name="Sam Doyle",
         contact_email="sam@citybreaks.example",
         website="citybreaks.example",
     )
     _collection(
         db, agent2.id, "City breaks", [by_title["Dublin Lights"], by_title["Titanic Quarter"]]
+    )
+    _collection(
+        db,
+        agent2.id,
+        "Winter escapes",
+        [by_title["Dublin Lights"], by_title["Autumn Escapes"]],
+    )
+    _collection(
+        db,
+        agent2.id,
+        "Heritage & harbours",
+        [by_title["Titanic Quarter"], by_title["Cliffs of Moher"]],
     )
     _composition(db, agent2.id, "Dublin teaser", [by_title["Dublin Lights"]])
 

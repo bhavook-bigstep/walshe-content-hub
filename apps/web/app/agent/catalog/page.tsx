@@ -42,32 +42,68 @@ function formatExpiry(iso: string): string {
 // references to entries into Collections (no copy is made). Clicking an entry opens its items.
 export default function AgentCatalogPage() {
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [country, setCountry] = useState("");
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
   const [season, setSeason] = useState("");
   const [type, setType] = useState<CatalogType | "">("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [org, setOrg] = useState("");
   const [geo, setGeo] = useState<GeoData | null>(null);
-  const [query, setQuery] = useState<CatalogQuery>({});
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Facets accumulate across loads (union) so a chip never disappears once the agent has seen it.
+  const [knownTags, setKnownTags] = useState<string[]>([]);
+  const [knownOrgs, setKnownOrgs] = useState<string[]>([]);
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [saveFor, setSaveFor] = useState<Entry | null>(null);
   const [openEntry, setOpenEntry] = useState<Entry | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Debounce the free-text box so typing filters live without a request per keystroke.
   useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedQ(q.trim()), 280);
+    return () => window.clearTimeout(id);
+  }, [q]);
+
+  // Instant filtering: any filter change re-queries. tags joined into a stable dep key.
+  const tagsKey = tags.join("|");
+  useEffect(() => {
+    const query: CatalogQuery = {
+      q: debouncedQ || undefined,
+      country: country || undefined,
+      state: state || undefined,
+      city: city || undefined,
+      season: (season || undefined) as CatalogQuery["season"],
+      type: type || undefined,
+      tags: tags.length ? tags : undefined,
+      org: org || undefined,
+    };
     let cancelled = false;
     setEntries(null);
     setError(null);
     listAgentCatalog(query)
-      .then((r) => !cancelled && setEntries(r))
+      .then((r) => {
+        if (cancelled) return;
+        setEntries(r);
+        // Grow the known facet sets from whatever came back.
+        const newTags = new Set<string>();
+        const newOrgs = new Set<string>();
+        for (const e of r) {
+          for (const t of e.market_tags ?? []) newTags.add(t);
+          if (e.org_name) newOrgs.add(e.org_name);
+        }
+        setKnownTags((prev) => Array.from(new Set([...prev, ...newTags])).sort());
+        setKnownOrgs((prev) => Array.from(new Set([...prev, ...newOrgs])).sort());
+      })
       .catch((e) => !cancelled && setError(e instanceof ApiError ? e.message : "Could not load the catalog."));
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [debouncedQ, country, state, city, season, type, tagsKey, org]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
@@ -82,21 +118,12 @@ export default function AgentCatalogPage() {
   const states = countries.find((c) => c.name === country)?.states ?? [];
   const cities = states.find((s) => s.name === state)?.cities ?? [];
 
-  function onSearch(e: FormEvent) {
-    e.preventDefault();
-    setQuery({
-      q: q.trim() || undefined,
-      country: country || undefined,
-      state: state || undefined,
-      city: city || undefined,
-      season: (season || undefined) as CatalogQuery["season"],
-      type: type || undefined,
-    });
+  function toggleTag(tag: string) {
+    setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }
 
   function clearFilters() {
-    setQ(""); setCountry(""); setState(""); setCity(""); setSeason(""); setType("");
-    setQuery({});
+    setQ(""); setCountry(""); setState(""); setCity(""); setSeason(""); setType(""); setTags([]); setOrg("");
   }
 
   function savedCount(entryId: number): number {
@@ -108,7 +135,9 @@ export default function AgentCatalogPage() {
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 3000);
   }
 
-  const active = Object.keys(query).length > 0;
+  const active = Boolean(
+    debouncedQ || country || state || city || season || type || tags.length || org,
+  );
 
   return (
     <div>
@@ -117,42 +146,91 @@ export default function AgentCatalogPage() {
         title="Catalog"
       />
 
-      <form onSubmit={onSearch} role="search" className="card mb-6 flex flex-wrap items-end gap-3 p-4">
-        <label className="flex-1 text-small" style={{ minWidth: "14rem" }}>
-          <span className="label">Search</span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} className="field" placeholder="Keyword, e.g. festival" />
-        </label>
-        <div className="text-small" style={{ minWidth: "9rem" }}>
-          <span className="label">Country</span>
-          <Select aria-label="Country" value={country} placeholder="All"
-            onChange={(v) => { setCountry(v); setState(""); setCity(""); }}
-            options={[{ value: "", label: "All" }, ...countries.map((c) => ({ value: c.name, label: c.name }))]} />
+      <form
+        role="search"
+        onSubmit={(e) => e.preventDefault()}
+        // overflow-visible overrides .card's overflow-hidden so the Select dropdowns (absolutely
+        // positioned below their field) aren't clipped by the filter-bar card when expanded.
+        className="card mb-6 space-y-3 overflow-visible p-4"
+      >
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="relative flex-1 text-small" style={{ minWidth: "16rem" }}>
+            <span className="label">Search</span>
+            <span className="pointer-events-none absolute left-3 top-[2.15rem] text-walshe-grey" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+              </svg>
+            </span>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="field pl-9"
+              placeholder="Search names, places, tags…"
+            />
+          </label>
+          <div className="text-small" style={{ minWidth: "9rem" }}>
+            <span className="label">Country</span>
+            <Select aria-label="Country" value={country} placeholder="All"
+              onChange={(v) => { setCountry(v); setState(""); setCity(""); }}
+              options={[{ value: "", label: "All" }, ...countries.map((c) => ({ value: c.name, label: c.name }))]} />
+          </div>
+          <div className="text-small" style={{ minWidth: "9rem" }}>
+            <span className="label">State / region</span>
+            <Select aria-label="State or region" value={state} placeholder="All" disabled={!country}
+              onChange={(v) => { setState(v); setCity(""); }}
+              options={[{ value: "", label: "All" }, ...states.map((s) => ({ value: s.name, label: s.name }))]} />
+          </div>
+          <div className="text-small" style={{ minWidth: "9rem" }}>
+            <span className="label">City</span>
+            <Select aria-label="City" value={city} placeholder="All" disabled={!state}
+              onChange={setCity}
+              options={[{ value: "", label: "All" }, ...cities.map((c) => ({ value: c, label: c }))]} />
+          </div>
+          <div className="text-small" style={{ minWidth: "8rem" }}>
+            <span className="label">Season</span>
+            <Select aria-label="Season" value={season} placeholder="All" onChange={setSeason}
+              options={[{ value: "", label: "All" }, ...(geo?.seasons ?? []).map((s) => ({ value: s.value, label: s.label }))]} />
+          </div>
+          <div className="text-small" style={{ minWidth: "8rem" }}>
+            <span className="label">Type</span>
+            <Select aria-label="Type" value={type} placeholder="All" onChange={(v) => setType(v as CatalogType | "")}
+              options={[{ value: "", label: "All" }, ...TYPES.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))]} />
+          </div>
+          {knownOrgs.length > 1 && (
+            <div className="text-small" style={{ minWidth: "11rem" }}>
+              <span className="label">Provider</span>
+              <Select aria-label="Provider organization" value={org} placeholder="All providers" onChange={setOrg}
+                options={[{ value: "", label: "All providers" }, ...knownOrgs.map((o) => ({ value: o, label: o }))]} />
+            </div>
+          )}
+          {active && (
+            <button type="button" className="btn-ghost h-12" onClick={clearFilters}>Clear all</button>
+          )}
         </div>
-        <div className="text-small" style={{ minWidth: "9rem" }}>
-          <span className="label">State / region</span>
-          <Select aria-label="State or region" value={state} placeholder="All" disabled={!country}
-            onChange={(v) => { setState(v); setCity(""); }}
-            options={[{ value: "", label: "All" }, ...states.map((s) => ({ value: s.name, label: s.name }))]} />
-        </div>
-        <div className="text-small" style={{ minWidth: "9rem" }}>
-          <span className="label">City</span>
-          <Select aria-label="City" value={city} placeholder="All" disabled={!state}
-            onChange={setCity}
-            options={[{ value: "", label: "All" }, ...cities.map((c) => ({ value: c, label: c }))]} />
-        </div>
-        <div className="text-small" style={{ minWidth: "8rem" }}>
-          <span className="label">Season</span>
-          <Select aria-label="Season" value={season} placeholder="All" onChange={setSeason}
-            options={[{ value: "", label: "All" }, ...(geo?.seasons ?? []).map((s) => ({ value: s.value, label: s.label }))]} />
-        </div>
-        <div className="text-small" style={{ minWidth: "8rem" }}>
-          <span className="label">Type</span>
-          <Select aria-label="Type" value={type} placeholder="All" onChange={(v) => setType(v as CatalogType | "")}
-            options={[{ value: "", label: "All" }, ...TYPES.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))]} />
-        </div>
-        <button type="submit" className="btn-primary h-12">Search</button>
-        {active && (
-          <button type="button" className="btn-ghost h-12" onClick={clearFilters}>Clear</button>
+
+        {knownTags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-walshe-line/70 pt-3">
+            <span className="label mb-0 mr-1">Tags</span>
+            {knownTags.map((tag) => {
+              const on = tags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleTag(tag)}
+                  className={`rounded-pill px-3 py-1 text-[12px] font-medium transition-colors ${
+                    on
+                      ? "bg-walshe-ink text-white"
+                      : "border border-walshe-line bg-walshe-base text-walshe-grey hover:border-walshe-ink/40 hover:text-walshe-ink"
+                  }`}
+                >
+                  {on && <span aria-hidden>✓ </span>}
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
         )}
       </form>
 

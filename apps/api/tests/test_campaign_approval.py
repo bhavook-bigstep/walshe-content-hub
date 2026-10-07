@@ -1,4 +1,4 @@
-"""Campaign post approval + live publish (Increment 2, AC78/AC79).
+"""Campaign post approval + live publish (Increment 2, AC97/AC98).
 
 Self-approval by the owning agent (a deliberate PoC exception to approver != owner), then a live
 Instagram publish that runs on the stub connector in tests (no keys -> no egress, deterministic).

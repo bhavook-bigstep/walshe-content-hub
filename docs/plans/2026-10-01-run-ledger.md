@@ -188,7 +188,26 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC74 | P2 | met | 1/1 |
 | AC75 | P2 | met | 4/4 |
 | AC76 | P2 | met | 13/13 |
+| AC77 | P2 | met | 7/7 |
+| AC78 | P2 | met | 3/3 |
+| AC79 | P2 | met | 4/4 |
+| AC80 | P2 | met | 4/4 |
+| AC81 | P2 | met | 3/3 |
+| AC82 | P2 | met | 5/5 |
+| AC83 | P2 | met | 3/3 |
+| AC84 | P2 | met | 1/1 |
+| AC85 | P2 | met | 3/3 |
+| AC86 | P2 | met | 3/3 |
+| AC87 | P2 | met | 3/3 |
+| AC88 | P2 | met | 2/2 |
+| AC89 | P2 | met | 1/1 |
+| AC90 | P2 | met | 1/1 |
+| AC91 | P2 | met | 3/3 |
+| AC92 | P2 | met | 2/2 |
+| AC93 | P2 | met | 1/1 |
+| AC94 | P2 | met | 2/2 |
+| AC95 | P2 | met | 1/1 |
 
-**Totals:** 76 met · 0 partial · 0 missing · 76 total.
+**Totals:** 95 met · 0 partial · 0 missing · 95 total.
 
 <!-- END GENERATED ACCEPTANCE MATRIX -->
