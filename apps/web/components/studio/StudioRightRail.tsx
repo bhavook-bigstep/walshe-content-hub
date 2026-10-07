@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  addCurve,
   addGraphic,
   addPlaceholder,
   addShape,
@@ -167,15 +168,27 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
           )}
 
           {active === "shapes" && (
-            <div className="flex flex-wrap gap-2">
-              {(["rect", "ellipse", "line"] as ShapeKind[]).map((s) => (
-                <button key={s} type="button" className={chip} onClick={() => onChange(addShape(design, sceneIndex, s))}>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {(["rect", "ellipse", "line"] as ShapeKind[]).map((s) => (
+                  <button key={s} type="button" className={chip} onClick={() => onChange(addShape(design, sceneIndex, s))}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                      {SHAPE_ICON[s]}
+                    </svg>
+                    {s}
+                  </button>
+                ))}
+                <button type="button" className={chip} onClick={() => { onChange(addCurve(design, sceneIndex)); setActive(null); }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                    {SHAPE_ICON[s]}
+                    <path d="M4 18C9 18 9 7 14 7s5 8 6 8" />
                   </svg>
-                  {s}
+                  curve
                 </button>
-              ))}
+              </div>
+              <p className="text-[11px] leading-snug text-walshe-grey">
+                Curve adds an editable line — select it, drag the round anchors to bend it, and
+                double-click the line to add an anchor.
+              </p>
             </div>
           )}
 

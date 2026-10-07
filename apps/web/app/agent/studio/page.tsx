@@ -50,6 +50,9 @@ import {
   DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
   deleteNode,
+  insertCurveAnchor,
+  moveCurvePoint,
+  translateCurve,
   duplicateNode,
   editText,
   fillImageNode,
@@ -185,6 +188,8 @@ function StudioEditor() {
   const [rendering, setRendering] = useState(false);
   // The active scene's on-screen rect, so the per-scene edge controls can hug its edges.
   const [sceneRect, setSceneRect] = useState<SceneRect | null>(null);
+  // The FIRST scene's on-screen rect, so the "Play all" control hugs the left edge of scene 1.
+  const [firstSceneRect, setFirstSceneRect] = useState<SceneRect | null>(null);
   // Workspace tool (CorelDraw-style): "select" rubber-bands a marquee on empty-drag; "hand" pans.
   const [tool, setTool] = useState<"select" | "hand">("select");
   // The agent's brand kit, fetched lazily on first apply — powers one-click "Apply brand kit" (AC87).
@@ -203,6 +208,10 @@ function StudioEditor() {
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
+  // "Play all": play every scene in order (scene 1 → 2 → 3 …), distinct from the per-scene loop.
+  const [playingAll, setPlayingAll] = useState(false);
+  const playingAllRef = useRef(false);
+  playingAllRef.current = playingAll;
   // Add a voiceover (TTS) to the exported video, reading each scene's narration script.
   const [narrate, setNarrate] = useState(false);
   // Editable project name (rename).
@@ -736,6 +745,10 @@ function StudioEditor() {
       stopRaf();
       return;
     }
+    if (playingAllRef.current) {
+      setPlayingAll(false); // leaving the all-scenes run for a single-scene loop
+      stopRaf();
+    }
     const start = playhead >= sceneDurRef.current ? 0 : playhead;
     playStartRef.current = { wall: performance.now(), base: start };
     setPlayhead(start);
@@ -752,8 +765,10 @@ function StudioEditor() {
     controlsRef.current?.previewAt(t > 0 ? t : null);
   }
 
-  // Reset the transport (back to the editable, static layout) when the active scene changes.
+  // Reset the transport (back to the editable, static layout) when the active scene changes —
+  // unless "Play all" is driving the scene changes itself.
   useEffect(() => {
+    if (playingAllRef.current) return;
     setPlaying(false);
     stopRaf();
     setPlayhead(0);
@@ -776,6 +791,47 @@ function StudioEditor() {
   panelItemsRef.current = panelItems;
   // The collection group the demo "adds" to the drawer (built from the resolved items at run time).
   const demoCollectionRef = useRef<MediaGroup | null>(null);
+
+  // ── "Play all": run every scene in order (1 → 2 → 3 …), each for its own duration ───────────────
+  const allStartRef = useRef<{ wall: number; scene: number }>({ wall: 0, scene: 0 });
+  const playAllLoop = useCallback(() => {
+    rafRef.current = requestAnimationFrame((ts) => {
+      const d = designRef.current;
+      const { wall, scene } = allStartRef.current;
+      const dur = d.scenes[scene]?.durationMs ?? DEFAULT_SCENE_DURATION_MS;
+      const t = ts - wall;
+      if (t >= dur) {
+        const nextScene = scene + 1 < d.scenes.length ? scene + 1 : 0; // loop the whole reel
+        allStartRef.current = { wall: ts, scene: nextScene };
+        setSceneIndex(nextScene);
+        setSceneSelected(true);
+        setPlayhead(0);
+        controlsRef.current?.previewAt(0, { playing: true });
+        playAllLoop();
+        return;
+      }
+      setPlayhead(t);
+      controlsRef.current?.previewAt(t, { playing: true });
+      playAllLoop();
+    });
+  }, []);
+
+  function togglePlayAll() {
+    if (playingAllRef.current) {
+      setPlayingAll(false);
+      stopRaf();
+      controlsRef.current?.previewAt(null);
+      return;
+    }
+    setPlaying(false); // supersede any per-scene loop
+    stopRaf();
+    setPlayingAll(true);
+    setSceneIndex(0);
+    setSceneSelected(true);
+    setPlayhead(0);
+    allStartRef.current = { wall: performance.now(), scene: 0 };
+    playAllLoop();
+  }
 
   const reduceMotion =
     typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -906,6 +962,7 @@ function StudioEditor() {
     setDemoRunning(true);
     // Stop any preview and start from a clean square artboard, so the agent builds from scratch.
     setPlaying(false);
+    setPlayingAll(false);
     stopRaf();
     const fresh = newDesign("social");
     designRef.current = fresh;
@@ -917,52 +974,69 @@ function StudioEditor() {
     setSelectedScene(null);
     await demoWait(450);
     controlsRef.current?.fit();
-    // The media the agent builds with: prefer the open collection's items (already resolved with
-    // imagery); otherwise connect a seeded collection and pull its entry images in, so the reel uses
-    // real photos rather than text-only fallbacks.
-    let items: DemoItem[] = (panelItemsRef.current ?? []).map((i) => ({
+    // The media the agent builds with. If the open project already has image-bearing items, use them.
+    // Otherwise ACTUALLY pull a seeded collection into the workspace (real drawer group + items, and
+    // best-effort persist onto the project) so the reel uses real photos — not a text-only fallback.
+    let builderItems: BuilderCatalogItem[] = panelItemsRef.current ?? [];
+    let collectionName: string | undefined;
+    if (!builderItems.some((i) => i.imageSrc)) {
+      try {
+        const cols = await listCollections();
+        // Prefer the collection with the most entries (most imagery for the reel).
+        const chosen = [...cols].sort((a, b) => (b.item_ids?.length ?? 0) - (a.item_ids?.length ?? 0))[0];
+        if (chosen) {
+          const resolved = await resolveCollection(chosen.id);
+          collectionName = resolved.name;
+          const panels = await Promise.all((resolved.items ?? []).map(toPanelItem));
+          builderItems = panels;
+          const group: MediaGroup = {
+            id: `collection-${resolved.id}`,
+            title: resolved.name,
+            kind: "collection",
+            tiles: panels
+              .filter((p) => p.imageSrc)
+              .map((p) => ({ key: `entry-${p.id}`, label: p.title, src: p.imageSrc!, catalogItemId: `entry-${p.id}` })),
+          };
+          demoCollectionRef.current = group; // shown in the drawer when the agent "adds" it
+          // Best-effort: persist the collection onto the open workspace so it is genuinely attached.
+          if (
+            project && project.id > 0 && workspace &&
+            !(workspace.reference_content.collections ?? []).some((c) => c.collection_id === resolved.id)
+          ) {
+            try {
+              const nextWs: WorkspaceResolved = {
+                ...workspace,
+                reference_content: {
+                  ...workspace.reference_content,
+                  collections: [
+                    ...(workspace.reference_content.collections ?? []),
+                    { collection_id: resolved.id, name: resolved.name, entries: resolved.items },
+                  ],
+                },
+              };
+              setWorkspace(await saveWorkspace(project.id, toWorkspaceIn(nextWs, designRef.current)));
+            } catch {
+              /* keep the live pull even if the persist fails */
+            }
+          }
+        }
+      } catch {
+        /* keep whatever items we have; the director falls back to sample content if empty */
+      }
+    }
+    // Make the pulled collection usable by the Builder/drawer for real (the drawer reveal happens in
+    // the controller's showCollection). Kept after the run so the collection stays in the project.
+    setPanelItems(builderItems);
+    const items: DemoItem[] = builderItems.map((i) => ({
       id: Number(i.id),
       title: i.title,
       destination: i.destination,
       description: i.description,
       imageSrc: i.imageSrc,
     }));
-    let collectionName: string | undefined;
-    if (!items.some((i) => i.imageSrc)) {
-      try {
-        const cols = await listCollections();
-        const chosen = cols.find((c) => (c.item_ids?.length ?? 0) > 0) ?? cols[0];
-        if (chosen) {
-          const resolved = await resolveCollection(chosen.id);
-          collectionName = resolved.name;
-          const panels = await Promise.all((resolved.items ?? []).map(toPanelItem));
-          items = panels.map((p) => ({
-            id: Number(p.id),
-            title: p.title,
-            destination: p.destination,
-            description: p.description,
-            imageSrc: p.imageSrc,
-          }));
-        }
-      } catch {
-        /* keep whatever items we have; the director falls back to sample content if empty */
-      }
-    }
-    // The group the demo "adds" to the drawer, built from the resolved items' imagery.
-    demoCollectionRef.current = collectionName
-      ? {
-          id: "demo-collection",
-          title: collectionName,
-          kind: "collection",
-          tiles: items
-            .filter((i) => i.imageSrc)
-            .map((i) => ({ key: `demo-${i.id}`, label: i.title, src: i.imageSrc!, catalogItemId: String(i.id) })),
-        }
-      : null;
     try {
       await runBuilderDemo(makeDemoController(), items, { collectionName });
     } finally {
-      demoCollectionRef.current = null;
       setDemoCursor(null);
       setDemoThinking(null);
       setDemoRunning(false);
@@ -1091,9 +1165,48 @@ function StudioEditor() {
           onControls={(c) => (controlsRef.current = c)}
           selectedNodeId={selected?.nodeId ?? null}
           onActiveSceneRect={setSceneRect}
+          onFirstSceneRect={setFirstSceneRect}
+          onCurvePointMove={(scene, nodeId, index, point) => setDesign((d) => moveCurvePoint(d, scene, nodeId, index, point))}
+          onCurveMove={(scene, nodeId, dx, dy) => setDesign((d) => translateCurve(d, scene, nodeId, dx, dy))}
+          onCurveAnchorAdd={(scene, nodeId, point) => setDesign((d) => insertCurveAnchor(d, scene, nodeId, point))}
           highlightActive={sceneSelected}
           tool={tool}
         />
+
+        {/* Play all scenes in order (1 → 2 → 3 …) — distinct from the per-scene loop. Anchored just
+            to the LEFT of the first scene; it moves with the storyboard (and scrolls out of view with
+            it — no clamping to the screen edge). */}
+        {!demoRunning && firstSceneRect && (
+          <div
+            className="pointer-events-auto absolute z-30 flex -translate-x-full -translate-y-1/2 flex-col items-center gap-1.5 pr-4"
+            style={{ left: firstSceneRect.left, top: firstSceneRect.top + firstSceneRect.height / 2 }}
+          >
+            <button
+              type="button"
+              onClick={togglePlayAll}
+              aria-label={playingAll ? "Stop playing all scenes" : "Play all scenes in order"}
+              title={playingAll ? "Stop" : "Play all scenes in order"}
+              className={`grid h-16 w-16 place-items-center rounded-full border shadow-xl backdrop-blur-md transition-colors ${
+                playingAll
+                  ? "border-walshe-teal bg-walshe-teal text-white"
+                  : "border-walshe-line/70 bg-chrome-bg/95 text-walshe-teal hover:bg-walshe-ink/5"
+              }`}
+            >
+              {playingAll ? (
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" />
+                </svg>
+              ) : (
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M8 5.5v13a1 1 0 001.54.84l10-6.5a1 1 0 000-1.68l-10-6.5A1 1 0 008 5.5z" />
+                </svg>
+              )}
+            </button>
+            <span className="rounded-full bg-chrome-bg/95 px-2 py-0.5 text-[11px] font-semibold text-walshe-ink shadow-lift backdrop-blur-md">
+              {playingAll ? "Playing…" : "Play all"}
+            </span>
+          </div>
+        )}
 
         {/* One-click brand kit: logo watermark on every scene + a designed contact scene, and
             (optionally) a palette/font recolour across the design (AC87). The kit is fetched lazily
@@ -1209,8 +1322,9 @@ function StudioEditor() {
         {/* Right tool rail: creation tools only (icons + hover names). */}
         <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />
 
-        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props). */}
-        {selectedIds.length > 1 && selectedScene !== null && (
+        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props).
+            Hidden while the AI Builder demo runs so its selections don't pop edit chrome. */}
+        {!demoRunning && selectedIds.length > 1 && selectedScene !== null && (
           <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <GroupPanel
               count={selectedIds.length}
@@ -1224,8 +1338,9 @@ function StudioEditor() {
           </div>
         )}
 
-        {/* Inspector: appears when a single element is selected, styling controls for it. */}
-        {selectedNode && selectedIds.length <= 1 && (
+        {/* Inspector: appears when a single element is selected, styling controls for it.
+            Hidden while the AI Builder demo runs (the agent's own selections shouldn't open it). */}
+        {!demoRunning && selectedNode && selectedIds.length <= 1 && (
           <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-small font-bold text-walshe-ink">Edit element</h2>

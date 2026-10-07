@@ -126,8 +126,11 @@ describe("runBuilderDemo", () => {
     expect(imageSrcs).toContain("blob:waw");
     expect(imageSrcs).toContain("blob:harbour");
 
-    // The roadmap draws a dashed route (an inline-SVG image node) and a frame-sprite car follows it.
-    expect(imageSrcs.some((s) => typeof s === "string" && s.startsWith("data:image/svg+xml"))).toBe(true);
+    // The roadmap draws the route as a real editable CURVE (a shape with anchor points), and a
+    // frame-sprite car follows it.
+    const curves = d.scenes.flatMap((s) => s.nodes.filter((n) => n.type === "shape" && (n.points?.length ?? 0) >= 2));
+    expect(curves.length).toBeGreaterThanOrEqual(1);
+    expect(imageSrcs.some((s) => typeof s === "string" && s.startsWith("data:image/svg+xml"))).toBe(true); // abstract art
     const spriteNodes = d.scenes.flatMap((s) => s.nodes.filter((n) => (n.frames?.length ?? 0) > 1));
     expect(spriteNodes.length).toBeGreaterThanOrEqual(1); // the driving-car (and other sprites)
 

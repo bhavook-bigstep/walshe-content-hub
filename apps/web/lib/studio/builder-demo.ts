@@ -15,16 +15,21 @@
  */
 import {
   addCatalogImage,
+  addCurve,
   addGraphic,
   addScene,
+  addShape,
   addText,
   enterTrack,
+  sampleCurve,
   setBackground,
+  setCurvePoints,
   setNodeAnim,
   setSceneDuration,
   type DesignDoc,
   type EnterType,
   type NodeAnimation,
+  type TextAlign,
 } from "./ops";
 import { ABSTRACT_ARTIFACTS, SPRITE_ANIMATIONS, STICKERS, svgDataUrl } from "./graphics";
 import type { AnimKeyframe } from "./ops";
@@ -137,7 +142,6 @@ export function planDemo(items: DemoItem[]): DemoPlan | null {
 }
 
 const HERO_BG = "#0f2e2b"; // deep teal
-const FEATURE_BGS = ["#13323a", "#2a1d2e", "#1d2a33"];
 const CTA_BG = "#0e6b5e";
 const SAND = "#f3c96b";
 const CREAM = "#f6f4ee";
@@ -204,20 +208,13 @@ function stopPoints(n: number): ScenePoint[] {
   }));
 }
 
-/** A dashed route polyline through `points`, as a full-artboard SVG data URL (sits behind the pins). */
-function routePathSvg(points: ScenePoint[], stroke: string): string {
-  const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${Math.round(p.x)} ${Math.round(p.y)}`).join(" ");
-  const body =
-    `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="10" stroke-linecap="round" ` +
-    `stroke-linejoin="round" stroke-dasharray="2 24"/>`;
-  return svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${body}</svg>`);
-}
-
-/** A keyframe track that walks a node through `points` over `durMs` (the traveller following the
- * route). `size` recentres the sprite on each point. */
+/** A keyframe track that walks a node SMOOTHLY along the curved route through `points` over `durMs`
+ * (the traveller following the road). It samples the same spline the route curve renders, so the
+ * car hugs the curve. `size` recentres the sprite on each sampled point. */
 function followTrack(points: ScenePoint[], size: number, durMs: number): NodeAnimation {
-  const span = Math.max(1, points.length - 1);
-  const keyframes: AnimKeyframe[] = points.map((p, i) => ({
+  const path = sampleCurve(points, 12);
+  const span = Math.max(1, path.length - 1);
+  const keyframes: AnimKeyframe[] = path.map((p, i) => ({
     t: Math.round((i / span) * durMs),
     x: Math.round(p.x - size / 2),
     y: Math.round(p.y - size / 2),
@@ -242,6 +239,156 @@ async function driftAcross(
   );
   if (id) await ctrl.update((d) => setNodeAnim(d, sceneIndex, id, driftTrack(fromX, toX, y, durMs)));
 }
+
+// ── Per-stop scene layouts (so the itinerary never looks monotonous) ────────────────────────────
+/** A varied palette, cycled per stop so consecutive scenes differ (warm/cool/light rhythm). */
+interface SceneTheme {
+  bg: string;
+  ink: string;
+  accent: string;
+}
+const SCENE_THEMES: SceneTheme[] = [
+  { bg: "#0f2e2b", ink: "#f6f4ee", accent: "#f3c96b" }, // deep teal · sand
+  { bg: "#7c2d12", ink: "#fff7ed", accent: "#fdba74" }, // warm clay · apricot
+  { bg: "#14233b", ink: "#e2e8f0", accent: "#38bdf8" }, // navy · sky
+  { bg: "#f3ede1", ink: "#1f2937", accent: "#0f766e" }, // light cream · teal
+  { bg: "#3b0764", ink: "#f8ebff", accent: "#f0abfc" }, // plum · orchid
+];
+
+/** The context a stop-scene layout needs. */
+interface StopScene {
+  ctrl: DemoController;
+  si: number; // scene index
+  i: number; // stop index (0-based)
+  n: number; // total stops
+  s: DemoItem; // the stop
+  theme: SceneTheme;
+  nextLabel: string;
+}
+
+function imgArg(s: DemoItem): { src: string; catalogItemId: string } {
+  return { src: s.imageSrc!, catalogItemId: String(s.id) };
+}
+
+async function dayBadge(x: StopScene, px: number, py: number, align: TextAlign): Promise<void> {
+  await x.ctrl.addNode(x.si, (d) =>
+    addText(d, x.si, `DAY ${x.i + 1} OF ${x.n}`, {
+      x: px, y: py, width: 460, height: 56, color: x.theme.accent, fontSize: 32, fontWeight: "bold", textAlign: align,
+    }),
+  );
+}
+
+async function stopTitle(
+  x: StopScene,
+  box: { x: number; y: number; width: number; height: number },
+  align: TextAlign,
+  size: number,
+): Promise<void> {
+  await x.ctrl.moveTo({ x: box.x + (align === "center" ? box.width / 2 : 20), y: box.y });
+  const id = await x.ctrl.addNode(x.si, (d) =>
+    addText(d, x.si, "", { ...box, color: x.theme.ink, fontSize: size, fontWeight: "bold", textAlign: align }),
+  );
+  if (id) {
+    await x.ctrl.typeText(x.si, id, x.s.title);
+    await x.ctrl.update((d) => setNodeAnim(d, x.si, id, enterTrack(box, "rise", 150, 600)));
+    await x.ctrl.select(x.si, id);
+  }
+}
+
+async function flowLine(
+  x: StopScene,
+  box: { x: number; y: number; width: number; height: number },
+  align: TextAlign,
+): Promise<void> {
+  const id = await x.ctrl.addNode(x.si, (d) =>
+    addText(d, x.si, "", { ...box, color: x.theme.accent, fontSize: 34, textAlign: align }),
+  );
+  if (id) {
+    await x.ctrl.typeText(x.si, id, x.nextLabel);
+    await x.ctrl.update((d) =>
+      setNodeAnim(d, x.si, id, enterTrack(box, align === "right" ? "slide-right" : "slide-left", 350, 550)),
+    );
+  }
+}
+
+async function stickerAt(x: StopScene, id: string, px: number, py: number, size: number, loop?: NodeAnimation["loop"]): Promise<void> {
+  await x.ctrl.addNode(x.si, (d) => addGraphic(d, x.si, { ...stickerGraphic(id), loop }, { x: px, y: py, width: size, height: size }));
+}
+
+/** A — full-bleed photo with a solid colour band + bold left-aligned title. */
+async function layoutFullBleed(x: StopScene): Promise<void> {
+  await x.ctrl.update((d) => setBackground(d, x.si, x.theme.bg));
+  await addAbstract(x.ctrl, x.si, "ring", { x: W - 440, y: -180, width: 660, height: 660, opacity: 0.2 }, { type: "spin", periodMs: 15000 });
+  if (x.s.imageSrc) {
+    const box = { x: 0, y: 0, width: W, height: 720 };
+    await x.ctrl.moveTo({ x: W / 2, y: 360 });
+    const id = await x.ctrl.addNode(x.si, (d) => addCatalogImage(d, x.si, imgArg(x.s), box));
+    if (id) await x.ctrl.update((d) => setNodeAnim(d, x.si, id, entranceLoop(box, "scale", 0, 650, { type: "pulse", periodMs: 4200 })));
+  }
+  await x.ctrl.addNode(x.si, (d) => addShape(d, x.si, "rect", { x: 0, y: 700, width: W, height: 380, color: x.theme.bg }));
+  await dayBadge(x, 60, 744, "left");
+  await stopTitle(x, { x: 60, y: 804, width: W - 120, height: 150 }, "left", 84);
+  await flowLine(x, { x: 60, y: 952, width: W - 120, height: 60 }, "left");
+  await stickerAt(x, "pin", W - 150, 56, 110, { type: "bob", periodMs: 2400 });
+}
+
+/** B — split screen: a full-height photo on one side, a text panel on the other. */
+async function layoutSplit(x: StopScene): Promise<void> {
+  const left = x.i % 2 === 0;
+  await x.ctrl.update((d) => setBackground(d, x.si, x.theme.bg));
+  await addAbstract(
+    x.ctrl, x.si, "blob",
+    { x: left ? 560 : -120, y: 520, width: 620, height: 620, opacity: 0.22 },
+    { type: "float", periodMs: 6000 },
+  );
+  if (x.s.imageSrc) {
+    const box = left ? { x: 0, y: 0, width: 560, height: H } : { x: W - 560, y: 0, width: 560, height: H };
+    await x.ctrl.moveTo({ x: box.x + 280, y: H / 2 });
+    const id = await x.ctrl.addNode(x.si, (d) => addCatalogImage(d, x.si, imgArg(x.s), box));
+    if (id) await x.ctrl.update((d) => setNodeAnim(d, x.si, id, entranceLoop(box, left ? "slide-left" : "slide-right", 0, 650, { type: "float", periodMs: 5600 })));
+  }
+  const tx = left ? 620 : 80;
+  await dayBadge(x, tx, 300, "left");
+  await stopTitle(x, { x: tx, y: 360, width: 400, height: 280 }, "left", 72);
+  await flowLine(x, { x: tx, y: 660, width: 400, height: 120 }, "left");
+  await stickerAt(x, "sparkle", tx, 240, 56, { type: "twinkle", periodMs: 2200 });
+}
+
+/** C — a tilted "polaroid" photo card on a bold backdrop, centred title below. */
+async function layoutPolaroid(x: StopScene): Promise<void> {
+  await x.ctrl.update((d) => setBackground(d, x.si, x.theme.bg));
+  await addAbstract(x.ctrl, x.si, "burst", { x: x.i % 2 ? -160 : W - 360, y: 120, width: 520, height: 520, opacity: 0.22 }, { type: "spin", periodMs: 14000 });
+  if (x.s.imageSrc) {
+    const angle = x.i % 2 ? 4 : -4;
+    await x.ctrl.addNode(x.si, (d) => addShape(d, x.si, "rect", { x: 168, y: 150, width: 744, height: 710, color: "#ffffff", radius: 10, angle }));
+    const box = { x: 190, y: 172, width: 700, height: 620 };
+    await x.ctrl.moveTo({ x: W / 2, y: 480 });
+    const id = await x.ctrl.addNode(x.si, (d) => addCatalogImage(d, x.si, imgArg(x.s), { ...box, radius: 8, angle }));
+    if (id) await x.ctrl.update((d) => setNodeAnim(d, x.si, id, entranceLoop({ x: box.x, y: box.y }, "rise", 0, 650)));
+  }
+  await dayBadge(x, MARGIN, 70, "center");
+  await stopTitle(x, { x: MARGIN, y: 880, width: W - 2 * MARGIN, height: 100 }, "center", 60);
+  await flowLine(x, { x: MARGIN, y: 980, width: W - 2 * MARGIN, height: 60 }, "center");
+  await stickerAt(x, "star", W - 170, 820, 100, { type: "twinkle", periodMs: 2000 });
+}
+
+/** D — a circular photo "spotlight" inside a ring, centred title. */
+async function layoutCircle(x: StopScene): Promise<void> {
+  await x.ctrl.update((d) => setBackground(d, x.si, x.theme.bg));
+  await addAbstract(x.ctrl, x.si, "ring", { x: W / 2 - 370, y: 150, width: 740, height: 740, opacity: 0.24 }, { type: "spin", periodMs: 16000 });
+  await addAbstract(x.ctrl, x.si, "dots", { x: 70, y: 70, width: 220, height: 220, opacity: 0.2 }, { type: "float", periodMs: 5200 });
+  if (x.s.imageSrc) {
+    const box = { x: 240, y: 180, width: 600, height: 600 };
+    await x.ctrl.moveTo({ x: W / 2, y: 480 });
+    const id = await x.ctrl.addNode(x.si, (d) => addCatalogImage(d, x.si, imgArg(x.s), { ...box, radius: 300 }));
+    if (id) await x.ctrl.update((d) => setNodeAnim(d, x.si, id, entranceLoop(box, "scale", 0, 650, { type: "pulse", periodMs: 3800 })));
+  }
+  await dayBadge(x, MARGIN, 70, "center");
+  await stopTitle(x, { x: MARGIN, y: 820, width: W - 2 * MARGIN, height: 100 }, "center", 66);
+  await flowLine(x, { x: MARGIN, y: 930, width: W - 2 * MARGIN, height: 60 }, "center");
+}
+
+const STOP_LAYOUTS = [layoutFullBleed, layoutSplit, layoutPolaroid, layoutCircle];
 
 /**
  * Run the hardcoded AI-Builder demo against a controller. Builds a hero scene, one scene per
@@ -323,10 +470,11 @@ export async function runBuilderDemo(
   await ctrl.update((d) => setSceneDuration(d, d.scenes[1].id, 6500)); // time for the car to travel
 
   const pts = stopPoints(stops.length);
-  // The dashed route itself, behind the markers.
-  await ctrl.addNode(1, (d) =>
-    addGraphic(d, 1, { src: routePathSvg(pts, SAND), width: W, height: H }, { x: 0, y: 0, width: W, height: H, opacity: 0.95 }),
-  );
+  // The route itself — a real editable CURVE smoothed through the stops (behind the markers). The
+  // agent "draws" it, and it stays fully editable (drag its anchors) after the demo.
+  await ctrl.think("Drawing the route as a curve through the stops.");
+  const routeId = await ctrl.addNode(1, (d) => addCurve(d, 1, { stroke: SAND, strokeWidth: 9 }));
+  if (routeId) await ctrl.update((d) => setCurvePoints(d, 1, routeId, pts));
   const mapTitleBox = { x: MARGIN, y: 70, width: W - 2 * MARGIN, height: 90 };
   const mapTitleId = await ctrl.addNode(1, (d) =>
     addText(d, 1, "", { ...mapTitleBox, color: CREAM, fontSize: 56, fontWeight: "bold", textAlign: "center" }),
@@ -374,74 +522,27 @@ export async function runBuilderDemo(
   if (carId) await ctrl.update((d) => setNodeAnim(d, 1, carId, followTrack(pts, carSize, 6000)));
   if (guard()) return;
 
-  // ── Per-stop detail scenes (the "flow" through the days) ───────────────────────────────────────
-  const enters: EnterType[] = ["slide-left", "slide-right", "rise", "scale"];
-  const accents = ["burst", "arch", "wave", "ring"];
+  // ── Per-stop detail scenes — each stop gets a DIFFERENT layout + palette so the deck never feels
+  //    monotonous (full-bleed · split · polaroid · circle spotlight, cycled). ───────────────────────
   for (let i = 0; i < stops.length; i++) {
     if (guard()) return;
     const s = stops[i];
-    const sceneIndex = 2 + i;
+    const si = 2 + i;
     await ctrl.think(`Stop ${i + 1}: ${s.title}.`);
     await ctrl.update((d) => addScene(d));
-    await ctrl.goToScene(sceneIndex);
-    await ctrl.update((d) => setBackground(d, sceneIndex, FEATURE_BGS[i % FEATURE_BGS.length]));
-    await addAbstract(
+    await ctrl.goToScene(si);
+    const ctx: StopScene = {
       ctrl,
-      sceneIndex,
-      accents[i % accents.length],
-      { x: i % 2 ? -140 : W - 340, y: 80, width: 440, height: 440, opacity: 0.14 },
-      { type: i % 2 ? "float" : "spin", periodMs: 13000 },
-    );
-
-    await ctrl.addNode(sceneIndex, (d) =>
-      addText(d, sceneIndex, `DAY ${i + 1} OF ${stops.length}`, {
-        x: MARGIN,
-        y: 70,
-        width: W - 2 * MARGIN,
-        height: 60,
-        color: SAND,
-        fontSize: 34,
-        fontWeight: "bold",
-        textAlign: "center",
-      }),
-    );
-
-    if (s.imageSrc) {
-      const box = { x: MARGIN, y: 150, width: W - 2 * MARGIN, height: 560 };
-      await ctrl.moveTo({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
-      const imgId = await ctrl.addNode(sceneIndex, (d) =>
-        addCatalogImage(d, sceneIndex, { src: s.imageSrc!, catalogItemId: String(s.id) }, { ...box, radius: 24 }),
-      );
-      if (imgId) {
-        await ctrl.update((d) =>
-          setNodeAnim(d, sceneIndex, imgId, entranceLoop(box, enters[i % enters.length], 0, 650, { type: "float", periodMs: 5200 })),
-        );
-        await ctrl.select(sceneIndex, imgId);
-      }
-    }
-
-    const titleBox = { x: MARGIN, y: 740, width: W - 2 * MARGIN, height: 110 };
-    await ctrl.moveTo({ x: titleBox.x, y: titleBox.y });
-    const stopTitleId = await ctrl.addNode(sceneIndex, (d) =>
-      addText(d, sceneIndex, "", { ...titleBox, color: CREAM, fontSize: 64, fontWeight: "bold", textAlign: "center" }),
-    );
-    if (stopTitleId) {
-      await ctrl.typeText(sceneIndex, stopTitleId, s.title);
-      await ctrl.update((d) => setNodeAnim(d, sceneIndex, stopTitleId, enterTrack(titleBox, "rise", 200, 600)));
-    }
-
-    const next = i < stops.length - 1 ? `→  Next: ${stops[i + 1].title}` : "→  Journey complete";
-    const flowBox = { x: MARGIN, y: 870, width: W - 2 * MARGIN, height: 70 };
-    const flowId = await ctrl.addNode(sceneIndex, (d) =>
-      addText(d, sceneIndex, "", { ...flowBox, color: SAND, fontSize: 38, textAlign: "center" }),
-    );
-    if (flowId) {
-      await ctrl.typeText(sceneIndex, flowId, next);
-      await ctrl.update((d) => setNodeAnim(d, sceneIndex, flowId, enterTrack(flowBox, "slide-left", 400, 600)));
-    }
-
-    // The car passing through this stop.
-    await driftAcross(ctrl, sceneIndex, "driving-car", 980, 150, 4000);
+      si,
+      i,
+      n: stops.length,
+      s,
+      theme: SCENE_THEMES[i % SCENE_THEMES.length],
+      nextLabel: i < stops.length - 1 ? `→  Next: ${stops[i + 1].title}` : "→  Journey complete",
+    };
+    await STOP_LAYOUTS[i % STOP_LAYOUTS.length](ctx);
+    // A small car motif threads the journey together (varied entry y per layout).
+    await driftAcross(ctrl, si, "driving-car", 1000 - (i % 2) * 40, 140, 4200);
   }
 
   // ── Closing CTA ────────────────────────────────────────────────────────────────────────────────

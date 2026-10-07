@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import {
   ActiveSelection,
   Canvas,
+  Circle,
   FabricText,
   Line,
   Point,
@@ -65,6 +66,9 @@ export interface StudioCanvasProps {
   /** Reports the active scene's on-screen rectangle (container-relative px) as the canvas pans /
    * zooms / rebuilds, so per-scene controls can anchor to the scene's edges. Null on unmount. */
   onActiveSceneRect?: (rect: { left: number; top: number; width: number; height: number } | null) => void;
+  /** Reports the FIRST scene's on-screen rectangle (same basis), so a "Play all" control can anchor
+   * to the left edge of scene 1. Null on unmount. */
+  onFirstSceneRect?: (rect: { left: number; top: number; width: number; height: number } | null) => void;
   /** Called when the user finishes editing a text node inline (double-click → type → blur). */
   onTextEdit?: (sceneIndex: number, nodeId: string, text: string) => void;
   /** Receives imperative zoom/fit controls for the top bar once mounted. */
@@ -73,6 +77,13 @@ export interface StudioCanvasProps {
    * marquee over the items inside it. "hand": drag anywhere pans the workspace. Space-hold,
    * Alt-drag and middle-drag always pan regardless of the tool (CorelDraw-style). */
   tool?: "select" | "hand";
+  /** Curve editing (CorelDraw-style): an anchor of the selected curve was dragged to a new
+   * scene-local point. */
+  onCurvePointMove?: (sceneIndex: number, nodeId: string, index: number, point: { x: number; y: number }) => void;
+  /** The whole selected curve was dragged (translate all its anchors by dx/dy, scene-local). */
+  onCurveMove?: (sceneIndex: number, nodeId: string, dx: number, dy: number) => void;
+  /** Double-click on a curve — add an anchor at the scene-local point. */
+  onCurveAnchorAdd?: (sceneIndex: number, nodeId: string, point: { x: number; y: number }) => void;
 }
 
 const DOT_BASE = 26; // dot spacing at 100% zoom (px) — a touch wider than before so it reads cleaner
@@ -93,6 +104,13 @@ type TaggedObject = FabricObject & {
   baseScaleY?: number;
   baseAngle?: number;
   baseOpacity?: number;
+  // Editable-curve tagging: a curve polyline (isCurve) and its draggable anchor handles (isHandle).
+  isCurve?: boolean;
+  isHandle?: boolean;
+  anchorIndex?: number;
+  curveId?: string;
+  curveX?: number; // the curve node's bbox-min x at build time (scene-local), for move deltas
+  curveY?: number;
 };
 
 /** Left edge (scene-space x) of scene i, laid out left-to-right with a fixed gap. */
@@ -162,9 +180,13 @@ export default function StudioCanvas({
   onControls,
   selectedNodeId,
   onActiveSceneRect,
+  onFirstSceneRect,
   onBackgroundClick,
   highlightActive = true,
   tool = "select",
+  onCurvePointMove,
+  onCurveMove,
+  onCurveAnchorAdd,
 }: StudioCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dotsRef = useRef<HTMLDivElement>(null);
@@ -190,6 +212,14 @@ export default function StudioCanvas({
   selectedNodeIdRef.current = selectedNodeId;
   const sceneRectRef = useRef(onActiveSceneRect);
   sceneRectRef.current = onActiveSceneRect;
+  const firstSceneRectRef = useRef(onFirstSceneRect);
+  firstSceneRectRef.current = onFirstSceneRect;
+  const curvePointRef = useRef(onCurvePointMove);
+  curvePointRef.current = onCurvePointMove;
+  const curveMoveRef = useRef(onCurveMove);
+  curveMoveRef.current = onCurveMove;
+  const curveAnchorRef = useRef(onCurveAnchorAdd);
+  curveAnchorRef.current = onCurveAnchorAdd;
   const toolRef = useRef(tool);
   toolRef.current = tool;
   // True while the render effect rebuilds the canvas, so the intermediate selection:cleared (from
@@ -230,6 +260,12 @@ export default function StudioCanvas({
     const [zoom, , , , tx, ty] = canvas.viewportTransform;
     const originX = sceneOriginX(design, i);
     cb({ left: originX * zoom + tx, top: ty, width: design.width * zoom, height: design.height * zoom });
+    // Also report the FIRST scene's rect, so a "Play all" control can hug its left edge (scene 0
+    // origin x = 0 → left = pan x). Updates on every pan/zoom alongside the active-scene rect.
+    const firstCb = firstSceneRectRef.current;
+    if (firstCb) {
+      firstCb(design.scenes[0] ? { left: tx, top: ty, width: design.width * zoom, height: design.height * zoom } : null);
+    }
   }
 
   function zoomAt(factor: number) {
@@ -471,6 +507,9 @@ export default function StudioCanvas({
     const reportSelection = () => {
       if (suppressSelRef.current) return;
       const objs = canvas.getActiveObjects() as TaggedObject[];
+      // Grabbing a curve's anchor handle must NOT change the app selection (which would remove the
+      // handles mid-drag). Leave the curve selected.
+      if (objs.some((o) => o.isHandle)) return;
       if (objs.length === 0) {
         selectNodeRef.current?.(null, []);
         return;
@@ -500,6 +539,18 @@ export default function StudioCanvas({
       if (!suppressSelRef.current) selectNodeRef.current?.(null, []);
     });
 
+    // Double-click a curve → add an anchor at that point (splitting the nearest segment).
+    canvas.on("mouse:dblclick", (opt: TPointerEventInfo) => {
+      const target = opt.target as TaggedObject | undefined;
+      if (!target?.isCurve || !target.nodeId || target.sceneIndex === undefined) return;
+      const pt = canvas.getScenePoint(opt.e);
+      const originX = sceneOriginX(designRef.current, target.sceneIndex);
+      curveAnchorRef.current?.(target.sceneIndex, target.nodeId, {
+        x: Math.round(pt.x - originX),
+        y: Math.round(pt.y),
+      });
+    });
+
     // Inline text editing: double-click a text node, type, blur → sync back to the model (only on
     // exit, so no mid-type re-render interrupts the edit).
     canvas.on("text:editing:exited", (opt) => {
@@ -512,6 +563,23 @@ export default function StudioCanvas({
     canvas.on("object:modified", (opt) => {
       const target = opt.target as (TaggedObject & { getObjects?: () => TaggedObject[] }) | undefined;
       if (!target) return;
+      // A curve anchor handle was dragged → commit its new scene-local point.
+      if (target.isHandle && target.curveId && target.sceneIndex !== undefined && target.anchorIndex !== undefined) {
+        const originX = sceneOriginX(designRef.current, target.sceneIndex);
+        curvePointRef.current?.(target.sceneIndex, target.curveId, target.anchorIndex, {
+          x: Math.round((target.left ?? 0) - originX),
+          y: Math.round(target.top ?? 0),
+        });
+        return;
+      }
+      // The whole curve was dragged → translate all anchors by the move delta (no resize).
+      if (target.isCurve && target.nodeId && target.sceneIndex !== undefined) {
+        const originX = sceneOriginX(designRef.current, target.sceneIndex);
+        const dx = Math.round((target.left ?? 0) - originX - (target.curveX ?? 0));
+        const dy = Math.round((target.top ?? 0) - (target.curveY ?? 0));
+        if (dx !== 0 || dy !== 0) curveMoveRef.current?.(target.sceneIndex, target.nodeId, dx, dy);
+        return;
+      }
       // A group / multi-selection move: write back each member's absolute box.
       const members = typeof target.getObjects === "function" ? target.getObjects() : null;
       if (members && members.length > 0 && !target.nodeId) {
@@ -553,6 +621,7 @@ export default function StudioCanvas({
       window.removeEventListener("keydown", onDeleteKey);
       onReady?.(null);
       sceneRectRef.current?.(null);
+      firstSceneRectRef.current?.(null);
       canvasRef.current = null;
       void canvas.dispose();
     };
@@ -578,7 +647,8 @@ export default function StudioCanvas({
             const t = o as TaggedObject;
             t.left = (t.left ?? 0) + originX;
             t.sceneIndex = i;
-            t.groupId = scene.nodes.find((n) => n.id === t.nodeId)?.groupId;
+            const node = scene.nodes.find((n) => n.id === t.nodeId);
+            t.groupId = node?.groupId;
             // Capture the base transform for the animation engine (animated = base × state).
             t.baseLeft = t.left;
             t.baseTop = t.top ?? 0;
@@ -590,6 +660,16 @@ export default function StudioCanvas({
             t.selectable = editable;
             t.evented = editable;
             t.hoverCursor = editable ? "move" : "default";
+            // An editable curve: tag it so object:modified translates its anchors, and lock scaling
+            // (reshaping is done via the anchor handles, not corner resize).
+            if (node && node.type === "shape" && node.points && node.points.length >= 2) {
+              t.isCurve = true;
+              t.curveX = node.x;
+              t.curveY = node.y;
+              t.lockScalingX = true;
+              t.lockScalingY = true;
+              t.hasControls = false;
+            }
           });
           return objs;
         }),
@@ -685,6 +765,37 @@ export default function StudioCanvas({
           .find((o) => (o as TaggedObject).nodeId === keepId && (o as TaggedObject).sceneIndex === activeScene);
         if (obj && obj.selectable) canvas.setActiveObject(obj);
       }
+
+      // Curve editing: when the selected node is a curve, drop a draggable anchor handle on each of
+      // its points, so dragging a handle reshapes the curve (committed on drag end → rebuild).
+      const curveNode = keepId
+        ? design.scenes[activeScene]?.nodes.find((n) => n.id === keepId)
+        : undefined;
+      if (curveNode && curveNode.type === "shape" && curveNode.points && curveNode.points.length >= 2) {
+        const originX = sceneOriginX(design, activeScene);
+        curveNode.points.forEach((p, idx) => {
+          const h = new Circle({
+            left: originX + p.x,
+            top: p.y,
+            radius: 11,
+            originX: "center",
+            originY: "center",
+            fill: "#0f766e",
+            stroke: "#ffffff",
+            strokeWidth: 2,
+            hasControls: false,
+            hasBorders: false,
+            excludeFromExport: true,
+            hoverCursor: "grab",
+          }) as TaggedObject;
+          h.isHandle = true;
+          h.anchorIndex = idx;
+          h.curveId = keepId!;
+          h.sceneIndex = activeScene;
+          canvas.add(h);
+        });
+      }
+
       suppressSelRef.current = false;
       canvas.requestRenderAll();
     })();
@@ -693,7 +804,7 @@ export default function StudioCanvas({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [design, activeScene, highlightActive]);
+  }, [design, activeScene, highlightActive, selectedNodeId]);
 
   return (
     <div

@@ -24,6 +24,12 @@ import { getFormatPreset, isFormatName, type FormatName } from "./formats";
 export type NodeType = "text" | "shape" | "image" | "background";
 export type ShapeKind = "rect" | "ellipse" | "line";
 
+/** One anchor of an editable curve (scene-local coordinates). */
+export interface CurvePoint {
+  x: number;
+  y: number;
+}
+
 /** The transition played INTO the next scene when the sequence is stitched to video. */
 export type TransitionKind = "none" | "fade" | "slide-left" | "zoom";
 export const TRANSITION_KINDS: readonly TransitionKind[] = ["none", "fade", "slide-left", "zoom"];
@@ -135,6 +141,9 @@ export interface DesignNode {
   stroke?: string;
   /** shape: stroke width in px */
   strokeWidth?: number;
+  /** shape (curve): ordered anchor points, scene-local coords. A `shape` node with `points` renders
+   * as an editable curve smoothed through the anchors (2 points = a straight line). */
+  points?: CurvePoint[];
 
   /** optional keyframe animation (position/scale/rotation/opacity over time within the scene) */
   anim?: NodeAnimation;
@@ -394,6 +403,137 @@ export function addShape(
     ...stylePlacement(placement),
   });
   return next;
+}
+
+// ── Editable curves (CorelDraw-style) ────────────────────────────────────────────────────────────
+// A curve is a `shape` node carrying ordered `points`. It renders smoothed through the anchors
+// (Catmull-Rom spline) so dragging an anchor bends the line; two anchors is a straight line.
+
+/** Axis-aligned bounding box of a point set (min 1×1 so a degenerate curve still has a size). */
+export function pointsBounds(points: CurvePoint[]): { x: number; y: number; width: number; height: number } {
+  if (points.length === 0) return { x: 0, y: 0, width: 1, height: 1 };
+  let minX = points[0].x, minY = points[0].y, maxX = points[0].x, maxY = points[0].y;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+}
+
+/** One point on the Catmull-Rom spline between p1→p2 (p0/p3 are the neighbours), at 0≤t≤1. */
+function catmullRom(p0: CurvePoint, p1: CurvePoint, p2: CurvePoint, p3: CurvePoint, t: number): CurvePoint {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const f = (a: number, b: number, c: number, d: number) =>
+    0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+  return { x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) };
+}
+
+/**
+ * Sample the smooth curve through `points` into a dense polyline (so it can render as a Fabric
+ * Polyline and export identically). 0–2 anchors pass through unchanged (a point / a straight line);
+ * 3+ anchors are interpolated with a Catmull-Rom spline, `perSegment` samples per span. Pure.
+ */
+export function sampleCurve(points: CurvePoint[], perSegment = 18): CurvePoint[] {
+  if (points.length <= 2) return points.map((p) => ({ ...p }));
+  const out: CurvePoint[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] ?? points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? points[i + 1];
+    for (let s = 0; s < perSegment; s++) out.push(catmullRom(p0, p1, p2, p3, s / perSegment));
+  }
+  out.push({ ...points[points.length - 1] });
+  return out;
+}
+
+/** Add an editable curve — starts as a straight 2-anchor line; drag/add anchors to bend it. */
+export function addCurve(design: DesignDoc, sceneIndex: number, placement: NodePlacement = {}): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const x = placement.x ?? 140;
+  const y = placement.y ?? 260;
+  const w = placement.width ?? 520;
+  const points: CurvePoint[] = [
+    { x, y: y + w * 0.15 },
+    { x: x + w, y },
+  ];
+  const b = pointsBounds(points);
+  scene.nodes.push({
+    id: nextId("shape", scene),
+    type: "shape",
+    shape: "line",
+    points,
+    x: b.x,
+    y: b.y,
+    width: b.width,
+    height: b.height,
+    stroke: placement.stroke ?? placement.color ?? "#111111",
+    strokeWidth: placement.strokeWidth ?? 6,
+    ...stylePlacement(placement),
+  });
+  return next;
+}
+
+/** Whether a node is an editable curve (a shape carrying 2+ anchor points). */
+export function isCurve(node: DesignNode): boolean {
+  return node.type === "shape" && Array.isArray(node.points) && node.points.length >= 2;
+}
+
+/** Replace a curve's anchor points (and re-fit its bounding box). */
+export function setCurvePoints(design: DesignDoc, sceneIndex: number, nodeId: string, points: CurvePoint[]): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    const b = pointsBounds(points);
+    return { ...n, points: points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), x: b.x, y: b.y, width: b.width, height: b.height };
+  });
+}
+
+/** Move one anchor of a curve to a new scene-local point. */
+export function moveCurvePoint(design: DesignDoc, sceneIndex: number, nodeId: string, index: number, point: CurvePoint): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    if (!n.points || index < 0 || index >= n.points.length) return n;
+    const points = n.points.map((p, i) => (i === index ? { x: Math.round(point.x), y: Math.round(point.y) } : p));
+    const b = pointsBounds(points);
+    return { ...n, points, x: b.x, y: b.y, width: b.width, height: b.height };
+  });
+}
+
+/** Translate every anchor of a curve by (dx, dy) — used when the whole curve is dragged. */
+export function translateCurve(design: DesignDoc, sceneIndex: number, nodeId: string, dx: number, dy: number): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    if (!n.points) return n;
+    const points = n.points.map((p) => ({ x: Math.round(p.x + dx), y: Math.round(p.y + dy) }));
+    const b = pointsBounds(points);
+    return { ...n, points, x: b.x, y: b.y, width: b.width, height: b.height };
+  });
+}
+
+/** Insert a new anchor on the curve nearest to `point` (splits the closest segment). */
+export function insertCurveAnchor(design: DesignDoc, sceneIndex: number, nodeId: string, point: CurvePoint): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    if (!n.points || n.points.length < 2) return n;
+    // Find the segment whose midpoint-projection is closest to the click, insert the anchor after it.
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < n.points.length - 1; i++) {
+      const a = n.points[i];
+      const b = n.points[i + 1];
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const d = (mx - point.x) ** 2 + (my - point.y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    const points = [...n.points.slice(0, best + 1), { x: Math.round(point.x), y: Math.round(point.y) }, ...n.points.slice(best + 1)];
+    const bb = pointsBounds(points);
+    return { ...n, points, x: bb.x, y: bb.y, width: bb.width, height: bb.height };
+  });
 }
 
 /** Set a scene's background colour (AC9 "backgrounds"). */
