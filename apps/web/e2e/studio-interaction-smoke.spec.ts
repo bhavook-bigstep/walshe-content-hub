@@ -76,9 +76,15 @@ test("selecting an entity and pressing Delete removes it", async ({ page }) => {
 
   await page.mouse.click(sx, sy); // select the entity under the pointer
   await page.keyboard.press("Delete");
-  await expect.poll(async () => Number(await canvas.getAttribute("data-entities"))).toBe(before - 1);
+  // Longer poll window: under CI load the canvas rebuild after a delete can take >5s, which flaked
+  // this smoke test on a busy runner (it passes locally and on a quiet runner).
+  await expect
+    .poll(async () => Number(await canvas.getAttribute("data-entities")), { timeout: 15000 })
+    .toBe(before - 1);
 
   // With nothing selected, Delete is a no-op (guards the empty-selection branch).
   await page.keyboard.press("Delete");
-  await expect.poll(async () => Number(await canvas.getAttribute("data-entities"))).toBe(before - 1);
+  await expect
+    .poll(async () => Number(await canvas.getAttribute("data-entities")), { timeout: 15000 })
+    .toBe(before - 1);
 });
