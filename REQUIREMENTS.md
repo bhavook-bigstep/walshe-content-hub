@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.53.0 |
+| **Version** | 2.54.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -720,12 +720,46 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   the drawer. Proof: api (known photo templates carry a `placeholder` node and no leftover
   `photo`-box shape or `photo_hint` text).
 
-**Priority tiers** (build order; acceptance reports honestly against all 95):
+### Campaign scheduling & live publishing — AC96–AC98
+
+Campaign scheduling & live publishing (from the `dev` branch) — **renumbered from AC77–AC79 to
+AC96–AC98 on the studio-animation merge** to avoid the collision with the animation ACs (AC77–AC95):
+
+- **AC96** — **Campaign management.** A Tourism Agent creates **campaigns** (name, optional
+  destination, start/end window) and schedules posts into a campaign from a saved project,
+  **capturing the rendered creative at schedule time**; a post carries a lifecycle status
+  (`draft → pending_approval → approved → published`, plus `rejected`/`cancelled`). Campaigns and
+  their posts are **agent-scoped** (an agent sees only their own). Proof: pytest asserts
+  create/list/detail are agent-scoped and a scheduled post captures media + enters
+  `pending_approval`.
+- **AC97** — **Post approval gate (self-approval, PoC).** A scheduled post sits in
+  `pending_approval`; the **owning agent approves or rejects** it — a deliberate PoC simplification
+  of the design's *approver ≠ owner* principle (a separate reviewer person/role is a backlog item).
+  **Approval is the publish decision: one action** records the reviewer (approver + time), audits
+  it, and publishes the post immediately (AC98) — there is no separate publish step. Reject →
+  `rejected` with a reason (audited, editable again). Only the owner may act; a non-owner gets a
+  404; a non-pending post is a 409; when approval's publish is refused the post stays
+  `pending_approval` (nothing is approved). Proof: pytest asserts approve-publishes + reject
+  transitions + audit rows, a non-owner cannot approve, and a non-pending post is a 409.
+- **AC98** — **Live Instagram publish (triggered by approval).** Approving a post publishes it to a
+  real Instagram account via the Graph API connector selected from env (AC16-style abstraction;
+  deterministic stub with no keys → hermetic tests). Publish **enforces preflight (AC34)**, **blocks
+  a duplicate publish** of a composition, hosts the captured image at a public URL (S3), and stores
+  the receipt (media id + permalink); a publish failure records `failed` + a classified error, and
+  a missing captured image is a clean 409 (not a 500). Publishing is driven by the agent's approval
+  (the explicit action) and **supersedes, for Instagram, the AC14 “simulated” wording and the
+  deferred live-posting note** (other channels stay simulated). The scheduled time is a **planning
+  slot** on the calendar; **auto-publishing at a future scheduled time needs a background worker and
+  is a backlog item** — in the PoC approval posts immediately. Proof: pytest asserts approval
+  publishes via the stub (receipt stored), preflight blocks unapproved content (post stays pending),
+  and a missing capture returns 409; a real post is a manual, user-triggered check.
+
+**Priority tiers** (build order; acceptance reports honestly against all 98):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -752,6 +786,8 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.54.0 | 2026-10-07 | **Merge `origin/dev` into `feat/studio-animation-engine` + renumber campaigns.** Integrated dev's **Campaign scheduling & live Instagram publishing** feature. Both branches had independently used AC77–AC79, so dev's campaign ACs are **renumbered to AC96 (campaign management), AC97 (self-approval gate), AC98 (live Instagram publish)** — this branch keeps AC77–AC95 (scene animation → template placeholders). Resolved manifest duplicate keys accordingly; kept dev's decision to drop synthetic engagement seeding (dashboard shows real metrics) while retaining the AC84 seeded collections; regenerated the shared API types. Behaviour of all features unchanged. All prior ACs stay green. | user + Claude |
+| 2.31.0 | 2026-10-07 | **Merge `origin/dev` into the campaign/Instagram branch + renumber.** Integrated dev's AC64–76 (Auto-Catalog agent, Auto-Catalog v2, Structured-Workspace renumber to AC75, conversational assistant, Studio redesign). The campaign increment (originally AC65–67 on this branch) is **renumbered to AC77 (campaign management), AC78 (self-approval gate), AC79 (live Instagram publish)** to resolve the AC-number collision with dev's Auto-Catalog ACs; the manifest, tests and code comments were updated to match, and the generated API types regenerated. Behaviour unchanged: approve = publish (one action), preflight + duplicate-guard + S3 hosting + receipt, missing-capture → 409, Graph error 200/10 mapped. All prior ACs stay green. | user + Claude |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
 | 2.1.0 | 2026-10-02 | **Account provisioning**: added **AC24** (hybrid registration) — public agent self-register, Super-Admin-provisioned providers with org/tenant + approval, role-escalation prevented. Enables creating the three roles through the product rather than only the seed. All prior ACs stay green. | user + Claude |

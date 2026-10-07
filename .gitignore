@@ -32,6 +32,8 @@ next-env.d.ts
 *.tsbuildinfo
 e2e-results.json
 docs/design/screenshots/
+# superpowers scratch (ledgers, review packages)
+.superpowers/
 .claude/worktrees/
 
 # Isolated second instance (start-app-alt.sh)
@@ -50,3 +52,6 @@ docs/sample/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Local dev asset store (ASSET_DIR) — runtime captures, never committed
+apps/api/.assets/

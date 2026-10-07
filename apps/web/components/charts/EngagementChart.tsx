@@ -2,22 +2,17 @@
 
 import { useId, useState } from "react";
 
-export interface EngagementPoint {
-  label: string; // x-axis category (e.g. "Post #1")
-  impressions: number;
-  clicks: number;
-  engagement: number;
+export interface ChartSeries {
+  key: string;
+  label: string;
+  color: string;
+  marker: "circle" | "square" | "triangle";
 }
 
-// Chart series — "vita" palette: teal, green, amber. Each series keeps one colour AND a distinct
-// marker shape, so it never relies on colour alone (WCAG non-colour encoding).
-const SERIES = [
-  { key: "impressions", label: "Impressions", color: "rgb(var(--walshe-ink))", marker: "circle" },
-  { key: "engagement", label: "Engagement", color: "rgb(var(--walshe-green))", marker: "square" },
-  { key: "clicks", label: "Clicks", color: "rgb(var(--walshe-mint))", marker: "triangle" },
-] as const;
-
-type Key = (typeof SERIES)[number]["key"];
+export interface ChartPoint {
+  label: string; // x-axis category (e.g. "Post #1")
+  values: Record<string, number>; // metric key -> value
+}
 
 const W = 640;
 const H = 260;
@@ -32,22 +27,30 @@ function marker(shape: string, x: number, y: number, color: string) {
 
 export default function EngagementChart({
   points,
+  series,
   title,
   summary,
 }: {
-  points: EngagementPoint[];
+  points: ChartPoint[];
+  series: ChartSeries[];
   title: string;
   summary: string;
 }) {
   const [showTable, setShowTable] = useState(false);
   const titleId = useId();
 
-  const max = Math.max(1, ...points.flatMap((p) => [p.impressions, p.clicks, p.engagement]));
+  const val = (p: ChartPoint, key: string) => p.values[key] ?? 0;
+  const max = Math.max(1, ...points.flatMap((p) => series.map((s) => val(p, s.key))));
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
-  const x = (i: number) => PAD.left + (points.length <= 1 ? plotW / 2 : (i / (points.length - 1)) * plotW);
+  // Grouped bars: posts are categories (identity + magnitude), NOT a time series — so bars, not a
+  // connecting line (which read as a trend/decline). One shared y-axis (no dual axis).
+  const slotW = plotW / Math.max(1, points.length);
+  const groupW = slotW * 0.62;
+  const barGap = 2; // 2px surface gap between adjacent bars (dataviz marks spec)
+  const barW = Math.max(6, (groupW - barGap * (series.length - 1)) / series.length);
+  const slotCenter = (i: number) => PAD.left + (i + 0.5) * slotW;
   const y = (v: number) => PAD.top + plotH - (v / max) * plotH;
-
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
 
   return (
@@ -56,22 +59,14 @@ export default function EngagementChart({
         <h2 id={titleId} className="text-h3 font-bold text-walshe-ink">
           {title}
         </h2>
-        <button
-          type="button"
-          onClick={() => setShowTable((v) => !v)}
-          className="btn-secondary"
-          aria-pressed={showTable}
-        >
+        <button type="button" onClick={() => setShowTable((v) => !v)} className="btn-secondary" aria-pressed={showTable}>
           {showTable ? "Show chart" : "Show data table"}
         </button>
       </div>
       <p className="mb-4 max-w-2xl text-small text-walshe-grey">{summary}</p>
 
-      {/* Legend: each series is named in text AND carries a distinct marker shape (not colour
-          alone), each shown as a stone-bordered chip for a visible, labelled key (WCAG non-colour
-          encoding; ink-on-white ≈ 15:1). */}
       <ul className="mb-3 flex flex-wrap gap-2 text-small font-medium text-walshe-ink" aria-hidden={showTable}>
-        {SERIES.map((s) => (
+        {series.map((s) => (
           <li
             key={s.key}
             className="inline-flex items-center gap-2 rounded-pill border border-walshe-line bg-walshe-stone/50 px-3 py-1"
@@ -91,7 +86,7 @@ export default function EngagementChart({
             <thead>
               <tr className="border-b border-walshe-line text-left text-walshe-grey">
                 <th className="py-2 pr-4 font-medium">Post</th>
-                {SERIES.map((s) => (
+                {series.map((s) => (
                   <th key={s.key} className="py-2 pr-4 font-medium">
                     {s.label}
                   </th>
@@ -102,9 +97,9 @@ export default function EngagementChart({
               {points.map((p) => (
                 <tr key={p.label} className="border-b border-walshe-line/60">
                   <td className="py-2 pr-4">{p.label}</td>
-                  {SERIES.map((s) => (
+                  {series.map((s) => (
                     <td key={s.key} className="py-2 pr-4 tabular-nums">
-                      {p[s.key as Key].toLocaleString("en-US")}
+                      {val(p, s.key).toLocaleString("en-US")}
                     </td>
                   ))}
                 </tr>
@@ -120,7 +115,6 @@ export default function EngagementChart({
           aria-label={`${title}. ${summary}`}
           data-testid="engagement-chart"
         >
-          {/* gridlines + y labels */}
           {gridLines.map((g) => {
             const gy = PAD.top + plotH - g * plotH;
             return (
@@ -132,21 +126,40 @@ export default function EngagementChart({
               </g>
             );
           })}
-          {/* x labels */}
           {points.map((p, i) => (
-            <text key={p.label} x={x(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="rgb(var(--walshe-grey))">
-              {p.label.replace("Post ", "")}
+            <text key={p.label} x={slotCenter(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="rgb(var(--walshe-grey))">
+              {p.label}
             </text>
           ))}
-          {/* series */}
-          {SERIES.map((s) => {
-            const pts = points.map((p, i) => `${x(i)},${y(p[s.key as Key])}`).join(" ");
+          {points.map((p, i) => {
+            const groupStart = slotCenter(i) - groupW / 2;
             return (
-              <g key={s.key}>
-                <polyline points={pts} fill="none" stroke={s.color} strokeWidth={2} />
-                {points.map((p, i) => (
-                  <g key={p.label}>{marker(s.marker, x(i), y(p[s.key as Key]), s.color)}</g>
-                ))}
+              <g key={p.label}>
+                {series.map((s, j) => {
+                  const v = val(p, s.key);
+                  const bx = groupStart + j * (barW + barGap);
+                  const by = y(v);
+                  const bh = Math.max(0, PAD.top + plotH - by);
+                  return (
+                    <g key={s.key}>
+                      <rect x={bx} y={by} width={barW} height={bh} rx={3} fill={s.color}>
+                        <title>{`${p.label} · ${s.label}: ${v.toLocaleString("en-US")}`}</title>
+                      </rect>
+                      {v > 0 && (
+                        <text
+                          x={bx + barW / 2}
+                          y={by - 4}
+                          textAnchor="middle"
+                          fontSize="10"
+                          fill="rgb(var(--walshe-ink))"
+                          className="tabular-nums"
+                        >
+                          {v.toLocaleString("en-US")}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             );
           })}

@@ -16,6 +16,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "psycopg[binary]>=3.2",
     "langgraph>=0.2",
+    "boto3>=1.35",
     "pypdf>=5.0",
     "pymupdf>=1.24",
 ]

@@ -81,7 +81,7 @@ acceptance:
   AC15:
     tier: P3
     api:
-      - "apps/api/tests/test_engagement.py::test_dashboard_returns_seeded_metrics"
+      - "apps/api/tests/test_engagement.py::test_dashboard_returns_agents_metrics"
   AC16:
     tier: P1
     api:
@@ -445,6 +445,26 @@ acceptance:
       - "apps/api/tests/test_agent_features.py::test_workspace_put_validates_and_bumps_version"
       - "apps/api/tests/test_agent_features.py::test_workspace_migrates_legacy_project"
       - "apps/api/tests/test_agent_features.py::test_workspace_refs_carry_media_links"
+  # Campaigns & live Instagram publish — merged from dev, renumbered AC77-79 -> AC96-98 to avoid
+  # the collision with this branch's animation ACs (AC77-95).
+  AC96:
+    tier: P2
+    api:
+      - "apps/api/tests/test_campaigns_routes.py::test_create_and_list_scoped_to_agent"
+      - "apps/api/tests/test_campaign_posts.py::test_schedule_lands_pending_approval_with_media"
+  AC97:
+    tier: P2
+    api:
+      - "apps/api/tests/test_campaign_approval.py::test_approve_publishes_immediately"
+      - "apps/api/tests/test_campaign_approval.py::test_reject_sets_rejected_with_note"
+      - "apps/api/tests/test_campaign_approval.py::test_cannot_approve_a_non_pending_post"
+      - "apps/api/tests/test_campaign_approval.py::test_second_agent_cannot_approve_foreign_post"
+  AC98:
+    tier: P2
+    api:
+      - "apps/api/tests/test_campaign_approval.py::test_approve_publishes_immediately"
+      - "apps/api/tests/test_campaign_approval.py::test_approve_blocked_by_preflight_stays_pending"
+      - "apps/api/tests/test_campaign_approval.py::test_approve_with_missing_capture_is_graceful_409"
   AC76:
     tier: P2
     api:

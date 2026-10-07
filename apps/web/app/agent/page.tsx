@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import EngagementChart, { type EngagementPoint } from "../../components/charts/EngagementChart";
+import EngagementChart, { type ChartPoint, type ChartSeries } from "../../components/charts/EngagementChart";
 import CatalogThumb from "../../components/catalog/CatalogThumb";
 import PageHeader from "../../components/ui/PageHeader";
 import StatTile from "../../components/ui/StatTile";
@@ -15,6 +15,7 @@ import {
   type Engagement,
   type Entry,
 } from "../../lib/api";
+import { latestByPost, metricValue, sumMetric } from "../../lib/engagement/metrics";
 
 type EntryWithImage = Entry & { image_key?: string | null };
 
@@ -22,12 +23,14 @@ const QUICK_LINKS = [
   { href: "/agent/catalog", title: "Browse catalog", body: "Search approved, brand-safe content" },
   { href: "/agent/studio", title: "Open Design Studio", body: "Compose pamphlets, posts and more" },
   { href: "/agent/social", title: "Plan social", body: "Schedule and publish to channels" },
-  { href: "/agent/engagement", title: "View engagement", body: "Impressions, clicks and CTR" },
+  { href: "/agent/campaigns", title: "Plan campaigns", body: "Schedule posts across a calendar" },
+  { href: "/agent/engagement", title: "View engagement", body: "Reach, interactions and more" },
 ];
 
-function sum(rows: Engagement[], key: "impressions" | "clicks" | "engagement"): number {
-  return rows.reduce((t, r) => t + r[key], 0);
-}
+const CHART_SERIES: ChartSeries[] = [
+  { key: "reach", label: "Reach", color: "rgb(var(--walshe-ink))", marker: "circle" },
+  { key: "total_interactions", label: "Interactions", color: "rgb(var(--walshe-green))", marker: "square" },
+];
 
 export default function AgentHomePage() {
   const [catalog, setCatalog] = useState<EntryWithImage[] | null>(null);
@@ -53,17 +56,16 @@ export default function AgentHomePage() {
   }, []);
 
   const loading = catalog === null || engagement === null;
-  const impressions = engagement ? sum(engagement, "impressions") : 0;
-  const clicks = engagement ? sum(engagement, "clicks") : 0;
-  const ctr = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(1)}%` : "—";
-  const points: EngagementPoint[] = (engagement ?? []).map((r) => ({
-    label: `Post #${r.post_id}`,
-    impressions: r.impressions,
-    clicks: r.clicks,
-    engagement: r.engagement,
-  }));
-  const topPosts = [...(engagement ?? [])].sort((a, b) => b.engagement - a.engagement).slice(0, 4);
-  const maxEng = Math.max(1, ...topPosts.map((p) => p.engagement));
+  const engData = (engagement ?? []) as unknown as Parameters<typeof latestByPost>[0];
+  const reach = sumMetric(engData, "reach");
+  const views = sumMetric(engData, "views");
+  const interactions = sumMetric(engData, "total_interactions");
+  const latest = latestByPost(engData);
+  const points: ChartPoint[] = latest.map((r) => ({ label: `Post #${r.post_id}`, values: r.metrics ?? {} }));
+  const topPosts = [...latest].sort(
+    (a, b) => metricValue(b, "total_interactions") - metricValue(a, "total_interactions"),
+  ).slice(0, 4);
+  const maxEng = Math.max(1, ...topPosts.map((p) => metricValue(p, "total_interactions")));
 
   return (
     <div>
@@ -92,14 +94,16 @@ export default function AgentHomePage() {
           : (
             <>
               <StatTile label="Approved content" value={catalog?.length ?? 0} caption="Items available to you" />
-              <StatTile label="Impressions" value={impressions.toLocaleString("en-US")} caption="Across published posts" />
-              <StatTile label="Clicks" value={clicks.toLocaleString("en-US")} caption="Across published posts" />
-              <StatTile label="Average CTR" value={ctr} caption="Clicks ÷ impressions" />
+              <StatTile label="Reach" value={reach.toLocaleString("en-US")} caption="Across published posts" />
+              <StatTile label="Views" value={views.toLocaleString("en-US")} caption="Across published posts" />
+              <StatTile label="Interactions" value={interactions.toLocaleString("en-US")} caption="Likes, comments, saves, shares" />
             </>
           )}
       </section>
       {!loading && (
-        <p className="-mt-6 mb-8 text-small text-walshe-grey">Figures shown are seeded sample data.</p>
+        <p className="-mt-6 mb-8 text-small text-walshe-grey">
+          Live Instagram metrics across your published posts — updated as engagement comes in.
+        </p>
       )}
 
       {/* Suggested next posts (AC40) — content worth sending, so the agent never starts from blank. */}
@@ -138,15 +142,16 @@ export default function AgentHomePage() {
           ) : points.length === 0 ? (
             <section className="card flex h-full flex-col items-start justify-center gap-3 p-8">
               <h2 className="text-h3 font-bold text-walshe-ink">No engagement yet</h2>
-              <p className="text-body text-walshe-grey">Publish a composition to start seeing impressions and clicks.</p>
+              <p className="text-body text-walshe-grey">Publish a composition to start seeing reach and interactions.</p>
               <Link href="/agent/social" className="btn-secondary">
                 Plan a post
               </Link>
             </section>
           ) : (
             <EngagementChart
-              title="Engagement by post"
-              summary="Impressions, engagement and clicks for each published post (seeded sample data)."
+              title="Reach & interactions by post"
+              summary="Latest Instagram reach and interactions for each published post."
+              series={CHART_SERIES}
               points={points}
             />
           )}
@@ -157,7 +162,7 @@ export default function AgentHomePage() {
           <h2 id="scorecard-title" className="mb-1 text-h3 font-bold text-walshe-ink">
             Top posts
           </h2>
-          <p className="mb-4 text-small text-walshe-grey">Ranked by total engagement.</p>
+          <p className="mb-4 text-small text-walshe-grey">Ranked by interactions.</p>
           {loading && !error ? (
             <div className="space-y-3">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -176,12 +181,14 @@ export default function AgentHomePage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between text-small">
                       <span className="font-semibold text-walshe-ink">Post #{p.post_id}</span>
-                      <span className="tabular-nums text-walshe-grey">{p.engagement.toLocaleString("en-US")}</span>
+                      <span className="tabular-nums text-walshe-grey">
+                        {metricValue(p, "total_interactions").toLocaleString("en-US")}
+                      </span>
                     </div>
                     <div className="mt-1.5 h-2 rounded-pill bg-walshe-stone" aria-hidden>
                       <div
                         className="h-2 rounded-pill bg-walshe-mint"
-                        style={{ width: `${Math.max(4, Math.round((p.engagement / maxEng) * 100))}%` }}
+                        style={{ width: `${Math.max(4, Math.round((metricValue(p, "total_interactions") / maxEng) * 100))}%` }}
                       />
                     </div>
                   </div>

@@ -63,6 +63,7 @@ export type ScheduleRequest = Schemas["ScheduleRequest"];
 export type PublishRequest = Schemas["PublishRequest"];
 export type Post = Schemas["PostOut"];
 export type Engagement = Schemas["EngagementOut"];
+export type InstagramPublishResult = Schemas["InstagramPublishOut"];
 
 export let API_URL: string =
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
@@ -112,7 +113,18 @@ export class ApiError extends Error {
 async function detailOf(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as { detail?: unknown };
-    if (typeof body.detail === "string") return body.detail;
+    const d = body.detail;
+    if (typeof d === "string") return d;
+    if (d && typeof d === "object") {
+      // Structured guard failures (preflight / publish) — surface the real reason, not a bare 422.
+      const o = d as { error?: string; code?: string; issues?: Array<{ message?: string; fix?: string }> };
+      if (o.error === "preflight_failed" && Array.isArray(o.issues)) {
+        return "Can't publish yet: " + o.issues
+          .map((i) => [i.message, i.fix].filter(Boolean).join(" "))
+          .join(" · ");
+      }
+      if (o.error === "publish_failed") return `Instagram rejected the post (${o.code ?? "error"}).`;
+    }
   } catch {
     /* non-JSON error body */
   }
@@ -591,6 +603,20 @@ export async function builderDesign(body: DesignRequest): Promise<Record<string,
   return (await (await send("/builder/design", json(body))).json()) as Record<string, unknown>;
 }
 
+/** AI: generate an Instagram caption for one of the agent's saved compositions. Deterministic
+ *  under the stub provider (no key); grounded in the composition's catalog content. */
+export async function generateCaption(compositionId: number): Promise<{ caption: string }> {
+  const body = { composition_id: compositionId };
+  return (await (await send("/ai/caption", json(body))).json()) as { caption: string };
+}
+
+/** AI: suggest Instagram hashtags derived from a composition's catalog content (AI-suggested, to
+ *  review before posting). Returns a non-empty list of `#`-prefixed tags. */
+export async function generateKeywords(compositionId: number): Promise<{ hashtags: string[] }> {
+  const body = { composition_id: compositionId };
+  return (await (await send("/ai/keywords", json(body))).json()) as { hashtags: string[] };
+}
+
 /** Renders items to an MP4 blob (server never accepts client file paths). */
 export async function renderVideo(body: VideoRequest): Promise<Blob> {
   return (await send("/render/video", json(body))).blob();
@@ -615,8 +641,63 @@ export async function publishSocialPost(body: PublishRequest): Promise<Post> {
   return (await (await send("/social/publish", json(body))).json()) as Post;
 }
 
+/**
+ * Publish an image + caption to Instagram (increment 1). `form` carries composition_id, caption,
+ * and the exported JPEG (see buildPublishForm in the web app). Real connector when the API has
+ * Instagram keys configured, else a deterministic stub.
+ */
+export async function publishToInstagram(form: FormData): Promise<InstagramPublishResult> {
+  const res = await send("/social/instagram/publish", { method: "POST", body: form });
+  return (await res.json()) as InstagramPublishResult;
+}
+
 export async function listEngagement(): Promise<Engagement[]> {
   return (await (await send("/engagement")).json()) as Engagement[];
+}
+
+/** On-demand: pull fresh Instagram insights for the agent's own published posts. */
+export async function refreshEngagement(): Promise<{ synced: number }> {
+  return (await (await send("/engagement/refresh", { method: "POST" })).json()) as {
+    synced: number;
+  };
+}
+
+// --- Campaigns (Inc 1) ---
+export type Campaign = Schemas["CampaignOut"];
+export type CampaignDetail = Schemas["CampaignDetailOut"];
+export type CampaignPost = Schemas["CampaignPostOut"];
+export type CampaignCreate = Schemas["CampaignCreate"];
+
+export async function createCampaign(body: CampaignCreate): Promise<Campaign> {
+  return (await (await send("/campaigns", json(body))).json()) as Campaign;
+}
+export async function listCampaigns(): Promise<Campaign[]> {
+  return (await (await send("/campaigns")).json()) as Campaign[];
+}
+export async function getCampaign(id: number): Promise<CampaignDetail> {
+  return (await (await send(`/campaigns/${id}`)).json()) as CampaignDetail;
+}
+export async function deleteCampaign(id: number): Promise<void> {
+  await send(`/campaigns/${id}`, { method: "DELETE" });
+}
+export async function scheduleCampaignPost(id: number, form: FormData): Promise<CampaignPost> {
+  return (await (await send(`/campaigns/${id}/posts`, { method: "POST", body: form })).json()) as CampaignPost;
+}
+export async function patchCampaignPost(
+  id: number,
+  postId: number,
+  form: FormData,
+): Promise<CampaignPost> {
+  return (await (await send(`/campaigns/${id}/posts/${postId}`, { method: "PATCH", body: form })).json()) as CampaignPost;
+}
+/** Approve = publish: one call records the reviewer and posts the creative immediately. */
+export async function approveCampaignPost(id: number, postId: number): Promise<CampaignPost> {
+  return (await (await send(`/campaigns/${id}/posts/${postId}/approve`, { method: "POST" })).json()) as CampaignPost;
+}
+export async function rejectCampaignPost(id: number, postId: number, note: string): Promise<CampaignPost> {
+  const form = new FormData();
+  form.append("note", note);
+  return (await (await send(`/campaigns/${id}/posts/${postId}/reject`, { method: "POST", body: form })).json()) as CampaignPost;
 }
 
 /** Assets need the bearer header, so <img src> cannot hit the API directly: authed fetch -> blob -> object URL. */
