@@ -47,8 +47,15 @@ function ease(u: number, kind: Easing | undefined): number {
 }
 
 // Sample one property across the keyframes that set it. Holds the first/last value outside the
-// track (so an element is invisible before its opacity ramps up — i.e. it "arrives").
-function sampleProp(kfs: AnimKeyframe[], t: number, key: keyof AnimKeyframe, base: number): number {
+// track (so an element is invisible before its opacity ramps up — i.e. it "arrives"). `linear`
+// forces constant-speed interpolation (used for frame sprites, which should move at a steady pace).
+function sampleProp(
+  kfs: AnimKeyframe[],
+  t: number,
+  key: keyof AnimKeyframe,
+  base: number,
+  linear = false,
+): number {
   const pts = kfs.filter((k) => k[key] !== undefined);
   if (pts.length === 0) return base;
   if (t <= pts[0].t) return pts[0][key] as number;
@@ -60,7 +67,7 @@ function sampleProp(kfs: AnimKeyframe[], t: number, key: keyof AnimKeyframe, bas
     if (t <= b.t) {
       const span = b.t - a.t;
       const u = span <= 0 ? 1 : (t - a.t) / span;
-      const e = ease(u, b.ease);
+      const e = linear ? clamp01(u) : ease(u, b.ease);
       return (a[key] as number) + ((b[key] as number) - (a[key] as number)) * e;
     }
   }
@@ -83,17 +90,83 @@ export function hasAnimation(node: DesignNode): boolean {
 export const DEFAULT_SPRITE_FPS = 10;
 
 /** The frame index a frame-by-frame sprite shows at time `t` (ms), looping forever. Returns null
- * for a node that is not a frame sprite (fewer than two frames). Pure + deterministic, so the
- * canvas preview and the video export pick the same frame at the same time. */
-export function frameIndexAt(node: DesignNode, t: number): number | null {
+ * for a node that is not a frame sprite (fewer than two frames). `forceLoop` makes the filmstrip
+ * loop regardless of `loopFrames` — used for a chained member so it keeps animating across a slot
+ * longer than its filmstrip. Pure + deterministic, so the canvas preview and the video export pick
+ * the same frame at the same time. */
+export function frameIndexAt(node: DesignNode, t: number, forceLoop = false): number | null {
   const frames = node.frames;
   if (!frames || frames.length < 2) return null;
   const fps = node.fps && node.fps > 0 ? node.fps : DEFAULT_SPRITE_FPS;
   const frameMs = 1000 / fps;
   const raw = Math.floor(Math.max(0, t) / frameMs);
   // loopFrames defaults to true; when false the sprite plays once and holds the last frame.
-  if (node.loopFrames === false) return Math.min(raw, frames.length - 1);
+  if (!forceLoop && node.loopFrames === false) return Math.min(raw, frames.length - 1);
   return raw % frames.length;
+}
+
+/** A frame sprite's own play-once duration in ms (0 for a non-sprite). */
+export function spriteOwnMs(node: DesignNode): number {
+  const frames = node.frames;
+  if (!frames || frames.length < 2) return 0;
+  const fps = node.fps && node.fps > 0 ? node.fps : DEFAULT_SPRITE_FPS;
+  return (frames.length / fps) * 1000;
+}
+
+/** One member's slot length in a chain: an explicit `chainDurMs` override, else the longer of its
+ * filmstrip and its own keyframe track. Kept in sync with ops.ts `memberDurMs`. */
+function memberDurMs(node: DesignNode): number {
+  if (node.chainDurMs && node.chainDurMs > 0) return Math.round(node.chainDurMs);
+  const anim = node.anim?.keyframes?.length ? Math.max(...node.anim.keyframes.map((k) => k.t)) : 0;
+  return Math.max(spriteOwnMs(node), anim, 1);
+}
+
+/** A chained sprite's time window within its scene. */
+export interface ChainSegment {
+  /** ms from scene start when this member begins */
+  start: number;
+  /** the member's slot length in ms */
+  dur: number;
+  /** the last member of the chain */
+  last: boolean;
+  /** stay visible after the slot ends (held to scene end). True only for a final member with NO
+   * explicit duration set — a member whose life the user capped (`chainDurMs`) disappears instead. */
+  hold: boolean;
+}
+
+/**
+ * Lay out every sprite chain in `nodes` on the scene timeline: head plays [0,d0), its successor
+ * [d0,d0+d1), and so on — so one animation starts exactly where the previous finished. Nodes not in
+ * a chain are absent from the map (they play normally). Pure + deterministic; cycle-safe.
+ */
+export function chainSegments(nodes: DesignNode[]): Map<string, ChainSegment> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const hasPred = new Set<string>();
+  for (const n of nodes) if (n.successorId && byId.has(n.successorId)) hasPred.add(n.successorId);
+  const out = new Map<string, ChainSegment>();
+  for (const head of nodes) {
+    if (hasPred.has(head.id)) continue; // only start from a chain head
+    if (!head.successorId || !byId.has(head.successorId)) continue; // standalone sprite → no chain
+    const members: DesignNode[] = [];
+    const seen = new Set<string>();
+    let cur: DesignNode | undefined = head;
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      members.push(cur);
+      cur = cur.successorId ? byId.get(cur.successorId) : undefined;
+    }
+    let offset = 0;
+    members.forEach((m, i) => {
+      const dur = memberDurMs(m);
+      const last = i === members.length - 1;
+      // The final sprite lingers so the scene doesn't end empty — UNLESS the user capped its life
+      // with an explicit duration, in which case it disappears when its time is up.
+      const hold = last && !(m.chainDurMs && m.chainDurMs > 0);
+      out.set(m.id, { start: offset, dur, last, hold });
+      offset += dur;
+    });
+  }
+  return out;
 }
 
 /** The clip currentTime (seconds) a slaved video shows at scene time `tMs`: its in-point
@@ -117,13 +190,17 @@ export function nodeStateAt(node: DesignNode, t: number): AnimState {
   const anim = node.anim;
   if (!anim || (anim.keyframes.length === 0 && !anim.loop)) return base;
 
+  // Frame-by-frame sprites move at a steady pace: force linear interpolation of their motion so a
+  // sprite gliding across the scene doesn't ease-in/ease-out (its filmstrip already carries the
+  // motion feel). Other nodes honour each keyframe's own easing.
+  const lin = (node.frames?.length ?? 0) > 1;
   const kfs = [...anim.keyframes].sort((a, b) => a.t - b.t);
   const st: AnimState = {
-    x: sampleProp(kfs, t, "x", base.x),
-    y: sampleProp(kfs, t, "y", base.y),
-    scale: sampleProp(kfs, t, "scale", base.scale),
-    rotation: sampleProp(kfs, t, "rotation", base.rotation),
-    opacity: clamp01(sampleProp(kfs, t, "opacity", base.opacity)),
+    x: sampleProp(kfs, t, "x", base.x, lin),
+    y: sampleProp(kfs, t, "y", base.y, lin),
+    scale: sampleProp(kfs, t, "scale", base.scale, lin),
+    rotation: sampleProp(kfs, t, "rotation", base.rotation, lin),
+    opacity: clamp01(sampleProp(kfs, t, "opacity", base.opacity, lin)),
   };
 
   // Character loop, layered on after the track's last keyframe (so it starts once the element

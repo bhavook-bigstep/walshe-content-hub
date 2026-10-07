@@ -34,6 +34,7 @@ from app.routers import (
     engagement,
     instagram,
     me_media,
+    me_sprites,
     observability,
     org,
     provider,
@@ -133,6 +134,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(catalogs.router)
     app.include_router(assets.router)
     app.include_router(me_media.router)
+    app.include_router(me_sprites.router)
     app.include_router(render.router)
     app.include_router(builder.router)
     app.include_router(ai_copy.router)

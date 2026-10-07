@@ -3,7 +3,7 @@
 // video is exactly what you scrub in the editor. The server just sequences + stitches the frames.
 import { StaticCanvas, type FabricObject } from "fabric";
 import { getVideoDuration, isVideoObject, nodeToObject, seekVideoObject, setSpriteFrame } from "./fabric-nodes";
-import { frameIndexAt, nodeStateAt, videoTimeAt } from "./anim";
+import { chainSegments, frameIndexAt, nodeStateAt, videoTimeAt } from "./anim";
 import type { DesignDoc, Scene } from "./ops";
 
 export const EXPORT_FPS = 20;
@@ -36,20 +36,24 @@ export async function renderSceneFrames(
       canvas.add(o);
     }
     const frameCount = Math.max(1, Math.round((scene.durationMs / 1000) * fps));
+    const segs = chainSegments(scene.nodes); // sprite chains: play each member in its own window
     const frames: string[] = [];
     for (let f = 0; f < frameCount; f++) {
       const t = (f / fps) * 1000;
       for (const p of pairs) {
-        const st = nodeStateAt(p.node, t);
+        const seg = segs.get(p.node.id);
+        const localT = seg ? Math.max(0, t - seg.start) : t;
+        const chainHidden = seg ? !(t >= seg.start && (t < seg.start + seg.dur || seg.hold)) : false;
+        const st = nodeStateAt(p.node, localT);
         p.o.set({
           left: st.x,
           top: st.y,
           scaleX: p.bsx * st.scale,
           scaleY: p.bsy * st.scale,
           angle: st.rotation,
-          opacity: st.opacity,
+          opacity: chainHidden ? 0 : st.opacity,
         });
-        const fi = frameIndexAt(p.node, t);
+        const fi = frameIndexAt(p.node, localT, !!seg); // chained members loop to fill their slot
         if (fi !== null) setSpriteFrame(p.o, fi); // advance a frame sprite's filmstrip
         p.o.setCoords();
       }

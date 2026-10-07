@@ -17,7 +17,7 @@ import {
 } from "fabric";
 import { isVideoObject, nodeToObject, seekVideoObject, setSpriteFrame } from "../../lib/studio/fabric-nodes";
 import { pointerMode, shouldDeleteSelection } from "../../lib/studio/keys";
-import { frameIndexAt, nodeStateAt, videoTimeAt } from "../../lib/studio/anim";
+import { chainSegments, frameIndexAt, nodeStateAt, videoTimeAt } from "../../lib/studio/anim";
 import type { DesignDoc, DesignNode } from "../../lib/studio/ops";
 
 export interface NodeBox {
@@ -346,6 +346,8 @@ export default function StudioCanvas({
         const active = activeSceneRef.current;
         const originX = sceneOriginX(design, active);
         const scene = design.scenes[active];
+        // Sprite chains: each member plays in its own time window, starting where the previous ended.
+        const segs = timeMs === null ? null : chainSegments(scene?.nodes ?? []);
         for (const obj of c.getObjects() as TaggedObject[]) {
           if (obj.sceneIndex !== active || !obj.nodeId) continue;
           const node = scene?.nodes.find((n) => n.id === obj.nodeId);
@@ -364,16 +366,21 @@ export default function StudioCanvas({
             obj.selectable = true;
             obj.evented = true;
           } else {
-            const st = nodeStateAt(node, timeMs);
+            // A chained sprite runs on its own local clock and is hidden outside its window.
+            const seg = segs?.get(node.id);
+            const localT = seg ? Math.max(0, timeMs - seg.start) : timeMs;
+            const chainHidden = seg ? !(timeMs >= seg.start && (timeMs < seg.start + seg.dur || seg.hold)) : false;
+            const st = nodeStateAt(node, localT);
             obj.set({
               left: originX + st.x,
               top: st.y,
               scaleX: (obj.baseScaleX ?? 1) * st.scale,
               scaleY: (obj.baseScaleY ?? 1) * st.scale,
               angle: st.rotation,
-              opacity: st.opacity,
+              opacity: chainHidden ? 0 : st.opacity,
             });
-            const fi = frameIndexAt(node, timeMs);
+            // A chained member loops its filmstrip to fill its (possibly extended) slot.
+            const fi = frameIndexAt(node, localT, !!seg);
             if (fi !== null) setSpriteFrame(obj, fi); // advance the frame sprite's filmstrip
             driveVideo(obj, node, timeMs, !!opts?.playing, c); // slave the clip to the scene clock
             obj.selectable = false;
