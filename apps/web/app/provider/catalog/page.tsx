@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import CatalogThumb from "../../../components/catalog/CatalogThumb";
 import Dialog from "../../../components/ui/Dialog";
-import PageHeader from "../../../components/ui/PageHeader";
 import EntryForm from "../../../components/provider/EntryForm";
 import {
   getContentTemplates,
@@ -46,13 +45,13 @@ function AiCreatedBadge({ className = "" }: { className?: string }) {
 // AC54 — one of the three catalog sets (Public / Private / Drafts) as a titled grid of cards.
 function EntrySection({ title, blurb, entries }: { title: string; blurb: string; entries: Entry[] }) {
   return (
-    <section aria-label={title}>
-      <div className="mb-3 flex items-baseline gap-3">
+    <section aria-label={title} className="rounded-xl border border-walshe-line bg-walshe-mist/40 p-5 sm:p-6">
+      <div className="mb-4 flex items-baseline gap-3">
         <h2 className="text-h3 text-walshe-ink">{title}</h2>
         <span className="text-small text-walshe-grey">{entries.length} · {blurb}</span>
       </div>
       {entries.length === 0 ? (
-        <p className="card p-6 text-small text-walshe-grey">Nothing here yet.</p>
+        <p className="text-small text-walshe-grey">Nothing here yet.</p>
       ) : (
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {entries.map((e) => {
@@ -185,42 +184,38 @@ export default function ProviderCatalogPage() {
 
   return (
     <div>
-      <PageHeader
-        breadcrumbs={[{ label: "Home", href: "/provider" }, { label: "Catalog" }]}
-        title="Catalog"
-        action={
-          <div className="flex items-center gap-2">
-            <ToolbarInfo />
-            <button type="button" className="btn-secondary" onClick={() => setImportOpen(true)}>
-              Import from document
-            </button>
-            <button type="button" className="btn-primary" onClick={() => setDialogOpen(true)}>
-              New entry
-            </button>
+      {/* Toolbar: filter tags on the left, actions on the right — one level, no gap above. */}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        {entries !== null && entries.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter entries">
+            {([
+              ["all", "All"],
+              ["ai", "AI-created"],
+              ["manual", "Manual"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={`rounded-pill px-3.5 py-1.5 text-small font-semibold ${
+                  filter === key ? "bg-walshe-ink text-white" : "bg-walshe-stone/60 text-walshe-ink"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        }
-      />
-
-      {entries !== null && entries.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-2" role="group" aria-label="Filter entries">
-          {([
-            ["all", "All"],
-            ["ai", "AI-created"],
-            ["manual", "Manual"],
-          ] as const).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key)}
-              className={`rounded-pill px-3.5 py-1.5 text-small font-semibold ${
-                filter === key ? "bg-walshe-ink text-white" : "bg-walshe-stone/60 text-walshe-ink"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <ToolbarInfo />
+          <button type="button" className="btn-secondary" onClick={() => setImportOpen(true)}>
+            Import from document
+          </button>
+          <button type="button" className="btn-primary" onClick={() => setDialogOpen(true)}>
+            New entry
+          </button>
         </div>
-      )}
+      </div>
 
       {entries === null ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -244,7 +239,7 @@ export default function ProviderCatalogPage() {
             filter === "all" ? true : filter === "ai" ? e.ai_created : !e.ai_created,
           );
           return (
-            <div className="space-y-10">
+            <div className="space-y-8 pb-10">
               <EntrySection
                 title="Public"
                 blurb="Visible to every agent."
