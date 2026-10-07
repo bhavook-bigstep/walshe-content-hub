@@ -3,107 +3,146 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import CatalogThumb from "../../components/catalog/CatalogThumb";
-import PageHeader from "../../components/ui/PageHeader";
 import StatTile from "../../components/ui/StatTile";
-import { getMyCatalog, listMyEntries, type Catalog, type Entry } from "../../lib/api";
+import {
+  getPerformance,
+  listMyEntries,
+  type Entry,
+  type Performance,
+} from "../../lib/api";
+
+const VIS = [
+  { key: "public", label: "Public", blurb: "Visible to every agent", dot: "bg-walshe-teal" },
+  { key: "private", label: "Private", blurb: "Invited agents only", dot: "bg-walshe-warn" },
+  { key: "draft", label: "Drafts", blurb: "Hidden until published", dot: "bg-walshe-grey" },
+] as const;
+
+const QUICK_LINKS = [
+  { href: "/provider/performance", title: "Performance", body: "Reach, engagement & trends" },
+  { href: "/provider/organization", title: "Organization", body: "Board profile, agents & team" },
+  { href: "/provider/blocklist", title: "Brand safety", body: "Off-limits terms" },
+];
 
 export default function ProviderHomePage() {
   const [entries, setEntries] = useState<Entry[] | null>(null);
-  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [perf, setPerf] = useState<Performance | null>(null);
 
   useEffect(() => {
-    getMyCatalog().then(setCatalog).catch(() => setCatalog(null));
-    listMyEntries()
-      .then(setEntries)
-      .catch(() => setEntries([]));
+    listMyEntries().then(setEntries).catch(() => setEntries([]));
+    getPerformance().then(setPerf).catch(() => setPerf(null));
   }, []);
 
   const loading = entries === null;
-  const total = entries?.length ?? 0;
-  const assets = entries?.reduce((t, e) => t + (e.asset_keys?.length ?? 0), 0) ?? 0;
-  const items = entries?.reduce((t, e) => t + (e.items?.length ?? 0), 0) ?? 0;
+  const list = entries ?? [];
+  const total = list.length;
+  const items = list.reduce((t, e) => t + (e.items?.length ?? 0), 0);
+  const count = (v: string) => list.filter((e) => (e.visibility ?? "draft") === v).length;
 
   return (
-    <div className="pb-10">
-      <PageHeader
-        breadcrumbs={[{ label: "Home", href: "/provider" }, { label: "Overview" }]}
-        title="Provider home"
-        action={
-          <Link href="/provider/catalog" className="btn-primary">
-            Open catalog
-          </Link>
-        }
-      />
+    <div className="space-y-8 pb-10">
+      {/* Welcome header */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="eyebrow">Provider workspace</p>
+          <h1 className="font-display mt-2 text-h1 font-semibold text-walshe-ink">Welcome back</h1>
+          <p className="mt-2 max-w-xl text-body text-walshe-grey">
+            Publish verified destination content and see how the trade puts it to work.
+          </p>
+        </div>
+        <Link href="/provider/catalog" className="btn-primary shrink-0">Open catalog</Link>
+      </header>
 
-      <section aria-label="Key figures" className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPIs */}
+      <section aria-label="Key figures" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card h-28 animate-pulse bg-walshe-stone/60" aria-hidden />
           ))
         ) : (
           <>
-            <StatTile label="Catalog entries" value={total} caption="In your catalog" />
-            <StatTile label="Content items" value={items} caption="Text + media" />
-            <StatTile label="Uploaded assets" value={assets} caption="Images across entries" />
-            <StatTile
-              label="Catalog"
-              value={catalog?.visibility === "public" ? "Public" : "Private"}
-              caption={catalog?.visibility === "public" ? "Every agent can use it" : "Shared agents only"}
-            />
+            <StatTile label="Catalog entries" value={total} caption={`${items} content items`} />
+            <StatTile label="Total reach" value={(perf?.total_reach ?? 0).toLocaleString()} caption="Impressions from agent posts" />
+            <StatTile label="Engagements" value={(perf?.total_engagements ?? 0).toLocaleString()} caption="Likes, comments, saves & shares" />
+            <StatTile label="Public entries" value={count("public")} caption={`${count("private")} private · ${count("draft")} drafts`} />
           </>
         )}
       </section>
 
-      <section aria-labelledby="recent-entries">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="eyebrow">Your catalog</p>
-            <h2 id="recent-entries" className="mt-2 text-h3 text-walshe-ink">
-              Recent entries
-            </h2>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
+        {/* Recent entries */}
+        <section aria-labelledby="recent-entries">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <h2 id="recent-entries" className="text-h3 text-walshe-ink">Recent entries</h2>
+            <Link href="/provider/catalog" className="btn-ghost shrink-0">Open catalog</Link>
           </div>
-          <Link href="/provider/catalog" className="btn-ghost shrink-0">
-            Open catalog
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="card h-56 animate-pulse bg-walshe-stone/60" aria-hidden />
-            ))}
-          </div>
-        ) : total === 0 ? (
-          <div className="card flex flex-col items-start gap-3 p-10 text-center sm:items-center">
-            <h3 className="text-h3 text-walshe-ink">No entries yet</h3>
-            <p className="max-w-md text-body text-walshe-grey">
-              Open your catalog to add your first event, place, offer or itinerary.
-            </p>
-            <Link href="/provider/catalog" className="btn-primary mt-1">
-              Open catalog
-            </Link>
-          </div>
-        ) : (
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {entries!.slice(0, 6).map((e) => (
-              <li key={e.id} className="card card-hover group overflow-hidden">
-                <div className="relative overflow-hidden">
-                  <CatalogThumb imageKey={e.cover_object_key || e.asset_keys?.[0]} alt={e.title} className="h-40 w-full transition-transform duration-500 group-hover:scale-105" />
-                </div>
-                <div className="space-y-2 p-5">
-                  <h3 className="truncate text-h3 text-[1.0625rem] text-walshe-ink">{e.title}</h3>
-                  <p className="text-small capitalize text-walshe-grey">
-                    {e.type} · {e.destination}
-                  </p>
-                  <Link href={`/provider/catalog/${e.id}`} className="inline-flex items-center gap-1 pt-1 text-small font-semibold text-walshe-ink hover:text-walshe-mint">
-                    Open entry →
+          {loading ? (
+            <div className="grid gap-5 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="card h-56 animate-pulse bg-walshe-stone/60" aria-hidden />
+              ))}
+            </div>
+          ) : total === 0 ? (
+            <div className="card flex flex-col items-start gap-3 p-10 text-center sm:items-center">
+              <h3 className="text-h3 text-walshe-ink">No entries yet</h3>
+              <p className="max-w-md text-body text-walshe-grey">
+                Open your catalog to add your first event, place, offer or itinerary.
+              </p>
+              <Link href="/provider/catalog" className="btn-primary mt-1">Open catalog</Link>
+            </div>
+          ) : (
+            <ul className="grid gap-5 sm:grid-cols-2">
+              {list.slice(0, 4).map((e) => (
+                <li key={e.id}>
+                  <Link href={`/provider/catalog/${e.id}`} className="card card-hover group block overflow-hidden">
+                    <div className="relative overflow-hidden">
+                      <CatalogThumb imageKey={e.cover_object_key || e.asset_keys?.[0]} alt={e.title} className="h-40 w-full transition-transform duration-500 group-hover:scale-105" />
+                      <span className="absolute left-3 top-3 rounded-pill bg-walshe-ink/75 px-2.5 py-0.5 text-[11px] font-semibold capitalize text-white">
+                        {e.visibility ?? "draft"}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 p-5">
+                      <h3 className="truncate text-[1.0625rem] font-medium text-walshe-ink">{e.title}</h3>
+                      <p className="text-small capitalize text-walshe-grey">{e.type} · {e.destination}</p>
+                    </div>
                   </Link>
-                </div>
-              </li>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Right rail: catalog mix + quick links */}
+        <aside className="space-y-6">
+          <section className="card p-6" aria-label="Catalog mix">
+            <h2 className="text-h3 text-walshe-ink">Catalog mix</h2>
+            <p className="mt-1 text-small text-walshe-grey">How your {total} entries are shared.</p>
+            <ul className="mt-4 space-y-3">
+              {VIS.map((v) => (
+                <li key={v.key} className="flex items-center gap-3">
+                  <span aria-hidden className={`h-2.5 w-2.5 flex-none rounded-full ${v.dot}`} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-small font-medium text-walshe-ink">{v.label}</span>
+                    <span className="block text-[12px] text-walshe-grey">{v.blurb}</span>
+                  </span>
+                  <span className="text-h3 font-bold tabular-nums text-walshe-ink">{loading ? "—" : count(v.key)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <nav className="card divide-y divide-walshe-line p-2" aria-label="Quick links">
+            {QUICK_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className="flex items-center gap-3 rounded-md px-4 py-3 transition-colors hover:bg-walshe-ink/5">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-small font-semibold text-walshe-ink">{l.title}</span>
+                  <span className="block text-[12px] text-walshe-grey">{l.body}</span>
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-none text-walshe-grey" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
+              </Link>
             ))}
-          </ul>
-        )}
-      </section>
+          </nav>
+        </aside>
+      </div>
     </div>
   );
 }

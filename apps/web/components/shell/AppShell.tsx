@@ -464,7 +464,19 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
       </aside>
 
       {/* Main column */}
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="relative isolate flex min-w-0 flex-1 flex-col">
+        {/* Provider workspace watermark: a top-down plane anchored to the right, only its left half
+            visible, very light. Behind the content (-z-10 within this isolated column); provider only. */}
+        {role === "content_provider" && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/img/plane.png"
+              alt=""
+              className="absolute right-0 top-1/2 h-[135%] w-auto max-w-none -translate-y-1/2 translate-x-1/2 opacity-[0.09]"
+            />
+          </div>
+        )}
         {/* Sidebar collapse toggle — a subtle round button on the sidebar's right edge (desktop). */}
         <button
           type="button"
