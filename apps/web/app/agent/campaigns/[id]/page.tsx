@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import CaptionKeywordsComposer from "../../../../components/ai/CaptionKeywordsComposer";
 import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar";
 import PageHeader from "../../../../components/ui/PageHeader";
+import Select from "../../../../components/ui/Select";
 import {
   ApiError, approveCampaignPost, deleteCampaign, getCampaign, getProject, listProjects,
   patchCampaignPost, rejectCampaignPost, scheduleCampaignPost,
@@ -183,7 +184,8 @@ export default function CampaignDetailPage() {
       {/* Two columns: schedule a post on the left (sticky), the campaign calendar on the right —
           so the planning surface stays in view instead of being pushed below a long scroll. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(340px,1fr)_1.7fr] lg:items-start">
-        <form onSubmit={onSchedule} className="card space-y-5 p-6 lg:sticky lg:top-6" aria-busy={busy}>
+        {/* overflow-visible overrides .card's overflow-hidden so the Select dropdowns aren't clipped. */}
+        <form onSubmit={onSchedule} className="card space-y-5 overflow-visible p-6 lg:sticky lg:top-6" aria-busy={busy}>
           <CaptionKeywordsComposer
             compositionId={projectId ? Number(projectId) : null}
             caption={caption}
@@ -192,20 +194,26 @@ export default function CampaignDetailPage() {
             onKeywordsChange={setKeywords}
           />
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5">
               <span className="label">Project</span>
-              <select className="field" aria-label="Project" value={projectId}
-                      onChange={(e) => setProjectId(e.target.value)}>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5">
+              <Select
+                value={projectId}
+                onChange={setProjectId}
+                options={projects.map((p) => ({ value: String(p.id), label: p.name || `Project #${p.id}` }))}
+                placeholder={projects.length === 0 ? "No saved projects" : "Select a project"}
+                disabled={projects.length === 0}
+                aria-label="Project"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
               <span className="label">Platform</span>
-              <select className="field" aria-label="Platform" value={platform}
-                      onChange={(e) => setPlatform(e.target.value)}>
-                {CAMPAIGN_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
-            </label>
+              <Select
+                value={platform}
+                onChange={setPlatform}
+                options={CAMPAIGN_PLATFORMS.map((p) => ({ value: p.value, label: p.label }))}
+                aria-label="Platform"
+              />
+            </div>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <span className="label">When</span>
               <input type="datetime-local" className="field" aria-label="Scheduled at"

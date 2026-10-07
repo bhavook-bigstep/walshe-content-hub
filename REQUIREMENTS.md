@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.59.0 |
+| **Version** | 2.60.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -828,6 +828,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.60.0 | 2026-10-07 | **Campaign composer dropdowns** (user feedback): the campaign post composer's Project + Platform pickers now use the app's custom `Select` (matching Studio/catalog/social) instead of native system selects, and the composer `.card` gets `overflow-visible` so the menus aren't clipped. All prior ACs stay green. | user + Claude |
 | 2.59.0 | 2026-10-07 | **Social/Engagement polish** (user feedback, refines AC100/AC101): Connected-platform cards now show the real **brand logos** (accurate simple-icons glyphs on app-style tiles) instead of initials; fixed the Social composer **dropdowns clipping** (added `overflow-visible` to the `.card` form, same fix dev used for the catalog filter bar); and the Engagement **By platform / By campaign** roll-ups now render as **grouped bar charts** (reach + interactions, with the chart's built-in data-table toggle) instead of plain tables. All prior ACs stay green. | user + Claude |
 | 2.58.0 | 2026-10-07 | **Two-box caption/keywords composer** (user feedback, refines the campaign composer / AC96): the campaign post composer now has **separate Caption and Keywords/hashtags** textareas, each with its own Generate button; while a box generates it is **disabled/greyed with a spinner + status centred in the middle of that box**, leaving the other usable. On schedule the two are combined into one caption (`combineCopy` — keywords below the caption). Replaced the single-textarea `AiCaptionControls`. All prior ACs stay green. | user + Claude |
 | 2.57.0 | 2026-10-07 | **Social organization page** (user feedback): added **AC101** — the Social page is now an organization workspace with **Posts** and **Connected platforms** tabs. Connected platforms is a front-end illusion (no OAuth): Instagram starts Connected, FB/X/TikTok/Snapchat offer **Connect**, remembered per-browser keyed by the org (tenant). Rolled the app's custom `Select` dropdowns through the Social composer (replacing native selects). All prior ACs stay green. | user + Claude |
