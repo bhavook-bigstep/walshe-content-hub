@@ -6,9 +6,10 @@ All agent-owned and scoped to the signed-in agent.
 from __future__ import annotations
 
 import copy
+import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -41,6 +42,7 @@ from app.schemas.agent import (
 )
 from app.schemas.catalog import EntryOut
 from app.services.visibility import agent_visible_entries_by_ids
+from app.uploads import read_capped
 
 router = APIRouter(prefix="/me", tags=["agent"])
 
@@ -578,6 +580,36 @@ def update_brand_kit(
     ):
         if field in data and data[field] is not None:
             setattr(kit, field, data[field])
+    db.commit()
+    db.refresh(kit)
+    return kit
+
+
+_ALLOWED_LOGO_TYPES = frozenset(
+    {"image/png", "image/jpeg", "image/webp", "image/gif", "image/avif"}
+)
+
+
+@router.post("/brand-kit/logo", response_model=BrandKitOut)
+async def upload_brand_logo(
+    file: UploadFile,
+    request: Request,
+    db: Session = Depends(get_db),
+    agent: User = Depends(_agent_only),
+) -> BrandKit:
+    """Upload a brand logo image: stored under the agent's own ``users/<id>/`` prefix (owner-only)
+    and recorded as the brand kit's ``logo_url`` (served path). Replaces the paste-a-URL flow."""
+    content_type = (file.content_type or "").lower()
+    if content_type not in _ALLOWED_LOGO_TYPES:
+        raise HTTPException(415, "Unsupported type; use PNG, JPEG, WebP, GIF or AVIF")
+    data = await read_capped(file)
+    key = f"users/{agent.id}/brand-logo/{uuid.uuid4().hex}"
+    request.app.state.storage.put_object(key, data, content_type)
+    kit = db.execute(select(BrandKit).where(BrandKit.agent_id == agent.id)).scalar_one_or_none()
+    if kit is None:
+        kit = BrandKit(agent_id=agent.id)
+        db.add(kit)
+    kit.logo_url = f"/assets/{key}"
     db.commit()
     db.refresh(kit)
     return kit

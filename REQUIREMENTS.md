@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.47.0 |
+| **Version** | 2.50.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -666,12 +666,40 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   the named non-empty collections referencing approved entries, and an entry exposes both image and
   text items with a cover).
 
-**Priority tiers** (build order; acceptance reports honestly against all 89):
+- **AC90** — **Brand logo upload.** The agent's Brand kit replaces the paste-a-URL logo field with a
+  **file upload**: the image is stored under the agent's own `users/<id>/brand-logo/` prefix
+  (owner-only, readable by its owner through the asset gate) and recorded as the kit's `logo_url`.
+  The Brand-kit page previews it via an authed blob, and the studio's Apply brand kit resolves it to
+  a blob + keeps its `objectKey` so the placed logo survives a reload. Non-image uploads are
+  rejected (415). Proof: api (upload returns a `/assets/users/<id>/brand-logo/…` logo_url that
+  persists on the kit and is fetchable by the owner; a non-image is 415).
+
+- **AC91** — **Image placeholder item.** A first-class **photo placeholder** (a dashed frame with an
+  "Add photo" prompt) can be inserted from the right-rail Photo tool. Clicking it on the canvas opens
+  the left media drawer; the next pick **fills that frame in place** (replacing the placeholder art,
+  clearing the flag, recording the photo's `objectKey` so it survives reload) rather than adding a
+  new node. Replaces hand-building a placeholder from a box + text, and is what the new video
+  templates drop in for their hero photo. Proof: web (`addPlaceholder` inserts a flagged image node
+  with the placeholder art; `fillImageNode` replaces the art, clears the flag and records the
+  objectKey; `isPlaceholder` distinguishes them).
+
+- **AC92** — **Animated video templates.** The gallery leads with **multi-scene animated video
+  templates** (*Destination Reel ▶*, *Social Promo ▶*, *Event Teaser ▶*) that showcase the whole
+  studio: **frame sprites** referenced by id (a node's `sprite` id resolves to its filmstrip on
+  load, `resolveSprites`), **sprite motion** (keyframe transforms moving a balloon/bird across a
+  scene *on top of* its frame animation), **text entry + exit** animation (rise-in then fade-out),
+  **image-placeholder** photo heroes, **abstract shapes**, scene **transitions**, and per-scene
+  **narration** cues — so they export as a narrated, animated MP4. Proof: api (each video template
+  is multi-scene with narration, valid sprite refs, a placeholder hero and node animation; opening
+  one seeds its multi-scene workspace) + web (`resolveSprites` expands a sprite id into its
+  filmstrip, idempotently).
+
+**Priority tiers** (build order; acceptance reports honestly against all 92):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -710,6 +738,8 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.50.0 | 2026-10-07 | **Animated video templates** (added **AC92**): the gallery leads with three multi-scene animated video templates (Destination Reel ▶, Social Promo ▶, Event Teaser ▶) showcasing the whole studio — frame sprites referenced by id (`resolveSprites` expands id→filmstrip on load), sprite motion via keyframes on top of the frame animation, text entry+exit animation, image-placeholder heroes, abstract shapes, transitions and per-scene narration — so they export as narrated animated MP4s. All prior ACs stay green. | user + Claude |
+| 2.49.0 | 2026-10-07 | **Brand logo upload + image placeholder item** (added **AC90**, **AC91**): the Brand kit swaps the paste-a-URL logo for a **file upload** (stored owner-only under `users/<id>/brand-logo/`, set as `logo_url`, previewed via an authed blob, resolved + objectKey-persisted when Apply brand kit places it). Added a first-class **photo placeholder** node (dashed "Add photo" frame) insertable from a right-rail Photo tool: clicking it opens the media drawer and the next pick fills that frame in place (records objectKey, clears the flag) — replacing hand-built box+text placeholders and powering the video templates. All prior ACs stay green. | user + Claude |
 | 2.47.0 | 2026-10-07 | **Accurate catalog media + seeded collections** (added **AC89**): entry covers are now deterministic, type-themed, labelled banners (title + destination + type tag) instead of random stock photos (fixes the cover mismatch); each entry gains a 3-image gallery so decompose yields real image items — fixing a stale-relationship bug where appended cover assets never reached decomposition (entries previously had only text items). The baseline seed also plants browsable agent collections (West coast favourites, Australia highlights) so the dev app shows collections out of the box. All prior ACs stay green. | user + Claude |
 | 2.46.0 | 2026-10-07 | **Frame-by-frame sprites** (reworked **AC85** on user feedback): replaced the transform-wiggle sprites with true 2D game-style sprite animation — each sprite is a filmstrip of distinct SVG frames (`frames[]` + `fps`) cycled over time so the parts move (panda legs step, flower petals bloom, bird wings flap, sun rays spin, leaf tumbles, fish tail swishes…). `frameIndexAt` drives both the canvas preview (Fabric `setElement` frame swap) and the video export identically, looping for the whole scene; preview playback now loops so it keeps running until paused. 10 frame sprites, visually verified live (panda legs change between playhead times). Prior ACs stay green. | user + Claude |
 | 2.45.0 | 2026-10-07 | **Modern template gallery + new sizes/orientations** (added **AC88**): added five formats — Portrait post (1080×1350), Presentation (1920×1080), Banner (1200×628), Flyer (A4 1480×2096) and Business card (1050×600) — wired through `formats.ts`, the Size picker and backend `_FORMAT_DIMS`, and twelve new research-grounded templates leading the gallery (Aegean Minimal, Sunset Coast, Alpine Clean, Tropical Pop, Desert Luxe, City Grid, Festival Night, Heritage Trail, Slow Travel, Welcome Banner, Trip Card, Island Breeze), each a self-contained workspace with a photo zone, type hierarchy and CTA on a current travel palette. All prior ACs stay green. | user + Claude |

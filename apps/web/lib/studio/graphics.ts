@@ -4,7 +4,7 @@
 // the parts themselves move — legs step, wings flap, petals bloom, rays spin — on the canvas preview
 // AND in the exported video (the engine swaps the shown frame per output frame; see anim.ts
 // frameIndexAt + fabric-nodes.ts setSpriteFrame).
-import type { EnterType, NodeAnimation } from "./ops";
+import type { DesignDoc, EnterType, NodeAnimation } from "./ops";
 
 export interface GraphicDef {
   id: string;
@@ -238,6 +238,23 @@ function balloonFrames(): string[] {
 
 function frameSprite(id: string, label: string, w: number, h: number, frames: string[], fps = 8): SpriteDef {
   return { id, label, width: w, height: h, svg: frames[0], frames: frames.map(svgDataUrl), fps, enter: null };
+}
+
+/** Fill in a sprite node's filmstrip from its `sprite` id (templates reference a sprite by id to
+ * avoid embedding the frames). Returns a new design; idempotent (skips nodes already resolved). */
+export function resolveSprites(design: DesignDoc): DesignDoc {
+  let touched = false;
+  const scenes = design.scenes.map((scene) => {
+    const nodes = scene.nodes.map((n) => {
+      if (!n.sprite || (n.frames && n.frames.length)) return n;
+      const sprite = SPRITE_ANIMATIONS.find((s) => s.id === n.sprite);
+      if (!sprite) return n;
+      touched = true;
+      return { ...n, frames: sprite.frames, fps: sprite.fps, src: n.src ?? sprite.frames[0] };
+    });
+    return touched ? { ...scene, nodes } : scene;
+  });
+  return touched ? { ...design, scenes } : design;
 }
 
 export const SPRITE_ANIMATIONS: SpriteDef[] = [

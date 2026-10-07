@@ -271,6 +271,11 @@ def can_read_object(db: Session, user: User, object_key: str, *, now: datetime) 
     mine = db.execute(select(UserAsset).where(UserAsset.object_key == object_key)).scalars().first()
     if mine is not None:
         return mine.owner_id == user.id
+    # An agent's brand logo (users/<id>/brand-logo/<uuid>) — owner-only, stored without a UserAsset
+    # row — is readable by its owner (used by the brand-kit preview + the studio's Apply brand kit).
+    parts = object_key.split("/")
+    if len(parts) >= 3 and parts[0] == "users" and parts[2] == "brand-logo":
+        return parts[1] == str(user.id)
     # Org logos (AC58) are not sensitive: any authenticated user may read one that an org points at.
     if object_key.startswith("tenants/") and "/logo/" in object_key:
         return (

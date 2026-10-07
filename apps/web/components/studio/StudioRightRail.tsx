@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   addGraphic,
+  addPlaceholder,
   addShape,
   addText,
   setBackground,
@@ -18,7 +19,7 @@ import {
   type SpriteDef,
 } from "../../lib/studio/graphics";
 
-type Tool = "text" | "shapes" | "background" | "graphics" | "animated";
+type Tool = "text" | "shapes" | "photo" | "background" | "graphics" | "animated";
 
 interface Props {
   design: DesignDoc;
@@ -35,6 +36,17 @@ const TOOLS: { id: Tool; label: string; icon: ReactNode }[] = [
       <>
         <rect x="3" y="4" width="8" height="8" rx="1.5" />
         <circle cx="16" cy="16" r="4.5" />
+      </>
+    ),
+  },
+  {
+    id: "photo",
+    label: "Photo",
+    icon: (
+      <>
+        <rect x="3" y="6" width="18" height="13" rx="2" />
+        <circle cx="12" cy="12.5" r="3" />
+        <path d="M8 6l1.5-2h5L16 6" />
       </>
     ),
   },
@@ -164,6 +176,24 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
                   {s}
                 </button>
               ))}
+            </div>
+          )}
+
+          {active === "photo" && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                className={`${chip} w-full justify-center`}
+                onClick={() => { onChange(addPlaceholder(design, sceneIndex)); setActive(null); }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                  <rect x="3" y="6" width="18" height="13" rx="2" /><circle cx="12" cy="12.5" r="3" /><path d="M8 6l1.5-2h5L16 6" />
+                </svg>
+                Add photo frame
+              </button>
+              <p className="text-[11px] leading-snug text-walshe-grey">
+                Drops a placeholder — click it on the canvas to pick a photo from your media drawer.
+              </p>
             </div>
           )}
 

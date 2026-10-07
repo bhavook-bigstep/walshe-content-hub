@@ -1,7 +1,7 @@
 // Shared mapping from the serialisable design model (ops.ts) to Fabric objects. Used by both the
 // interactive StudioCanvas and the offscreen PNG renderer, so what you see equals what you export.
 import { Ellipse, FabricImage, Line, Rect, Textbox, type FabricObject } from "fabric";
-import type { DesignNode } from "./ops";
+import { PLACEHOLDER_SRC, type DesignNode } from "./ops";
 
 const DEFAULT_FONT = "'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
 
@@ -71,17 +71,18 @@ export async function nodeToObject(n: DesignNode): Promise<FabricObject | null> 
       const r = n.radius ?? 0;
       obj = new Rect({ ...base, width: n.width, height: n.height, fill: color, rx: r, ry: r, ...strokeProps, ...common(n) });
     }
-  } else if (n.type === "image" && (n.src || n.frames?.length)) {
+  } else if (n.type === "image" && (n.src || n.frames?.length || n.placeholder)) {
     try {
       // A frame sprite preloads its whole filmstrip and starts on frame 0; a plain image loads its
-      // single src. Either way we build a FabricImage and scale it to the node's box.
+      // single src; an unfilled placeholder shows the dashed "Add photo" frame. Build a FabricImage
+      // and scale it to the node's box.
       let img: FabricImage;
       if (n.frames && n.frames.length > 0) {
         const els = await Promise.all(n.frames.map(loadImageEl));
         img = new FabricImage(els[0]);
         (img as SpriteObject).spriteFrames = els;
       } else {
-        img = await FabricImage.fromURL(n.src as string, { crossOrigin: "anonymous" });
+        img = await FabricImage.fromURL(n.src || PLACEHOLDER_SRC, { crossOrigin: "anonymous" });
       }
       img.set({
         ...base,

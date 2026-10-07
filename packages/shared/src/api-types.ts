@@ -834,6 +834,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/brand-kit/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Brand Logo
+         * @description Upload a brand logo image: stored under the agent's own ``users/<id>/`` prefix (owner-only)
+         *     and recorded as the brand kit's ``logo_url`` (served path). Replaces the paste-a-URL flow.
+         */
+        post: operations["upload_brand_logo_me_brand_kit_logo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/collections": {
         parameters: {
             query?: never;
@@ -1598,6 +1619,11 @@ export interface components {
         };
         /** Body_import_document_me_auto_catalog_import_post */
         Body_import_document_me_auto_catalog_import_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_brand_logo_me_brand_kit_logo_post */
+        Body_upload_brand_logo_me_brand_kit_logo_post: {
             /** File */
             file: string;
         };
@@ -4454,6 +4480,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["BrandKitUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandKitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_brand_logo_me_brand_kit_logo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_brand_logo_me_brand_kit_logo_post"];
             };
         };
         responses: {

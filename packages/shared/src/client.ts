@@ -455,6 +455,12 @@ export async function getBrandKit(): Promise<BrandKit> {
 export async function updateBrandKit(body: BrandKitUpdate): Promise<BrandKit> {
   return (await (await send("/me/brand-kit", { ...json(body), method: "PUT" })).json()) as BrandKit;
 }
+/** Upload a brand logo image; returns the updated brand kit (its logo_url now points at the asset). */
+export async function uploadBrandLogo(file: File): Promise<BrandKit> {
+  const form = new FormData();
+  form.append("file", file);
+  return (await (await send("/me/brand-kit/logo", { method: "POST", body: form })).json()) as BrandKit;
+}
 
 export async function listDesignTemplates(): Promise<DesignTemplate[]> {
   return (await (await send("/me/design-templates")).json()) as DesignTemplate[];

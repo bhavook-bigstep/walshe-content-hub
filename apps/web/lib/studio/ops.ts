@@ -146,6 +146,12 @@ export interface DesignNode {
   frames?: string[];
   /** frames playback rate (frames per second); defaults to 10 when `frames` is set. */
   fps?: number;
+  /** image only — an unfilled photo placeholder (dashed frame); clicking it opens the media drawer
+   * to fill it with a real photo (cleared once filled). */
+  placeholder?: boolean;
+  /** image only — a built-in sprite id (e.g. "walking-panda"); the studio resolves it to `frames`
+   * + `fps` on load (so templates can reference a sprite without embedding its filmstrip). */
+  sprite?: string;
 }
 
 /** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
@@ -453,6 +459,65 @@ export function addGraphic(
   }
   scene.nodes.push(node);
   return next;
+}
+
+// An image-frame placeholder: a dashed frame with a camera glyph + "Add photo" prompt. Inserted as
+// an image node flagged `placeholder: true`; clicking it opens the media drawer to fill it.
+const PLACEHOLDER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">' +
+  '<rect x="6" y="6" width="388" height="288" rx="16" fill="#f1f5f9" stroke="#94a3b8" ' +
+  'stroke-width="3" stroke-dasharray="12 10"/>' +
+  '<g transform="translate(200 128)" fill="none" stroke="#64748b" stroke-width="5" ' +
+  'stroke-linecap="round" stroke-linejoin="round">' +
+  '<rect x="-38" y="-24" width="76" height="54" rx="8"/><circle cx="0" cy="5" r="14"/>' +
+  '<path d="M-30 -24l8 -12h44l8 12"/></g>' +
+  '<text x="200" y="198" text-anchor="middle" font-family="\'Inter\',system-ui,sans-serif" ' +
+  'font-size="22" font-weight="700" fill="#64748b">Add photo</text></svg>';
+
+/** The data: URL shown for an unfilled image placeholder. */
+export const PLACEHOLDER_SRC = `data:image/svg+xml,${encodeURIComponent(PLACEHOLDER_SVG)}`;
+
+/** Insert an image-frame placeholder — click it on the canvas to pick a photo from the media
+ * drawer, which fills it in place (via {@link fillImageNode}). */
+export function addPlaceholder(design: DesignDoc, sceneIndex: number, placement: NodePlacement = {}): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  scene.nodes.push({
+    id: nextId("image", scene),
+    type: "image",
+    x: placement.x ?? DEFAULT_PLACEMENT.x,
+    y: placement.y ?? DEFAULT_PLACEMENT.y,
+    width: placement.width ?? 440,
+    height: placement.height ?? 330,
+    src: PLACEHOLDER_SRC,
+    placeholder: true,
+    ...stylePlacement(placement),
+  });
+  return next;
+}
+
+/** Whether a node is an unfilled image placeholder. */
+export function isPlaceholder(node: DesignNode): boolean {
+  return node.type === "image" && node.placeholder === true;
+}
+
+/** Fill an image node (typically a placeholder) with a chosen photo, clearing the placeholder flag
+ * and recording the objectKey so it survives reload. */
+export function fillImageNode(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  image: { src: string; objectKey?: string; catalogItemId?: string },
+): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    const next: DesignNode = { ...n, src: image.src };
+    delete next.placeholder;
+    if (image.objectKey) next.objectKey = image.objectKey;
+    else delete next.objectKey;
+    if (image.catalogItemId) next.catalogItemId = image.catalogItemId;
+    return next;
+  });
 }
 
 /** Append a blank scene (AC46; also the pamphlet multi-page op, AC9). */

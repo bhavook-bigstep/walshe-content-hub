@@ -75,11 +75,21 @@ def stable_seed(text: str) -> int:
     return zlib.crc32(text.encode("utf-8"))
 
 
-def _draw_scene(draw, seed: int, palette: Palette, width: int, height: int) -> None:
-    """Sky gradient + glowing sun + three layered hill silhouettes (the scenic backdrop)."""
-    p_sky_top, p_sky_bottom, p_sun, p_hills = palette
+def _gradient_bg(width: int, height: int, top: RGB, bottom: RGB):
+    """A fast vertical sky gradient: build a 1-px-wide column then resize to full width (one C-level
+    resize instead of `height` full-width line draws — keeps the seed quick)."""
+    from PIL import Image
+
+    col = Image.new("RGB", (1, height))
+    px = col.load()
     for y in range(height):
-        draw.line([(0, y), (width, y)], fill=_lerp(p_sky_top, p_sky_bottom, y / height))
+        px[0, y] = _lerp(top, bottom, y / height)
+    return col.resize((width, height))
+
+
+def _draw_sun_hills(draw, seed: int, palette: Palette, width: int, height: int) -> None:
+    """Glowing sun + three layered hill silhouettes, drawn over an existing gradient background."""
+    _p_top, _p_bottom, p_sun, p_hills = palette
     sx = width * (0.5 + ((seed >> 3) % 30) / 100)
     sy = height * 0.26
     r = width * 0.16
@@ -111,12 +121,12 @@ def scene_png(
     height: int = 1350,
 ) -> bytes:
     """A stylised, type-themed destination banner labelled with its title + destination."""
-    from PIL import Image, ImageDraw
+    from PIL import ImageDraw
 
     palette = _TYPE_PALETTES.get(type_, _DEFAULT_PALETTE)
-    img = Image.new("RGB", (width, height))
+    img = _gradient_bg(width, height, palette[0], palette[1])
     draw = ImageDraw.Draw(img, "RGBA")
-    _draw_scene(draw, seed, palette, width, height)
+    _draw_sun_hills(draw, seed, palette, width, height)
 
     if title:
         # Legibility scrim fading up from the base, then the labels.

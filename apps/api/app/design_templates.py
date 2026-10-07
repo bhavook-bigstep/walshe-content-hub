@@ -72,8 +72,9 @@ def _scene(
     nodes: list[dict[str, Any]],
     duration_ms: int = 4000,
     transition: str = "fade",
+    narration: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return {
+    scene: dict[str, Any] = {
         "id": sid,
         "name": name,
         "durationMs": duration_ms,
@@ -81,6 +82,9 @@ def _scene(
         "background": background,
         "nodes": nodes,
     }
+    if narration:
+        scene["narration"] = narration
+    return scene
 
 
 def _workspace(name: str, fmt: str, w: int, h: int, scenes: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1045,9 +1049,152 @@ _ISLAND = _workspace("Island Breeze", "story", 1080, 1920, [
 ])
 
 
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+# Animated VIDEO templates (AC92) — multi-scene storyboards that showcase the full studio: frame
+# sprites (sprite id → filmstrip on load), sprite MOTION (keyframe transforms on top of the frame
+# animation), text entry + exit animation, image-placeholder heroes, abstract shapes, and per-scene
+# narration. Exported as a narrated MP4.
+# ════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _cue(at_ms: int, text: str) -> dict[str, Any]:
+    return {"atMs": at_ms, "text": text}
+
+
+def _text_io(
+    nid: str, s: str, x: float, y: float, w: float, size: float, dur: int, **kw: Any
+) -> dict[str, Any]:
+    """A text block that rises + fades IN at the start and fades OUT before the scene ends."""
+    node = _text(nid, s, x, y, w, size, **kw)
+    node["anim"] = {
+        "keyframes": [
+            {"t": 0, "opacity": 0, "y": y + 40},
+            {"t": 500, "opacity": 1, "y": y, "ease": "easeOut"},
+            {"t": max(600, dur - 500), "opacity": 1, "y": y},
+            {"t": dur, "opacity": 0, "y": y - 24, "ease": "easeIn"},
+        ],
+    }
+    return node
+
+
+def _sprite(nid: str, sprite_id: str, x: float, y: float, w: float, h: float,
+            keyframes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """A frame sprite referenced by id (resolved to its filmstrip on load); optional keyframes give
+    it extra whole-node MOTION on top of its frame animation."""
+    node: dict[str, Any] = {"id": nid, "type": "image", "sprite": sprite_id,
+                            "x": x, "y": y, "width": w, "height": h}
+    if keyframes:
+        node["anim"] = {"keyframes": keyframes}
+    return node
+
+
+def _placeholder(nid: str, x: float, y: float, w: float, h: float) -> dict[str, Any]:
+    """A photo-placeholder hero the agent fills from the media drawer."""
+    return {"id": nid, "type": "image", "placeholder": True,
+            "x": x, "y": y, "width": w, "height": h}
+
+
+def _drift(x0: float, y0: float, x1: float, y1: float, dur: int) -> list[dict[str, Any]]:
+    """Keyframes moving a node from (x0,y0) to (x1,y1) across the scene (ease-in-out)."""
+    return [{"t": 0, "x": x0, "y": y0}, {"t": dur, "x": x1, "y": y1, "ease": "easeInOut"}]
+
+
+# ── Video template 1: Destination Reel (story, 3 scenes) ───────────────────────────────────────
+_D1 = 5000
+_REEL = _workspace("Destination Reel ▶", "story", 1080, 1920, [
+    _scene("scene-n1", "Intro", "#0A3D3D", [
+        _ellipse("blob1", -140, 1400, 760, 760, "#0FA3A3", opacity=0.5),
+        _ellipse("blob2", 560, -160, 620, 620, "#6FD6D6", opacity=0.35),
+        _placeholder("hero", 90, 420, 900, 820),
+        _sprite("balloon", "hot-air-balloon", 70, 180, 190, 250, _drift(70, 200, 760, 120, _D1)),
+        _sprite("star1", "twinkle-star", 820, 360, 120, 120),
+        _text_io("eyebrow", "VISIT IRELAND", 90, 1300, 900, 34, _D1, color="#F4B860",
+                 fontWeight="bold"),
+        _text_io("title", "Discover\nthe Wild Coast", 84, 1350, 940, 110, _D1, color="#ffffff",
+                 fontWeight="bold", font=_DISPLAY, lineHeight=1.02),
+    ], duration_ms=_D1, transition="fade",
+        narration=[_cue(300, "Discover Ireland's wild Atlantic coast.")]),
+    _scene("scene-n2", "Explore", "#102A43", [
+        _rect("band", 0, 1480, 1080, 440, "#0E3A5F"),
+        _placeholder("hero", 90, 220, 900, 1040),
+        _sprite("sun", "spinning-sun", 790, 150, 200, 200),
+        _sprite("bird", "flapping-bird", -220, 520, 220, 160, _drift(-220, 520, 1120, 360, _D1)),
+        _text_io("title", "Cliffs, castles\n& quiet roads", 84, 1540, 940, 92, _D1, color="#ffffff",
+                 fontWeight="bold", font=_DISPLAY, lineHeight=1.04, enter="slide-left"),
+        _text_io("sub", "Seven unforgettable days.", 90, 1760, 820, 40, _D1, color="#bfdbfe"),
+    ], duration_ms=_D1, transition="slide",
+        narration=[_cue(200, "Cliffs, castles and quiet coastal roads.")]),
+    _scene("scene-n3", "Plan", "#1F3A34", [
+        _ellipse("glow", 240, 300, 600, 600, "#2f5d4f", opacity=0.6),
+        _sprite("flower", "blooming-flower", 440, 360, 200, 220),
+        _sprite("breeze", "breeze", 60, 980, 280, 160, _drift(60, 980, 740, 1020, _D1)),
+        _text_io("title", "Plan your trip", 90, 1180, 900, 104, _D1, color="#ffffff",
+                 fontWeight="bold", font=_DISPLAY, textAlign="center"),
+        *_pill("cta", "Start now", 340, 1360, 400, 104, "#F4B860", "#1F3A34"),
+    ], duration_ms=_D1, transition="fade",
+        narration=[_cue(200, "Start planning your adventure today.")]),
+])
+
+# ── Video template 2: Social Promo (square, 2 scenes) ──────────────────────────────────────────
+_D2 = 4500
+_PROMO_VIDEO = _workspace("Social Promo ▶", "social", 1080, 1080, [
+    _scene("scene-n1", "Hook", "#FFF3E9", [
+        _rect("sky", 0, 0, 1080, 620, "#FF6B4A"),
+        _ellipse("sun", 760, -140, 420, 420, "#FFB088", opacity=0.7),
+        _sprite("balloon", "hot-air-balloon", 60, 60, 150, 200, _drift(60, 80, 120, 30, _D2)),
+        _placeholder("hero", 150, 150, 780, 560),
+        _text_io("title", "Summer sale is on", 90, 760, 900, 84, _D2, color="#4A2545",
+                 fontWeight="bold", font=_DISPLAY),
+        _text_io("sub", "Up to 30% off coastal escapes.", 90, 880, 820, 36, _D2, color="#6B3A52"),
+    ], duration_ms=_D2, transition="fade",
+        narration=[_cue(200, "Our summer sale is on now.")]),
+    _scene("scene-n2", "Offer", "#0F8A5F", [
+        _ellipse("leaf", 740, 560, 460, 460, "#B6E388", opacity=0.5),
+        _sprite("flower", "blooming-flower", 80, 120, 200, 220),
+        _sprite("sun", "spinning-sun", 760, 80, 180, 180),
+        _text_io("big", "30% OFF", 90, 420, 900, 150, _D2, color="#FFF8EC", fontWeight="bold",
+                 font=_DISPLAY, textAlign="center", enter="scale"),
+        _text_io("sub", "Use code ESCAPE · ends Sunday", 90, 620, 900, 34, _D2, color="#B6E388",
+                 textAlign="center"),
+        *_pill("cta", "Book now", 340, 760, 400, 104, "#F03E5A", "#FFF8EC"),
+    ], duration_ms=_D2, transition="fade",
+        narration=[_cue(200, "Use code ESCAPE and book by Sunday.")]),
+])
+
+# ── Video template 3: Event Teaser (story, 2 scenes) ───────────────────────────────────────────
+_D3 = 4800
+_EVENT_VIDEO = _workspace("Event Teaser ▶", "story", 1080, 1920, [
+    _scene("scene-n1", "Invite", "#140B2E", [
+        _rect("field", 0, 0, 1080, 1920, "#5B2A86", opacity=0.3),
+        _sprite("star1", "twinkle-star", 140, 300, 130, 130),
+        _sprite("star2", "twinkle-star", 820, 480, 100, 100),
+        _sprite("star3", "twinkle-star", 180, 1150, 90, 90),
+        _text_io("eyebrow", "LIVE · THIS SUMMER", 90, 560, 900, 34, _D3, color="#30D0E0",
+                 fontWeight="bold", textAlign="center"),
+        _text_io("title", "Neon Nights\nFestival", 90, 700, 900, 116, _D3, color="#ffffff",
+                 fontWeight="bold", font=_DISPLAY, textAlign="center", lineHeight=1.02,
+                 enter="scale"),
+    ], duration_ms=_D3, transition="fade",
+        narration=[_cue(300, "Neon Nights Festival returns this summer.")]),
+    _scene("scene-n2", "Details", "#140B2E", [
+        _rect("card", 90, 560, 900, 820, "#241248", radius=28),
+        _placeholder("hero", 140, 620, 800, 520),
+        _sprite("bird", "flapping-bird", -200, 300, 200, 150, _drift(-200, 300, 1100, 240, _D3)),
+        _text_io("meta", "Aug 14–16 · Harbour Park", 140, 1180, 800, 42, _D3, color="#FFF4CC",
+                 textAlign="center"),
+        *_pill("cta", "Get tickets", 300, 1270, 480, 96, "#E84393", "#ffffff"),
+    ], duration_ms=_D3, transition="fade",
+        narration=[_cue(200, "August 14th to 16th at Harbour Park — get your tickets.")]),
+])
+
+
 # id -> full workspace. Metadata for the Templates list is derived from this.
 TEMPLATE_WORKSPACES: dict[str, dict[str, Any]] = {
-    # Modern set (AC88) first — these are what the gallery leads with.
+    # Animated video templates (AC92) lead the gallery.
+    "destination-reel": _REEL,
+    "social-promo-video": _PROMO_VIDEO,
+    "event-teaser-video": _EVENT_VIDEO,
+    # Modern set (AC88).
     "aegean-minimal": _AEGEAN,
     "sunset-coast": _SUNSET,
     "alpine-clean": _ALPINE,
@@ -1071,6 +1218,9 @@ TEMPLATE_WORKSPACES: dict[str, dict[str, Any]] = {
 
 # Human-facing descriptions for the Templates gallery.
 TEMPLATE_DESCRIPTIONS: dict[str, str] = {
+    "destination-reel": "Animated 3-scene reel: sprites, moving balloon/bird, text in/out.",
+    "social-promo-video": "Animated square promo: sprite motion, scaling headline, offer.",
+    "event-teaser-video": "Animated event teaser: twinkling stars, flying bird, narration.",
     "aegean-minimal": "Portrait post: a cinematic photo, a serif place name and a sunset accent.",
     "sunset-coast": "Story with a warm sunset gradient, a rounded photo and a stacked headline.",
     "alpine-clean": "16:9 presentation: a calm title panel beside a full-bleed mountain photo.",

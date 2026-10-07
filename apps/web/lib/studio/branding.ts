@@ -10,8 +10,8 @@ import { fontStack } from "./fonts";
 import { cloneDesign, type DesignDoc, type DesignNode } from "./ops";
 
 export interface Branding {
-  /** served URL of the agent's uploaded logo (existing agent-scoped assets endpoint) */
-  logo?: { src: string };
+  /** the agent's uploaded logo — `src` for display now, `objectKey` so it re-resolves on reload */
+  logo?: { src: string; objectKey?: string };
   /** contact details, one line each is rendered as a single text node */
   contact?: { name?: string; email?: string; phone?: string; website?: string };
   /** custom offer copy */
@@ -126,6 +126,7 @@ export function applyBranding(
       width: 160,
       height: 160,
       src: branding.logo.src,
+      ...(branding.logo.objectKey ? { objectKey: branding.logo.objectKey } : {}),
     });
   }
   const offer = branding.offer?.text.trim();

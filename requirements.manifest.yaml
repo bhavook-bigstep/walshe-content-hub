@@ -544,3 +544,18 @@ acceptance:
     tier: P2
     api:
       - "apps/api/tests/test_seed.py::test_seed_creates_collections_and_image_items"
+  AC90:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_brand_logo_upload"
+  AC91:
+    tier: P2
+    web:
+      - "apps/web/tests/placeholder.test.ts::addPlaceholder inserts a flagged image node with the placeholder art"
+      - "apps/web/tests/placeholder.test.ts::fillImageNode replaces the art, clears the flag and records the objectKey"
+  AC92:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_video_templates_are_animated"
+    web:
+      - "apps/web/tests/graphics.test.ts::resolveSprites expands a template sprite id into its filmstrip (AC92)"

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { addGraphic, newDesign } from "../lib/studio/ops";
-import { ABSTRACT_ARTIFACTS, SPRITE_ANIMATIONS, STICKERS, svgDataUrl } from "../lib/studio/graphics";
+import { addGraphic, addText, newDesign } from "../lib/studio/ops";
+import {
+  ABSTRACT_ARTIFACTS,
+  SPRITE_ANIMATIONS,
+  STICKERS,
+  resolveSprites,
+  svgDataUrl,
+} from "../lib/studio/graphics";
 
 describe("built-in graphics + sprites", () => {
   it("every artifact/sticker/sprite has usable SVG art + unique ids", () => {
@@ -49,6 +55,22 @@ describe("built-in graphics + sprites", () => {
     expect(node.frames).toEqual(frames);
     expect(node.fps).toBe(8);
     expect(node.src).toBe("data:f0"); // static fallback = first frame
+  });
+
+  it("resolveSprites expands a template sprite id into its filmstrip (AC92)", () => {
+    // A template node references a sprite by id with no frames yet.
+    let d = addText(newDesign("social"), 0, "x");
+    const scene = d.scenes[0];
+    scene.nodes.push({ id: "spr", type: "image", sprite: "walking-panda", x: 0, y: 0, width: 200, height: 160 });
+    d = resolveSprites(d);
+    const node = d.scenes[0].nodes.find((n) => n.id === "spr")!;
+    const panda = SPRITE_ANIMATIONS.find((s) => s.id === "walking-panda")!;
+    expect(node.frames).toEqual(panda.frames);
+    expect(node.fps).toBe(panda.fps);
+    expect(node.src).toBe(panda.frames[0]);
+    // Idempotent + leaves non-sprite nodes untouched.
+    expect(resolveSprites(d)).toEqual(d);
+    expect(d.scenes[0].nodes.find((n) => n.id !== "spr" && n.type === "text")).toBeTruthy();
   });
 
   it("ships a rich roster of frame-animated sprites with moving parts (AC85)", () => {

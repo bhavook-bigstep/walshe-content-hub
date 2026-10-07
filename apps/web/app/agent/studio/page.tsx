@@ -43,6 +43,7 @@ import {
 import { applyBrandKit } from "../../../lib/studio/branding";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
 import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
+import { resolveSprites } from "../../../lib/studio/graphics";
 import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
 import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/studio/formats";
 import {
@@ -51,6 +52,8 @@ import {
   deleteNode,
   duplicateNode,
   editText,
+  fillImageNode,
+  isPlaceholder,
   groupNodes,
   setGroupAnim,
   ungroupNodes,
@@ -154,6 +157,8 @@ function StudioEditor() {
   // The full selection (one id = single element; many = a group / multi-selection) + its scene.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedScene, setSelectedScene] = useState<number | null>(null);
+  // A photo placeholder awaiting a pick from the media drawer (set when one is clicked).
+  const [fillTarget, setFillTarget] = useState<{ scene: number; nodeId: string } | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
   // AC63 — the studio's usable media = the project's collection items + local uploads + AI media,
@@ -312,9 +317,12 @@ function StudioEditor() {
         .then(async (p) => {
           if (cancelled) return;
           setProject({ id: p.id, name: p.name });
-          // Migrate the stored design into the canonical scenes[] shape (handles legacy pages[]).
-          const migrated = migrateDesign(p.design);
-          if (!migrated) return;
+          // Migrate the stored design into the canonical scenes[] shape (handles legacy pages[]),
+          // then expand any template sprite references (sprite id → frames/fps) so video templates
+          // animate on load.
+          const base = migrateDesign(p.design);
+          if (!base) return;
+          const migrated = resolveSprites(base);
           setSceneIndex(0);
           setDesign(migrated);
           // Placed media stored an ephemeral blob: URL that is dead now; re-resolve each image from
@@ -428,6 +436,19 @@ function StudioEditor() {
   // Place a media tile on the active scene. From a click it lands centred in the default spot; from
   // a drop it lands where the cursor released (mapped to scene-local coords by the canvas).
   function placeTile(tile: MediaTile, at?: { x: number; y: number }) {
+    // If a photo placeholder is awaiting a pick, FILL it in place rather than adding a new node.
+    if (fillTarget && !at) {
+      const target = fillTarget;
+      setFillTarget(null);
+      setDesign((d) =>
+        fillImageNode(d, target.scene, target.nodeId, {
+          src: tile.src,
+          objectKey: tile.objectKey,
+          catalogItemId: tile.catalogItemId,
+        }),
+      );
+      return;
+    }
     const w = tile.width ?? 420;
     const h = tile.height ?? 420;
     setDesign((d) => {
@@ -735,13 +756,29 @@ function StudioEditor() {
         kit = await getBrandKit();
         setBrandKit(kit);
       }
+      // Resolve an owner-only /assets logo to a displayable blob now; keep the objectKey so the
+      // node re-resolves on reload. An external URL is used as-is.
+      let logo: { src: string; objectKey?: string } | undefined;
+      if (kit!.logo_url) {
+        const url = kit!.logo_url;
+        if (url.startsWith("/assets/")) {
+          const key = url.replace(/^\/assets\//, "");
+          try {
+            logo = { src: await fetchAssetObjectUrl(key), objectKey: key };
+          } catch {
+            logo = undefined;
+          }
+        } else {
+          logo = { src: url };
+        }
+      }
       setDesign((d) =>
         applyBrandKit(d, {
           primary: kit!.primary_color,
           accent: kit!.accent_color,
           headingFont: kit!.heading_font,
           bodyFont: kit!.body_font,
-          logo: kit!.logo_url ? { src: kit!.logo_url } : undefined,
+          logo,
           contact: {
             name: kit!.contact_name ?? undefined,
             email: kit!.contact_email ?? undefined,
@@ -801,12 +838,23 @@ function StudioEditor() {
             setSelected(null);
             setSelectedIds([]);
             setSelectedScene(null);
+            setFillTarget(null);
           }}
           onSelect={(scene, nodeIds) => {
             if (nodeIds.length) setSceneSelected(true); // working in a scene re-selects it
             setSelectedScene(scene);
             setSelectedIds(nodeIds);
             setSelected(scene !== null && nodeIds.length === 1 ? { scene, nodeId: nodeIds[0] } : null);
+            // Clicking a photo placeholder opens the media drawer so the next pick fills it.
+            const node = scene !== null && nodeIds.length === 1
+              ? design.scenes[scene]?.nodes.find((n) => n.id === nodeIds[0])
+              : undefined;
+            if (node && isPlaceholder(node) && scene !== null) {
+              setFillTarget({ scene, nodeId: node.id });
+              setDrawerOpen(true);
+            } else {
+              setFillTarget(null);
+            }
           }}
           onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
