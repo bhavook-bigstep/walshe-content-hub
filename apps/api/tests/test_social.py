@@ -93,6 +93,18 @@ def test_posts_list_persists_with_composition_name(sclient):
     assert rows[0]["composition_name"] == "Cliffs promo"  # project name, not "Post #1"
 
 
+def test_posts_list_orders_pending_first(sclient):
+    # Pending-approval posts (the ones needing action) sort to the top, even when a published post
+    # has a newer id — the reviewer sees what to act on first.
+    h = _agent(sclient)
+    a = _schedule(sclient, h, channel="instagram").json()["id"]  # stays pending
+    b = _schedule(sclient, h, channel="facebook").json()["id"]  # approved → published (higher id)
+    assert sclient.post(f"/social/posts/{b}/approve", headers=h).status_code == 200
+    rows = sclient.get("/social/posts", headers=h).json()
+    assert rows[0]["id"] == a and rows[0]["status"] == "pending_approval"
+    assert rows[1]["id"] == b and rows[1]["status"] == "published"
+
+
 def test_approve_publishes_via_simulated_connector(sclient):
     h = _agent(sclient)
     pid = _schedule(sclient, h).json()["id"]

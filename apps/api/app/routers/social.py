@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_serializer
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app import audit, clock
@@ -124,12 +124,15 @@ def list_posts(
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
 ) -> list[PostOut]:
-    """The agent's own social posts (newest first), so the list survives a page refresh."""
+    """The agent's own posts — social- AND campaign-scheduled (any post built from one of their
+    compositions) — so the list survives a page refresh. Pending-approval posts (the ones needing
+    action) sort first, then newest-first within each group."""
+    pending_first = case((Post.status == PostStatus.pending_approval, 0), else_=1)
     rows = db.execute(
         select(Post, Composition.name)
         .join(Composition, Composition.id == Post.composition_id)
         .where(Composition.agent_id == user.id)
-        .order_by(Post.id.desc())
+        .order_by(pending_first, Post.id.desc())
     ).all()
     return [
         PostOut(

@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.55.0 |
+| **Version** | 2.56.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -766,10 +766,12 @@ Social approval gate (v2.55.0):
   PoC self-approval like AC97), which publishes via the **simulated connector** (deterministic, no
   egress — Contract 2/4) and records the reviewer; **reject** (`/reject`, with a reason) sends it
   back to `rejected`. The agent's posts are listed from the server (`GET /social/posts`, agent-scoped,
-  carrying the **project/composition name**) so the list survives a page refresh. Proof: pytest
-  asserts schedule → pending_approval, the list persists with the composition name, approve →
-  published via the sim connector (schedule/approve/publish audited), reject → rejected with a note,
-  and a non-pending post is a 409.
+  carrying the **project/composition name**) so the list survives a page refresh; the list covers
+  **both social- and campaign-scheduled posts** (any post built from the agent's compositions) and
+  sorts **pending-approval first** so the items needing action lead. Proof: pytest asserts schedule →
+  pending_approval, the list persists with the composition name, pending posts sort ahead of a newer
+  published post, approve → published via the sim connector (schedule/approve/publish audited),
+  reject → rejected with a note, and a non-pending post is a 409.
 
 Engagement performance views (v2.55.0):
 
@@ -814,6 +816,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.56.0 | 2026-10-07 | **Social posts list: unified + pending-first** (user feedback, refines **AC99**): `GET /social/posts` already returns every post built from the agent's compositions, so **campaign-scheduled posts show on the Social page** alongside social-scheduled ones; the list now sorts **pending-approval first** (newest-first within each group) so the posts needing action lead. Also fixed the engagement chart's **duplicate React keys** + overlapping axis labels (two posts can share a project name). All prior ACs stay green. | user + Claude |
 | 2.55.0 | 2026-10-07 | **Merge `origin/dev` (v2.54.0) into the publishing-pipeline branch + renumber.** Integrated dev's studio-animation lineage (AC77–AC95 scene animation → template placeholders) and its renumbered campaign ACs (AC96–AC98). This branch's new work independently used AC80/AC81, colliding with dev's, so it is **renumbered: social approval gate → AC99, engagement performance views → AC100**; code comments, tests and the manifest updated to match. The branch's **AC34 amendment** (removed the `no_content` pre-send rule so an empty composition schedules straight to the approval gate — the human reviewer is the control for empty/unverified posts; other pre-send checks unchanged) is re-applied on top of dev's AC34. Seed reconciled: the social/engagement demo seed is kept but **Instagram-only** (unconnected FB/X/LinkedIn dropped — only connected platforms carry data), alongside dev's AC84 seeded collections. Regenerated the shared API types. All prior ACs stay green. | user + Claude |
 | 2.54.0 | 2026-10-07 | **Merge `origin/dev` into `feat/studio-animation-engine` + renumber campaigns.** Integrated dev's **Campaign scheduling & live Instagram publishing** feature. Both branches had independently used AC77–AC79, so dev's campaign ACs are **renumbered to AC96 (campaign management), AC97 (self-approval gate), AC98 (live Instagram publish)** — this branch keeps AC77–AC95 (scene animation → template placeholders). Resolved manifest duplicate keys accordingly; kept dev's decision to drop synthetic engagement seeding (dashboard shows real metrics) while retaining the AC84 seeded collections; regenerated the shared API types. Behaviour of all features unchanged. All prior ACs stay green. | user + Claude |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
