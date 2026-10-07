@@ -178,7 +178,9 @@ export default function AgentSocialPage() {
         <ConnectedPlatforms orgKey={orgKey} />
       ) : (
         <>
-          <form onSubmit={onSchedule} className="card mb-6 flex flex-wrap items-end gap-4 p-4">
+          {/* overflow-visible overrides .card's overflow-hidden so the Select dropdowns (absolutely
+              positioned below their field) aren't clipped by the composer card when expanded. */}
+          <form onSubmit={onSchedule} className="card mb-6 flex flex-wrap items-end gap-4 overflow-visible p-4">
             <label className="text-small" style={{ minWidth: "14rem" }}>
               <span className="label">Composition</span>
               <Select

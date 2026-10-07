@@ -57,6 +57,10 @@ export default function AgentEngagementPage() {
   const postLabel = (r: (typeof latest)[number]) =>
     (r as { composition_name?: string | null }).composition_name || `Post #${r.post_id}`;
   const points: ChartPoint[] = latest.map((r) => ({ id: r.post_id, label: postLabel(r), values: r.metrics ?? {} }));
+  // Roll-ups render as the same grouped bar chart (reach + interactions), one bar per platform /
+  // campaign — the chart's built-in "Show data table" toggle keeps the exact numbers one click away.
+  const groupsToPoints = (groups: EngagementGroup[]): ChartPoint[] =>
+    groups.map((g) => ({ id: g.label, label: g.label, values: g.metrics }));
 
   return (
     <div>
@@ -106,8 +110,18 @@ export default function AgentEngagementPage() {
           />
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <BreakdownTable title="By platform" groups={platformGroups} metrics={igMetrics} />
-            <BreakdownTable title="By campaign" groups={campaignGroups} metrics={igMetrics} />
+            <EngagementChart
+              title="By platform"
+              summary="Reach & interactions per platform."
+              series={CHART_SERIES}
+              points={groupsToPoints(platformGroups)}
+            />
+            <EngagementChart
+              title="By campaign"
+              summary="Reach & interactions per campaign."
+              series={CHART_SERIES}
+              points={groupsToPoints(campaignGroups)}
+            />
           </div>
 
           <section className="card p-5" aria-labelledby="eng-table-title">
@@ -151,50 +165,5 @@ export default function AgentEngagementPage() {
         </div>
       )}
     </div>
-  );
-}
-
-/** A performance roll-up table (by platform, by campaign): one row per group, metrics summed. */
-function BreakdownTable({
-  title,
-  groups,
-  metrics,
-}: {
-  title: string;
-  groups: EngagementGroup[];
-  metrics: { key: string; label: string }[];
-}) {
-  return (
-    <section className="card p-5" aria-label={title}>
-      <h2 className="mb-4 text-h3 font-bold text-walshe-ink">{title}</h2>
-      {groups.length === 0 ? (
-        <p className="text-small text-walshe-grey">No data yet.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-small">
-            <thead>
-              <tr className="border-b border-walshe-line text-left text-walshe-grey">
-                <th className="py-2 pr-4 font-medium">{title.replace(/^By /, "")}</th>
-                {metrics.map((m) => (
-                  <th key={m.key} className="py-2 pr-4 font-medium">{m.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((g, i) => (
-                <tr key={g.label} className={i % 2 === 1 ? "bg-walshe-stone/40" : undefined}>
-                  <td className="py-2 pr-4 capitalize text-walshe-ink">{g.label}</td>
-                  {metrics.map((m) => (
-                    <td key={m.key} className="py-2 pr-4 tabular-nums">
-                      {(g.metrics[m.key] ?? 0).toLocaleString("en-US")}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
   );
 }

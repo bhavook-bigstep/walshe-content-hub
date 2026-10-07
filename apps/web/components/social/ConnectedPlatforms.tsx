@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { mergeConnections, SOCIAL_PLATFORMS } from "../../lib/social/platforms";
+import PlatformIcon from "./PlatformIcon";
 
 // The "Connected platforms" tab. A PoC front-end illusion: no OAuth/back-end yet — Connect just flips
 // the card to Connected. State is remembered per-browser, keyed by the organization, so everyone in
@@ -51,20 +52,21 @@ export default function ConnectedPlatforms({ orgKey }: { orgKey: string }) {
               data-testid={`platform-${p.key}`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span
-                    aria-hidden
-                    className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-walshe-ink/5 text-small font-bold uppercase text-walshe-ink"
-                  >
-                    {p.name.slice(0, 2)}
-                  </span>
+                <div className="flex min-w-0 items-center gap-3">
+                  <PlatformIcon platform={p.key} name={p.name} />
                   <div className="min-w-0">
                     <p className="font-semibold text-walshe-ink">{p.name}</p>
                     <p className="truncate text-small text-walshe-grey">{p.blurb}</p>
                   </div>
                 </div>
                 {isOn && (
-                  <span className="shrink-0 chip-verified" data-testid={`status-${p.key}`}>
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1 chip-verified"
+                    data-testid={`status-${p.key}`}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
                     Connected
                   </span>
                 )}
