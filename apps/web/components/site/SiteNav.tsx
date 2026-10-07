@@ -11,8 +11,8 @@ import ThemeToggle from "../ui/ThemeToggle";
 // themselves in on load, with the bar's contents dropping in (load-stagger). Transparent over the
 // hero; on scroll it becomes a deep-teal "liquid glass" bar. White text; the logo turns gold on hover.
 const NAV_LINKS = [
-  { label: "For the trade", href: "#the-hub" },
-  { label: "Destinations", href: "#catalog" },
+  { label: "See it in action", href: "#product" },
+  { label: "Who it's for", href: "#audiences" },
   { label: "How it works", href: "#how-it-works" },
 ];
 

@@ -6,14 +6,18 @@ import { ApiError, login, me } from "../../lib/api";
 import { ROLE_HOME } from "../../lib/rbac";
 import { clear, setSession, setToken } from "../../lib/session";
 
-// Auth-screen lockup — The Walshe Group wordmark (white) above the product descriptor.
+// Auth-screen lockup — the Voyago wordmark above the parent-company descriptor.
 function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
-  const sub = tone === "light" ? "text-white/70" : "text-walshe-grey";
+  const sub = tone === "light" ? "text-white/75" : "text-walshe-grey";
   return (
-    <span className="inline-flex flex-col gap-2.5">
+    <span className="inline-flex flex-col items-start gap-2.5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/img/walshe-group-white.png" alt="The Walshe Group" className="h-12 w-auto" />
-      <span className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${sub}`}>Content Hub</span>
+      <img
+        src="/brand/voyago-wordmark-white.png"
+        alt="Voyago"
+        className={`h-16 w-auto shrink-0 ${tone === "light" ? "drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]" : ""}`}
+      />
+      <span className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${sub}`}>A Walshe Group product</span>
     </span>
   );
 }
@@ -21,6 +25,7 @@ function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -88,14 +93,20 @@ export default function LoginPage() {
       {/* Form */}
       <div className="flex items-center justify-center px-5 py-12 sm:px-8">
         <div className="w-full max-w-sm">
-          <Link href="/" className="mb-8 inline-block lg:hidden">
+          <Link
+            href="/"
+            className="mb-6 inline-flex items-center gap-1.5 text-small font-medium text-walshe-grey transition-colors hover:text-walshe-ink"
+          >
+            <span aria-hidden>←</span> Back
+          </Link>
+          <Link href="/" className="mb-8 block lg:hidden">
             <AuthMark />
           </Link>
 
           <div className="mb-7">
             <p className="eyebrow">Welcome back</p>
             <h1 className="mt-3 text-h2 text-walshe-ink">Sign in</h1>
-            <p className="mt-2 text-body text-walshe-grey">Access the Walshe Content Hub.</p>
+            <p className="mt-2 text-body text-walshe-grey">Access your Voyago workspace.</p>
           </div>
 
           <form onSubmit={onSubmit} className="card space-y-5 p-7" aria-busy={busy}>
@@ -112,14 +123,36 @@ export default function LoginPage() {
             </label>
             <label className="block">
               <span className="label">Password</span>
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="field"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="field pr-11"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 grid w-11 place-items-center text-walshe-grey transition-colors hover:text-walshe-ink"
+                >
+                  {showPassword ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M3 3l18 18" />
+                      <path d="M10.6 10.6a3 3 0 0 0 4.2 4.2" />
+                      <path d="M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 7 10 7a18.6 18.6 0 0 1-3.2 4.2M6.6 6.6A18.6 18.6 0 0 0 2 11s3.5 7 10 7a10.9 10.9 0 0 0 3.4-.5" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </label>
             {error && (
               <p role="alert" className="text-small font-medium text-walshe-danger">
@@ -132,9 +165,9 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-center text-small text-walshe-grey">
-            New to the hub?{" "}
+            New to Voyago?{" "}
             <Link href="/register" className="font-semibold text-walshe-teal underline-offset-2 hover:underline">
-              Create an agent account
+              Register Here
             </Link>
           </p>
           <p className="mt-3 text-center text-small text-walshe-grey">
