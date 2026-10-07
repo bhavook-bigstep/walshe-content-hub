@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.57.0 |
+| **Version** | 2.58.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -828,6 +828,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.58.0 | 2026-10-07 | **Two-box caption/keywords composer** (user feedback, refines the campaign composer / AC96): the campaign post composer now has **separate Caption and Keywords/hashtags** textareas, each with its own Generate button; while a box generates it is **disabled/greyed with a spinner + status centred in the middle of that box**, leaving the other usable. On schedule the two are combined into one caption (`combineCopy` — keywords below the caption). Replaced the single-textarea `AiCaptionControls`. All prior ACs stay green. | user + Claude |
 | 2.57.0 | 2026-10-07 | **Social organization page** (user feedback): added **AC101** — the Social page is now an organization workspace with **Posts** and **Connected platforms** tabs. Connected platforms is a front-end illusion (no OAuth): Instagram starts Connected, FB/X/TikTok/Snapchat offer **Connect**, remembered per-browser keyed by the org (tenant). Rolled the app's custom `Select` dropdowns through the Social composer (replacing native selects). All prior ACs stay green. | user + Claude |
 | 2.56.0 | 2026-10-07 | **Social posts list: unified + pending-first** (user feedback, refines **AC99**): `GET /social/posts` already returns every post built from the agent's compositions, so **campaign-scheduled posts show on the Social page** alongside social-scheduled ones; the list now sorts **pending-approval first** (newest-first within each group) so the posts needing action lead. Also fixed the engagement chart's **duplicate React keys** + overlapping axis labels (two posts can share a project name). All prior ACs stay green. | user + Claude |
 | 2.55.0 | 2026-10-07 | **Merge `origin/dev` (v2.54.0) into the publishing-pipeline branch + renumber.** Integrated dev's studio-animation lineage (AC77–AC95 scene animation → template placeholders) and its renumbered campaign ACs (AC96–AC98). This branch's new work independently used AC80/AC81, colliding with dev's, so it is **renumbered: social approval gate → AC99, engagement performance views → AC100**; code comments, tests and the manifest updated to match. The branch's **AC34 amendment** (removed the `no_content` pre-send rule so an empty composition schedules straight to the approval gate — the human reviewer is the control for empty/unverified posts; other pre-send checks unchanged) is re-applied on top of dev's AC34. Seed reconciled: the social/engagement demo seed is kept but **Instagram-only** (unconnected FB/X/LinkedIn dropped — only connected platforms carry data), alongside dev's AC84 seeded collections. Regenerated the shared API types. All prior ACs stay green. | user + Claude |

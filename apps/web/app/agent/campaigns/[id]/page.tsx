@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import AiCaptionControls from "../../../../components/ai/AiCaptionControls";
+import CaptionKeywordsComposer from "../../../../components/ai/CaptionKeywordsComposer";
 import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar";
 import PageHeader from "../../../../components/ui/PageHeader";
 import {
@@ -10,6 +10,7 @@ import {
   patchCampaignPost, rejectCampaignPost, scheduleCampaignPost,
   type CampaignDetail, type CampaignPost, type Project,
 } from "../../../../lib/api";
+import { combineCopy } from "../../../../lib/ai/caption";
 import {
   buildCampaignPatchForm, buildCampaignPostForm, CAMPAIGN_PLATFORMS, localInputToOffsetISO,
 } from "../../../../lib/campaigns/form";
@@ -34,6 +35,7 @@ export default function CampaignDetailPage() {
   const [projectId, setProjectId] = useState("");
   const [platform, setPlatform] = useState(CAMPAIGN_PLATFORMS[0].value);
   const [caption, setCaption] = useState("");
+  const [keywords, setKeywords] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,11 +69,12 @@ export default function CampaignDetailPage() {
       if (!design) throw new Error("This project has no usable design to render.");
       const jpeg = await renderDesignToJpegBlob(design, 0);
       const form = buildCampaignPostForm({
-        compositionId: Number(projectId), caption, platform,
+        // Caption + keywords are edited separately, then sent as one caption (keywords below it).
+        compositionId: Number(projectId), caption: combineCopy(caption, keywords), platform,
         scheduledAtISO: scheduledAt ? localInputToOffsetISO(scheduledAt) : null, jpeg,
       });
       await scheduleCampaignPost(id, form);
-      setCaption(""); setScheduledAt("");
+      setCaption(""); setKeywords(""); setScheduledAt("");
       await reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : (e instanceof Error ? e.message : "Could not schedule the post."));
@@ -181,22 +184,13 @@ export default function CampaignDetailPage() {
           so the planning surface stays in view instead of being pushed below a long scroll. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(340px,1fr)_1.7fr] lg:items-start">
         <form onSubmit={onSchedule} className="card space-y-5 p-6 lg:sticky lg:top-6" aria-busy={busy}>
-          <div className="flex flex-col gap-1.5">
-            <span className="label">Caption</span>
-            <textarea
-              className="field min-h-24 w-full resize-y"
-              aria-label="Caption"
-              rows={3}
-              placeholder="Write a caption, or generate one from your content…"
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-            />
-            <AiCaptionControls
-              compositionId={projectId ? Number(projectId) : null}
-              caption={caption}
-              onCaptionChange={setCaption}
-            />
-          </div>
+          <CaptionKeywordsComposer
+            compositionId={projectId ? Number(projectId) : null}
+            caption={caption}
+            onCaptionChange={setCaption}
+            keywords={keywords}
+            onKeywordsChange={setKeywords}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5">
               <span className="label">Project</span>
