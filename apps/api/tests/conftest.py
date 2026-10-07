@@ -26,7 +26,10 @@ USERS = {
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
+    # _env_file=None keeps tests hermetic: a local apps/api/.env (e.g. real Instagram/S3 keys for a
+    # live demo) must never leak into the test settings and flip connectors off their stubs.
     return Settings(
+        _env_file=None,
         database_url=f"sqlite+pysqlite:///{tmp_path}/test.db",
         jwt_secret="test-secret-fixed",
         ai_provider="claude",
@@ -89,3 +92,21 @@ def provider_headers(client: TestClient) -> dict[str, str]:
 @pytest.fixture
 def agent_headers(client: TestClient) -> dict[str, str]:
     return auth_header(client, Role.tourism_agent)
+
+
+def login_headers(client: TestClient, email: str, password: str) -> dict[str, str]:
+    resp = client.post("/auth/login", json={"email": email, "password": password})
+    assert resp.status_code == 200, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+@pytest.fixture
+def second_agent_headers(client: TestClient) -> dict[str, str]:
+    """A genuinely different tourism agent (agent2@test.local), for cross-agent isolation tests."""
+    SessionLocal = client.app.state.sessionmaker
+    with SessionLocal() as db:
+        if not db.query(User).filter_by(email="agent2@test.local").first():
+            db.add(User(email="agent2@test.local", password_hash=hash_password("test-pass-a2"),
+                        role=Role.tourism_agent, tenant_id=1, approved=True))
+            db.commit()
+    return login_headers(client, "agent2@test.local", "test-pass-a2")

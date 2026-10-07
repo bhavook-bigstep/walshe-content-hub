@@ -7,6 +7,7 @@ from app.models.agent_run import AgentRun
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.blocklist import BlocklistTerm
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.catalog import (
     Asset,
     Catalog,
@@ -26,6 +27,7 @@ from app.models.composition import Composition
 from app.models.engagement import Engagement
 from app.models.jobs import Job, JobStatus
 from app.models.post import Post, PostStatus
+from app.models.post_insights_sync import PostInsightsSync
 from app.models.user import Role, Tenant, User
 
 __all__ = [
@@ -52,9 +54,12 @@ __all__ = [
     "BlocklistTerm",
     "Post",
     "PostStatus",
+    "PostInsightsSync",
     "Engagement",
     "Collection",
     "BrandKit",
+    "Campaign",
+    "CampaignStatus",
     "Job",
     "JobStatus",
 ]
