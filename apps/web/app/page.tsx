@@ -3,6 +3,7 @@ import Reveal from "../components/ui/Reveal";
 import SmoothScroll from "../components/ui/SmoothScroll";
 import SiteNav from "../components/site/SiteNav";
 import HeroFlight from "../components/site/HeroFlight";
+import HeroPreloader from "../components/site/HeroPreloader";
 
 // Public landing (AC20) — immersive editorial direction modelled on the reference's structure:
 // full-bleed cinematic hero with a framed nav, 2-column section headers (small eyebrow left, large
@@ -116,6 +117,7 @@ const SOCIALS = [
 export default function Landing() {
   return (
     <main className="bg-walshe-paper [overflow-x:clip]">
+      <HeroPreloader />
       <SmoothScroll />
       <SiteNav />
       {/* Hero + scroll-scrubbed plane wipe into the first section. */}

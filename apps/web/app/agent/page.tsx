@@ -19,14 +19,6 @@ import { latestByPost, metricValue, sumMetric } from "../../lib/engagement/metri
 
 type EntryWithImage = Entry & { image_key?: string | null };
 
-const QUICK_LINKS = [
-  { href: "/agent/catalog", title: "Browse catalog", body: "Search approved, brand-safe content" },
-  { href: "/agent/studio", title: "Open Design Studio", body: "Compose pamphlets, posts and more" },
-  { href: "/agent/social", title: "Plan social", body: "Schedule and publish to channels" },
-  { href: "/agent/campaigns", title: "Plan campaigns", body: "Schedule posts across a calendar" },
-  { href: "/agent/engagement", title: "View engagement", body: "Reach, interactions and more" },
-];
-
 const CHART_SERIES: ChartSeries[] = [
   { key: "reach", label: "Reach", color: "rgb(var(--walshe-ink))", marker: "circle" },
   { key: "total_interactions", label: "Interactions", color: "rgb(var(--walshe-green))", marker: "square" },
@@ -72,11 +64,6 @@ export default function AgentHomePage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Overview" }]}
         title="Agent home"
-        action={
-          <Link href="/agent/studio" className="btn-primary">
-            Open Design Studio
-          </Link>
-        }
       />
 
       {error && (
@@ -108,7 +95,7 @@ export default function AgentHomePage() {
 
       {/* Suggested next posts (AC40) — content worth sending, so the agent never starts from blank. */}
       {suggestions.length > 0 && (
-        <section className="mb-10" aria-labelledby="suggested-title">
+        <section className="mb-10 rounded-xl border border-walshe-line bg-walshe-mist/40 p-5 sm:p-6" aria-labelledby="suggested-title">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="eyebrow">Suggested for you</p>
@@ -158,7 +145,7 @@ export default function AgentHomePage() {
         </div>
 
         {/* Scorecard */}
-        <section className="card p-5" aria-labelledby="scorecard-title">
+        <section className="rounded-xl border border-walshe-line bg-walshe-mist/40 p-5 sm:p-6" aria-labelledby="scorecard-title">
           <h2 id="scorecard-title" className="mb-1 text-h3 font-bold text-walshe-ink">
             Top posts
           </h2>
@@ -200,7 +187,7 @@ export default function AgentHomePage() {
       </div>
 
       {/* Recent catalog */}
-      <section className="mt-10" aria-labelledby="recent-title">
+      <section className="mt-10 rounded-xl border border-walshe-line bg-walshe-mist/40 p-5 sm:p-6" aria-labelledby="recent-title">
         <div className="mb-4 flex items-center justify-between">
           <h2 id="recent-title" className="text-h3 font-bold text-walshe-ink">
             Recent approved content
@@ -242,21 +229,6 @@ export default function AgentHomePage() {
             ))}
           </ul>
         )}
-      </section>
-
-      {/* Quick links */}
-      <section className="mt-10" aria-label="Quick actions">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {QUICK_LINKS.map((q) => (
-            <Link key={q.href} href={q.href} className="card card-hover group block p-5">
-              <span className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-walshe-ink">{q.title}</span>
-                <span aria-hidden className="text-walshe-mint transition-transform group-hover:translate-x-0.5">→</span>
-              </span>
-              <span className="mt-1 block text-small text-walshe-grey">{q.body}</span>
-            </Link>
-          ))}
-        </div>
       </section>
     </div>
   );

@@ -58,7 +58,7 @@ export default function ProviderHomePage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
         {/* Recent entries */}
-        <section aria-labelledby="recent-entries">
+        <section aria-labelledby="recent-entries" className="rounded-xl border border-walshe-line bg-walshe-mist/40 p-5 sm:p-6">
           <div className="mb-4 flex items-end justify-between gap-4">
             <h2 id="recent-entries" className="text-h3 text-walshe-ink">Recent entries</h2>
             <Link href="/provider/catalog" className="btn-ghost shrink-0">Open catalog</Link>
@@ -101,7 +101,7 @@ export default function ProviderHomePage() {
 
         {/* Right rail: catalog mix + quick links */}
         <aside className="space-y-6">
-          <section className="card p-6" aria-label="Catalog mix">
+          <section className="rounded-xl border border-walshe-line bg-walshe-mist/40 p-6" aria-label="Catalog mix">
             <h2 className="text-h3 text-walshe-ink">Catalog mix</h2>
             <p className="mt-1 text-small text-walshe-grey">How your {total} entries are shared.</p>
             <ul className="mt-4 space-y-3">
@@ -118,7 +118,7 @@ export default function ProviderHomePage() {
             </ul>
           </section>
 
-          <nav className="card divide-y divide-walshe-line p-2" aria-label="Quick links">
+          <nav className="divide-y divide-walshe-line rounded-xl border border-walshe-line bg-walshe-mist/40 p-2" aria-label="Quick links">
             {QUICK_LINKS.map((l) => (
               <Link key={l.href} href={l.href} className="flex items-center gap-3 rounded-md px-4 py-3 transition-colors hover:bg-walshe-ink/5">
                 <span className="min-w-0 flex-1">
