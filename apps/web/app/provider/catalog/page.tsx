@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import CatalogThumb from "../../../components/catalog/CatalogThumb";
 import Dialog from "../../../components/ui/Dialog";
 import PageHeader from "../../../components/ui/PageHeader";
@@ -88,6 +88,64 @@ function EntrySection({ title, blurb, entries }: { title: string; blurb: string;
   );
 }
 
+// A small "i" button beside New entry / Import that opens a short note explaining both actions.
+function ToolbarInfo() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label="About these actions"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={`grid h-9 w-9 place-items-center rounded-full border transition-colors ${
+          open ? "border-walshe-ink/40 text-walshe-ink" : "border-walshe-line text-walshe-grey hover:border-walshe-ink/30 hover:text-walshe-ink"
+        }`}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 7.75h.01" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label="About these actions"
+          className="absolute right-0 top-full z-50 mt-2 w-80 rounded-md border border-walshe-line bg-walshe-paper p-4 text-left shadow-lift"
+        >
+          <dl className="space-y-3.5">
+            <div>
+              <dt className="text-small font-semibold text-walshe-ink">New entry</dt>
+              <dd className="mt-1 text-small leading-relaxed text-walshe-grey">
+                Create a catalog entry yourself — an event, place, offer or itinerary — then open it to add text and media.
+              </dd>
+            </div>
+            <div>
+              <dt className="text-small font-semibold text-walshe-ink">Import from document</dt>
+              <dd className="mt-1 text-small leading-relaxed text-walshe-grey">
+                Upload a PDF or image and the Auto-Catalog AI turns it into draft entries you can review, edit and publish. The bell tells you when they’re ready; nothing shows to agents until you publish.
+              </dd>
+            </div>
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // AC49/AC50 — the provider's single catalog: publish/share it, and manage its entries.
 export default function ProviderCatalogPage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -99,19 +157,18 @@ export default function ProviderCatalogPage() {
   // AC68 — filter the catalog to all / only AI-created / only hand-authored entries.
   const [filter, setFilter] = useState<"all" | "ai" | "manual">("all");
 
-  async function reload() {
-    setCatalog(await getMyCatalog().catch(() => null));
-    setEntries(await listMyEntries().catch(() => []));
-  }
+  // Refetch the catalog + entries. A failed entries fetch keeps the previous list instead of
+  // blanking it (a transient error right after an import must NOT empty the whole catalog).
+  const reload = useCallback(async () => {
+    const [cat, ent] = await Promise.all([
+      getMyCatalog().catch(() => undefined),
+      listMyEntries().catch(() => undefined),
+    ]);
+    if (cat !== undefined) setCatalog(cat);
+    setEntries((prev) => (ent !== undefined ? ent : (prev ?? [])));
+  }, []);
+
   useEffect(() => {
-    // Honor the notification-bell deep link (AC74): ?ai_created=true lands on the AI-created drafts.
-    try {
-      if (new URLSearchParams(window.location.search).get("ai_created") === "true") {
-        setFilter("ai");
-      }
-    } catch {
-      /* no window / malformed query — fall back to the default "all" filter */
-    }
     void reload();
     void getContentTemplates()
       .then(setTemplates)
@@ -119,7 +176,12 @@ export default function ProviderCatalogPage() {
     void getGeo()
       .then(setGeo)
       .catch(() => setGeo(null));
-  }, []);
+    // Refetch when an import is queued OR a finished job is opened from the bell (it dispatches this
+    // event). Keeps the full catalog visible and surfaces new drafts without a manual page reload.
+    const onJobs = () => void reload();
+    window.addEventListener(JOBS_CHANGED_EVENT, onJobs);
+    return () => window.removeEventListener(JOBS_CHANGED_EVENT, onJobs);
+  }, [reload]);
 
   return (
     <div>
@@ -128,6 +190,7 @@ export default function ProviderCatalogPage() {
         title="Catalog"
         action={
           <div className="flex items-center gap-2">
+            <ToolbarInfo />
             <button type="button" className="btn-secondary" onClick={() => setImportOpen(true)}>
               Import from document
             </button>
@@ -222,8 +285,8 @@ export default function ProviderCatalogPage() {
           // The import runs asynchronously (AC71); the navbar bell announces when drafts are ready.
           // Tell the bell to re-poll NOW so the new job entry shows the moment Import is clicked.
           window.dispatchEvent(new Event(JOBS_CHANGED_EVENT));
-          // Pre-select the AI filter so a reload surfaces the new drafts the moment the job finishes.
-          setFilter("ai");
+          // Keep the full catalog visible (do NOT switch to the AI-only filter — that blanked the
+          // page until the job finished). New drafts land in Drafts when the job completes.
           void reload();
         }}
       />
@@ -264,18 +327,26 @@ function ImportDialog({
   return (
     <Dialog title="Import from document" open={open} onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-small text-walshe-grey">
-          Upload a PDF, PNG or JPEG. The Auto-Catalog agent runs in the background and creates draft
-          entries you can review, edit and then publish — the bell in the top bar tells you when
-          they are ready. Nothing is shown to agents until you publish.
-        </p>
-        <input
-          type="file"
-          accept="application/pdf,image/png,image/jpeg"
-          aria-label="Document to import"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block w-full text-small"
-        />
+        {/* Styled file picker — the native control looks off, so hide it behind a labelled button
+            and show the chosen filename beside it. */}
+        <div className="flex items-center gap-3">
+          <label className="inline-flex flex-none cursor-pointer items-center gap-2 rounded-pill border border-walshe-line px-4 py-2 text-small font-semibold text-walshe-ink transition-colors hover:border-walshe-teal hover:bg-walshe-ink/5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" />
+            </svg>
+            Choose file
+            <input
+              type="file"
+              accept="application/pdf,image/png,image/jpeg"
+              aria-label="Document to import"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="hidden"
+            />
+          </label>
+          <span className="min-w-0 flex-1 truncate text-small text-walshe-grey">
+            {file ? file.name : "PDF, PNG or JPEG"}
+          </span>
+        </div>
         {error && <p className="text-small text-walshe-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
