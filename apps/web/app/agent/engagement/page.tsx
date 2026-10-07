@@ -56,7 +56,7 @@ export default function AgentEngagementPage() {
   const campaignGroups = byCampaign(data);
   const postLabel = (r: (typeof latest)[number]) =>
     (r as { composition_name?: string | null }).composition_name || `Post #${r.post_id}`;
-  const points: ChartPoint[] = latest.map((r) => ({ label: postLabel(r), values: r.metrics ?? {} }));
+  const points: ChartPoint[] = latest.map((r) => ({ id: r.post_id, label: postLabel(r), values: r.metrics ?? {} }));
 
   return (
     <div>
