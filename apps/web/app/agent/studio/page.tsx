@@ -219,7 +219,8 @@ function StudioEditor() {
   const params = useSearchParams();
   const router = useRouter();
   const projectId = params.get("project");
-  const hasProject = Boolean(projectId);
+  // A project is "open" from the URL, or one the session created in place (e.g. the AI Builder demo).
+  const hasProject = Boolean(projectId) || (project?.id ?? 0) > 0;
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
 
@@ -974,22 +975,25 @@ function StudioEditor() {
     setSelectedScene(null);
     await demoWait(450);
     controlsRef.current?.fit();
-    // The media the agent builds with. If the open project already has image-bearing items, use them.
-    // Otherwise ACTUALLY pull a seeded collection into the workspace (real drawer group + items, and
-    // best-effort persist onto the project) so the reel uses real photos — not a text-only fallback.
+    // The media the agent builds with. If the open project already has image-bearing items, reuse
+    // them; otherwise resolve a seeded collection and pull its real photos in.
     let builderItems: BuilderCatalogItem[] = panelItemsRef.current ?? [];
     let collectionName: string | undefined;
+    let chosenId: number | undefined;
+    let resolvedEntries: Entry[] = [];
     if (!builderItems.some((i) => i.imageSrc)) {
       try {
         const cols = await listCollections();
         // Prefer the collection with the most entries (most imagery for the reel).
         const chosen = [...cols].sort((a, b) => (b.item_ids?.length ?? 0) - (a.item_ids?.length ?? 0))[0];
         if (chosen) {
+          chosenId = chosen.id;
           const resolved = await resolveCollection(chosen.id);
           collectionName = resolved.name;
+          resolvedEntries = resolved.items ?? [];
           const panels = await Promise.all((resolved.items ?? []).map(toPanelItem));
           builderItems = panels;
-          const group: MediaGroup = {
+          demoCollectionRef.current = {
             id: `collection-${resolved.id}`,
             title: resolved.name,
             kind: "collection",
@@ -997,33 +1001,51 @@ function StudioEditor() {
               .filter((p) => p.imageSrc)
               .map((p) => ({ key: `entry-${p.id}`, label: p.title, src: p.imageSrc!, catalogItemId: `entry-${p.id}` })),
           };
-          demoCollectionRef.current = group; // shown in the drawer when the agent "adds" it
-          // Best-effort: persist the collection onto the open workspace so it is genuinely attached.
-          if (
-            project && project.id > 0 && workspace &&
-            !(workspace.reference_content.collections ?? []).some((c) => c.collection_id === resolved.id)
-          ) {
-            try {
-              const nextWs: WorkspaceResolved = {
-                ...workspace,
-                reference_content: {
-                  ...workspace.reference_content,
-                  collections: [
-                    ...(workspace.reference_content.collections ?? []),
-                    { collection_id: resolved.id, name: resolved.name, entries: resolved.items },
-                  ],
-                },
-              };
-              setWorkspace(await saveWorkspace(project.id, toWorkspaceIn(nextWs, designRef.current)));
-            } catch {
-              /* keep the live pull even if the persist fails */
-            }
-          }
         }
       } catch {
         /* keep whatever items we have; the director falls back to sample content if empty */
       }
     }
+
+    // Ensure a REAL, saved project to build into — so the result autosaves and the collection is
+    // genuinely attached. If none is open, create one (with the collection); otherwise attach the
+    // collection to the open project if it isn't there yet.
+    if (!(project && project.id > 0 && workspace)) {
+      try {
+        const created = await createProject({
+          name: collectionName ? `${collectionName} — AI itinerary` : "AI itinerary",
+          format: design.format,
+          ...(chosenId ? { collection_id: chosenId } : {}),
+        });
+        const ws = await getWorkspace(created.id);
+        setProject({ id: created.id, name: created.name });
+        setWorkspace(ws);
+        // Reflect the project in the URL WITHOUT a Next navigation, so a refresh reopens it but no
+        // mid-demo reload wipes the in-progress build.
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", `/agent/studio?project=${created.id}`);
+        }
+      } catch {
+        /* fall back to an unsaved build */
+      }
+    } else if (chosenId && !(workspace.reference_content.collections ?? []).some((c) => c.collection_id === chosenId)) {
+      try {
+        const nextWs: WorkspaceResolved = {
+          ...workspace,
+          reference_content: {
+            ...workspace.reference_content,
+            collections: [
+              ...(workspace.reference_content.collections ?? []),
+              { collection_id: chosenId, name: collectionName ?? "Collection", entries: resolvedEntries },
+            ],
+          },
+        };
+        setWorkspace(await saveWorkspace(project.id, toWorkspaceIn(nextWs, designRef.current)));
+      } catch {
+        /* keep the live pull even if the persist fails */
+      }
+    }
+
     // Make the pulled collection usable by the Builder/drawer for real (the drawer reveal happens in
     // the controller's showCollection). Kept after the run so the collection stays in the project.
     setPanelItems(builderItems);
