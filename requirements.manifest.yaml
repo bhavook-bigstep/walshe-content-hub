@@ -540,3 +540,7 @@ acceptance:
     api:
       - "apps/api/tests/test_agent_features.py::test_template_gallery_covers_sizes_and_orientations"
       - "apps/api/tests/test_agent_features.py::test_project_from_landscape_template_keeps_orientation"
+  AC89:
+    tier: P2
+    api:
+      - "apps/api/tests/test_seed.py::test_seed_creates_collections_and_image_items"

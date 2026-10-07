@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.clock import now as clock_now
+from app.models.agent_features import Collection
 from app.models.catalog import (
     Catalog,
     CatalogEntry,
@@ -497,6 +498,19 @@ def _upsert_composition(db: Session, agent_id: int, name: str, item_ids: list[in
     return comp
 
 
+def _upsert_collection(db: Session, agent_id: int, name: str, item_ids: list[int]) -> Collection:
+    """Upsert a saved collection by (agent, name) so the seed stays idempotent (AC84)."""
+    c = db.execute(
+        select(Collection).where(Collection.agent_id == agent_id, Collection.name == name)
+    ).scalar_one_or_none()
+    if c is None:
+        c = Collection(agent_id=agent_id, name=name)
+        db.add(c)
+    c.item_ids = item_ids
+    db.flush()
+    return c
+
+
 _SEED_CHANNEL = "facebook"
 _SEED_PUBLISHED_AT = datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc)  # fixed => deterministic
 _SEED_METRICS = {"impressions": 1200, "clicks": 84, "engagement": 150}  # synthetic
@@ -582,6 +596,22 @@ def seed(db: Session) -> dict[str, int]:
         db, agent.id, "Galway launch post", [entries[0].id, entries[1].id]
     )
     _upsert_composition(db, agent.id, "Trade Showcase teaser", [entries[2].id])
+
+    # Saved collections the agent can browse immediately (AC84) — references to existing, visible
+    # catalog entries (no copies). by_title maps entry titles to ids.
+    by_title = {e.title: e.id for e in entries}
+
+    def _pick(*titles: str) -> list[int]:
+        return [by_title[t] for t in titles if t in by_title]
+
+    _upsert_collection(
+        db, agent.id, "West coast favourites",
+        _pick("Cliffs of Moher", "Wild Atlantic Way", "Harbour Festival"),
+    )
+    _upsert_collection(
+        db, agent.id, "Australia highlights",
+        _pick("Great Barrier Reef", "Sydney Opera House", "Great Ocean Road Drive"),
+    )
 
     _upsert_post_with_engagement(db, launch_comp.id)
 
