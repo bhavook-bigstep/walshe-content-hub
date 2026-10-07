@@ -1507,6 +1507,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/social/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Posts
+         * @description The agent's own social posts (newest first), so the list survives a page refresh.
+         */
+        get: operations["list_posts_social_posts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/social/posts/{post_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve
+         * @description Approve = publish (AC80): records the reviewer and sends via the simulated connector.
+         */
+        post: operations["approve_social_posts__post_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/social/posts/{post_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description Reject a pending post with a reason (AC80); it drops to rejected and is editable again.
+         */
+        post: operations["reject_social_posts__post_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/social/preflight": {
         parameters: {
             query?: never;
@@ -1518,26 +1578,9 @@ export interface paths {
         put?: never;
         /**
          * Preflight Check
-         * @description Dry-run the pre-send check (AC34) so the agent sees issues before trying to send.
+         * @description Dry-run the pre-send check (AC34) so the agent sees issues before scheduling.
          */
         post: operations["preflight_check_social_preflight_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/social/publish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Publish */
-        post: operations["publish_social_publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1553,28 +1596,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Schedule */
-        post: operations["schedule_social_schedule_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/social/unpublish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
         /**
-         * Unpublish
-         * @description Revert a published post to scheduled; traceable via audit (Contract 3).
+         * Schedule
+         * @description Schedule a composition to a channel. Preflight-gated; lands in pending_approval (AC80).
          */
-        post: operations["unpublish_social_unpublish_post"];
+        post: operations["schedule_social_schedule_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2749,10 +2775,19 @@ export interface components {
             channel: string;
             /** Composition Id */
             composition_id: number;
+            /** Composition Name */
+            composition_name?: string | null;
+            /** External Id */
+            external_id?: string | null;
             /** Id */
             id: number;
             /** Published At */
             published_at: string | null;
+            /**
+             * Review Note
+             * @default
+             */
+            review_note: string;
             /** Scheduled At */
             scheduled_at: string | null;
             status: components["schemas"]["PostStatus"];
@@ -2777,6 +2812,13 @@ export interface components {
             issues: components["schemas"]["PreflightIssueOut"][];
             /** Ok */
             ok: boolean;
+        };
+        /** PreflightRequest */
+        PreflightRequest: {
+            /** Channel */
+            channel: string;
+            /** Composition Id */
+            composition_id: number;
         };
         /**
          * ProfileUpdate
@@ -2862,13 +2904,6 @@ export interface components {
             /** Name */
             name?: string | null;
         };
-        /** PublishRequest */
-        PublishRequest: {
-            /** Channel */
-            channel: string;
-            /** Composition Id */
-            composition_id: number;
-        };
         /** ReferenceContent */
         ReferenceContent: {
             /** Collections */
@@ -2908,6 +2943,14 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** RejectRequest */
+        RejectRequest: {
+            /**
+             * Note
+             * @default
+             */
+            note: string;
         };
         /** RenderRequest */
         RenderRequest: {
@@ -6099,18 +6142,14 @@ export interface operations {
             };
         };
     };
-    preflight_check_social_preflight_post: {
+    list_posts_social_posts_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PublishRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -6118,7 +6157,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PreflightOut"];
+                    "application/json": components["schemas"]["PostOut"][];
+                };
+            };
+        };
+    };
+    approve_social_posts__post_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostOut"];
                 };
             };
             /** @description Validation Error */
@@ -6132,16 +6193,18 @@ export interface operations {
             };
         };
     };
-    publish_social_publish_post: {
+    reject_social_posts__post_id__reject_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                post_id: number;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PublishRequest"];
+                "application/json": components["schemas"]["RejectRequest"];
             };
         };
         responses: {
@@ -6152,6 +6215,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preflight_check_social_preflight_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreflightRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreflightOut"];
                 };
             };
             /** @description Validation Error */
@@ -6180,39 +6276,6 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PostOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unpublish_social_unpublish_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PublishRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
                 headers: {
                     [name: string]: unknown;
                 };

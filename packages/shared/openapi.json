@@ -2814,6 +2814,28 @@
             "title": "Composition Id",
             "type": "integer"
           },
+          "composition_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composition Name"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -2821,7 +2843,6 @@
           "published_at": {
             "anyOf": [
               {
-                "format": "date-time",
                 "type": "string"
               },
               {
@@ -2830,10 +2851,14 @@
             ],
             "title": "Published At"
           },
+          "review_note": {
+            "default": "",
+            "title": "Review Note",
+            "type": "string"
+          },
           "scheduled_at": {
             "anyOf": [
               {
-                "format": "date-time",
                 "type": "string"
               },
               {
@@ -2914,6 +2939,24 @@
           "issues"
         ],
         "title": "PreflightOut",
+        "type": "object"
+      },
+      "PreflightRequest": {
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "composition_id": {
+            "title": "Composition Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "composition_id",
+          "channel"
+        ],
+        "title": "PreflightRequest",
         "type": "object"
       },
       "ProfileUpdate": {
@@ -3156,24 +3199,6 @@
         "title": "ProjectUpdate",
         "type": "object"
       },
-      "PublishRequest": {
-        "properties": {
-          "channel": {
-            "title": "Channel",
-            "type": "string"
-          },
-          "composition_id": {
-            "title": "Composition Id",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "composition_id",
-          "channel"
-        ],
-        "title": "PublishRequest",
-        "type": "object"
-      },
       "ReferenceContent": {
         "properties": {
           "collections": {
@@ -3280,6 +3305,17 @@
           "password"
         ],
         "title": "RegisterRequest",
+        "type": "object"
+      },
+      "RejectRequest": {
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "title": "RejectRequest",
         "type": "object"
       },
       "RenderRequest": {
@@ -8317,15 +8353,152 @@
         ]
       }
     },
+    "/social/posts": {
+      "get": {
+        "description": "The agent's own social posts (newest first), so the list survives a page refresh.",
+        "operationId": "list_posts_social_posts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PostOut"
+                  },
+                  "title": "Response List Posts Social Posts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Posts",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/social/posts/{post_id}/approve": {
+      "post": {
+        "description": "Approve = publish (AC80): records the reviewer and sends via the simulated connector.",
+        "operationId": "approve_social_posts__post_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "title": "Post Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Approve",
+        "tags": [
+          "social"
+        ]
+      }
+    },
+    "/social/posts/{post_id}/reject": {
+      "post": {
+        "description": "Reject a pending post with a reason (AC80); it drops to rejected and is editable again.",
+        "operationId": "reject_social_posts__post_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "title": "Post Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reject",
+        "tags": [
+          "social"
+        ]
+      }
+    },
     "/social/preflight": {
       "post": {
-        "description": "Dry-run the pre-send check (AC34) so the agent sees issues before trying to send.",
+        "description": "Dry-run the pre-send check (AC34) so the agent sees issues before scheduling.",
         "operationId": "preflight_check_social_preflight_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PublishRequest"
+                "$ref": "#/components/schemas/PreflightRequest"
               }
             }
           },
@@ -8364,54 +8537,9 @@
         ]
       }
     },
-    "/social/publish": {
-      "post": {
-        "operationId": "publish_social_publish_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PublishRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PostOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Publish",
-        "tags": [
-          "social"
-        ]
-      }
-    },
     "/social/schedule": {
       "post": {
+        "description": "Schedule a composition to a channel. Preflight-gated; lands in pending_approval (AC80).",
         "operationId": "schedule_social_schedule_post",
         "requestBody": {
           "content": {
@@ -8451,53 +8579,6 @@
           }
         ],
         "summary": "Schedule",
-        "tags": [
-          "social"
-        ]
-      }
-    },
-    "/social/unpublish": {
-      "post": {
-        "description": "Revert a published post to scheduled; traceable via audit (Contract 3).",
-        "operationId": "unpublish_social_unpublish_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PublishRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PostOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Unpublish",
         "tags": [
           "social"
         ]

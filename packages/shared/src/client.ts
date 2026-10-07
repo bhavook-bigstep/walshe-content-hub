@@ -59,7 +59,6 @@ export type EntryStatus = Entry["status"];
 export type DesignRequest = Schemas["DesignRequest"];
 export type VideoRequest = Schemas["VideoRequest"];
 export type ScheduleRequest = Schemas["ScheduleRequest"];
-export type PublishRequest = Schemas["PublishRequest"];
 export type Post = Schemas["PostOut"];
 export type Engagement = Schemas["EngagementOut"];
 export type InstagramPublishResult = Schemas["InstagramPublishOut"];
@@ -619,8 +618,18 @@ export async function scheduleSocialPost(body: ScheduleRequest): Promise<Post> {
   return (await (await send("/social/schedule", json(body))).json()) as Post;
 }
 
-export async function publishSocialPost(body: PublishRequest): Promise<Post> {
-  return (await (await send("/social/publish", json(body))).json()) as Post;
+/** The agent's own social posts (newest first) — persisted server-side, so the list survives a refresh. */
+export async function listSocialPosts(): Promise<Post[]> {
+  return (await (await send("/social/posts")).json()) as Post[];
+}
+
+/** Approve = publish: sends a pending post via the simulated connector and records the reviewer. */
+export async function approveSocialPost(postId: number): Promise<Post> {
+  return (await (await send(`/social/posts/${postId}/approve`, { method: "POST" })).json()) as Post;
+}
+
+export async function rejectSocialPost(postId: number, note: string): Promise<Post> {
+  return (await (await send(`/social/posts/${postId}/reject`, json({ note }))).json()) as Post;
 }
 
 /**

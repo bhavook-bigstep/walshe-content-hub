@@ -1,12 +1,19 @@
-"""Social schedule/publish routes (AC14) — agent-only, simulated connector."""
+"""Social schedule + approval routes (AC14 / AC80) — agent-only, simulated connector.
+
+Scheduling a composition to a channel creates a post in ``pending_approval``; nothing is sent until
+the owning agent approves it (PoC self-approval, mirroring the campaign flow). Approve publishes via
+the deterministic simulated connector (Contract 2/4 — no OAuth, no egress); reject sends it back
+with a reason. Posts are listed from the server (``GET /social/posts``) so they persist across
+refreshes. There is no direct publish — nothing goes out without a review.
+"""
 
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,20 +35,34 @@ class ScheduleRequest(BaseModel):
     scheduled_at: datetime | None = None
 
 
-class PublishRequest(BaseModel):
+class PreflightRequest(BaseModel):
     composition_id: int
     channel: str
+
+
+class RejectRequest(BaseModel):
+    note: str = ""
 
 
 class PostOut(BaseModel):
     id: int
     composition_id: int
+    composition_name: str | None = None
     channel: str
     status: PostStatus
     scheduled_at: datetime | None
     published_at: datetime | None
+    review_note: str = ""
+    external_id: str | None = None
 
-    model_config = {"from_attributes": True}
+    @field_serializer("scheduled_at", "published_at")
+    def _utc(self, value: datetime | None) -> str | None:
+        # SQLite drops tzinfo; stamp UTC on output so the browser never reads stored-UTC as local.
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
 
 
 class PreflightIssueOut(BaseModel):
@@ -62,16 +83,22 @@ def _owned_composition(db: Session, composition_id: int, user: User) -> Composit
     return comp
 
 
+def _agent_post(db: Session, post_id: int, user: User) -> Post:
+    post = db.get(Post, post_id)
+    if post is not None:
+        comp = db.get(Composition, post.composition_id)
+        if comp is not None and comp.agent_id == user.id:
+            return post
+    raise HTTPException(status.HTTP_404_NOT_FOUND, "Post not found")
+
+
 def _preflight(db: Session, user: User, comp: Composition, channel: str, now: datetime) -> None:
-    """Run the preflight check and block the send (422) with plain-word fixes if it fails (AC34)."""
+    """Run the preflight check and block (422) with plain-word fixes if it fails (AC34)."""
     result = preflight.run_preflight(db, user, comp, channel, now=now)
     if not result.ok:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "error": "preflight_failed",
-                "issues": [asdict(i) for i in result.issues],
-            },
+            detail={"error": "preflight_failed", "issues": [asdict(i) for i in result.issues]},
         )
 
 
@@ -82,27 +109,50 @@ def _channel(channel: str) -> str:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unsupported channel") from err
 
 
-def _find(db: Session, composition_id: int, channel: str) -> Post | None:
-    return db.scalars(
-        select(Post)
-        .where(Post.composition_id == composition_id, Post.channel == channel)
+def _out(db: Session, post: Post) -> PostOut:
+    name = db.scalar(select(Composition.name).where(Composition.id == post.composition_id))
+    return PostOut(
+        id=post.id, composition_id=post.composition_id, composition_name=name,
+        channel=post.channel, status=post.status, scheduled_at=post.scheduled_at,
+        published_at=post.published_at, review_note=post.review_note or "",
+        external_id=post.external_id,
+    )
+
+
+@router.get("/posts", response_model=list[PostOut])
+def list_posts(
+    user: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+) -> list[PostOut]:
+    """The agent's own social posts (newest first), so the list survives a page refresh."""
+    rows = db.execute(
+        select(Post, Composition.name)
+        .join(Composition, Composition.id == Post.composition_id)
+        .where(Composition.agent_id == user.id)
         .order_by(Post.id.desc())
-    ).first()
+    ).all()
+    return [
+        PostOut(
+            id=p.id, composition_id=p.composition_id, composition_name=name, channel=p.channel,
+            status=p.status, scheduled_at=p.scheduled_at, published_at=p.published_at,
+            review_note=p.review_note or "", external_id=p.external_id,
+        )
+        for p, name in rows
+    ]
 
 
 @router.post("/preflight", response_model=PreflightOut)
 def preflight_check(
-    body: PublishRequest,
+    body: PreflightRequest,
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
 ) -> PreflightOut:
-    """Dry-run the pre-send check (AC34) so the agent sees issues before trying to send."""
+    """Dry-run the pre-send check (AC34) so the agent sees issues before scheduling."""
     comp = _owned_composition(db, body.composition_id, user)
     result = preflight.run_preflight(db, user, comp, body.channel, now=now)
-    return PreflightOut(
-        ok=result.ok, issues=[PreflightIssueOut(**asdict(i)) for i in result.issues]
-    )
+    issues = [PreflightIssueOut(**asdict(i)) for i in result.issues]
+    return PreflightOut(ok=result.ok, issues=issues)
 
 
 @router.post("/schedule", response_model=PostOut, status_code=status.HTTP_201_CREATED)
@@ -111,62 +161,71 @@ def schedule(
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
-) -> Post:
+) -> PostOut:
+    """Schedule a composition to a channel. Preflight-gated; lands in pending_approval (AC80)."""
     comp = _owned_composition(db, body.composition_id, user)
-    _preflight(db, user, comp, body.channel, now)  # AC34: blocked unless checks pass
+    _preflight(db, user, comp, body.channel, now)
     channel = _channel(body.channel)
     post = Post(
-        composition_id=body.composition_id,
-        channel=channel,
-        status=PostStatus.scheduled,
-        scheduled_at=body.scheduled_at or now,
+        composition_id=body.composition_id, channel=channel, platform=channel,
+        status=PostStatus.pending_approval, scheduled_at=body.scheduled_at or now,
     )
     db.add(post)
+    db.flush()
+    audit.record(db, actor_id=user.id, action="schedule", target_type="post", target_id=post.id)
     db.commit()
     db.refresh(post)
-    return post
+    return _out(db, post)
 
 
-@router.post("/publish", response_model=PostOut)
-def publish(
-    body: PublishRequest,
+@router.post("/posts/{post_id}/approve", response_model=PostOut)
+def approve(
+    post_id: int,
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
-) -> Post:
-    comp = _owned_composition(db, body.composition_id, user)
-    _preflight(db, user, comp, body.channel, now)  # AC34: blocked unless checks pass
-    channel = _channel(body.channel)
-    post = _find(db, body.composition_id, channel)
-    if post is not None and post.status == PostStatus.published:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Already published")
-    receipt = social_sim.publish(channel=channel, composition_id=body.composition_id, now=now)
-    if post is None:
-        post = Post(composition_id=body.composition_id, channel=channel)
-        db.add(post)
+) -> PostOut:
+    """Approve = publish (AC80): records the reviewer and sends via the simulated connector."""
+    post = _agent_post(db, post_id, user)
+    if post.status != PostStatus.pending_approval:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Only a pending_approval post can be approved (is '{post.status.value}')",
+        )
+    receipt = social_sim.publish(channel=post.channel, composition_id=post.composition_id, now=now)
     post.status = PostStatus.published
+    post.external_id = receipt.external_id
     post.published_at = receipt.published_at
-    db.flush()
+    post.approved_by = user.id
+    post.reviewed_at = now
+    post.review_note = ""
+    audit.record(db, actor_id=user.id, action="approve", target_type="post", target_id=post.id)
     audit.record(db, actor_id=user.id, action="publish", target_type="post", target_id=post.id)
     db.commit()
     db.refresh(post)
-    return post
+    return _out(db, post)
 
 
-@router.post("/unpublish", response_model=PostOut)
-def unpublish(
-    body: PublishRequest,
+@router.post("/posts/{post_id}/reject", response_model=PostOut)
+def reject(
+    post_id: int,
+    body: RejectRequest,
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
-) -> Post:
-    """Revert a published post to scheduled; traceable via audit (Contract 3)."""
-    _owned_composition(db, body.composition_id, user)
-    post = _find(db, body.composition_id, _channel(body.channel))
-    if post is None or post.status != PostStatus.published:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Published post not found")
-    post.status = PostStatus.scheduled
-    post.published_at = None
-    audit.record(db, actor_id=user.id, action="unpublish", target_type="post", target_id=post.id)
+    now: datetime = Depends(clock.now),
+) -> PostOut:
+    """Reject a pending post with a reason (AC80); it drops to rejected and is editable again."""
+    post = _agent_post(db, post_id, user)
+    if post.status != PostStatus.pending_approval:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Only a pending_approval post can be rejected (is '{post.status.value}')",
+        )
+    post.status = PostStatus.rejected
+    post.approved_by = None
+    post.reviewed_at = now
+    post.review_note = body.note
+    audit.record(db, actor_id=user.id, action="reject", target_type="post", target_id=post.id)
     db.commit()
     db.refresh(post)
-    return post
+    return _out(db, post)

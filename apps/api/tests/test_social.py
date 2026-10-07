@@ -56,7 +56,8 @@ def sclient(settings):
         )
         db.add(entry)
         db.flush()
-        db.add(Composition(agent_id=agent.id, format="social", item_ids=[entry.id]))
+        db.add(Composition(agent_id=agent.id, name="Cliffs promo", format="social",
+                           item_ids=[entry.id]))
         db.commit()
     with TestClient(application) as c:
         c.app_ = application
@@ -67,47 +68,65 @@ def _agent(c):
     return auth_header(c, Role.tourism_agent)
 
 
-def test_schedule_then_publish_transitions(sclient):
+def _schedule(sclient, h, channel="instagram"):
+    return sclient.post("/social/schedule", headers=h,
+                        json={"composition_id": 1, "channel": channel})
+
+
+def test_schedule_lands_pending_approval(sclient):
     h = _agent(sclient)
-    body = {"composition_id": 1, "channel": "instagram"}
-    r = sclient.post("/social/schedule", headers=h, json=body)
-    assert r.status_code == 201
-    assert r.json()["status"] == "scheduled"
-    assert r.json()["published_at"] is None
-    assert r.json()["scheduled_at"].startswith("2026-01-02T03:04:05")
-
-    r = sclient.post("/social/publish", headers=h, json=body)
-    assert r.status_code == 200
-    assert r.json()["status"] == "published"
-    assert r.json()["published_at"].startswith("2026-01-02T03:04:05")
-
-    with sclient.app_.state.sessionmaker() as db:
-        row = db.scalars(select(AuditLog)).one()
-        assert (row.action, row.target_type) == ("publish", "post")
+    r = _schedule(sclient, h)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "pending_approval"
+    assert body["published_at"] is None
+    assert body["scheduled_at"].startswith("2026-01-02T03:04:05")
 
 
-def test_publish_twice_conflicts(sclient):
+def test_posts_list_persists_with_composition_name(sclient):
+    # The list is served from the server so a refresh keeps it (the old page bug).
     h = _agent(sclient)
-    body = {"composition_id": 1, "channel": "x"}
-    assert sclient.post("/social/publish", headers=h, json=body).status_code == 200
-    assert sclient.post("/social/publish", headers=h, json=body).status_code == 409
+    _schedule(sclient, h)
+    rows = sclient.get("/social/posts", headers=h).json()
+    assert len(rows) == 1
+    assert rows[0]["status"] == "pending_approval"
+    assert rows[0]["composition_name"] == "Cliffs promo"  # project name, not "Post #1"
 
 
-def test_unpublish_audited(sclient):
+def test_approve_publishes_via_simulated_connector(sclient):
     h = _agent(sclient)
-    body = {"composition_id": 1, "channel": "x"}
-    assert sclient.post("/social/unpublish", headers=h, json=body).status_code == 404
-    sclient.post("/social/publish", headers=h, json=body)
-    r = sclient.post("/social/unpublish", headers=h, json=body)
-    assert r.json()["status"] == "scheduled" and r.json()["published_at"] is None
+    pid = _schedule(sclient, h).json()["id"]
+    r = sclient.post(f"/social/posts/{pid}/approve", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "published"
+    assert body["published_at"].startswith("2026-01-02T03:04:05")
+    assert body["external_id"].startswith("sim-instagram-")
     with sclient.app_.state.sessionmaker() as db:
         actions = [a.action for a in db.scalars(select(AuditLog).order_by(AuditLog.id))]
-    assert actions == ["publish", "unpublish"]
+    assert actions == ["schedule", "approve", "publish"]
+
+
+def test_reject_sets_rejected_with_note(sclient):
+    h = _agent(sclient)
+    pid = _schedule(sclient, h).json()["id"]
+    r = sclient.post(f"/social/posts/{pid}/reject", headers=h, json={"note": "off-brand"})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "rejected"
+    assert r.json()["review_note"] == "off-brand"
+
+
+def test_cannot_approve_a_non_pending_post(sclient):
+    h = _agent(sclient)
+    pid = _schedule(sclient, h).json()["id"]
+    assert sclient.post(f"/social/posts/{pid}/approve", headers=h).status_code == 200
+    # already published -> a second approve is a 409, not a re-publish
+    assert sclient.post(f"/social/posts/{pid}/approve", headers=h).status_code == 409
 
 
 def test_agent_only_and_validation(sclient):
     body = {"composition_id": 1, "channel": "x"}
-    assert sclient.post("/social/publish", json=body).status_code == 401
+    assert sclient.post("/social/schedule", json=body).status_code == 401
     ph = auth_header(sclient, Role.content_provider)
     assert sclient.post("/social/schedule", headers=ph, json=body).status_code == 403
     h = _agent(sclient)

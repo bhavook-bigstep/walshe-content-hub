@@ -77,7 +77,8 @@ acceptance:
   AC14:
     tier: P3
     api:
-      - "apps/api/tests/test_social.py::test_schedule_then_publish_transitions"
+      - "apps/api/tests/test_social.py::test_schedule_lands_pending_approval"
+      - "apps/api/tests/test_social.py::test_approve_publishes_via_simulated_connector"
   AC15:
     tier: P3
     api:
@@ -479,3 +480,11 @@ acceptance:
       - "apps/api/tests/test_assistant.py::test_stream_endpoint_sends_deltas_then_done"
       - "apps/api/tests/test_assistant.py::test_stream_endpoint_roles"
       - "apps/api/tests/test_ai_provider.py::test_gemini_stream_chat_sends_system_turns_and_parses_chunks"
+  AC80:
+    tier: P2
+    api:
+      - "apps/api/tests/test_social.py::test_schedule_lands_pending_approval"
+      - "apps/api/tests/test_social.py::test_posts_list_persists_with_composition_name"
+      - "apps/api/tests/test_social.py::test_approve_publishes_via_simulated_connector"
+      - "apps/api/tests/test_social.py::test_reject_sets_rejected_with_note"
+      - "apps/api/tests/test_social.py::test_cannot_approve_a_non_pending_post"

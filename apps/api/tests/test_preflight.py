@@ -81,22 +81,22 @@ def test_publish_blocked_until_preflight_clean(client, provider_headers, agent_h
     project_id = _project(client, agent_headers, [entry_id])
     body = {"composition_id": project_id, "channel": "instagram"}
 
-    _fix_clock(app, T0 + timedelta(days=2))  # expired → send must be blocked
-    r = client.post("/social/publish", headers=agent_headers, json=body)
+    _fix_clock(app, T0 + timedelta(days=2))  # expired → scheduling must be blocked
+    r = client.post("/social/schedule", headers=agent_headers, json=body)
     assert r.status_code == 422, r.text
     detail = r.json()["detail"]
     assert detail["error"] == "preflight_failed"
     assert any(i["code"] == "unavailable_items" for i in detail["issues"])
-    # Scheduling is gated the same way.
-    assert client.post("/social/schedule", headers=agent_headers, json=body).status_code == 422
 
-    # Fix the problem (clock back inside validity) → the same send now goes through.
+    # Fix the problem (clock back inside validity) → the schedule now goes through, landing in
+    # pending_approval; approving it then publishes (nothing sends without a review).
     _fix_clock(app, T0)
-    r = client.post("/social/publish", headers=agent_headers, json=body)
-    assert r.status_code == 200, r.text
-    assert r.json()["status"] == "published"
-    # Scheduling the now-clean composition also succeeds.
-    assert client.post("/social/schedule", headers=agent_headers, json=body).status_code == 201
+    r = client.post("/social/schedule", headers=agent_headers, json=body)
+    assert r.status_code == 201, r.text
+    assert r.json()["status"] == "pending_approval"
+    pid = r.json()["id"]
+    approved = client.post(f"/social/posts/{pid}/approve", headers=agent_headers)
+    assert approved.status_code == 200 and approved.json()["status"] == "published"
 
 
 def test_preflight_no_content_and_unsupported_channel(client, agent_headers, app):

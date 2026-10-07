@@ -18,8 +18,12 @@ from sqlalchemy.orm import Session
 
 from app.clock import now as clock_now
 from app.models.agent_features import BrandKit, Collection
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.catalog import CatalogEntry, CatalogType, EntryStatus, Season
 from app.models.composition import Composition
+from app.models.engagement import Engagement
+from app.models.post import Post, PostStatus
+from app.models.post_insights_sync import PostInsightsSync
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
 from app.services.catalog_migration import decompose_entries_to_items
@@ -215,6 +219,75 @@ def _composition(db: Session, agent_id: int, name: str, item_ids: list[int]) -> 
     return c
 
 
+# (caption, days-ago it published, metrics) for the demo's published posts — realistic Instagram
+# numbers so the Engagement dashboard + Home tiles read like a live account (metric keys match the
+# registry in app/social/metrics.py).
+_PUBLISHED = [
+    (
+        "Cliffs of Moher at golden hour. #WildAtlanticWay #VisitIreland",
+        18,
+        {"reach": 2412, "views": 3188, "likes": 182, "comments": 14, "saved": 39,
+         "shares": 11, "total_interactions": 246},
+    ),
+    (
+        "Seven days, one epic coast — the Wild Atlantic Way. #Ireland #TravelTrade",
+        9,
+        {"reach": 1536, "views": 2044, "likes": 121, "comments": 8, "saved": 27,
+         "shares": 6, "total_interactions": 162},
+    ),
+]
+
+
+def _seed_social(db: Session, agent_id: int, composition_id: int, now: datetime) -> None:
+    """A demo campaign with published posts + engagement, so the Campaigns / Engagement / Home
+    screens are populated. Idempotent: skipped once the agent already has a campaign."""
+    if db.execute(select(Campaign).where(Campaign.agent_id == agent_id)).first() is not None:
+        return
+    campaign = Campaign(
+        agent_id=agent_id,
+        name="Autumn on the Wild Atlantic",
+        destination="Ireland",
+        starts_on=(now - timedelta(days=20)).date(),
+        ends_on=(now + timedelta(days=25)).date(),
+        status=CampaignStatus.active,
+        created_at=now - timedelta(days=20),
+    )
+    db.add(campaign)
+    db.flush()
+
+    for idx, (caption, days_ago, metrics) in enumerate(_PUBLISHED):
+        when = now - timedelta(days=days_ago)
+        post = Post(
+            campaign_id=campaign.id,
+            composition_id=composition_id,
+            channel="instagram",
+            platform="instagram",
+            caption=caption,
+            status=PostStatus.published,
+            scheduled_at=when,
+            published_at=when,
+            external_id=f"stub-seed-{idx + 1}",
+            approved_by=agent_id,
+            reviewed_at=when,
+        )
+        db.add(post)
+        db.flush()
+        db.add(Engagement(post_id=post.id, platform="instagram", metrics=metrics,
+                          fetched_at=now - timedelta(hours=2)))
+        db.add(PostInsightsSync(post_id=post.id, last_synced_at=now - timedelta(hours=2),
+                                sync_status="ok"))
+
+    # One post still awaiting approval, so the approval lifecycle is visible on the calendar.
+    db.add(Post(
+        campaign_id=campaign.id,
+        composition_id=composition_id,
+        channel="instagram",
+        platform="instagram",
+        caption="Dublin Lights winter trail — launching soon. #Dublin #VisitIreland",
+        status=PostStatus.pending_approval,
+        scheduled_at=now + timedelta(days=3),
+    ))
+    db.flush()
 
 
 def seed_demo(db: Session) -> dict[str, int]:
@@ -267,12 +340,15 @@ def seed_demo(db: Session) -> dict[str, int]:
         "West coast favourites",
         [by_title["Cliffs of Moher"], by_title["Wild Atlantic Way"]],
     )
-    _composition(
+    comp1 = _composition(
         db,
         agent1.id,
         "Galway launch post",
         [by_title["Harbour Festival"], by_title["Cliffs of Moher"]],
     )
+    # A live campaign with published posts + engagement so Campaigns / Social / Engagement / Home
+    # are populated for the demo (not empty).
+    _seed_social(db, agent1.id, comp1.id, now)
 
     # Agent 2 (Sam): city-breaks focus, a brand kit, a collection + a draft project.
     _brand_kit(
@@ -300,6 +376,9 @@ def seed_demo(db: Session) -> dict[str, int]:
         "entries": db.scalar(select(func.count()).select_from(CatalogEntry)),
         "collections": db.scalar(select(func.count()).select_from(Collection)),
         "compositions": db.scalar(select(func.count()).select_from(Composition)),
+        "campaigns": db.scalar(select(func.count()).select_from(Campaign)),
+        "posts": db.scalar(select(func.count()).select_from(Post)),
+        "engagement": db.scalar(select(func.count()).select_from(Engagement)),
     }
 
 
