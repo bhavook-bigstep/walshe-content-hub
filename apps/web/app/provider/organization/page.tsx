@@ -20,7 +20,7 @@ import {
 
 export default function ProviderOrganizationPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10">
       {/* Profile (the main form) leads on the left; invites + team stack on the right. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
         <OrgProfileCard />

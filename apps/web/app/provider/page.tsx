@@ -24,7 +24,7 @@ export default function ProviderHomePage() {
   const items = entries?.reduce((t, e) => t + (e.items?.length ?? 0), 0) ?? 0;
 
   return (
-    <div>
+    <div className="pb-10">
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/provider" }, { label: "Overview" }]}
         title="Provider home"

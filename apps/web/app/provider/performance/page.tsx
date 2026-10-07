@@ -71,7 +71,7 @@ export default function ProviderPerformancePage() {
   ];
 
   return (
-    <div>
+    <div className="pb-10">
       {error ? (
         <div role="alert" className="card flex flex-col items-center gap-4 border-walshe-danger/30 p-10 text-center">
           <p className="text-body text-walshe-danger">{error}</p>
