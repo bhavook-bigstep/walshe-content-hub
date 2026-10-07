@@ -22,6 +22,7 @@ from app.schemas.provider import (
     PerformanceRow,
     TeamInvite,
     TeamMember,
+    TrendPoint,
 )
 from app.security import hash_password
 
@@ -116,23 +117,42 @@ def content_performance(
     )
     comps = db.execute(select(Composition)).scalars().all()
 
-    # Reach per composition (via its published posts). Engagement is platform-tagged snapshots now,
-    # so take the LATEST snapshot per post (reach, else views), not a sum.
+    entry_ids = {e.id for e in entries}
+    post_comp = dict(db.execute(select(Post.id, Post.composition_id)).all())
+    # Compositions (and thus posts) that actually reference this provider's content.
+    used_comp_ids = {c.id for c in comps if entry_ids.intersection(c.item_ids or [])}
+    relevant_posts = {pid for pid, cid in post_comp.items() if cid in used_comp_ids}
+
+    def _reach(m: dict) -> int:
+        return int(m.get("reach", m.get("views", 0)) or 0)
+
+    def _engagements(m: dict) -> int:
+        inter = m.get("total_interactions")
+        if inter is None:
+            inter = sum(int(m.get(k, 0) or 0) for k in ("likes", "comments", "saved", "shares"))
+        return int(inter or 0)
+
+    # One pass over snapshots (ascending fetched_at): the LATEST snapshot per post drives the
+    # per-entry totals; every snapshot feeds the day-by-day trend (for this provider's posts only).
     reach_by_post: dict[int, int] = {}
     eng_by_post: dict[int, int] = {}
+    trend_reach: dict[str, int] = {}
+    trend_eng: dict[str, int] = {}
     eng_rows = db.execute(
-        select(Engagement.post_id, Engagement.metrics).order_by(Engagement.fetched_at)
+        select(Engagement.post_id, Engagement.metrics, Engagement.fetched_at).order_by(
+            Engagement.fetched_at
+        )
     ).all()
-    for post_id, metrics in eng_rows:  # ascending fetched_at → last write wins = latest snapshot
+    for post_id, metrics, fetched_at in eng_rows:
         m = metrics or {}
-        reach_by_post[post_id] = int(m.get("reach", m.get("views", 0)) or 0)
-        # Engagements: the platform's total_interactions if present, else the parts summed.
-        interactions = m.get("total_interactions")
-        if interactions is None:
-            parts = ("likes", "comments", "saved", "shares")
-            interactions = sum(int(m.get(k, 0) or 0) for k in parts)
-        eng_by_post[post_id] = int(interactions or 0)
-    post_comp = dict(db.execute(select(Post.id, Post.composition_id)).all())
+        r, e = _reach(m), _engagements(m)
+        reach_by_post[post_id] = r  # last write wins = latest snapshot
+        eng_by_post[post_id] = e
+        if post_id in relevant_posts and fetched_at is not None:
+            day = fetched_at.date().isoformat()
+            trend_reach[day] = trend_reach.get(day, 0) + r
+            trend_eng[day] = trend_eng.get(day, 0) + e
+
     reach_by_comp: dict[int, int] = {}
     eng_by_comp: dict[int, int] = {}
     for post_id, comp_id in post_comp.items():
@@ -157,9 +177,14 @@ def content_performance(
         )
 
     rows.sort(key=lambda r: (r.reach, r.engagements, r.uses), reverse=True)
+    trend = [
+        TrendPoint(date=day, reach=trend_reach[day], engagements=trend_eng.get(day, 0))
+        for day in sorted(trend_reach)
+    ]
     return PerformanceOut(
         total_uses=sum(r.uses for r in rows),
         total_reach=sum(r.reach for r in rows),
         total_engagements=sum(r.engagements for r in rows),
         rows=rows,
+        trend=trend,
     )

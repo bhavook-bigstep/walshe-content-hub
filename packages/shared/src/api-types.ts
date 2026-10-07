@@ -2898,6 +2898,11 @@ export interface components {
             total_reach: number;
             /** Total Uses */
             total_uses: number;
+            /**
+             * Trend
+             * @default []
+             */
+            trend: components["schemas"]["TrendPoint"][];
         };
         /** PerformanceRow */
         PerformanceRow: {
@@ -3227,6 +3232,15 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+        };
+        /** TrendPoint */
+        TrendPoint: {
+            /** Date */
+            date: string;
+            /** Engagements */
+            engagements: number;
+            /** Reach */
+            reach: number;
         };
         /**
          * UserAssetOut

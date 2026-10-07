@@ -69,6 +69,9 @@ def test_media_team_and_performance(
     assert "rows" in body and "total_reach" in body and "total_engagements" in body
     # Each row carries the engagement metric alongside uses/reach.
     assert all("engagements" in row for row in body["rows"])
+    # A time-series trend is exposed (reach/engagements per day) for the line chart.
+    assert "trend" in body
+    assert all({"date", "reach", "engagements"} <= p.keys() for p in body["trend"])
 
     # Provider workspace endpoints are provider-only.
     assert client.get("/me/media", headers=agent_headers).status_code == 403

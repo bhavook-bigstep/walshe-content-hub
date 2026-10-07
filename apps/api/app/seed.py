@@ -564,7 +564,8 @@ def _seed_performance(db: Session, agent_id: int, by_title: dict[str, int], now:
             select(func.count()).select_from(Engagement).where(Engagement.post_id == post.id)
         )
         if not has_eng:
-            for days_ago, factor in ((7, 0.6), (0, 1.0)):  # a week ago ~60%, then the final figure
+            # Weekly snapshots over ~4 weeks (growing reach) so the trend line has real shape.
+            for days_ago, factor in ((28, 0.22), (21, 0.41), (14, 0.63), (7, 0.82), (0, 1.0)):
                 db.add(
                     Engagement(
                         post_id=post.id,
