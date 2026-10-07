@@ -93,6 +93,47 @@ def test_posts_list_persists_with_composition_name(sclient):
     assert rows[0]["composition_name"] == "Cliffs promo"  # project name, not "Post #1"
 
 
+def test_approve_future_schedule_greenlights_then_posts_when_due(sclient):
+    # Approve greenlights a future-scheduled post without publishing; it posts when the scheduled
+    # time arrives (publish-due-on-load, since the PoC has no background worker).
+    from datetime import timedelta
+
+    h = _agent(sclient)
+    future = (FIXED + timedelta(days=1)).isoformat()
+    pid = sclient.post(
+        "/social/schedule", headers=h,
+        json={"composition_id": 1, "channel": "instagram", "scheduled_at": future},
+    ).json()["id"]
+
+    r = sclient.post(f"/social/posts/{pid}/approve", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved"  # greenlit, not yet posted
+    assert r.json()["published_at"] is None
+
+    # Time passes; listing the posts publishes the ones now due.
+    sclient.app_.dependency_overrides[clock.now] = lambda: FIXED + timedelta(days=2)
+    post = next(p for p in sclient.get("/social/posts", headers=h).json() if p["id"] == pid)
+    assert post["status"] == "published"
+    assert post["published_at"] is not None
+
+
+def test_approve_past_schedule_posts_immediately(sclient):
+    # If the scheduled time already passed, approving posts right away.
+    from datetime import timedelta
+
+    h = _agent(sclient)
+    past = (FIXED - timedelta(days=1)).isoformat()
+    pid = sclient.post(
+        "/social/schedule", headers=h,
+        json={"composition_id": 1, "channel": "instagram", "scheduled_at": past},
+    ).json()["id"]
+
+    r = sclient.post(f"/social/posts/{pid}/approve", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "published"
+    assert r.json()["published_at"] is not None
+
+
 def test_posts_list_orders_pending_first(sclient):
     # Pending-approval posts (the ones needing action) sort to the top, even when a published post
     # has a newer id — the reviewer sees what to act on first.

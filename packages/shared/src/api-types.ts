@@ -1557,7 +1557,10 @@ export interface paths {
         };
         /**
          * List Posts
-         * @description The agent's own social posts (newest first), so the list survives a page refresh.
+         * @description The agent's own posts — social- AND campaign-scheduled (any post built from one of their
+         *     compositions) — so the list survives a page refresh. Pending-approval posts (the ones needing
+         *     action) sort first, then newest-first within each group. Approved posts whose scheduled time has
+         *     arrived are published first (the PoC scheduler stand-in).
          */
         get: operations["list_posts_social_posts_get"];
         put?: never;
@@ -1579,7 +1582,9 @@ export interface paths {
         put?: never;
         /**
          * Approve
-         * @description Approve = publish (AC80): records the reviewer and sends via the simulated connector.
+         * @description Approve a post (AC99). Approval greenlights it and records the reviewer; the post then posts
+         *     **at its scheduled time** — if that time has already arrived (or there is none) it posts
+         *     immediately via the simulated connector, otherwise it waits in `approved` until due.
          */
         post: operations["approve_social_posts__post_id__approve_post"];
         delete?: never;

@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import ConnectedPlatforms from "../../../components/social/ConnectedPlatforms";
 import PageHeader from "../../../components/ui/PageHeader";
 import Select from "../../../components/ui/Select";
+import { relativeTime } from "../../../lib/social/timing";
 import {
   ApiError,
   approveSocialPost,
@@ -23,12 +24,25 @@ import {
 const CHANNELS: readonly string[] = ["facebook", "instagram", "x", "linkedin"];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-const STATUS_CHIP: Record<string, string> = {
-  published: "chip-verified",
-  pending_approval: "chip-draft",
-  rejected: "chip-draft",
-  draft: "chip-draft",
+// Label + chip per post status. `approved` = greenlit, posting at its scheduled time.
+const STATUS_META: Record<string, { label: string; chip: string }> = {
+  published: { label: "Published", chip: "chip-verified" },
+  approved: { label: "Scheduled", chip: "chip-info" },
+  pending_approval: { label: "Pending approval", chip: "chip-draft" },
+  rejected: { label: "Rejected", chip: "chip-draft" },
+  draft: { label: "Draft", chip: "chip-draft" },
 };
+const statusMeta = (s: string) => STATUS_META[s] ?? { label: s.replace(/_/g, " "), chip: "chip-draft" };
+
+// One plain-word line about where the post is in its lifecycle (posted / posting-when).
+function timingLine(p: Post, now: Date): string {
+  if (p.status === "published" && p.published_at) return `Posted ${relativeTime(p.published_at, now)}`;
+  if (p.status === "approved" && p.scheduled_at) return `Posts ${relativeTime(p.scheduled_at, now)}`;
+  if (p.status === "pending_approval" && p.scheduled_at)
+    return `Awaiting approval · scheduled for ${new Date(p.scheduled_at).toLocaleString()}`;
+  if (p.status === "rejected") return "Sent back — edit and reschedule";
+  return "";
+}
 
 type Tab = "posts" | "platforms";
 
@@ -45,6 +59,7 @@ export default function AgentSocialPage() {
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectNote, setRejectNote] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +156,7 @@ export default function AgentSocialPage() {
   const compositionOptions =
     projects?.map((p) => ({ value: String(p.id), label: p.name || `Composition #${p.id}` })) ?? [];
   const channelOptions = CHANNELS.map((c) => ({ value: c, label: cap(c) }));
+  const now = new Date(); // for relative "posts in …" / "posted … ago" lines (client-only list)
 
   return (
     <div>
@@ -273,66 +289,109 @@ export default function AgentSocialPage() {
               </div>
             ) : (
               <ul className="space-y-3">
-                {posts.map((p) => (
-                  <li key={p.id} className="card p-5 text-small">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className="min-w-0 text-walshe-ink">
-                        <span className="font-semibold">{p.composition_name || `Composition #${p.composition_id}`}</span>
-                        {" · "}
-                        <span className="capitalize">{p.channel}</span>
-                        {p.status === "pending_approval" && p.scheduled_at
-                          ? ` · scheduled ${new Date(p.scheduled_at).toLocaleString()}`
-                          : ""}
-                        {p.status === "published" && p.published_at
-                          ? ` · published ${new Date(p.published_at).toLocaleString()}`
-                          : ""}
-                      </span>
-                      <span className="flex items-center gap-3">
-                        <span
-                          data-testid="post-status"
-                          className={`shrink-0 capitalize ${STATUS_CHIP[p.status] ?? "chip-draft"}`}
+                {posts.map((p) => {
+                  const meta = statusMeta(p.status);
+                  const timing = timingLine(p, now);
+                  const open = expandedId === p.id;
+                  return (
+                    <li key={p.id} className="card p-0 text-small" data-testid="social-post">
+                      <div className="flex flex-wrap items-center justify-between gap-3 p-5">
+                        {/* Clickable row — toggles the detail panel. */}
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                          aria-expanded={open}
+                          onClick={() => setExpandedId(open ? null : p.id)}
                         >
-                          {p.status.replace(/_/g, " ")}
-                        </span>
-                        {p.status === "pending_approval" && (
-                          <>
-                            <button type="button" className="btn-primary h-9" disabled={busy}
-                                    onClick={() => void runAction(() => approveSocialPost(p.id))}>
-                              Approve &amp; send
-                            </button>
-                            <button type="button" className="btn-ghost h-9 text-walshe-danger" disabled={busy}
-                                    onClick={() => { setRejectingId(p.id); setRejectNote(""); }}>
-                              Reject
-                            </button>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    {p.status === "rejected" && p.review_note && (
-                      <p className="mt-2 text-walshe-danger">Rejected: {p.review_note}</p>
-                    )}
-                    {rejectingId === p.id && (
-                      <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-walshe-line pt-3">
-                        <label className="flex-1" style={{ minWidth: "16rem" }}>
-                          <span className="label">Reject reason (optional)</span>
-                          <input className="field" aria-label="Reject reason" value={rejectNote}
-                                 onChange={(e) => setRejectNote(e.target.value)} />
-                        </label>
-                        <button type="button" className="btn-ghost h-10 text-walshe-danger" disabled={busy}
-                                onClick={() => void runAction(() => rejectSocialPost(p.id, rejectNote))}>
-                          Confirm reject
+                          <svg
+                            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+                            className={`mt-0.5 flex-none text-walshe-grey transition-transform ${open ? "rotate-90" : ""}`}
+                          >
+                            <path d="M9 6l6 6-6 6" />
+                          </svg>
+                          <span className="min-w-0">
+                            <span className="font-semibold text-walshe-ink">
+                              {p.composition_name || `Composition #${p.composition_id}`}
+                            </span>
+                            <span className="text-walshe-grey"> · {cap(p.channel)}</span>
+                            {timing && <span className="block text-small text-walshe-grey">{timing}</span>}
+                          </span>
                         </button>
-                        <button type="button" className="btn-ghost h-10" disabled={busy}
-                                onClick={() => setRejectingId(null)}>Cancel</button>
+                        <span className="flex items-center gap-3">
+                          <span data-testid="post-status" className={`shrink-0 ${meta.chip}`}>
+                            {meta.label}
+                          </span>
+                          {p.status === "pending_approval" && (
+                            <>
+                              <button type="button" className="btn-primary h-9" disabled={busy}
+                                      onClick={() => void runAction(() => approveSocialPost(p.id))}>
+                                Approve
+                              </button>
+                              <button type="button" className="btn-ghost h-9 text-walshe-danger" disabled={busy}
+                                      onClick={() => { setRejectingId(p.id); setRejectNote(""); }}>
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </span>
                       </div>
-                    )}
-                  </li>
-                ))}
+
+                      {open && (
+                        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-walshe-line px-5 py-4 sm:grid-cols-3">
+                          <Detail label="Status" value={meta.label} />
+                          <Detail label="Channel" value={cap(p.channel)} />
+                          <Detail
+                            label={p.status === "published" ? "Posted" : "Scheduled for"}
+                            value={
+                              p.status === "published"
+                                ? p.published_at ? new Date(p.published_at).toLocaleString() : "—"
+                                : p.scheduled_at ? new Date(p.scheduled_at).toLocaleString() : "—"
+                            }
+                          />
+                          {p.external_id && <Detail label="Reference" value={p.external_id} />}
+                          {p.status === "rejected" && p.review_note && (
+                            <Detail label="Reason" value={p.review_note} />
+                          )}
+                        </dl>
+                      )}
+
+                      {p.status === "rejected" && p.review_note && !open && (
+                        <p className="px-5 pb-4 text-walshe-danger">Sent back: {p.review_note}</p>
+                      )}
+                      {rejectingId === p.id && (
+                        <div className="flex flex-wrap items-end gap-2 border-t border-walshe-line px-5 py-4">
+                          <label className="flex-1" style={{ minWidth: "16rem" }}>
+                            <span className="label">Reject reason (optional)</span>
+                            <input className="field" aria-label="Reject reason" value={rejectNote}
+                                   onChange={(e) => setRejectNote(e.target.value)} />
+                          </label>
+                          <button type="button" className="btn-ghost h-10 text-walshe-danger" disabled={busy}
+                                  onClick={() => void runAction(() => rejectSocialPost(p.id, rejectNote))}>
+                            Confirm reject
+                          </button>
+                          <button type="button" className="btn-ghost h-10" disabled={busy}
+                                  onClick={() => setRejectingId(null)}>Cancel</button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+/** One labelled field in a post's expanded detail panel. */
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-eyebrow uppercase tracking-wide text-walshe-grey">{label}</dt>
+      <dd className="truncate text-walshe-ink">{value}</dd>
     </div>
   );
 }

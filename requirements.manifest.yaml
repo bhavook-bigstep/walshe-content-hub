@@ -604,6 +604,8 @@ acceptance:
       - "apps/api/tests/test_social.py::test_posts_list_persists_with_composition_name"
       - "apps/api/tests/test_social.py::test_posts_list_orders_pending_first"
       - "apps/api/tests/test_social.py::test_approve_publishes_via_simulated_connector"
+      - "apps/api/tests/test_social.py::test_approve_future_schedule_greenlights_then_posts_when_due"
+      - "apps/api/tests/test_social.py::test_approve_past_schedule_posts_immediately"
       - "apps/api/tests/test_social.py::test_reject_sets_rejected_with_note"
       - "apps/api/tests/test_social.py::test_cannot_approve_a_non_pending_post"
   AC100:

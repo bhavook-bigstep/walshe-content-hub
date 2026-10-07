@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.60.0 |
+| **Version** | 2.61.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -763,14 +763,19 @@ Social approval gate (v2.55.0):
 - **AC99** — **Social send goes through approval.** Scheduling a composition to a channel
   (`POST /social/schedule`, preflight-gated per AC34) creates a post in **`pending_approval`** —
   there is **no direct publish**. The owning agent **approves** it (`POST /social/posts/{id}/approve`,
-  PoC self-approval like AC97), which publishes via the **simulated connector** (deterministic, no
-  egress — Contract 2/4) and records the reviewer; **reject** (`/reject`, with a reason) sends it
-  back to `rejected`. The agent's posts are listed from the server (`GET /social/posts`, agent-scoped,
-  carrying the **project/composition name**) so the list survives a page refresh; the list covers
-  **both social- and campaign-scheduled posts** (any post built from the agent's compositions) and
-  sorts **pending-approval first** so the items needing action lead. Proof: pytest asserts schedule →
-  pending_approval, the list persists with the composition name, pending posts sort ahead of a newer
-  published post, approve → published via the sim connector (schedule/approve/publish audited),
+  PoC self-approval like AC97), which **greenlights** it and records the reviewer; the post then
+  **posts at its scheduled time** via the **simulated connector** (deterministic, no egress —
+  Contract 2/4): if the scheduled time has already arrived (or none was set) it posts immediately,
+  otherwise it waits in **`approved`** and is published when its time comes. With no background
+  worker, due `approved` posts are published **when the list is loaded** (`GET /social/posts`) — the
+  PoC's scheduler stand-in. **Reject** (`/reject`, with a reason) sends it back to `rejected`. The
+  agent's posts are listed from the server (agent-scoped, carrying the **project/composition name**)
+  so the list survives a page refresh; the list covers **both social- and campaign-scheduled posts**
+  (any post built from the agent's compositions) and sorts **pending-approval first** so the items
+  needing action lead. Proof: pytest asserts schedule → pending_approval, the list persists with the
+  composition name, pending posts sort ahead of a newer published post, approving a **future**-dated
+  post greenlights it (`approved`, not yet published) and loading the list after its time posts it,
+  approving a **past/undated** post posts immediately, approve audits schedule/approve/publish,
   reject → rejected with a note, and a non-pending post is a 409.
 
 Engagement performance views (v2.55.0):
@@ -828,6 +833,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.61.0 | 2026-10-07 | **Approve greenlights; posts on schedule** (user feedback, refines **AC99**): approving a social post no longer always publishes immediately — it **greenlights** the post, which then posts **at its scheduled time** (immediately if that time has passed or none is set, otherwise it waits in `approved` and the list publishes it when due — a PoC scheduler stand-in, no background worker). Renamed the buttons to just **"Approve"** (social + campaign). The Posts list is now **clickable** (inline detail) and shows **plain-word status** ("Posts in 2 days" / "Posted 3 hours ago" / "Awaiting approval · scheduled for …"), with a `chip-info` "Scheduled" state. Campaign (real-Instagram) posts still publish on the explicit Approve click — auto-firing real posts from a page load is deliberately out of scope for the PoC (needs a real scheduler). All prior ACs stay green. | user + Claude |
 | 2.60.0 | 2026-10-07 | **Campaign composer dropdowns** (user feedback): the campaign post composer's Project + Platform pickers now use the app's custom `Select` (matching Studio/catalog/social) instead of native system selects, and the composer `.card` gets `overflow-visible` so the menus aren't clipped. All prior ACs stay green. | user + Claude |
 | 2.59.0 | 2026-10-07 | **Social/Engagement polish** (user feedback, refines AC100/AC101): Connected-platform cards now show the real **brand logos** (accurate simple-icons glyphs on app-style tiles) instead of initials; fixed the Social composer **dropdowns clipping** (added `overflow-visible` to the `.card` form, same fix dev used for the catalog filter bar); and the Engagement **By platform / By campaign** roll-ups now render as **grouped bar charts** (reach + interactions, with the chart's built-in data-table toggle) instead of plain tables. All prior ACs stay green. | user + Claude |
 | 2.58.0 | 2026-10-07 | **Two-box caption/keywords composer** (user feedback, refines the campaign composer / AC96): the campaign post composer now has **separate Caption and Keywords/hashtags** textareas, each with its own Generate button; while a box generates it is **disabled/greyed with a spinner + status centred in the middle of that box**, leaving the other usable. On schedule the two are combined into one caption (`combineCopy` — keywords below the caption). Replaced the single-textarea `AiCaptionControls`. All prior ACs stay green. | user + Claude |

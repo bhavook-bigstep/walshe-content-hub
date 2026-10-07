@@ -317,7 +317,7 @@ export default function CampaignDetailPage() {
                   <>
                     <button type="button" className="btn-primary h-12" disabled={busy}
                             onClick={() => void runPostAction(() => approveCampaignPost(id, selected.id))}>
-                      {busy ? "Publishing…" : "Approve & publish"}
+                      {busy ? "Publishing…" : "Approve"}
                     </button>
                     <button type="button" className="btn-ghost h-12 text-walshe-danger" disabled={busy}
                             onClick={() => void runPostAction(() => rejectCampaignPost(id, selected.id, rejectNote))}>
