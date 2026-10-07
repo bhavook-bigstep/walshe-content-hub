@@ -13,8 +13,9 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "The Walshe Content Hub",
-  description: "Verified destination content, assembled into trade marketing in minutes.",
+  title: "Voyago — Verified destination content for the travel trade",
+  description:
+    "Voyago is where tourism boards publish verified destination content and travel agents turn it into on-brand campaigns in minutes. A Walshe Group product.",
 };
 
 // Set the theme before first paint (no flash). Stored choice wins; otherwise follow the OS.

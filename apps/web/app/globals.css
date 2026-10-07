@@ -269,6 +269,14 @@
 }
 
 @layer utilities {
+  /* Theme-swapped assets: show the variant matching the active theme (used for the hero's product
+     screenshots — a light shot in light mode, a dark shot in dark mode). The no-flash theme script
+     sets data-theme before paint, so exactly one is ever shown. */
+  .theme-light-only { display: none; }
+  .theme-dark-only { display: none; }
+  :root[data-theme="light"] .theme-light-only { display: block; }
+  :root[data-theme="dark"] .theme-dark-only { display: block; }
+
   @media (prefers-reduced-motion: no-preference) {
     /* Scroll-reveal system — motion is driven by GSAP + ScrollTrigger (see Reveal.tsx); CSS only
        prevents a flash before GSAP mounts and sets up the split-text + colour-sweep painting.
@@ -294,6 +302,13 @@
       background-clip: text;
       color: transparent;
       -webkit-text-fill-color: transparent;
+    }
+    /* On a light background the default near-white "full" colour would be invisible, so swap the
+       sweep's end colours to the dark ink. Elements that set `full`/`dull` inline (e.g. the hero over
+       its dark photo) keep their own colours — inline custom properties win over this rule. */
+    :root[data-theme="light"] .rv[data-rv="color"] {
+      --full: #0e2a26;
+      --dull: #7f9793;
     }
 
     @keyframes wh-drop {

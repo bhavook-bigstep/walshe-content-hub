@@ -8,8 +8,6 @@ import SiteNav from "../components/site/SiteNav";
 // light headline right), and a "retreats"-style grid (title + /meta above a tall portrait image,
 // hairline dividers). Original Walshe copy + curated scenic imagery.
 
-const IMG = (id: number, w = 1600, h = 1000) => `https://picsum.photos/id/${id}/${w}/${h}`;
-
 function Mark({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
@@ -32,17 +30,55 @@ function SectionHead({ eyebrow, title, dark = false }: { eyebrow: string; title:
   );
 }
 
-const CATALOG = [
-  { id: 1015, title: "Harbour Festival", type: "Event", place: "Galway", assets: "12 assets", blurb: "A week of food, music and sea air on Ireland’s west coast." },
-  { id: 1016, title: "Cliffs of Moher", type: "Place", place: "Clare", assets: "20 assets", blurb: "The signature view of the Wild Atlantic Way, sunrise to storm." },
-  { id: 1036, title: "Trade Showcase", type: "Opportunity", place: "Dublin", assets: "8 assets", blurb: "Agent-only offers and airline deals, refreshed each season." },
+const ArrowIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>);
+const CheckIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>);
+// Audience-side glyphs: a broadcast tower (boards publish out) and a sparkle wand (agents create).
+const BroadcastIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="11" r="2" /><path d="M12 13v8M8.5 7.5a5 5 0 0 0 0 7M15.5 7.5a5 5 0 0 1 0 7M6 5a9 9 0 0 0 0 12M18 5a9 9 0 0 1 0 12" /></svg>);
+const WandIcon = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m4 20 10-10M14.5 5.5l4 4M17 3l.7 1.8L19.5 5.5l-1.8.7L17 8l-.7-1.8L14.5 5.5l1.8-.7zM6 12l.5 1.3L7.8 13.8l-1.3.5L6 15.6l-.5-1.3L4.2 13.8l1.3-.5z" /></svg>);
+
+// The two sides of the hub (the product's core shape): tourism boards publish verified content;
+// travel agents turn it into campaigns. Mirrors the Content Provider / Tourism Agent roles.
+const AUDIENCES = [
+  {
+    role: "Tourism boards · Content providers",
+    title: "Publish once, verified.",
+    blurb: "Load your destination’s events, places, offers and itineraries, mark them brand-safe, and set exactly who can use them. Nothing reaches an agent until it’s approved.",
+    points: ["Events, places, offers & itineraries", "Brand-safety and verification built in", "You control access, per market"],
+    cta: "Become a provider",
+    icon: <BroadcastIcon />,
+  },
+  {
+    role: "Travel agents · Tourism agents",
+    title: "Build campaigns, fast.",
+    blurb: "Browse the approved catalog, compose in the AI studio, drop in your logo and offers, then export or schedule straight to social — and watch the engagement come back.",
+    points: ["AI Builder drafts from real content", "Your brand applied automatically", "Publish and track across social"],
+    cta: "Start creating",
+    icon: <WandIcon />,
+  },
 ];
 
-// Small line icons for the card properties row (reference featured-item pattern).
-const PinIcon = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>);
-const TagIcon = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20.6 13.4 12 22l-9-9V4h9z" /><circle cx="7.5" cy="7.5" r="1.3" /></svg>);
-const StackIcon = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M3 9h18M8 18v2M16 18v2" /></svg>);
-const ArrowIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>);
+// Product-in-action: real UI screenshots (theme-matched — a light shot in light mode, a dark shot
+// in dark mode) with a short description of each surface.
+const PRODUCT = [
+  {
+    eyebrow: "Design studio",
+    title: "Build campaigns on an infinite canvas.",
+    blurb: "Compose scenes, apply your brand kit in a click, and let the AI Builder draft copy and layout from real catalog content — then export to PNG, PDF or MP4, or schedule straight to social.",
+    cta: "Open the studio",
+    shotLight: "/img/hero-studio-light.png",
+    shotDark: "/img/hero-studio-dark.png",
+    alt: "The Voyago design studio — campaign scenes on the canvas",
+  },
+  {
+    eyebrow: "Verified catalog",
+    title: "Only approved, brand-safe content.",
+    blurb: "Browse events, places, offers and itineraries published by tourism boards — every item verified and brand-safe before it reaches you. Filter by destination, season or type.",
+    cta: "Explore the catalog",
+    shotLight: "/img/hero-catalog-light.png",
+    shotDark: "/img/hero-catalog-dark.png",
+    alt: "The Voyago verified catalog",
+  },
+];
 
 const STEPS = [
   { n: "01", t: "Browse", b: "Search the approved catalog by destination, season or type." },
@@ -88,16 +124,23 @@ export default function Landing() {
         <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(3,22,15,.62)_0%,rgba(3,22,15,.32)_30%,rgba(3,22,15,.44)_66%,rgba(3,22,15,.86)_100%)]" />
 
         <div className="relative z-10 mx-auto flex min-h-[108vh] w-full max-w-[1100px] flex-col items-center justify-center px-7 pb-24 pt-20 text-center">
-          <Reveal as="h1" variant="chars" className="font-display max-w-[18ch] text-[clamp(52px,9vw,120px)] font-semibold leading-[0.98] tracking-[-0.055em]">
-            Verified destinations
+          {/* The Voyago wordmark carries the hero; the Walshe Group is the parent. A visually-hidden
+              h1 keeps a real page heading for screen readers and SEO. */}
+          <Reveal variant="slidey" dir="down" className="flex flex-col items-center gap-0">
+            <h1 className="sr-only">Voyago — verified destination content for the travel trade</h1>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/voyago-wordmark-white.png" alt="Voyago" className="h-auto w-[min(86vw,640px)] drop-shadow-[0_10px_36px_rgba(0,0,0,0.45)]" />
+            <span className="-mt-3 text-eyebrow uppercase text-white/70">A Walshe Group product</span>
           </Reveal>
-          <Reveal as="p" variant="color" dir="up" delayMs={280} full="#ffffff" dull="rgba(255,255,255,0.42)" className="mt-8 max-w-[44ch] text-[clamp(17px,2vw,22px)] font-light leading-snug">
-            Publish verified content once. The trade turns it into on-brand campaigns — in minutes.
+          <Reveal as="p" variant="color" dir="up" delayMs={260} full="#ffffff" dull="rgba(255,255,255,0.42)" className="mt-8 max-w-[48ch] text-[clamp(17px,2vw,22px)] font-light leading-snug">
+            Every Destination, Ready To Go!
           </Reveal>
-          <Reveal variant="slidey" dir="up" className="mt-10" delayMs={620}>
-            <Link href="/login" className="inline-flex items-center gap-3 rounded-pill bg-white py-4 pl-7 pr-5 text-[15px] font-semibold text-walshe-teal transition-transform hover:-translate-y-0.5">
-              Explore the catalog
-              <span className="grid h-7 w-7 place-items-center rounded-full bg-walshe-teal text-white">
+          <Reveal variant="slidey" dir="up" className="mt-10 flex items-center justify-center" delayMs={520}>
+            {/* Subtle outlined pill by default; on hover it fills to the solid white pill (teal text
+                + teal arrow badge). */}
+            <Link href="/login" className="group inline-flex items-center gap-3 rounded-pill border border-white/40 py-4 pl-7 pr-5 text-[15px] font-semibold text-white transition-all hover:-translate-y-0.5 hover:border-white hover:bg-white hover:text-walshe-teal">
+              Go to App
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-white/15 text-white transition-colors group-hover:bg-walshe-teal group-hover:text-white">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </span>
             </Link>
@@ -105,39 +148,72 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* ======================= VERIFIED CATALOG (retreats-style, dark) ======================= */}
-      <section id="catalog" className="scroll-mt-24 bg-walshe-mist py-24">
+      {/* ======================= PRODUCT IN ACTION (real UI, theme-matched) ======================= */}
+      <section id="product" className="scroll-mt-24 py-24">
         <div className="mx-auto max-w-content px-7">
-          <SectionHead eyebrow="Verified catalog" title="Content the trade can trust, in more than six markets." />
-          <div className="mt-16 grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
-            {CATALOG.map((c, i) => {
-              const base = i * 150; // the card's own slide-in delay; inner content cascades after it
+          <SectionHead eyebrow="See it in action" title="The studio and the verified catalog, in one place." />
+          <div className="mt-16 space-y-20 lg:space-y-28">
+            {PRODUCT.map((p, i) => {
+              const flip = i % 2 === 1; // alternate the image side row to row
               return (
-                <Reveal key={c.title} variant="slidex" delayMs={base}>
-                  <article className="card card-hover group flex h-full flex-col">
-                    <div className="relative aspect-[16/11] overflow-hidden">
+                <div key={p.title} className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+                  {/* Text — each element reveals in turn (fade-up stagger), like the original cards. */}
+                  <div className={flip ? "lg:order-2" : ""}>
+                    <Reveal variant="slidey" dir="down" delayMs={120} className="eyebrow">{p.eyebrow}</Reveal>
+                    <Reveal as="h3" variant="slidey" dir="up" delayMs={200} className="font-display mt-3 max-w-[18ch] text-[clamp(26px,3.4vw,40px)] font-semibold leading-tight tracking-[-0.03em] text-walshe-ink">{p.title}</Reveal>
+                    <Reveal as="p" variant="slidey" dir="up" delayMs={300} className="mt-5 max-w-[46ch] text-body text-walshe-grey">{p.blurb}</Reveal>
+                    <Reveal variant="slidey" dir="up" delayMs={400} className="mt-7">
+                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-mint transition-all hover:gap-3">
+                        {p.cta} <ArrowIcon />
+                      </Link>
+                    </Reveal>
+                  </div>
+                  {/* Screenshot — slides in like a card. */}
+                  <Reveal variant="slidex" className={flip ? "lg:order-1" : ""}>
+                    <div className="overflow-hidden rounded-xl border border-walshe-line shadow-lift">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={IMG(c.id, 900, 620)} alt={c.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                      <span className="chip-verified absolute left-4 top-4">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="#005653" aria-hidden><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
-                        Verified
-                      </span>
+                      <img src={p.shotLight} alt={p.alt} loading="lazy" className="theme-light-only w-full" />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.shotDark} alt={p.alt} loading="lazy" className="theme-dark-only w-full" />
                     </div>
-                    <div className="flex flex-1 flex-col p-6">
-                      <Reveal as="h3" variant="slidey" dir="up" delayMs={base + 220} className="text-[21px] font-medium tracking-tight text-walshe-ink">{c.title}</Reveal>
-                      <Reveal as="p" variant="slidey" dir="up" delayMs={base + 330} className="mt-2.5 text-small leading-relaxed text-walshe-grey">{c.blurb}</Reveal>
-                      <Reveal variant="slidey" dir="up" delayMs={base + 430} className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-small text-walshe-grey">
-                        <span className="inline-flex items-center gap-1.5"><PinIcon />{c.place}</span>
-                        <span className="inline-flex items-center gap-1.5"><TagIcon />{c.type}</span>
-                        <span className="inline-flex items-center gap-1.5"><StackIcon />{c.assets}</span>
-                      </Reveal>
-                      <Reveal variant="slidey" dir="up" delayMs={base + 520} className="mt-6 flex items-center justify-between border-t border-walshe-line pt-5">
-                        <span className="text-small text-walshe-grey">Trade-ready</span>
-                        <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-mint transition-colors hover:text-walshe-mint">
-                          Use content <ArrowIcon />
-                        </Link>
-                      </Reveal>
-                    </div>
+                  </Reveal>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ======================= AUDIENCES (the two sides of the hub) ======================= */}
+      <section id="audiences" className="scroll-mt-24 py-24">
+        <div className="mx-auto max-w-content px-7">
+          <SectionHead eyebrow="Who it's for" title="One hub, two sides of the trade." />
+          <div className="mt-16 grid gap-7 lg:grid-cols-2">
+            {AUDIENCES.map((a, i) => {
+              const base = i * 150; // each card slides in after the one before it…
+              return (
+                <Reveal key={a.title} variant="slidex" delayMs={base} className="h-full">
+                  {/* …then its contents cascade in (fade-up stagger), the original cards' rule. */}
+                  <article className="card flex h-full flex-col p-8 sm:p-10">
+                    <Reveal variant="slidey" dir="down" delayMs={base + 140}>
+                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-pill bg-walshe-mint/15 text-walshe-mint">{a.icon}</span>
+                    </Reveal>
+                    <Reveal variant="slidey" dir="up" delayMs={base + 220} className="mt-6 text-eyebrow uppercase text-walshe-grey">{a.role}</Reveal>
+                    <Reveal as="h3" variant="slidey" dir="up" delayMs={base + 300} className="mt-2.5 font-display text-[clamp(24px,3.2vw,36px)] font-semibold leading-tight tracking-[-0.03em] text-walshe-ink">{a.title}</Reveal>
+                    <Reveal as="p" variant="slidey" dir="up" delayMs={base + 380} className="mt-4 max-w-[44ch] text-body text-walshe-grey">{a.blurb}</Reveal>
+                    <Reveal as="ul" variant="slidey" dir="up" delayMs={base + 460} className="mt-7 space-y-3">
+                      {a.points.map((p) => (
+                        <li key={p} className="flex items-start gap-3 text-small text-walshe-ink">
+                          <span className="mt-0.5 flex-none text-walshe-mint"><CheckIcon /></span>
+                          {p}
+                        </li>
+                      ))}
+                    </Reveal>
+                    <Reveal variant="slidey" dir="up" delayMs={base + 540} className="mt-8">
+                      <Link href="/login" className="inline-flex items-center gap-2 text-small font-semibold text-walshe-mint transition-all hover:gap-3">
+                        {a.cta} <ArrowIcon />
+                      </Link>
+                    </Reveal>
                   </article>
                 </Reveal>
               );
@@ -145,6 +221,7 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
 
       {/* ======================= ABOUT (editorial split) ======================= */}
       <section id="the-hub" className="scroll-mt-24 py-24">
@@ -157,7 +234,7 @@ export default function Landing() {
             </Reveal>
             <div>
               <Reveal as="p" variant="color" dir="up" delayMs={250} className="max-w-[46ch] text-[clamp(18px,2.1vw,24px)] font-light leading-snug text-walshe-ink">
-                The Walshe Content Hub blends a verified destination catalog with a Canva-style studio and an AI Builder — so an agent can go from brief to published campaign without leaving one place.
+                Voyago blends a verified destination catalog with a Canva-style studio and an AI Builder — so an agent can go from brief to published campaign without leaving one place. Built and backed by The Walshe Group’s 50 years in travel.
               </Reveal>
               <div className="mt-14 grid grid-cols-2 gap-x-10 gap-y-12">
                 {[["10,000", "Trade agents reached"], ["50 yrs", "In travel, in 2026"], ["100%", "Brand-verified content"], ["6", "Destination markets"]].map(([k, l], i) => (
@@ -246,7 +323,7 @@ export default function Landing() {
           </div>
 
           <div className="mt-14 flex flex-col items-center gap-3 border-t border-white/15 pt-8 text-small text-white/70 sm:flex-row sm:justify-between">
-            <p>© 2026 The Walshe Group. All rights reserved.</p>
+            <p>© 2026 The Walshe Group. Voyago is a Walshe Group product.</p>
             <a href="#" className="transition-colors hover:text-white">Privacy Policy</a>
           </div>
         </div>
