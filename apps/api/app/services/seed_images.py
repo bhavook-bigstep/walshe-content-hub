@@ -166,13 +166,38 @@ def _wrap(text: str, width_chars: int) -> list[str]:
     return lines or [text]
 
 
-def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
-    """Give each entry an accurate, type-themed **cover** labelled with its title + destination,
-    plus two **gallery** images, in the configured object store, and connect them as ``Asset``s (so
-    a later decompose turns them into image items). Idempotent and best-effort; used by both seeds.
+# Curated Picsum photo IDs that are genuine scenic landscapes (mountains, coast, forest, desert) —
+# same pool the web CatalogThumb falls back to, so the look is consistent. Picking by ID (not a
+# random seed) gives a REAL, stable, destination-quality photo per entry (never a random mismatch).
+_CURATED = [1018, 1015, 1016, 1036, 1039, 1041, 1043, 1044, 1047, 1057, 1061, 29, 28, 110]
 
-    The images are always drawn (deterministic + hermetic) so a festival shows a festive, labelled
-    banner rather than a random stock photo — fixing the cover/entry mismatch."""
+
+def _fetch_photo(photo_id: int, width: int, height: int, timeout: float = 8.0) -> bytes | None:
+    """Download a specific curated scenic photo (Picsum by id → deterministic). None on any failure
+    so the caller can fall back to a drawn scene (keeps tests/offline hermetic)."""
+    import urllib.request
+
+    url = f"https://picsum.photos/id/{photo_id}/{width}/{height}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "walsh-content-hub-seed"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (fixed https host)
+            data = resp.read()
+        return data or None
+    except Exception:
+        return None
+
+
+def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
+    """Give each entry a real, destination-quality **cover** photo plus two **gallery** photos in
+    the object store, connected as ``Asset``s (so a later decompose turns them into image items).
+    Idempotent and best-effort; used by both seeds.
+
+    Photos are REAL curated scenic landscapes picked deterministically per entry (same entry → same
+    photo), so a card is always photo-led and consistent — not a random mismatch nor flat art. When
+    offline/under tests the download fails and each image falls back to a drawn, labelled scene, so
+    the seed stays hermetic + reproducible."""
+    import os
+
     from app.config import get_settings
     from app.models.catalog import Asset
     from app.storage.minio_client import get_storage
@@ -181,37 +206,44 @@ def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
         storage = get_storage(get_settings())
     except Exception:
         return
+    # Only hit the network when the dev launcher / demo asks for real photos; tests + offline draw a
+    # scene instead, so the seed stays hermetic and fast (no 60 downloads per run).
+    fetch_photos = bool(os.environ.get("SEED_FETCH_PHOTOS"))
     db.flush()  # ensure every entry has an id for the object key
     for entry in entries:
         if entry.cover_object_key or entry.assets:
             continue  # already has media (re-run safe)
         seed = stable_seed(entry.title)
         type_ = getattr(entry.type, "value", str(entry.type))
-        # Cover (labelled) + two gallery frames (unlabelled scenic variants of the same place).
-        images: list[tuple[str, bytes]] = [
-            (
-                f"catalog/seed/{entry.id}/cover.png",
-                scene_png(seed, title=entry.title, subtitle=entry.destination or "", type_=type_),
-            ),
-            (f"catalog/seed/{entry.id}/photo-1.png",
-             scene_png(seed + 101, type_=type_, height=1080)),
-            (f"catalog/seed/{entry.id}/photo-2.png",
-             scene_png(seed + 202, type_=type_, height=1080)),
+        # Three distinct curated photos per entry (cover + two gallery frames).
+        picks = [_CURATED[(seed + k) % len(_CURATED)] for k in range(3)]
+        specs = [
+            ("cover", picks[0], 1080, 1350, entry.title, entry.destination or ""),
+            ("photo-1", picks[1], 1080, 1080, "", ""),
+            ("photo-2", picks[2], 1080, 1080, "", ""),
         ]
-        stored: list[str] = []
-        for key, data in images:
+        stored: list[tuple[str, str]] = []
+        for base, pid, w, h, title, subtitle in specs:
+            photo = _fetch_photo(pid, w, h) if fetch_photos else None
+            if photo is not None:
+                data, ctype, ext = photo, "image/jpeg", "jpg"
+            else:  # offline / tests → a drawn, labelled scene so the seed stays hermetic
+                data = scene_png(seed + pid, title=title, subtitle=subtitle, type_=type_,
+                                 width=w, height=h)
+                ctype, ext = "image/png", "png"
+            key = f"catalog/seed/{entry.id}/{base}.{ext}"
             try:
-                storage.put_object(key, data, "image/png")
-                stored.append(key)
+                storage.put_object(key, data, ctype)
+                stored.append((key, ctype))
             except Exception:
                 continue
         if not stored:
             continue
-        entry.cover_object_key = stored[0]
-        entry.cover_content_type = "image/png"
-        for key in stored:
+        entry.cover_object_key = stored[0][0]
+        entry.cover_content_type = stored[0][1]
+        for key, ctype in stored:
             # Append to the relationship (not db.add with entry_id) so the entry's already-loaded
             # `assets` collection stays consistent — otherwise a later decompose sees it empty and
             # the entry ends up with only text items (the cause of the missing image items).
-            entry.assets.append(Asset(object_key=key, content_type="image/png"))
+            entry.assets.append(Asset(object_key=key, content_type=ctype))
     db.flush()

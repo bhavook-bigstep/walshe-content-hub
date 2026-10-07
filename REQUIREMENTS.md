@@ -654,16 +654,17 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   well-formed with a background + nodes + description; a landscape template seeds a 1920×1080
   workspace) + web (`test_format_presets` covers every new size/orientation).
 
-- **AC89** — **Accurate catalog media + browsable seeded collections.** Entry covers are now
-  **accurate, type-themed, labelled banners** (title + destination + a type tag, themed palette)
-  drawn deterministically — replacing the random stock photos that made covers look mismatched.
-  Each entry also carries a small **image gallery** (cover + two scenic frames) so decompose yields
-  real **image items**, not only text — fixing a stale-relationship bug where appended cover assets
-  never reached the item decomposition. The baseline seed also plants **browsable collections** for
-  the agent (*West coast favourites*, *Australia highlights*) referencing visible entries, so the
-  dev app shows collections out of the box. Proof: api (after seed, the agent has the named
-  non-empty collections referencing approved entries, and an entry exposes both image and text
-  items with a cover).
+- **AC89** — **Accurate catalog media + browsable seeded collections.** Entry covers are now **real,
+  curated scenic photos** picked **deterministically per entry** (same entry → same photo) from the
+  same landscape pool the web thumbnail uses — replacing the random stock photos that made covers
+  look mismatched; offline/under tests each image falls back to a drawn, labelled scene so the seed
+  stays hermetic. Each entry carries a small **photo gallery** (cover + two frames) so decompose
+  yields real **image items**, not only text — fixing a stale-relationship bug where appended cover
+  assets never reached the item decomposition. The baseline seed also plants **browsable
+  collections** for the agent (*West coast favourites*, *Australia highlights*) referencing visible
+  entries, so the dev app shows collections out of the box. Proof: api (after seed, the agent has
+  the named non-empty collections referencing approved entries, and an entry exposes both image and
+  text items with a cover).
 
 **Priority tiers** (build order; acceptance reports honestly against all 89):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
