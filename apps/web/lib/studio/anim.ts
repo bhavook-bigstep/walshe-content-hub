@@ -90,8 +90,10 @@ export function frameIndexAt(node: DesignNode, t: number): number | null {
   if (!frames || frames.length < 2) return null;
   const fps = node.fps && node.fps > 0 ? node.fps : DEFAULT_SPRITE_FPS;
   const frameMs = 1000 / fps;
-  const i = Math.floor(Math.max(0, t) / frameMs) % frames.length;
-  return i;
+  const raw = Math.floor(Math.max(0, t) / frameMs);
+  // loopFrames defaults to true; when false the sprite plays once and holds the last frame.
+  if (node.loopFrames === false) return Math.min(raw, frames.length - 1);
+  return raw % frames.length;
 }
 
 /** The node's resolved transform at time `t` (ms from the scene start). Pure + deterministic. */

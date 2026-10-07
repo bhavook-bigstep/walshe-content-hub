@@ -90,6 +90,17 @@ describe("animation engine", () => {
     expect(frameIndexAt(textNode({ frames: ["only"] }), 100)).toBe(null);
   });
 
+  it("frameIndexAt honours loopFrames and fps (speed) (AC93)", () => {
+    // loopFrames:false plays once then holds the last frame.
+    const once = textNode({ frames: ["a", "b", "c", "d"], fps: 10, loopFrames: false });
+    expect(frameIndexAt(once, 350)).toBe(3); // last frame reached
+    expect(frameIndexAt(once, 5000)).toBe(3); // holds, doesn't wrap to 0
+    // fps controls speed: at 5fps (200ms/frame) t=250 is frame 1, t=650 is frame 3.
+    const slow = textNode({ frames: ["a", "b", "c", "d"], fps: 5 });
+    expect(frameIndexAt(slow, 250)).toBe(1);
+    expect(frameIndexAt(slow, 650)).toBe(3);
+  });
+
   it("setNodeAnim sets and clears a node's animation", () => {
     let d = addText(newDesign("social"), 0, "Hi");
     const id = d.scenes[0].nodes[0].id;

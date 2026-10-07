@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.51.0 |
+| **Version** | 2.52.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -674,14 +674,15 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   rejected (415). Proof: api (upload returns a `/assets/users/<id>/brand-logo/…` logo_url that
   persists on the kit and is fetchable by the owner; a non-image is 415).
 
-- **AC91** — **Image placeholder item.** A first-class **photo placeholder** (a dashed frame with an
-  "Add photo" prompt) can be inserted from the right-rail Photo tool. Clicking it on the canvas opens
-  the left media drawer; the next pick **fills that frame in place** (replacing the placeholder art,
-  clearing the flag, recording the photo's `objectKey` so it survives reload) rather than adding a
-  new node. Replaces hand-building a placeholder from a box + text, and is what the new video
-  templates drop in for their hero photo. Proof: web (`addPlaceholder` inserts a flagged image node
-  with the placeholder art; `fillImageNode` replaces the art, clears the flag and records the
-  objectKey; `isPlaceholder` distinguishes them).
+- **AC91** — **Media placeholder item (image + video).** A first-class **media placeholder** — a
+  **transparent** frame with a **dashed subtle-grey border**, a photo+video glyph and an "Add media"
+  prompt (visible on any background) — is inserted from the right-rail Photo tool. Clicking it opens
+  the left media drawer; the next pick **fills that frame in place**. An **image** records its
+  `objectKey` (survives reload); a **video** (the drawer now surfaces video assets, previewed with a
+  `<video>` + play badge) shows a **video poster** and records `videoKey` for a future export
+  composite. Replaces hand-building a placeholder from a box + text. Proof: web (`addPlaceholder`
+  inserts a flagged node; `fillImageNode` fills with an image (objectKey) or a video (poster +
+  videoKey), clearing the flag; `isPlaceholder` distinguishes them).
 
 - **AC92** — **Animated video templates.** The gallery leads with **multi-scene animated video
   templates** (*Destination Reel ▶*, *Social Promo ▶*, *Event Teaser ▶*) that showcase the whole
@@ -694,12 +695,32 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   one seeds its multi-scene workspace) + web (`resolveSprites` expands a sprite id into its
   filmstrip, idempotently).
 
-**Priority tiers** (build order; acceptance reports honestly against all 92):
+- **AC93** — **Sprite loop + speed controls.** The Inspector shows, for a frame sprite, a **Loop
+  animation** toggle and a **Speed (fps)** slider. `loopFrames: false` plays the filmstrip once and
+  **holds the last frame**; `fps` sets playback speed — both honoured identically by the canvas
+  preview and the video export (`frameIndexAt`). Proof: web (`frameIndexAt` with `loopFrames:false`
+  holds the last frame and never wraps; a lower `fps` advances frames more slowly).
+
+- **AC94** — **Seed catalog images from a project folder.** Seeding prefers a **real image the user
+  drops** at `seed-assets/catalog/<slug>/{cover,photo-1,photo-2}.{jpg,png,webp}` over the generated
+  fallback (curated photo, then drawn scene), so the demo can show exact, on-brand imagery. A
+  committed `seed-assets/` with a `README` + a `MANIFEST` (one row per entry: slug, title, type,
+  destination, suggested image) tells the user what to provide; `SEED_ASSETS_DIR` overrides the
+  location. Proof: api (`slugify`; `_provided_image` returns a dropped file's bytes and None when
+  absent, so the seed uses it over the fallback).
+
+- **AC95** — **Templates use the media-placeholder item.** Every photo-led template (the original
+  set, the AC88 modern set and the AC92 video set) now drops the first-class **media placeholder**
+  for its hero photo zone instead of a hand-built colour box + hint text, so the agent fills it from
+  the drawer. Proof: api (known photo templates carry a `placeholder` node and no leftover
+  `photo`-box shape or `photo_hint` text).
+
+**Priority tiers** (build order; acceptance reports honestly against all 95):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -738,6 +759,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.52.0 | 2026-10-07 | **Media placeholder (image+video) · sprite loop/speed · seed-from-folder · template placeholders** (reworked **AC91**; added **AC93**, **AC94**, **AC95**): the placeholder is now a transparent dashed subtle-grey "Add media" frame that fills from the drawer with an image (objectKey) or a video (poster + videoKey; the drawer surfaces video assets). The Inspector gains a sprite **Loop** toggle + **Speed (fps)** slider (`frameIndexAt` honours `loopFrames`/`fps`). Seeding prefers real images dropped in `seed-assets/catalog/<slug>/…` (committed README + MANIFEST guide); `SEED_ASSETS_DIR` overrides. Every photo-led template now uses the media-placeholder item instead of a box + hint. All prior ACs stay green. | user + Claude |
 | 2.51.0 | 2026-10-07 | **Fix video export of multi-scene designs** (refines AC47/AC79/AC80): a multi-scene render (e.g. the Destination Reel template) posts ~12 MB of WYSIWYG frames to `/render/video-frames`; the dev same-origin `/api` **rewrite proxy dropped the large body** and returned 500 ("Video rendering unavailable") before it reached the API — the backend + ffmpeg render the exact payload fine (verified by a direct POST → valid MP4). Added a streaming proxy route handler (`app/api/render/video-frames/route.ts`) that forwards the full body with no size cap (inert in prod/e2e, which use an absolute API URL). No AC/test change. | user + Claude |
 | 2.50.0 | 2026-10-07 | **Animated video templates** (added **AC92**): the gallery leads with three multi-scene animated video templates (Destination Reel ▶, Social Promo ▶, Event Teaser ▶) showcasing the whole studio — frame sprites referenced by id (`resolveSprites` expands id→filmstrip on load), sprite motion via keyframes on top of the frame animation, text entry+exit animation, image-placeholder heroes, abstract shapes, transitions and per-scene narration — so they export as narrated animated MP4s. All prior ACs stay green. | user + Claude |
 | 2.49.0 | 2026-10-07 | **Brand logo upload + image placeholder item** (added **AC90**, **AC91**): the Brand kit swaps the paste-a-URL logo for a **file upload** (stored owner-only under `users/<id>/brand-logo/`, set as `logo_url`, previewed via an authed blob, resolved + objectKey-persisted when Apply brand kit places it). Added a first-class **photo placeholder** node (dashed "Add photo" frame) insertable from a right-rail Photo tool: clicking it opens the media drawer and the next pick fills that frame in place (records objectKey, clears the flag) — replacing hand-built box+text placeholders and powering the video templates. All prior ACs stay green. | user + Claude |

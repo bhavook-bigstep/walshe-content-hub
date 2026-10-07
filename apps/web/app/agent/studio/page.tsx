@@ -262,13 +262,13 @@ function StudioEditor() {
           for (const [kind, refs, title] of assetGroups) {
             const tiles: MediaTile[] = [];
             for (const a of refs ?? []) {
-              if (a.kind !== "image" || !a.object_key) continue;
+              if (!a.object_key || (a.kind !== "image" && a.kind !== "video")) continue;
               try {
                 const src = await fetchAssetObjectUrl(a.object_key);
                 urls.push(src);
                 const id = `asset-${a.asset_id}`;
-                imgs.push({ catalogItemId: id, label: a.title || a.source, src });
-                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id, objectKey: a.object_key });
+                if (a.kind === "image") imgs.push({ catalogItemId: id, label: a.title || a.source, src });
+                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id, objectKey: a.object_key, kind: a.kind });
               } catch {
                 /* asset optional */
               }
@@ -436,7 +436,7 @@ function StudioEditor() {
   // Place a media tile on the active scene. From a click it lands centred in the default spot; from
   // a drop it lands where the cursor released (mapped to scene-local coords by the canvas).
   function placeTile(tile: MediaTile, at?: { x: number; y: number }) {
-    // If a photo placeholder is awaiting a pick, FILL it in place rather than adding a new node.
+    // If a media placeholder is awaiting a pick, FILL it in place rather than adding a new node.
     if (fillTarget && !at) {
       const target = fillTarget;
       setFillTarget(null);
@@ -445,6 +445,7 @@ function StudioEditor() {
           src: tile.src,
           objectKey: tile.objectKey,
           catalogItemId: tile.catalogItemId,
+          kind: tile.kind,
         }),
       );
       return;
@@ -465,7 +466,7 @@ function StudioEditor() {
       return addCatalogImage(
         d,
         sceneIndex,
-        { src: tile.src, catalogItemId: tile.catalogItemId, objectKey: tile.objectKey },
+        { src: tile.src, catalogItemId: tile.catalogItemId, objectKey: tile.objectKey, videoKey: tile.kind === "video" ? tile.objectKey : undefined, kind: tile.kind },
         placement,
       );
     });
@@ -480,12 +481,13 @@ function StudioEditor() {
         src: string;
         catalogItemId: string;
         objectKey?: string;
+        kind?: "image" | "video";
         width?: number;
         height?: number;
       };
       const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
       placeTile(
-        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, width: t.width, height: t.height },
+        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, kind: t.kind, width: t.width, height: t.height },
         pt,
       );
     } catch {

@@ -146,9 +146,14 @@ export interface DesignNode {
   frames?: string[];
   /** frames playback rate (frames per second); defaults to 10 when `frames` is set. */
   fps?: number;
-  /** image only — an unfilled photo placeholder (dashed frame); clicking it opens the media drawer
-   * to fill it with a real photo (cleared once filled). */
+  /** frames: whether the filmstrip loops (default true) or plays once and holds the last frame. */
+  loopFrames?: boolean;
+  /** image only — an unfilled media placeholder (dashed frame); clicking it opens the media drawer
+   * to fill it with a photo or video (cleared once filled). */
   placeholder?: boolean;
+  /** image only — set when a placeholder was filled with a VIDEO: the video's stable object key
+   * (the node shows a video poster; the key lets a future export composite the clip). */
+  videoKey?: string;
   /** image only — a built-in sprite id (e.g. "walking-panda"); the studio resolves it to `frames`
    * + `fps` on load (so templates can reference a sprite without embedding its filmstrip). */
   sprite?: string;
@@ -172,6 +177,8 @@ export type NodeStyle = Pick<
   | "radius"
   | "stroke"
   | "strokeWidth"
+  | "fps"
+  | "loopFrames"
 >;
 
 /** The base page shape the server PDF/HTML export consumes (a list of these). */
@@ -396,12 +403,13 @@ export function setBackground(design: DesignDoc, sceneIndex: number, color: stri
 export function addCatalogImage(
   design: DesignDoc,
   sceneIndex: number,
-  image: { src: string; catalogItemId: string; objectKey?: string },
+  image: { src: string; catalogItemId: string; objectKey?: string; videoKey?: string; kind?: "image" | "video" },
   placement: NodePlacement = {},
 ): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
+  const isVideo = image.kind === "video";
   scene.nodes.push({
     id: nextId("image", scene),
     type: "image",
@@ -409,10 +417,12 @@ export function addCatalogImage(
     y: placement.y ?? DEFAULT_PLACEMENT.y,
     width: placement.width ?? 480,
     height: placement.height ?? 480,
-    src: image.src,
+    // A video shows a poster still on the canvas; its clip is referenced by videoKey.
+    src: isVideo ? VIDEO_POSTER_SRC : image.src,
     catalogItemId: image.catalogItemId,
     // Persist the stable object key so the (ephemeral) blob src can be re-resolved on reopen.
-    ...(image.objectKey ? { objectKey: image.objectKey } : {}),
+    ...(!isVideo && image.objectKey ? { objectKey: image.objectKey } : {}),
+    ...(isVideo && image.videoKey ? { videoKey: image.videoKey } : {}),
     ...stylePlacement(placement),
   });
   return next;
@@ -461,21 +471,39 @@ export function addGraphic(
   return next;
 }
 
-// An image-frame placeholder: a dashed frame with a camera glyph + "Add photo" prompt. Inserted as
-// an image node flagged `placeholder: true`; clicking it opens the media drawer to fill it.
+// A MEDIA-frame placeholder: a transparent frame with a dashed subtle-grey border, a photo+video
+// glyph and an "Add media" prompt. Inserted as an image node flagged `placeholder: true`; clicking
+// it opens the media drawer to fill it with an image OR a video. Transparent so the scene shows
+// through; grey (#9ca3af) so it reads on any background.
+const _GREY = "#9ca3af";
 const PLACEHOLDER_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">' +
-  '<rect x="6" y="6" width="388" height="288" rx="16" fill="#f1f5f9" stroke="#94a3b8" ' +
-  'stroke-width="3" stroke-dasharray="12 10"/>' +
-  '<g transform="translate(200 128)" fill="none" stroke="#64748b" stroke-width="5" ' +
+  `<rect x="3" y="3" width="394" height="294" rx="18" fill="none" stroke="${_GREY}" ` +
+  'stroke-width="3" stroke-dasharray="14 12"/>' +
+  // image glyph (frame + sun + mountains)
+  `<g transform="translate(192 120)" fill="none" stroke="${_GREY}" stroke-width="5" ` +
   'stroke-linecap="round" stroke-linejoin="round">' +
-  '<rect x="-38" y="-24" width="76" height="54" rx="8"/><circle cx="0" cy="5" r="14"/>' +
-  '<path d="M-30 -24l8 -12h44l8 12"/></g>' +
-  '<text x="200" y="198" text-anchor="middle" font-family="\'Inter\',system-ui,sans-serif" ' +
-  'font-size="22" font-weight="700" fill="#64748b">Add photo</text></svg>';
+  '<rect x="-46" y="-30" width="92" height="64" rx="8"/><circle cx="-20" cy="-8" r="8"/>' +
+  '<path d="M-46 24l24 -22 16 14 14 -12 38 30"/></g>' +
+  // video play badge (signals it takes video too)
+  `<g transform="translate(250 150)"><circle r="19" fill="${_GREY}"/>` +
+  '<path d="M-6 -9L10 0-6 9Z" fill="#fff"/></g>' +
+  `<text x="200" y="202" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" ` +
+  `font-size="22" font-weight="600" fill="${_GREY}">Add media</text></svg>`;
 
-/** The data: URL shown for an unfilled image placeholder. */
+/** The data: URL shown for an unfilled media placeholder. */
 export const PLACEHOLDER_SRC = `data:image/svg+xml,${encodeURIComponent(PLACEHOLDER_SVG)}`;
+
+// The poster shown on the canvas for a placed VIDEO (a dark frame + play glyph). The video itself
+// is referenced by `videoKey` for a future export composite; the canvas shows this still.
+const VIDEO_POSTER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">' +
+  '<rect width="400" height="300" rx="14" fill="#111827"/>' +
+  '<circle cx="200" cy="138" r="42" fill="#ffffff" opacity="0.95"/>' +
+  '<path d="M186 116l34 22-34 22z" fill="#111827"/>' +
+  '<text x="200" y="214" text-anchor="middle" font-family="\'Inter\',system-ui,sans-serif" ' +
+  'font-size="20" font-weight="600" fill="#e5e7eb">Video</text></svg>';
+export const VIDEO_POSTER_SRC = `data:image/svg+xml,${encodeURIComponent(VIDEO_POSTER_SVG)}`;
 
 /** Insert an image-frame placeholder — click it on the canvas to pick a photo from the media
  * drawer, which fills it in place (via {@link fillImageNode}). */
@@ -502,20 +530,28 @@ export function isPlaceholder(node: DesignNode): boolean {
   return node.type === "image" && node.placeholder === true;
 }
 
-/** Fill an image node (typically a placeholder) with a chosen photo, clearing the placeholder flag
- * and recording the objectKey so it survives reload. */
+/** Fill a media placeholder with a chosen photo or video, clearing the placeholder flag. A photo
+ * records its objectKey (so it survives reload); a video shows a poster and records `videoKey`. */
 export function fillImageNode(
   design: DesignDoc,
   sceneIndex: number,
   nodeId: string,
-  image: { src: string; objectKey?: string; catalogItemId?: string },
+  media: { src: string; objectKey?: string; catalogItemId?: string; kind?: "image" | "video" },
 ): DesignDoc {
   return mapNode(design, sceneIndex, nodeId, (n) => {
-    const next: DesignNode = { ...n, src: image.src };
+    const next: DesignNode = { ...n };
     delete next.placeholder;
-    if (image.objectKey) next.objectKey = image.objectKey;
-    else delete next.objectKey;
-    if (image.catalogItemId) next.catalogItemId = image.catalogItemId;
+    delete next.videoKey;
+    if (media.kind === "video") {
+      next.src = VIDEO_POSTER_SRC; // the canvas shows a video poster
+      if (media.objectKey) next.videoKey = media.objectKey;
+      delete next.objectKey; // the poster is a self-contained data URL; don't re-resolve as image
+    } else {
+      next.src = media.src;
+      if (media.objectKey) next.objectKey = media.objectKey;
+      else delete next.objectKey;
+    }
+    if (media.catalogItemId) next.catalogItemId = media.catalogItemId;
     return next;
   });
 }

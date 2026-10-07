@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PLACEHOLDER_SRC,
+  VIDEO_POSTER_SRC,
   addPlaceholder,
   fillImageNode,
   isPlaceholder,
@@ -34,6 +35,17 @@ describe("image placeholder", () => {
     expect(node.src).toBe("blob:preview");
     expect(node.objectKey).toBe("users/1/abc"); // survives reload via objectKey
     expect(node.catalogItemId).toBe("item-9");
+  });
+
+  it("fillImageNode with a video shows a poster and records the videoKey (AC91)", () => {
+    let d = addPlaceholder(newDesign("social"), 0);
+    const id = d.scenes[0].nodes[0].id;
+    d = fillImageNode(d, 0, id, { src: "blob:clip", objectKey: "users/1/vid", kind: "video" });
+    const node = d.scenes[0].nodes[0];
+    expect(node.placeholder).toBeUndefined();
+    expect(node.src).toBe(VIDEO_POSTER_SRC); // a video shows a poster still
+    expect(node.videoKey).toBe("users/1/vid"); // clip referenced for a future export
+    expect(node.objectKey).toBeUndefined(); // the poster is self-contained; not re-resolved as image
   });
 
   it("a plain image node is not a placeholder", () => {

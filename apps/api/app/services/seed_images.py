@@ -197,6 +197,40 @@ def _fetch_photo(photo_id: int, width: int, height: int, timeout: float = 8.0) -
         return None
 
 
+def slugify(title: str) -> str:
+    """A filesystem-safe slug for an entry title, e.g. "Cliffs of Moher" → "cliffs-of-moher"."""
+    import re
+
+    s = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return s or "entry"
+
+
+def _seed_assets_dir():
+    """The folder where a human can drop real per-entry images (``seed-assets/catalog/<slug>/``)."""
+    import os
+    from pathlib import Path
+
+    env = os.environ.get("SEED_ASSETS_DIR")
+    if env:
+        return Path(env)
+    return Path(__file__).resolve().parents[4] / "seed-assets" / "catalog"
+
+
+def _provided_image(slug: str, base: str) -> tuple[bytes, str, str] | None:
+    """Return (bytes, content_type, ext) for a real image the user placed at
+    ``seed-assets/catalog/<slug>/<base>.<ext>`` (jpg/jpeg/png/webp), or None if none exists."""
+    folder = _seed_assets_dir() / slug
+    for ext in ("jpg", "jpeg", "png", "webp"):
+        p = folder / f"{base}.{ext}"
+        try:
+            if p.is_file():
+                ctype = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+                return p.read_bytes(), ctype, "jpg" if ext == "jpeg" else ext
+        except Exception:
+            continue
+    return None
+
+
 def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
     """Give each entry a real, destination-quality **cover** photo plus two **gallery** photos in
     the object store, connected as ``Asset``s (so a later decompose turns them into image items).
@@ -225,6 +259,7 @@ def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
             continue  # already has media (re-run safe)
         seed = stable_seed(entry.title)
         type_ = getattr(entry.type, "value", str(entry.type))
+        slug = slugify(entry.title)
         # Three distinct curated photos per entry (cover + two gallery frames).
         picks = [_CURATED[(seed + k) % len(_CURATED)] for k in range(3)]
         specs = [
@@ -234,8 +269,13 @@ def seed_covers(db: "Session", entries: list["CatalogEntry"]) -> None:
         ]
         stored: list[tuple[str, str]] = []
         for base, pid, w, h, title, subtitle in specs:
-            photo = _fetch_photo(pid, w, h) if fetch_photos else None
-            if photo is not None:
+            # 1) a real image the user dropped in seed-assets/catalog/<slug>/ wins; else
+            # 2) a curated scenic photo (when fetching is on); else 3) a drawn, labelled scene.
+            provided = _provided_image(slug, base)
+            photo = None if provided else (_fetch_photo(pid, w, h) if fetch_photos else None)
+            if provided is not None:
+                data, ctype, ext = provided
+            elif photo is not None:
                 data, ctype, ext = photo, "image/jpeg", "jpg"
             else:  # offline / tests → a drawn, labelled scene so the seed stays hermetic
                 data = scene_png(seed + pid, title=title, subtitle=subtitle, type_=type_,

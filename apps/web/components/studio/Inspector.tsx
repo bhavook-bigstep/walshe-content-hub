@@ -508,6 +508,35 @@ export default function Inspector({ node, onChange, onDuplicate, onDelete, onLay
         />
       </div>
 
+      {isImage && (node.frames?.length ?? 0) > 1 && (
+        <div className="space-y-2.5 border-t border-walshe-line/70 pt-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">Sprite</p>
+          <label className={`${row} cursor-pointer`}>
+            <span className={label}>Loop animation</span>
+            <input
+              type="checkbox"
+              checked={node.loopFrames !== false}
+              onChange={(e) => onChange({ loopFrames: e.target.checked })}
+              aria-label="Loop sprite animation"
+              className="h-4 w-4 accent-walshe-teal"
+            />
+          </label>
+          <div className={row}>
+            <span className={label}>Speed (fps)</span>
+            <input
+              type="range"
+              min={1}
+              max={24}
+              value={node.fps ?? 10}
+              onChange={(e) => onChange({ fps: Number(e.target.value) })}
+              aria-label="Sprite speed (frames per second)"
+              className="w-28"
+            />
+            <span className="w-8 text-right text-small tabular-nums text-walshe-grey">{node.fps ?? 10}</span>
+          </div>
+        </div>
+      )}
+
       <AnimControls node={node} onAnim={onAnim} />
 
       <KeyframeEditor node={node} onAnim={onAnim} sceneDurationMs={sceneDurationMs} playheadMs={playheadMs} />

@@ -11,6 +11,8 @@ export interface MediaTile {
   catalogItemId: string;
   /** Stable storage object key, persisted on the node so its src survives a reload. */
   objectKey?: string;
+  /** Media kind — a video tile previews with a <video> and places as a poster. Defaults to image. */
+  kind?: "image" | "video";
   /** Natural placement size on the canvas (keeps the card's aspect). Defaults to a square. */
   width?: number;
   height?: number;
@@ -197,6 +199,7 @@ export default function WorkspaceDrawer({
                                 src: t.src,
                                 catalogItemId: t.catalogItemId,
                                 objectKey: t.objectKey,
+                                kind: t.kind,
                                 width: t.width,
                                 height: t.height,
                               }),
@@ -207,13 +210,24 @@ export default function WorkspaceDrawer({
                           title={`${t.label} — click or drag onto the canvas`}
                           className="group relative aspect-square overflow-hidden rounded-md border border-walshe-line bg-walshe-stone/40 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-walshe-teal"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={t.src}
-                            alt={t.label}
-                            draggable={false}
-                            className="h-full w-full object-cover"
-                          />
+                          {t.kind === "video" ? (
+                            <>
+                              <video src={t.src} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                              <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                                <span className="grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+                                </span>
+                              </span>
+                            </>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={t.src}
+                              alt={t.label}
+                              draggable={false}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
                           <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-walshe-deep/80 to-transparent px-1.5 pb-1 pt-4 text-left text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
                             {t.label}
                           </span>

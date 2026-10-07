@@ -202,9 +202,12 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC88 | P2 | met | 2/2 |
 | AC89 | P2 | met | 1/1 |
 | AC90 | P2 | met | 1/1 |
-| AC91 | P2 | met | 2/2 |
+| AC91 | P2 | met | 3/3 |
 | AC92 | P2 | met | 2/2 |
+| AC93 | P2 | met | 1/1 |
+| AC94 | P2 | met | 2/2 |
+| AC95 | P2 | met | 1/1 |
 
-**Totals:** 92 met · 0 partial · 0 missing · 92 total.
+**Totals:** 95 met · 0 partial · 0 missing · 95 total.
 
 <!-- END GENERATED ACCEPTANCE MATRIX -->

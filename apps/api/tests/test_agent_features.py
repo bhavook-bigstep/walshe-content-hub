@@ -163,6 +163,24 @@ def test_template_gallery_covers_sizes_and_orientations(client, agent_headers) -
         assert t["description"], f"{t['id']} has no description"
 
 
+def test_templates_use_the_media_placeholder_item(client, agent_headers) -> None:
+    """AC95 — templates drop the first-class media-placeholder item (dashed "Add media" frame) for
+    their photo zones, not a hand-built colour box + hint text."""
+    from app.design_templates import TEMPLATE_WORKSPACES
+
+    # Known photo-led templates now carry a placeholder image node, no 'photo_hint' text.
+    for tid in ("destination-poster", "aegean-minimal", "alpine-clean", "destination-reel"):
+        nodes = [n for s in TEMPLATE_WORKSPACES[tid]["scenes"] for n in s["nodes"]]
+        assert any(n.get("placeholder") for n in nodes), f"{tid} should use a media placeholder"
+        assert not any("hint" in str(n.get("id", "")) for n in nodes), f"{tid} still has a hint box"
+        # No leftover solid 'photo' shape box.
+        boxes = [
+            n for n in nodes
+            if n.get("id", "").startswith("photo") and n.get("type") == "shape"
+        ]
+        assert not boxes, f"{tid} still has a solid photo box"
+
+
 def test_video_templates_are_animated(client, agent_headers) -> None:
     """AC92 — the gallery includes animated VIDEO templates: multi-scene storyboards that reference
     sprites, carry narration and animate text/sprites. Opening one seeds that workspace."""

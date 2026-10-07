@@ -65,6 +65,12 @@ def _ellipse(
     }
 
 
+def _placeholder(nid: str, x: float, y: float, w: float, h: float) -> dict[str, Any]:
+    """A media-placeholder hero (dashed "Add media" frame) the agent fills from the media drawer."""
+    return {"id": nid, "type": "image", "placeholder": True,
+            "x": x, "y": y, "width": w, "height": h}
+
+
 def _scene(
     sid: str,
     name: str,
@@ -108,18 +114,7 @@ _POSTER = _workspace(
             "#0b3d3a",
             [
                 # Hero photo zone (top ~60%); the agent drops a real catalog photo over it.
-                _rect("photo", 0, 0, 1080, 1180, "#14716a", radius=0),
-                _text(
-                    "photo_hint",
-                    "Drag a photo here",
-                    0,
-                    560,
-                    1080,
-                    40,
-                    color="#d1faf4",
-                    textAlign="center",
-                    opacity=0.85,
-                ),
+                _placeholder("photo", 0, 0, 1080, 1180),
                 # Accent bar + eyebrow.
                 _rect("accent", 80, 1240, 120, 10, "#f59e0b", radius=5),
                 _text(
@@ -178,18 +173,7 @@ _ITINERARY = _workspace(
             "Cover",
             "#0f172a",
             [
-                _rect("photo", 0, 0, 1240, 980, "#1e293b", radius=0),
-                _text(
-                    "photo_hint",
-                    "Drag a cover photo here",
-                    0,
-                    470,
-                    1240,
-                    36,
-                    color="#cbd5e1",
-                    textAlign="center",
-                    opacity=0.8,
-                ),
+                _placeholder("photo", 0, 0, 1240, 980),
                 _rect("accent", 100, 1060, 140, 10, "#38bdf8", radius=5),
                 _text(
                     "eyebrow", "ITINERARY", 100, 1095, 1040, 30, color="#7dd3fc", fontWeight="bold"
@@ -331,18 +315,8 @@ _ITINERARY = _workspace(
                     color="#475569",
                 ),
                 # Photo strip
-                _rect("photo2", 100, 760, 500, 360, "#e2e8f0", radius=16),
-                _text(
-                    "photo2_hint",
-                    "Drag a photo here",
-                    100,
-                    925,
-                    500,
-                    28,
-                    color="#94a3b8",
-                    textAlign="center",
-                ),
-            ],
+                _placeholder("photo2", 100, 760, 500, 360),
+                ],
         ),
     ],
 )
@@ -360,18 +334,7 @@ _PROMO = _workspace(
             "#1e3a5f",
             [
                 # Hero photo band across the top ~58%.
-                _rect("photo", 0, 0, 1080, 620, "#2b5278", radius=0),
-                _text(
-                    "photo_hint",
-                    "Drag a photo here",
-                    0,
-                    290,
-                    1080,
-                    36,
-                    color="#dbe7f3",
-                    textAlign="center",
-                    opacity=0.85,
-                ),
+                _placeholder("photo", 0, 0, 1080, 620),
                 _rect("accent", 72, 680, 110, 10, "#f4a62a", radius=5),
                 _text(
                     "eyebrow",
@@ -434,18 +397,7 @@ _EVENT = _workspace(
             "Event",
             "#3b0d2e",
             [
-                _rect("photo", 0, 0, 1080, 1040, "#5a1646", radius=0),
-                _text(
-                    "photo_hint",
-                    "Drag an event photo here",
-                    0,
-                    500,
-                    1080,
-                    38,
-                    color="#f6d9ec",
-                    textAlign="center",
-                    opacity=0.85,
-                ),
+                _placeholder("photo", 0, 0, 1080, 1040),
                 _text(
                     "eyebrow",
                     "YOU'RE INVITED",
@@ -520,18 +472,7 @@ _OFFER = _workspace(
             "Offer",
             "#0f3d2e",
             [
-                _rect("photo", 540, 0, 540, 1080, "#15573f", radius=0),
-                _text(
-                    "photo_hint",
-                    "Drag a photo here",
-                    540,
-                    520,
-                    540,
-                    30,
-                    color="#cdeadd",
-                    textAlign="center",
-                    opacity=0.85,
-                ),
+                _placeholder("photo", 540, 0, 540, 1080),
                 # Discount badge.
                 _ellipse("badge", 56, 72, 200, 200, "#f4a62a"),
                 _text(
@@ -602,7 +543,7 @@ def _day_scene(
     title, a one-line summary (the video caption) and a few highlight bullets."""
     nodes: list[dict[str, Any]] = [
         # Photo zone (agent drops a catalog photo here → the scene's PDF/video image).
-        _rect("photo", 0, 0, 1240, _ITIN_PHOTO_H, "#1e293b", radius=0),
+        _placeholder("photo", 0, 0, 1240, _ITIN_PHOTO_H),
         # Summary first, so it is the scene's video caption.
         _text(
             "summary", summary, 100, _ITIN_PHOTO_H + 196, 1040, 34, color="#334155", lineHeight=1.3
@@ -637,20 +578,6 @@ def _day_scene(
         nodes.append(_ellipse(f"hl{i}_dot", 100, y + 8, 16, 16, "#38bdf8"))
         nodes.append(_text(f"hl{i}", h, 136, y, 1000, 28, color="#475569"))
         y += 58
-    # Faint placeholder hint, last so it never becomes the video caption.
-    nodes.append(
-        _text(
-            "photo_hint",
-            "Drag a photo here",
-            0,
-            _ITIN_PHOTO_H // 2 - 18,
-            1240,
-            34,
-            color="#cbd5e1",
-            textAlign="center",
-            opacity=0.75,
-        )
-    )
     return _scene(sid, name, "#ffffff", nodes, duration_ms=5000, transition="fade")
 
 
@@ -666,7 +593,7 @@ _LONG_ITINERARY = _workspace(
             "Your Journey",
             "#0f172a",
             [
-                _rect("photo", 0, 0, 1240, 1120, "#1e293b", radius=0),
+                _placeholder("photo", 0, 0, 1240, 1120),
                 _text(
                     "tagline",
                     "A day-by-day guide, crafted for your trip.",
@@ -693,18 +620,7 @@ _LONG_ITINERARY = _workspace(
                     font=_SERIF,
                     lineHeight=1.04,
                 ),
-                _text(
-                    "photo_hint",
-                    "Drag a cover photo here",
-                    0,
-                    542,
-                    1240,
-                    36,
-                    color="#cbd5e1",
-                    textAlign="center",
-                    opacity=0.75,
-                ),
-            ],
+                ],
             duration_ms=5000,
         ),
         _day_scene(
@@ -831,16 +747,11 @@ def _pill(
 
 def _photo(
     nid: str, x: float, y: float, w: float, h: float, color: str,
-    *, hint: str = "Drag a photo here", hint_color: str = "#ffffff", radius: float = 0,
+    *, hint: str = "", hint_color: str = "", radius: float = 0,
 ) -> list[dict[str, Any]]:
-    """A photo-frame placeholder with a faint centred hint the agent replaces with a photo."""
-    return [
-        _rect(nid, x, y, w, h, color, radius=radius),
-        _text(
-            f"{nid}_hint", hint, x, y + h / 2 - 18, w, 30,
-            color=hint_color, textAlign="center", opacity=0.8,
-        ),
-    ]
+    """A media-placeholder hero. (Legacy signature kept so existing templates compile; the colour +
+    hint args are ignored — it now returns the new dashed "Add media" placeholder item.)"""
+    return [_placeholder(nid, x, y, w, h)]
 
 
 # ── Aegean Minimal (portrait post, 1080×1350) ──────────────────────────────────────────────────
@@ -1086,12 +997,6 @@ def _sprite(nid: str, sprite_id: str, x: float, y: float, w: float, h: float,
     if keyframes:
         node["anim"] = {"keyframes": keyframes}
     return node
-
-
-def _placeholder(nid: str, x: float, y: float, w: float, h: float) -> dict[str, Any]:
-    """A photo-placeholder hero the agent fills from the media drawer."""
-    return {"id": nid, "type": "image", "placeholder": True,
-            "x": x, "y": y, "width": w, "height": h}
 
 
 def _drift(x0: float, y0: float, x1: float, y1: float, dur: int) -> list[dict[str, Any]]:
