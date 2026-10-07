@@ -473,7 +473,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
             <img
               src="/img/plane.png"
               alt=""
-              className="absolute right-0 top-1/2 h-[135%] w-auto max-w-none -translate-y-1/2 translate-x-1/2 opacity-[0.09]"
+              className="absolute right-0 top-1/2 h-[135%] w-auto max-w-none -translate-y-1/2 translate-x-1/2 opacity-[0.14]"
             />
           </div>
         )}
