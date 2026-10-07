@@ -2,8 +2,8 @@
 // SAME Fabric renderer as the canvas and the SAME animation engine as the preview — so the exported
 // video is exactly what you scrub in the editor. The server just sequences + stitches the frames.
 import { StaticCanvas, type FabricObject } from "fabric";
-import { nodeToObject } from "./fabric-nodes";
-import { nodeStateAt } from "./anim";
+import { nodeToObject, setSpriteFrame } from "./fabric-nodes";
+import { frameIndexAt, nodeStateAt } from "./anim";
 import type { DesignDoc, Scene } from "./ops";
 
 export const EXPORT_FPS = 20;
@@ -49,6 +49,8 @@ export async function renderSceneFrames(
           angle: st.rotation,
           opacity: st.opacity,
         });
+        const fi = frameIndexAt(p.node, t);
+        if (fi !== null) setSpriteFrame(p.o, fi); // advance a frame sprite's filmstrip
         p.o.setCoords();
       }
       canvas.renderAll();

@@ -140,6 +140,12 @@ export interface DesignNode {
   anim?: NodeAnimation;
   /** group membership — nodes sharing a groupId move/animate together (flat; no nested groups) */
   groupId?: string;
+
+  /** image only — a frame-by-frame sprite: an ordered list of frame image srcs cycled over time
+   * (classic 2D game-sprite animation). `src` holds frame 0 as the static fallback. */
+  frames?: string[];
+  /** frames playback rate (frames per second); defaults to 10 when `frames` is set. */
+  fps?: number;
 }
 
 /** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
@@ -407,11 +413,20 @@ export function addCatalogImage(
 }
 
 /** Add a built-in decorative graphic/sticker/sprite (an image node from an SVG data URL). A sprite
- * also carries an entrance/loop intent, resolved into a keyframe track anchored at its placement. */
+ * also carries an entrance/loop intent, resolved into a keyframe track anchored at its placement, or
+ * a `frames` filmstrip for classic frame-by-frame sprite animation (src defaults to frame 0). */
 export function addGraphic(
   design: DesignDoc,
   sceneIndex: number,
-  g: { src: string; width: number; height: number; enter?: EnterType | null; loop?: NodeAnimation["loop"] },
+  g: {
+    src?: string;
+    width: number;
+    height: number;
+    enter?: EnterType | null;
+    loop?: NodeAnimation["loop"];
+    frames?: string[];
+    fps?: number;
+  },
   placement: NodePlacement = {},
 ): DesignDoc {
   assertScene(design, sceneIndex);
@@ -424,7 +439,8 @@ export function addGraphic(
     y: placement.y ?? DEFAULT_PLACEMENT.y,
     width: placement.width ?? g.width,
     height: placement.height ?? g.height,
-    src: g.src,
+    src: g.src ?? g.frames?.[0],
+    ...(g.frames && g.frames.length > 1 ? { frames: g.frames, fps: g.fps ?? 10 } : {}),
     ...stylePlacement(placement),
   };
   if (g.enter || g.loop) {

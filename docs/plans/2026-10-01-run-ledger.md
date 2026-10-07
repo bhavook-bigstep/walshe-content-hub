@@ -192,11 +192,11 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC78 | P2 | met | 3/3 |
 | AC79 | P2 | met | 4/4 |
 | AC80 | P2 | met | 4/4 |
-| AC81 | P2 | met | 4/4 |
+| AC81 | P2 | met | 3/3 |
 | AC82 | P2 | met | 5/5 |
 | AC83 | P2 | met | 3/3 |
 | AC84 | P2 | met | 1/1 |
-| AC85 | P2 | met | 2/2 |
+| AC85 | P2 | met | 3/3 |
 | AC86 | P2 | met | 3/3 |
 | AC87 | P2 | met | 3/3 |
 | AC88 | P2 | met | 2/2 |

@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.45.0 |
+| **Version** | 2.46.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -610,16 +610,18 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
   (upsert by agent+name). Proof: api (both agents have their named collections; each is non-empty
   and references only approved entries).
 
-- **AC85** — **Real animated sprites.** The right-rail "Animated" set is replaced with a roster of
-  12 cute, recognisable, multi-colour SVG characters — walking panda, blooming flower, breeze,
-  hot-air balloon, drifting cloud, gliding bird, bobbing boat, spinning sun, falling leaf,
-  twinkling star, party balloon, pulsing pin — each with a resting pose that looks complete. Each
-  **moves** on the canvas, preview and exported video through the keyframe engine (never in-SVG
-  animation, which Fabric rasterises to a frozen frame). The engine gains named **character loops**
-  — `sway`, `waddle`, `float`, `spin`, `twinkle`, `drift`, `rock` (alongside `pulse`/`bob`) — each
-  a periodic whole-node transform, selectable per element in the Inspector with a speed control.
-  Proof: web (the sprite roster has ≥12 named, moving, multi-element sprites with varied valid
-  loops; each loop type drives its own transform channel deterministically).
+- **AC85** — **Real frame-by-frame sprites.** The right-rail "Animated" set is a roster of 10 cute,
+  recognisable characters animated like a classic 2D **game sprite** — a filmstrip of distinct SVG
+  frames cycled over time so the **parts themselves move**: the walking panda's legs step, the
+  blooming flower's petals open in sequence, the flapping bird's wings beat, the spinning sun's rays
+  turn, the falling leaf tumbles, the swimming fish's tail swishes, the boat rocks on scrolling
+  waves, the star twinkles, the breeze flows, the balloon's flame flickers. A node carries
+  `frames[]` + `fps`; `frameIndexAt(node, t)` picks the frame (looping), and the SAME selection
+  drives the live canvas preview (Fabric `setElement` swaps the shown frame) and the video export,
+  so preview == export. The sprite **loops for the whole scene runtime** and preview playback loops
+  so it keeps running until paused. Proof: web (the roster has ≥10 frame sprites, each with ≥4
+  frames and ≥3 distinct poses at a positive fps; `frameIndexAt` cycles the filmstrip and loops;
+  `addGraphic` inserts a frame sprite with `frames`/`fps` and frame-0 fallback).
 
 - **AC86** — **CorelDraw-style selection vs pan.** The studio workspace distinguishes the three
   gestures cleanly through a tool model: a **Select** tool (default) where a left-drag on empty
@@ -696,6 +698,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.46.0 | 2026-10-07 | **Frame-by-frame sprites** (reworked **AC85** on user feedback): replaced the transform-wiggle sprites with true 2D game-style sprite animation — each sprite is a filmstrip of distinct SVG frames (`frames[]` + `fps`) cycled over time so the parts move (panda legs step, flower petals bloom, bird wings flap, sun rays spin, leaf tumbles, fish tail swishes…). `frameIndexAt` drives both the canvas preview (Fabric `setElement` frame swap) and the video export identically, looping for the whole scene; preview playback now loops so it keeps running until paused. 10 frame sprites, visually verified live (panda legs change between playhead times). Prior ACs stay green. | user + Claude |
 | 2.45.0 | 2026-10-07 | **Modern template gallery + new sizes/orientations** (added **AC88**): added five formats — Portrait post (1080×1350), Presentation (1920×1080), Banner (1200×628), Flyer (A4 1480×2096) and Business card (1050×600) — wired through `formats.ts`, the Size picker and backend `_FORMAT_DIMS`, and twelve new research-grounded templates leading the gallery (Aegean Minimal, Sunset Coast, Alpine Clean, Tropical Pop, Desert Luxe, City Grid, Festival Night, Heritage Trail, Slow Travel, Welcome Banner, Trip Card, Island Breeze), each a self-contained workspace with a photo zone, type hierarchy and CTA on a current travel palette. All prior ACs stay green. | user + Claude |
 | 2.44.0 | 2026-10-07 | **One-click brand kit in the studio** (added **AC87**): the brand kit gains typography (heading + body font keys, editable on the Brand-kit page, seeded per agent), and the studio gets an **Apply brand kit** button that applies palette + fonts + logo + contact across the whole design in one click (soft accent background, primary-coloured headings in the heading font, inked body in the body font, brand-filled shapes, logo/contact injected on scene 1). Pure/deterministic + idempotent (`applyBrandKit`, `hexMix`); shared `fonts.ts` font palette now drives the Inspector, brand kit and brand-apply. All prior ACs stay green. | user + Claude |
 | 2.43.0 | 2026-10-07 | **CorelDraw-style selection vs pan** (added **AC86**): the studio workspace now distinguishes marquee-select, click-an-item and pan. A **Select** tool (default) rubber-bands a dashed marquee over items fully inside a dragged box; a **Hand** tool pans; Space-hold / Alt-drag / middle-mouse always pan; the wheel still zooms. Added a floating Select/Hand toggle (keys V/H) and a tested pure `pointerMode` decision so the gestures never collide. All prior ACs stay green. | user + Claude |

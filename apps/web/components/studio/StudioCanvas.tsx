@@ -14,9 +14,9 @@ import {
   type FabricObject,
   type TPointerEventInfo,
 } from "fabric";
-import { nodeToObject } from "../../lib/studio/fabric-nodes";
+import { nodeToObject, setSpriteFrame } from "../../lib/studio/fabric-nodes";
 import { pointerMode, shouldDeleteSelection } from "../../lib/studio/keys";
-import { nodeStateAt } from "../../lib/studio/anim";
+import { frameIndexAt, nodeStateAt } from "../../lib/studio/anim";
 import type { DesignDoc } from "../../lib/studio/ops";
 
 export interface NodeBox {
@@ -283,6 +283,7 @@ export default function StudioCanvas({
               angle: obj.baseAngle,
               opacity: obj.baseOpacity,
             });
+            setSpriteFrame(obj, 0); // rest on frame 0 when stopped
             obj.selectable = true;
             obj.evented = true;
           } else {
@@ -295,6 +296,8 @@ export default function StudioCanvas({
               angle: st.rotation,
               opacity: st.opacity,
             });
+            const fi = frameIndexAt(node, timeMs);
+            if (fi !== null) setSpriteFrame(obj, fi); // advance the frame sprite's filmstrip
             obj.selectable = false;
             obj.evented = false;
           }

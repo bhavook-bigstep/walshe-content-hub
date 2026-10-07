@@ -73,7 +73,25 @@ function baseState(node: DesignNode): AnimState {
 
 /** Whether a node carries a non-trivial animation track. */
 export function hasAnimation(node: DesignNode): boolean {
-  return (node.anim?.keyframes?.length ?? 0) > 0 || node.anim?.loop !== undefined;
+  return (
+    (node.anim?.keyframes?.length ?? 0) > 0 ||
+    node.anim?.loop !== undefined ||
+    (node.frames?.length ?? 0) > 1
+  );
+}
+
+export const DEFAULT_SPRITE_FPS = 10;
+
+/** The frame index a frame-by-frame sprite shows at time `t` (ms), looping forever. Returns null
+ * for a node that is not a frame sprite (fewer than two frames). Pure + deterministic, so the
+ * canvas preview and the video export pick the same frame at the same time. */
+export function frameIndexAt(node: DesignNode, t: number): number | null {
+  const frames = node.frames;
+  if (!frames || frames.length < 2) return null;
+  const fps = node.fps && node.fps > 0 ? node.fps : DEFAULT_SPRITE_FPS;
+  const frameMs = 1000 / fps;
+  const i = Math.floor(Math.max(0, t) / frameMs) % frames.length;
+  return i;
 }
 
 /** The node's resolved transform at time `t` (ms from the scene start). Pure + deterministic. */

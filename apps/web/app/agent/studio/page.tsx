@@ -678,14 +678,13 @@ function StudioEditor() {
   const playLoop = useCallback(() => {
     rafRef.current = requestAnimationFrame((ts) => {
       const { wall, base } = playStartRef.current;
-      const t = base + (ts - wall);
       const dur = sceneDurRef.current;
+      let t = base + (ts - wall);
+      // Loop the preview for the whole scene: when the playhead reaches the end, wrap back to the
+      // start and keep running (so sprite animations keep cycling until the user pauses).
       if (t >= dur) {
-        setPlayhead(dur);
-        controlsRef.current?.previewAt(dur);
-        setPlaying(false);
-        stopRaf();
-        return;
+        playStartRef.current = { wall: ts, base: 0 };
+        t = 0;
       }
       setPlayhead(t);
       controlsRef.current?.previewAt(t);

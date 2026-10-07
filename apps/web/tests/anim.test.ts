@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENTER_TYPES, enterTrack, hasAnimation, nodeStateAt } from "../lib/studio/anim";
+import { ENTER_TYPES, enterTrack, frameIndexAt, hasAnimation, nodeStateAt } from "../lib/studio/anim";
 import { addText, newDesign, setNodeAnim, type DesignNode } from "../lib/studio/ops";
 
 function textNode(extra: Partial<DesignNode> = {}): DesignNode {
@@ -76,6 +76,18 @@ describe("animation engine", () => {
       expect(settled.y).toBeCloseTo(n.y, 5);
       expect(settled.scale).toBeCloseTo(1, 5);
     }
+  });
+
+  it("frameIndexAt cycles a frame sprite's filmstrip and loops (AC85)", () => {
+    const sprite = textNode({ frames: ["a", "b", "c", "d"], fps: 10 }); // 100ms per frame
+    expect(frameIndexAt(sprite, 0)).toBe(0);
+    expect(frameIndexAt(sprite, 150)).toBe(1);
+    expect(frameIndexAt(sprite, 350)).toBe(3);
+    expect(frameIndexAt(sprite, 450)).toBe(0); // wraps after the last frame
+    expect(hasAnimation(sprite)).toBe(true); // a filmstrip is an animation
+    // Not a frame sprite → null (fewer than two frames, or none).
+    expect(frameIndexAt(textNode({}), 100)).toBe(null);
+    expect(frameIndexAt(textNode({ frames: ["only"] }), 100)).toBe(null);
   });
 
   it("setNodeAnim sets and clears a node's animation", () => {

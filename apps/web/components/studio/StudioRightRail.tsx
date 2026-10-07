@@ -211,7 +211,8 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
               items={SPRITE_ANIMATIONS}
               onPick={(g) => {
                 const s = g as SpriteDef;
-                onChange(addGraphic(design, sceneIndex, { src: svgDataUrl(s.svg), width: s.width, height: s.height, enter: s.enter, loop: s.loop }));
+                // Insert as a frame-by-frame sprite: its filmstrip plays on preview + export.
+                onChange(addGraphic(design, sceneIndex, { width: s.width, height: s.height, frames: s.frames, fps: s.fps }));
               }}
             />
           )}
