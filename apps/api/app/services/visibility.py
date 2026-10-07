@@ -124,11 +124,18 @@ def agent_visible_entries(
     season: Season | None = None,
     type_: CatalogType | None = None,
     q: str | None = None,
+    tags: list[str] | None = None,
+    org: str | None = None,
 ) -> list[CatalogEntry]:
     """Return the entries an agent may see, narrowed by optional location/season/type/text filters.
 
-    No status/brand-safe SQL pre-filter: visibility is decided per row by ``is_visible_to_agent``
-    (catalog-gating, with the legacy fallback for catalog-less entries)."""
+    Free-text ``q`` matches the entry's **full searchable text** (``_entry_text``: title,
+    destination, description, market tags, highlights, custom sections and structured attribute
+    values) — not just title/description — so a search for a tag, city or attribute finds the
+    entry (AC7). ``tags`` keeps entries carrying **any** of the given market tags (OR, so adding a
+    tag broadens like a facet); ``org`` keeps entries from one provider organisation (exact,
+    case-insensitive). No status/brand-safe SQL pre-filter: visibility is decided per row by
+    ``is_visible_to_agent`` (catalog-gating, with the legacy fallback for catalog-less entries)."""
     stmt = select(CatalogEntry)
     if destination:
         stmt = stmt.where(CatalogEntry.destination == destination)
@@ -147,6 +154,8 @@ def agent_visible_entries(
 
     blocked = active_blocked_terms(db)
     needle = (q or "").strip().lower()
+    want_tags = {t.strip().lower() for t in (tags or []) if t.strip()}
+    want_org = (org or "").strip().lower()
     result: list[CatalogEntry] = []
     for entry in rows:
         # Browse shows expired entries greyed (AC55), so allow_expired here; the build/schedule
@@ -155,7 +164,11 @@ def agent_visible_entries(
             entry, agent, now=now, blocked_terms=blocked, allow_expired=True
         ):
             continue  # access-scope filter (JSON membership) done in Python for portability
-        if needle and needle not in entry.title.lower() and needle not in entry.description.lower():
+        if needle and needle not in _entry_text(entry):
+            continue
+        if want_tags and not ({t.lower() for t in entry.market_tags} & want_tags):
+            continue
+        if want_org and (entry.org_name or "").strip().lower() != want_org:
             continue
         result.append(entry)
     return result
@@ -258,6 +271,11 @@ def can_read_object(db: Session, user: User, object_key: str, *, now: datetime) 
     mine = db.execute(select(UserAsset).where(UserAsset.object_key == object_key)).scalars().first()
     if mine is not None:
         return mine.owner_id == user.id
+    # An agent's brand logo (users/<id>/brand-logo/<uuid>) — owner-only, stored without a UserAsset
+    # row — is readable by its owner (used by the brand-kit preview + the studio's Apply brand kit).
+    parts = object_key.split("/")
+    if len(parts) >= 3 and parts[0] == "users" and parts[2] == "brand-logo":
+        return parts[1] == str(user.id)
     # Org logos (AC58) are not sensitive: any authenticated user may read one that an org points at.
     if object_key.startswith("tenants/") and "/logo/" in object_key:
         return (

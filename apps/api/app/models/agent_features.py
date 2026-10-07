@@ -26,6 +26,11 @@ class BrandKit(Base):
     logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     primary_color: Mapped[str] = mapped_column(String(9), default="#005653")
     accent_color: Mapped[str] = mapped_column(String(9), default="#E5F6DF")
+    # Brand typography: a font KEY (sans/serif/display/rounded/mono) the studio maps to a stack.
+    heading_font: Mapped[str] = mapped_column(
+        String(32), default="display", server_default="display"
+    )
+    body_font: Mapped[str] = mapped_column(String(32), default="sans", server_default="sans")
     contact_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     website: Mapped[str | None] = mapped_column(String(512), nullable=True)

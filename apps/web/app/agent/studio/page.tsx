@@ -9,7 +9,7 @@ import type { BuilderCatalogItem } from "../../../components/studio/BuilderPanel
 import StudioBottomDock from "../../../components/studio/StudioBottomDock";
 import StudioRightRail from "../../../components/studio/StudioRightRail";
 import StudioMenuBar from "../../../components/studio/StudioMenuBar";
-import TimelineDrawer from "../../../components/studio/TimelineDrawer";
+import SceneEdgeControls, { type SceneRect } from "../../../components/studio/SceneEdgeControls";
 import type { CatalogImageOption } from "../../../components/studio/Toolbar";
 import WorkspaceDrawer, {
   MEDIA_DND_TYPE,
@@ -22,43 +22,59 @@ import {
   createProject,
   fetchAssetObjectUrl,
   generateLibraryMedia,
+  getBrandKit,
   getProject,
   getWorkspace,
   listCollections,
   listDesignTemplates,
-  renderVideo,
+  renderVideoFrames,
   resolveCollection,
   saveWorkspace,
   updateProject,
   uploadLibraryMedia,
   type AssetRef,
+  type BrandKit,
   type Collection,
   type Entry,
   type UserAsset,
   type WorkspaceIn,
   type WorkspaceResolved,
 } from "../../../lib/api";
+import { applyBrandKit } from "../../../lib/studio/branding";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
 import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
-import { designToVideoRequest } from "../../../lib/studio/storyboard-video";
-import { getFormatPreset, type FormatName } from "../../../lib/studio/formats";
+import { resolveSprites } from "../../../lib/studio/graphics";
+import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
+import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/studio/formats";
 import {
+  DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
   deleteNode,
   duplicateNode,
   editText,
+  fillImageNode,
+  isPlaceholder,
+  groupNodes,
+  setGroupAnim,
+  ungroupNodes,
+  updateGroupStyle,
+  type EnterType,
   migrateDesign,
   moveNode,
   newDesign,
   reorderNode,
+  speakableCues,
   resizeNode,
+  setNodeAnim,
   updateNode,
   type DesignDoc,
   type DesignNode,
   type LayerMove,
+  type NodeAnimation,
   type NodeStyle,
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
+import GroupPanel from "../../../components/studio/GroupPanel";
 
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
@@ -79,18 +95,12 @@ async function toPanelItem(e: Entry): Promise<BuilderCatalogItem> {
   return item;
 }
 
-const FORMAT_DIMS: Record<FormatName, { width: number; height: number }> = {
-  social: { width: 1080, height: 1080 },
-  story: { width: 1080, height: 1920 },
-  pamphlet: { width: 1240, height: 1754 },
-};
-
 // Collapse a resolved workspace back to the reference-only shape the PUT /workspace endpoint
 // expects (AC75): entries → {entry_id,title,type}; assets pass through as refs; scenes = the
 // current design's scenes. Metadata follows the live format the user is editing in.
 function toWorkspaceIn(ws: WorkspaceResolved, design: DesignDoc): WorkspaceIn {
-  const fmt = design.format as FormatName;
-  const dims = FORMAT_DIMS[fmt] ?? FORMAT_DIMS.social;
+  const fmt = isFormatName(design.format) ? design.format : "social";
+  const dims = getFormatPreset(fmt);
   return {
     metadata: { ...ws.metadata, format: fmt, width: dims.width, height: dims.height },
     reference_content: {
@@ -144,6 +154,11 @@ function StudioEditor() {
   const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
   // The selected element (for the Inspector). Scene-scoped by index + node id.
   const [selected, setSelected] = useState<{ scene: number; nodeId: string } | null>(null);
+  // The full selection (one id = single element; many = a group / multi-selection) + its scene.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedScene, setSelectedScene] = useState<number | null>(null);
+  // A photo placeholder awaiting a pick from the media drawer (set when one is clicked).
+  const [fillTarget, setFillTarget] = useState<{ scene: number; nodeId: string } | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [panelItems, setPanelItems] = useState<BuilderCatalogItem[] | null>(null);
   // AC63 — the studio's usable media = the project's collection items + local uploads + AI media,
@@ -161,7 +176,23 @@ function StudioEditor() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [videoMsg, setVideoMsg] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
-  const [storyboardOpen, setStoryboardOpen] = useState(false);
+  // The active scene's on-screen rect, so the per-scene edge controls can hug its edges.
+  const [sceneRect, setSceneRect] = useState<SceneRect | null>(null);
+  // Workspace tool (CorelDraw-style): "select" rubber-bands a marquee on empty-drag; "hand" pans.
+  const [tool, setTool] = useState<"select" | "hand">("select");
+  // The agent's brand kit, fetched lazily on first apply — powers one-click "Apply brand kit" (AC87).
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
+  const [brandBusy, setBrandBusy] = useState(false);
+  // Whether "Apply brand kit" also recolours the scenes to the brand palette/fonts. Off → only the
+  // logo watermark + the designed contact scene are applied, leaving the template's own colours.
+  const [brandColors, setBrandColors] = useState(true);
+  // Whether a scene is selected (clicking the empty workspace deselects → hides the scene controls).
+  const [sceneSelected, setSceneSelected] = useState(true);
+  // Animation preview transport (active scene): playing + playhead (ms from the scene start).
+  const [playing, setPlaying] = useState(false);
+  const [playhead, setPlayhead] = useState(0);
+  // Add a voiceover (TTS) to the exported video, reading each scene's narration script.
+  const [narrate, setNarrate] = useState(false);
   // Editable project name (rename).
   const [nameDraft, setNameDraft] = useState("");
   const params = useSearchParams();
@@ -234,13 +265,13 @@ function StudioEditor() {
           for (const [kind, refs, title] of assetGroups) {
             const tiles: MediaTile[] = [];
             for (const a of refs ?? []) {
-              if (a.kind !== "image" || !a.object_key) continue;
+              if (!a.object_key || (a.kind !== "image" && a.kind !== "video")) continue;
               try {
                 const src = await fetchAssetObjectUrl(a.object_key);
                 urls.push(src);
                 const id = `asset-${a.asset_id}`;
-                imgs.push({ catalogItemId: id, label: a.title || a.source, src });
-                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id, objectKey: a.object_key });
+                if (a.kind === "image") imgs.push({ catalogItemId: id, label: a.title || a.source, src });
+                tiles.push({ key: id, label: a.title || title, src, catalogItemId: id, objectKey: a.object_key, kind: a.kind });
               } catch {
                 /* asset optional */
               }
@@ -289,9 +320,12 @@ function StudioEditor() {
         .then(async (p) => {
           if (cancelled) return;
           setProject({ id: p.id, name: p.name });
-          // Migrate the stored design into the canonical scenes[] shape (handles legacy pages[]).
-          const migrated = migrateDesign(p.design);
-          if (!migrated) return;
+          // Migrate the stored design into the canonical scenes[] shape (handles legacy pages[]),
+          // then expand any template sprite references (sprite id → frames/fps) so video templates
+          // animate on load.
+          const base = migrateDesign(p.design);
+          if (!base) return;
+          const migrated = resolveSprites(base);
           setSceneIndex(0);
           setDesign(migrated);
           // Placed media stored an ephemeral blob: URL that is dead now; re-resolve each image from
@@ -308,7 +342,7 @@ function StudioEditor() {
         .then((templates) => {
           const t = templates.find((x) => x.id === tid);
           if (!t) return;
-          const fmt = (["social", "story", "pamphlet"].includes(t.format) ? t.format : "social") as FormatName;
+          const fmt: FormatName = isFormatName(t.format) ? t.format : "social";
           pickFormat(fmt);
           setProject({ id: 0, name: `${t.name} (template)` });
         })
@@ -405,6 +439,20 @@ function StudioEditor() {
   // Place a media tile on the active scene. From a click it lands centred in the default spot; from
   // a drop it lands where the cursor released (mapped to scene-local coords by the canvas).
   function placeTile(tile: MediaTile, at?: { x: number; y: number }) {
+    // If a media placeholder is awaiting a pick, FILL it in place rather than adding a new node.
+    if (fillTarget && !at) {
+      const target = fillTarget;
+      setFillTarget(null);
+      setDesign((d) =>
+        fillImageNode(d, target.scene, target.nodeId, {
+          src: tile.src,
+          objectKey: tile.objectKey,
+          catalogItemId: tile.catalogItemId,
+          kind: tile.kind,
+        }),
+      );
+      return;
+    }
     const w = tile.width ?? 420;
     const h = tile.height ?? 420;
     setDesign((d) => {
@@ -421,7 +469,7 @@ function StudioEditor() {
       return addCatalogImage(
         d,
         sceneIndex,
-        { src: tile.src, catalogItemId: tile.catalogItemId, objectKey: tile.objectKey },
+        { src: tile.src, catalogItemId: tile.catalogItemId, objectKey: tile.objectKey, videoKey: tile.kind === "video" ? tile.objectKey : undefined, kind: tile.kind },
         placement,
       );
     });
@@ -436,12 +484,13 @@ function StudioEditor() {
         src: string;
         catalogItemId: string;
         objectKey?: string;
+        kind?: "image" | "video";
         width?: number;
         height?: number;
       };
       const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
       placeTile(
-        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, width: t.width, height: t.height },
+        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, kind: t.kind, width: t.width, height: t.height },
         pt,
       );
     } catch {
@@ -487,19 +536,32 @@ function StudioEditor() {
     }
   }
 
-  // AC47 — stitch the ordered storyboard scenes (durations + transitions, captions, approved
-  // catalog images) into an MP4 via the server render service and download it.
+  // AC78 — WYSIWYG video: rasterise each animated scene frame-by-frame with the shared engine
+  // (so the MP4 matches the canvas preview), post the frames, and download the stitched video.
   async function generateVideo() {
     setVideoMsg(null);
     setRendering(true);
     try {
-      const items = (panelItems ?? []).map((i) => ({
-        id: Number(i.id),
-        title: i.title,
-        description: i.description,
-      }));
-      const body = designToVideoRequest(design, items, true);
-      const blob = await renderVideo(body);
+      // Stop any running preview so it doesn't fight the offscreen frame render.
+      setPlaying(false);
+      stopRaf();
+      controlsRef.current?.previewAt(null);
+      setPlayhead(0);
+
+      const sceneFrames = await renderDesignFrames(design, EXPORT_FPS);
+      const body = {
+        fps: EXPORT_FPS,
+        narrate,
+        scenes: design.scenes.map((s, i) => ({
+          title: s.name,
+          caption: (s.nodes.find((n) => n.type === "text" && n.text?.trim())?.text ?? "").slice(0, 200),
+          narration: speakableCues(s).map((c) => ({ at_ms: c.atMs, text: c.text.slice(0, 300) })),
+          duration_ms: s.durationMs,
+          transition: s.transition,
+          frames: sceneFrames[i].frames,
+        })),
+      };
+      const blob = await renderVideoFrames(body);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -591,6 +653,168 @@ function StudioEditor() {
     });
   }
 
+  function animSelected(anim: NodeAnimation | undefined) {
+    if (!selected) return;
+    setDesign((d) => {
+      try {
+        return setNodeAnim(d, selected.scene, selected.nodeId, anim);
+      } catch {
+        return d;
+      }
+    });
+  }
+
+  // ── Grouping ──────────────────────────────────────────────────────────────────────────────────
+  // The group id shared by the whole selection (null when the selection isn't a single group).
+  const selectedGroupId: string | null = (() => {
+    if (selectedScene === null || selectedIds.length < 2) return null;
+    const nodes = design.scenes[selectedScene]?.nodes ?? [];
+    const gids = selectedIds.map((id) => nodes.find((n) => n.id === id)?.groupId);
+    return gids[0] && gids.every((g) => g === gids[0]) ? gids[0]! : null;
+  })();
+
+  function groupSelected() {
+    if (selectedScene === null || selectedIds.length < 2) return;
+    setDesign((d) => groupNodes(d, selectedScene, selectedIds));
+  }
+  function ungroupSelected() {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => ungroupNodes(d, selectedScene, selectedGroupId));
+  }
+  function groupAnim(enter: EnterType | null, loop: NodeAnimation["loop"]) {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => setGroupAnim(d, selectedScene, selectedGroupId, enter, loop));
+  }
+  function groupOpacity(opacity: number) {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { opacity }));
+  }
+
+  // ── Animation preview transport (play/scrub the active scene's animation) ──────────────────────
+  const sceneDurRef = useRef(DEFAULT_SCENE_DURATION_MS);
+  sceneDurRef.current = design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS;
+  const rafRef = useRef<number | null>(null);
+  const playStartRef = useRef<{ wall: number; base: number }>({ wall: 0, base: 0 });
+
+  const stopRaf = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }, []);
+
+  const playLoop = useCallback(() => {
+    rafRef.current = requestAnimationFrame((ts) => {
+      const { wall, base } = playStartRef.current;
+      const dur = sceneDurRef.current;
+      let t = base + (ts - wall);
+      // Loop the preview for the whole scene: when the playhead reaches the end, wrap back to the
+      // start and keep running (so sprite animations keep cycling until the user pauses).
+      if (t >= dur) {
+        playStartRef.current = { wall: ts, base: 0 };
+        t = 0;
+      }
+      setPlayhead(t);
+      controlsRef.current?.previewAt(t, { playing: true });
+      playLoop();
+    });
+  }, [stopRaf]);
+
+  function togglePlay() {
+    if (playing) {
+      setPlaying(false);
+      stopRaf();
+      return;
+    }
+    const start = playhead >= sceneDurRef.current ? 0 : playhead;
+    playStartRef.current = { wall: performance.now(), base: start };
+    setPlayhead(start);
+    setPlaying(true);
+    playLoop();
+  }
+
+  function scrub(t: number) {
+    if (playing) {
+      setPlaying(false);
+      stopRaf();
+    }
+    setPlayhead(t);
+    controlsRef.current?.previewAt(t > 0 ? t : null);
+  }
+
+  // Reset the transport (back to the editable, static layout) when the active scene changes.
+  useEffect(() => {
+    setPlaying(false);
+    stopRaf();
+    setPlayhead(0);
+    controlsRef.current?.previewAt(null);
+  }, [sceneIndex, stopRaf]);
+
+  // Cancel any running animation frame on unmount.
+  useEffect(() => stopRaf, [stopRaf]);
+
+  // One-click apply of the brand kit's aesthetics (palette · fonts · logo · contact). The kit is
+  // fetched lazily on first click and cached, so no on-mount request races the canvas setup.
+  const applyBrand = useCallback(async () => {
+    setBrandBusy(true);
+    try {
+      let kit = brandKit;
+      if (!kit) {
+        kit = await getBrandKit();
+        setBrandKit(kit);
+      }
+      // Resolve an owner-only /assets logo to a displayable blob now; keep the objectKey so the
+      // node re-resolves on reload. An external URL is used as-is.
+      let logo: { src: string; objectKey?: string } | undefined;
+      if (kit!.logo_url) {
+        const url = kit!.logo_url;
+        if (url.startsWith("/assets/")) {
+          const key = url.replace(/^\/assets\//, "");
+          try {
+            logo = { src: await fetchAssetObjectUrl(key), objectKey: key };
+          } catch {
+            logo = undefined;
+          }
+        } else {
+          logo = { src: url };
+        }
+      }
+      setDesign((d) =>
+        applyBrandKit(
+          d,
+          {
+            primary: kit!.primary_color,
+            accent: kit!.accent_color,
+            headingFont: kit!.heading_font,
+            bodyFont: kit!.body_font,
+            logo,
+            contact: {
+              name: kit!.contact_name ?? undefined,
+              email: kit!.contact_email ?? undefined,
+              website: kit!.website ?? undefined,
+            },
+          },
+          { colors: brandColors },
+        ),
+      );
+    } catch {
+      /* brand kit unavailable — leave the design unchanged */
+    } finally {
+      setBrandBusy(false);
+    }
+  }, [brandKit, brandColors]);
+
+  // Tool shortcuts (CorelDraw/Figma-style): V = Select, H = Hand. Ignored while typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      if (e.key === "v" || e.key === "V") setTool("select");
+      else if (e.key === "h" || e.key === "H") setTool("hand");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const zoomBtn =
     "grid h-8 w-8 place-items-center rounded-sm text-walshe-ink transition-colors hover:bg-walshe-ink/10";
 
@@ -614,11 +838,92 @@ function StudioEditor() {
           onReady={onReady}
           onNodeChange={onNodeChange}
           onNodeDelete={onNodeDelete}
-          onSelectScene={setSceneIndex}
-          onSelect={(scene, nodeId) => setSelected(scene !== null && nodeId ? { scene, nodeId } : null)}
+          onSelectScene={(i) => {
+            setSceneIndex(i);
+            setSceneSelected(true);
+          }}
+          onBackgroundClick={() => {
+            setSceneSelected(false);
+            setSelected(null);
+            setSelectedIds([]);
+            setSelectedScene(null);
+            setFillTarget(null);
+          }}
+          onSelect={(scene, nodeIds) => {
+            if (nodeIds.length) setSceneSelected(true); // working in a scene re-selects it
+            setSelectedScene(scene);
+            setSelectedIds(nodeIds);
+            setSelected(scene !== null && nodeIds.length === 1 ? { scene, nodeId: nodeIds[0] } : null);
+            // Clicking a photo placeholder opens the media drawer so the next pick fills it.
+            const node = scene !== null && nodeIds.length === 1
+              ? design.scenes[scene]?.nodes.find((n) => n.id === nodeIds[0])
+              : undefined;
+            if (node && isPlaceholder(node) && scene !== null) {
+              setFillTarget({ scene, nodeId: node.id });
+              setDrawerOpen(true);
+            } else {
+              setFillTarget(null);
+            }
+          }}
           onTextEdit={onTextEdit}
           onControls={(c) => (controlsRef.current = c)}
+          selectedNodeId={selected?.nodeId ?? null}
+          onActiveSceneRect={setSceneRect}
+          highlightActive={sceneSelected}
+          tool={tool}
         />
+
+        {/* One-click brand kit: logo watermark on every scene + a designed contact scene, and
+            (optionally) a palette/font recolour across the design (AC87). The kit is fetched lazily
+            on click (caching afterwards) so it never races canvas init. */}
+        <div className="pointer-events-auto absolute bottom-20 left-5 z-30 flex flex-col items-start gap-1.5">
+          <button
+            type="button"
+            onClick={applyBrand}
+            title="Add your logo to every scene and a contact page; optionally recolour to your brand"
+            className="flex items-center gap-2 rounded-xl border border-walshe-line/70 bg-chrome-bg/95 px-3.5 py-2.5 text-small font-semibold text-walshe-ink shadow-lift backdrop-blur-md transition-colors hover:bg-walshe-ink/5 disabled:opacity-60"
+            disabled={brandBusy}
+          >
+            <span className="flex -space-x-1" aria-hidden>
+              <span className="h-4 w-4 rounded-full border border-white" style={{ background: brandKit?.primary_color ?? "#0E6B5E" }} />
+              <span className="h-4 w-4 rounded-full border border-white" style={{ background: brandKit?.accent_color ?? "#F3C96B" }} />
+            </span>
+            {brandBusy ? "Applying…" : "Apply brand kit"}
+          </button>
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-chrome-bg/95 px-2 py-1 text-[12px] text-walshe-ink shadow-lift backdrop-blur-md">
+            <input
+              type="checkbox"
+              checked={brandColors}
+              onChange={(e) => setBrandColors(e.target.checked)}
+              className="h-3.5 w-3.5 accent-walshe-teal"
+            />
+            Recolour scenes to brand
+          </label>
+        </div>
+
+        {/* Tool switch (CorelDraw-style): Select rubber-bands a marquee; Hand pans. Keys V / H. */}
+        <div className="pointer-events-auto absolute bottom-5 left-5 z-30 flex overflow-hidden rounded-xl border border-walshe-line/70 bg-chrome-bg/95 shadow-lift backdrop-blur-md">
+          <button
+            type="button"
+            aria-label="Select tool"
+            aria-pressed={tool === "select"}
+            title="Select — drag a box to select (V)"
+            onClick={() => setTool("select")}
+            className={`grid h-10 w-10 place-items-center transition-colors ${tool === "select" ? "bg-walshe-teal text-white" : "text-walshe-grey hover:bg-walshe-ink/10"}`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M5 3l15 9-6 1.5L17 20l-2.5 1-3-6.5L7 18z" /></svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Hand tool"
+            aria-pressed={tool === "hand"}
+            title="Hand — drag to pan the workspace (H, or hold Space)"
+            onClick={() => setTool("hand")}
+            className={`grid h-10 w-10 place-items-center border-l border-walshe-line/70 transition-colors ${tool === "hand" ? "bg-walshe-teal text-white" : "text-walshe-grey hover:bg-walshe-ink/10"}`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M18 11V6a1.5 1.5 0 00-3 0M15 6V4.5a1.5 1.5 0 00-3 0V6m0 0V5a1.5 1.5 0 00-3 0v7M9 12V8a1.5 1.5 0 00-3 0v6a6 6 0 006 6h2a6 6 0 006-6v-3" /></svg>
+          </button>
+        </div>
       </div>
 
       {/* Floating sections over the workspace: clicks pass through to the canvas except on panels. */}
@@ -658,31 +963,47 @@ function StudioEditor() {
           onFit={() => controlsRef.current?.fit()}
           mediaOpen={drawerOpen}
           onToggleMedia={() => setDrawerOpen((o) => !o)}
-          timelineOpen={storyboardOpen}
-          onToggleTimeline={() => setStoryboardOpen((o) => !o)}
-          onGenerateVideo={() => void generateVideo()}
-          rendering={rendering}
-        />
-
-        {/* Timeline top drawer (scenes + video) — mirrors the left media drawer, sliding top→bottom
-            from a semicircle handle under the menu bar. */}
-        <TimelineDrawer
-          open={storyboardOpen}
-          onToggle={() => setStoryboardOpen((o) => !o)}
-          design={design}
-          activeScene={sceneIndex}
-          onChange={setDesign}
-          onSelectScene={setSceneIndex}
           onGenerateVideo={() => void generateVideo()}
           rendering={rendering}
           videoMsg={videoMsg}
         />
 
+        {/* Per-scene controls hugging the active scene's top + bottom edges (identity + timing on
+            top; animation transport + narration on the bottom). Replaces the old timeline drawer. */}
+        <SceneEdgeControls
+          rect={sceneSelected ? sceneRect : null}
+          design={design}
+          sceneIndex={sceneIndex}
+          onChange={setDesign}
+          playing={playing}
+          playhead={playhead}
+          durationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
+          onTogglePlay={togglePlay}
+          onScrub={scrub}
+          narrate={narrate}
+          onToggleNarrate={() => setNarrate((n) => !n)}
+        />
+
         {/* Right tool rail: creation tools only (icons + hover names). */}
         <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />
 
-        {/* Inspector: appears when an element is selected, styling controls for it. */}
-        {selectedNode && (
+        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props). */}
+        {selectedIds.length > 1 && selectedScene !== null && (
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+            <GroupPanel
+              count={selectedIds.length}
+              isGroup={Boolean(selectedGroupId)}
+              groupId={selectedGroupId}
+              onGroup={groupSelected}
+              onUngroup={ungroupSelected}
+              onAnim={groupAnim}
+              onOpacity={groupOpacity}
+            />
+          </div>
+        )}
+
+        {/* Inspector: appears when a single element is selected, styling controls for it. */}
+        {selectedNode && selectedIds.length <= 1 && (
           <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-small font-bold text-walshe-ink">Edit element</h2>
@@ -701,6 +1022,9 @@ function StudioEditor() {
               onDuplicate={duplicateSelected}
               onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
               onLayer={layerSelected}
+              onAnim={animSelected}
+              sceneDurationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
+              playheadMs={playhead}
             />
           </div>
         )}
@@ -841,11 +1165,14 @@ function MediaDialog({
   return (
     <Dialog title="Add media" size="md" open onClose={onClose}>
       <label className="block">
-        <span className="label">Upload an image (local)</span>
-        <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif" disabled={busy}
+        <span className="label">Upload an image or video (local)</span>
+        <input type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/avif,video/mp4,video/webm,video/quicktime"
+          disabled={busy}
           aria-label="Upload media file"
           className="block w-full text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void run(() => uploadLibraryMedia(f), "Uploaded.", "uploads"); }} />
+        <span className="mt-1 block text-small text-walshe-grey">MP4, WebM or MOV play live on the canvas and render into the exported video.</span>
       </label>
       <div className="mt-4 flex items-end gap-2 border-t border-walshe-line pt-4">
         <label className="block flex-1">

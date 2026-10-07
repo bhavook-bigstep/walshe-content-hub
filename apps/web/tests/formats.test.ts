@@ -11,19 +11,27 @@ import {
 // test TITLE must be exactly `test_format_presets` (the acceptance matrix keys on it).
 describe("studio formats", () => {
   it("test_format_presets", () => {
-    // Exactly the three documented formats, in display order.
-    expect(FORMAT_NAMES).toEqual(["social", "story", "pamphlet"]);
+    // Every format, in display order — square + portrait + landscape (AC88 widened AC8's three).
+    expect(FORMAT_NAMES).toEqual([
+      "social", "post", "story", "wide", "banner", "flyer", "pamphlet", "card",
+    ]);
 
     // Each preset yields the correct dimensions + page count.
     expect(getFormatPreset("social")).toMatchObject({ width: 1080, height: 1080, pages: 1, multiPage: false });
     expect(getFormatPreset("story")).toMatchObject({ width: 1080, height: 1920, pages: 1, multiPage: false });
+    // New orientations.
+    expect(getFormatPreset("post")).toMatchObject({ width: 1080, height: 1350, orientation: "portrait" });
+    expect(getFormatPreset("wide")).toMatchObject({ width: 1920, height: 1080, orientation: "landscape" });
+    expect(getFormatPreset("banner")).toMatchObject({ width: 1200, height: 628, orientation: "landscape" });
+    expect(getFormatPreset("card")).toMatchObject({ width: 1050, height: 600, orientation: "landscape" });
 
-    // Only the pamphlet is multi-page.
+    // Only the pamphlet is multi-page; every other format is single-page.
     const pamphlet = getFormatPreset("pamphlet");
     expect(pamphlet.pages).toBeGreaterThan(1);
     expect(pamphlet.multiPage).toBe(true);
-    expect(pamphlet.width).toBe(1240);
-    expect(pamphlet.height).toBe(1754);
+    for (const name of FORMAT_NAMES) {
+      if (name !== "pamphlet") expect(FORMAT_PRESETS[name].multiPage).toBe(false);
+    }
 
     // Every preset's `name` matches its record key (no drift when a preset travels alone).
     for (const name of FORMAT_NAMES) {
@@ -32,7 +40,8 @@ describe("studio formats", () => {
 
     // Guards: a known name narrows; an unknown one is rejected both ways.
     expect(isFormatName("social")).toBe(true);
-    expect(isFormatName("flyer")).toBe(false);
-    expect(() => getFormatPreset("flyer")).toThrow(/Unknown studio format/);
+    expect(isFormatName("wide")).toBe(true);
+    expect(isFormatName("zzz")).toBe(false);
+    expect(() => getFormatPreset("zzz")).toThrow(/Unknown studio format/);
   });
 });

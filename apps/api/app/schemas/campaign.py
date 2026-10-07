@@ -51,7 +51,7 @@ class CampaignPostOut(BaseModel):
     status: PostStatus
     scheduled_at: datetime | None
     media_object_key: str | None
-    # Approval gate (AC78) + publish receipt (AC79).
+    # Approval gate (AC97) + publish receipt (AC98).
     approved_by: int | None = None
     reviewed_at: datetime | None = None
     review_note: str = ""

@@ -11,6 +11,8 @@ export interface MediaTile {
   catalogItemId: string;
   /** Stable storage object key, persisted on the node so its src survives a reload. */
   objectKey?: string;
+  /** Media kind — a video tile previews with a <video> and places as a poster. Defaults to image. */
+  kind?: "image" | "video";
   /** Natural placement size on the canvas (keeps the card's aspect). Defaults to a square. */
   width?: number;
   height?: number;
@@ -118,7 +120,7 @@ export default function WorkspaceDrawer({
             <div className="absolute right-0 top-9 z-10 w-48 overflow-hidden rounded-lg border border-walshe-line bg-walshe-base py-1 shadow-lift">
               {[
                 { label: "Add a collection", fn: onAddCollection, icon: <path d="M3 7h6l2 2h10v9a2 2 0 01-2 2H3z" /> },
-                { label: "Upload an image", fn: onUpload, icon: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" /></> },
+                { label: "Upload image or video", fn: onUpload, icon: <><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 20h16" /></> },
                 { label: "Generate with AI", fn: onGenerate, icon: <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15l-1.9-4.1L5.5 9l4.6-1.4z" /> },
               ].map((a) => (
                 <button
@@ -153,7 +155,7 @@ export default function WorkspaceDrawer({
           <div className="px-3 py-8 text-center">
             <p className="text-small font-medium text-walshe-ink">No media yet</p>
             <p className="mt-1 text-[12px] text-walshe-grey">
-              Use the + to add a collection, upload an image, or generate one with AI.
+              Use the + to add a collection, upload an image or video, or generate one with AI.
             </p>
           </div>
         ) : (
@@ -197,6 +199,7 @@ export default function WorkspaceDrawer({
                                 src: t.src,
                                 catalogItemId: t.catalogItemId,
                                 objectKey: t.objectKey,
+                                kind: t.kind,
                                 width: t.width,
                                 height: t.height,
                               }),
@@ -207,13 +210,24 @@ export default function WorkspaceDrawer({
                           title={`${t.label} — click or drag onto the canvas`}
                           className="group relative aspect-square overflow-hidden rounded-md border border-walshe-line bg-walshe-stone/40 transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-walshe-teal"
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={t.src}
-                            alt={t.label}
-                            draggable={false}
-                            className="h-full w-full object-cover"
-                          />
+                          {t.kind === "video" ? (
+                            <>
+                              <video src={t.src} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                              <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                                <span className="grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+                                </span>
+                              </span>
+                            </>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={t.src}
+                              alt={t.label}
+                              draggable={false}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
                           <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-walshe-deep/80 to-transparent px-1.5 pb-1 pt-4 text-left text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
                             {t.label}
                           </span>

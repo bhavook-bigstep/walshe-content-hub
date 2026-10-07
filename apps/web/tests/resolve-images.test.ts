@@ -45,6 +45,24 @@ describe("resolveDesignImageSrcs", () => {
     expect(imageNodes(out)[0].src).toBe("blob:old");
   });
 
+  it("re-resolves a video node's videoSrc from its videoKey (the clip the canvas plays)", async () => {
+    let d = newDesign("social");
+    d = addCatalogImage(
+      d,
+      0,
+      { src: "blob:deadclip", catalogItemId: "asset-7", videoKey: "assets/u1/clip.mp4", kind: "video" },
+      { x: 0, y: 0, width: 10, height: 10 },
+    );
+    const resolve = vi.fn(async (key: string) => `blob:fresh-${key}`);
+
+    const out = await resolveDesignImageSrcs(d, resolve);
+
+    const node = imageNodes(out)[0];
+    expect(node.videoSrc).toBe("blob:fresh-assets/u1/clip.mp4"); // live clip re-resolved
+    expect(node.videoKey).toBe("assets/u1/clip.mp4"); // stable key preserved
+    expect(resolve).toHaveBeenCalledTimes(1);
+  });
+
   it("fetches each distinct key only once across scenes", async () => {
     let d = newDesign("social");
     d = addCatalogImage(d, 0, { src: "blob:a", catalogItemId: "asset-1", objectKey: "same" }, { x: 0, y: 0, width: 10, height: 10 });

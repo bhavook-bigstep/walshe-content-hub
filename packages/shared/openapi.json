@@ -577,6 +577,20 @@
         "title": "Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post",
         "type": "object"
       },
+      "Body_upload_brand_logo_me_brand_kit_logo_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_brand_logo_me_brand_kit_logo_post",
+        "type": "object"
+      },
       "Body_upload_cover_catalog__entry_id__cover_post": {
         "properties": {
           "file": {
@@ -665,6 +679,10 @@
             "title": "Accent Color",
             "type": "string"
           },
+          "body_font": {
+            "title": "Body Font",
+            "type": "string"
+          },
           "contact_email": {
             "anyOf": [
               {
@@ -686,6 +704,10 @@
               }
             ],
             "title": "Contact Name"
+          },
+          "heading_font": {
+            "title": "Heading Font",
+            "type": "string"
           },
           "logo_url": {
             "anyOf": [
@@ -718,6 +740,8 @@
           "logo_url",
           "primary_color",
           "accent_color",
+          "heading_font",
+          "body_font",
           "contact_name",
           "contact_email",
           "website"
@@ -738,6 +762,18 @@
               }
             ],
             "title": "Accent Color"
+          },
+          "body_font": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Font"
           },
           "contact_email": {
             "anyOf": [
@@ -762,6 +798,18 @@
               }
             ],
             "title": "Contact Name"
+          },
+          "heading_font": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading Font"
           },
           "logo_url": {
             "anyOf": [
@@ -2224,6 +2272,92 @@
         "title": "EntryVisibility",
         "type": "string"
       },
+      "FrameScene": {
+        "properties": {
+          "caption": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Caption",
+            "type": "string"
+          },
+          "duration_ms": {
+            "maximum": 60000.0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "frames": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 900,
+            "minItems": 1,
+            "title": "Frames",
+            "type": "array"
+          },
+          "narration": {
+            "items": {
+              "$ref": "#/components/schemas/NarrationCue"
+            },
+            "maxItems": 20,
+            "title": "Narration",
+            "type": "array"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Title",
+            "type": "string"
+          },
+          "transition": {
+            "default": "none",
+            "enum": [
+              "none",
+              "fade",
+              "slide-left",
+              "zoom"
+            ],
+            "title": "Transition",
+            "type": "string"
+          }
+        },
+        "required": [
+          "duration_ms",
+          "frames"
+        ],
+        "title": "FrameScene",
+        "type": "object"
+      },
+      "FramesVideoRequest": {
+        "properties": {
+          "fps": {
+            "default": 20,
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "narrate": {
+            "default": false,
+            "title": "Narrate",
+            "type": "boolean"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/FrameScene"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Scenes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenes"
+        ],
+        "title": "FramesVideoRequest",
+        "type": "object"
+      },
       "GenerateRequest": {
         "description": "Ask the AI layer to generate an image + text into the user's Agent storage (AC51).",
         "properties": {
@@ -2632,6 +2766,25 @@
           "entry_title"
         ],
         "title": "MediaItem",
+        "type": "object"
+      },
+      "NarrationCue": {
+        "properties": {
+          "at_ms": {
+            "default": 0,
+            "maximum": 60000.0,
+            "minimum": 0.0,
+            "title": "At Ms",
+            "type": "integer"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "title": "NarrationCue",
         "type": "object"
       },
       "OrganizationOut": {
@@ -5107,7 +5260,7 @@
     },
     "/campaigns/{campaign_id}/posts/{post_id}/approve": {
       "post": {
-        "description": "Approve AND publish a pending post in one action (AC78/AC79). PoC self-approval: the owning\nagent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records\nthe reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a\nguard/publish failure nothing is approved and the reason is returned (422/409/503/502).",
+        "description": "Approve AND publish a pending post in one action (AC97/AC98). PoC self-approval: the owning\nagent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records\nthe reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a\nguard/publish failure nothing is approved and the reason is returned (422/409/503/502).",
         "operationId": "approve_post_campaigns__campaign_id__posts__post_id__approve_post",
         "parameters": [
           {
@@ -5164,7 +5317,7 @@
     },
     "/campaigns/{campaign_id}/posts/{post_id}/reject": {
       "post": {
-        "description": "Reject a pending post with a reason (AC78); it drops to rejected and is editable again.",
+        "description": "Reject a pending post with a reason (AC97); it drops to rejected and is editable again.",
         "operationId": "reject_post_campaigns__campaign_id__posts__post_id__reject_post",
         "parameters": [
           {
@@ -5342,6 +5495,41 @@
                 }
               ],
               "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tags"
+            }
+          },
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
             }
           }
         ],
@@ -6959,6 +7147,53 @@
         ]
       }
     },
+    "/me/brand-kit/logo": {
+      "post": {
+        "description": "Upload a brand logo image: stored under the agent's own ``users/<id>/`` prefix (owner-only)\nand recorded as the brand kit's ``logo_url`` (served path). Replaces the paste-a-URL flow.",
+        "operationId": "upload_brand_logo_me_brand_kit_logo_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_brand_logo_me_brand_kit_logo_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandKitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Brand Logo",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
     "/me/collections": {
       "get": {
         "operationId": "list_collections_me_collections_get",
@@ -8334,6 +8569,51 @@
           }
         ],
         "summary": "Render Video",
+        "tags": [
+          "render"
+        ]
+      }
+    },
+    "/render/video-frames": {
+      "post": {
+        "description": "Encode pre-rendered WYSIWYG animation frames into an MP4 (preview == export).",
+        "operationId": "render_video_frames_render_video_frames_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FramesVideoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Render Video Frames",
         "tags": [
           "render"
         ]

@@ -273,13 +273,15 @@ def list_for_agent(
     season: Season | None = Query(default=None),
     type: CatalogType | None = Query(default=None),
     q: str | None = Query(default=None),
+    tags: list[str] | None = Query(default=None),
+    org: str | None = Query(default=None),
     db: Session = Depends(get_db),
     agent: User = Depends(_agent_only),
     now: datetime = Depends(clock.now),
 ) -> list[EntryOut]:
     rows = agent_visible_entries(
         db, agent, now=now, destination=destination, country=country, state=state,
-        city=city, season=season, type_=type, q=q,
+        city=city, season=season, type_=type, q=q, tags=tags, org=org,
     )
     return [EntryOut.from_entry(e, now=now) for e in rows]
 

@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 // AC46 + AC47 — the storyboard studio: multi-scene editing (add / reorder / duration / transition)
-// and stitching the ordered scenes into a video. The API serves real CORS headers in e2e
-// (CORS_ORIGINS in playwright.config), so the browser calls it directly.
+// via the per-scene controls on the scene's edges, and stitching the ordered scenes into a video.
+// The API serves real CORS headers in e2e (CORS_ORIGINS in playwright.config).
 
 test("agent builds a multi-scene storyboard and generates a video", async ({ page }) => {
   await page.goto("/login");
@@ -14,35 +14,32 @@ test("agent builds a multi-scene storyboard and generates a video", async ({ pag
   await page.goto("/agent/studio");
   await expect(page.getByTestId("studio-canvas")).toBeVisible();
 
-  // Open the Timeline top drawer (its semicircle handle under the menu bar), which starts with a
-  // single scene.
-  await page.getByRole("button", { name: "Open timeline" }).click();
-  const scenePanel = page.getByLabel("Scenes");
-  await expect(scenePanel.getByText(/1 scene/)).toBeVisible();
+  // Per-scene controls hug the active scene's edges; it starts as scene 1 of 1.
+  const duration = page.getByLabel("Scene duration (s)");
+  await expect(duration).toBeVisible();
+  await expect(page.getByText("Scene 1 of 1")).toBeVisible();
 
-  // Add a second scene (AC46: add).
-  await scenePanel.getByRole("button", { name: "+ Add scene" }).click();
-  await expect(scenePanel.getByText(/2 scenes/)).toBeVisible();
+  // Per-scene duration (seconds) — AC46 per-scene settings.
+  await duration.fill("2");
 
-  const sceneList = page.getByRole("list", { name: "Scene list" });
-  const items = sceneList.getByRole("listitem");
-  await expect(items).toHaveCount(2);
+  // Add a second scene — AC46 add.
+  await page.getByRole("button", { name: "Add a scene after this one" }).click();
+  await expect(page.getByText("Scene 1 of 2")).toBeVisible();
 
-  // Give the (active) new scene a zoom transition and a shorter duration (AC46: per-scene settings).
-  await page.getByLabel("Scene transition").selectOption("zoom");
-  await expect(page.getByLabel("Scene transition")).toHaveValue("zoom");
-  await page.getByLabel("Scene duration (ms)").fill("2000");
+  // Scene 1 now has a next scene → set the transition into it — AC46 per-scene transition.
+  const transition = page.getByLabel("Transition to next scene");
+  await transition.selectOption("zoom");
+  await expect(transition).toHaveValue("zoom");
 
-  // Reorder: move the first scene down; the new first scene is the one created second (AC46: reorder).
-  await items.first().getByRole("button", { name: /Move .* down/ }).click();
-  await expect(items.first()).toContainText("Scene 2");
+  // Reorder the scene — AC46 reorder.
+  await page.getByRole("button", { name: "Move scene right" }).click();
 
   // The canvas renders the storyboard.
   await expect(page.locator("canvas").first()).toBeVisible();
 
-  // Generate a video from the ordered scenes (AC47). The action is wired to POST /render/video; we
-  // assert the editor reflects a result (a ready video or a graceful "unavailable") regardless of
-  // whether ffmpeg is present on the runner.
-  await page.getByRole("button", { name: "Generate video" }).click();
+  // Generate a video from the ordered scenes (AC47), via the File menu. We assert the editor
+  // reflects a result (a ready video or a graceful "unavailable") regardless of the runner.
+  await page.getByRole("button", { name: "File" }).click();
+  await page.getByRole("menuitem", { name: "Export as video (MP4)" }).click();
   await expect(page.getByText(/Video ready|Video rendering unavailable/)).toBeVisible({ timeout: 60000 });
 });

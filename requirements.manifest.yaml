@@ -447,19 +447,21 @@ acceptance:
       - "apps/api/tests/test_agent_features.py::test_workspace_put_validates_and_bumps_version"
       - "apps/api/tests/test_agent_features.py::test_workspace_migrates_legacy_project"
       - "apps/api/tests/test_agent_features.py::test_workspace_refs_carry_media_links"
-  AC77:
+  # Campaigns & live Instagram publish — merged from dev, renumbered AC77-79 -> AC96-98 to avoid
+  # the collision with this branch's animation ACs (AC77-95).
+  AC96:
     tier: P2
     api:
       - "apps/api/tests/test_campaigns_routes.py::test_create_and_list_scoped_to_agent"
       - "apps/api/tests/test_campaign_posts.py::test_schedule_lands_pending_approval_with_media"
-  AC78:
+  AC97:
     tier: P2
     api:
       - "apps/api/tests/test_campaign_approval.py::test_approve_publishes_immediately"
       - "apps/api/tests/test_campaign_approval.py::test_reject_sets_rejected_with_note"
       - "apps/api/tests/test_campaign_approval.py::test_cannot_approve_a_non_pending_post"
       - "apps/api/tests/test_campaign_approval.py::test_second_agent_cannot_approve_foreign_post"
-  AC79:
+  AC98:
     tier: P2
     api:
       - "apps/api/tests/test_campaign_approval.py::test_approve_publishes_immediately"
@@ -481,7 +483,121 @@ acceptance:
       - "apps/api/tests/test_assistant.py::test_stream_endpoint_sends_deltas_then_done"
       - "apps/api/tests/test_assistant.py::test_stream_endpoint_roles"
       - "apps/api/tests/test_ai_provider.py::test_gemini_stream_chat_sends_system_turns_and_parses_chunks"
+  AC77:
+    tier: P2
+    web:
+      - "apps/web/tests/anim.test.ts::returns the base transform when a node has no animation"
+      - "apps/web/tests/anim.test.ts::holds the first keyframe before the track and the last after it (arrival/settle)"
+      - "apps/web/tests/anim.test.ts::interpolates position (motion path) between keyframes"
+      - "apps/web/tests/anim.test.ts::is deterministic — same node + time give the same state"
+      - "apps/web/tests/anim.test.ts::layers a pulse loop on top of the settled scale"
+      - "apps/web/tests/anim.test.ts::enterTrack presets produce an invisible→visible entrance anchored at the base transform"
+      - "apps/web/tests/anim.test.ts::setNodeAnim sets and clears a node's animation"
+  AC78:
+    tier: P2
+    api:
+      - "apps/api/tests/test_video.py::test_build_frames_clip_cmd_structure"
+      - "apps/api/tests/test_video.py::test_render_video_frames_sequences_and_stitches"
+      - "apps/api/tests/test_video.py::test_video_frames_route"
+  AC79:
+    tier: P2
+    web:
+      - "apps/web/tests/keyframes.test.ts::plays a 3-point motion path as a polyline"
+      - "apps/web/tests/keyframes.test.ts::interpolates scale and rotation keyframes"
+      - "apps/web/tests/keyframes.test.ts::sorts out-of-order keyframes (the editor may append or retime them)"
+      - "apps/web/tests/keyframes.test.ts::setNodeAnim stores a custom track (keyframes, no entrance preset)"
   AC80:
+    tier: P2
+    api:
+      - "apps/api/tests/test_video.py::test_scene_script_uses_explicit_narration"
+      - "apps/api/tests/test_video.py::test_render_frames_lays_cued_narration"
+    web:
+      - "apps/web/tests/studio-ops.test.ts::test_set_scene_narration"
+      - "apps/web/tests/studio-ops.test.ts::narrationCues keeps blanks for editing; speakableCues drops them for export"
+  AC81:
+    tier: P2
+    web:
+      - "apps/web/tests/graphics.test.ts::every artifact/sticker/sprite has usable SVG art + unique ids"
+      - "apps/web/tests/graphics.test.ts::addGraphic inserts a plain image node with the SVG source"
+      - "apps/web/tests/graphics.test.ts::addGraphic builds an entrance + loop track from an intent"
+  AC82:
+    tier: P2
+    web:
+      - "apps/web/tests/grouping.test.ts::test_group_ops"
+      - "apps/web/tests/grouping.test.ts::ignores a selection of fewer than two nodes"
+      - "apps/web/tests/grouping.test.ts::re-grouping replaces an existing tag with one fresh id (no nesting)"
+      - "apps/web/tests/grouping.test.ts::applies an entrance + emphasis loop to every member, anchored at each position"
+      - "apps/web/tests/grouping.test.ts::patches a shared style onto every member and ungroups them"
+  AC83:
+    tier: P2
+    api:
+      - "apps/api/tests/test_catalog_search.py::test_free_text_searches_tags_destination_and_description"
+      - "apps/api/tests/test_catalog_search.py::test_filter_by_tags_and_org"
+    web:
+      - "apps/web/tests/shell.test.ts::builds catalog query strings"
+  AC84:
+    tier: P2
+    api:
+      - "apps/api/tests/test_seed_demo.py::test_seed_demo_creates_rich_named_collections"
+  AC85:
+    tier: P2
+    web:
+      - "apps/web/tests/graphics.test.ts::ships a rich roster of frame-animated sprites with moving parts (AC85)"
+      - "apps/web/tests/graphics.test.ts::addGraphic inserts a frame-by-frame sprite (filmstrip + fps, src = frame 0)"
+      - "apps/web/tests/anim.test.ts::frameIndexAt cycles a frame sprite's filmstrip and loops (AC85)"
+  AC86:
+    tier: P2
+    web:
+      - "apps/web/tests/studio-keys.test.ts::Select tool left-drag on empty space draws a marquee (not a pan)"
+      - "apps/web/tests/studio-keys.test.ts::pressing an element means object interaction (select/move)"
+      - "apps/web/tests/studio-keys.test.ts::Hand tool, Space-hold, Alt-drag or middle button always pan"
+  AC87:
+    tier: P2
+    web:
+      - "apps/web/tests/brand-apply.test.ts::recolours headings/body/shapes and sets the brand fonts + a tinted background"
+      - "apps/web/tests/brand-apply.test.ts::places a logo watermark on every content scene"
+      - "apps/web/tests/brand-apply.test.ts::appends a designed contact scene with the logo, name heading, email and website link"
+      - "apps/web/tests/brand-apply.test.ts::colors:false leaves the template colours/fonts untouched but still brands the logo + contact"
+      - "apps/web/tests/brand-apply.test.ts::is deterministic and idempotent (re-applying yields the same design)"
+  AC88:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_template_gallery_covers_sizes_and_orientations"
+      - "apps/api/tests/test_agent_features.py::test_project_from_landscape_template_keeps_orientation"
+  AC89:
+    tier: P2
+    api:
+      - "apps/api/tests/test_seed.py::test_seed_creates_collections_and_image_items"
+  AC90:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_brand_logo_upload"
+  AC91:
+    tier: P2
+    web:
+      - "apps/web/tests/placeholder.test.ts::addPlaceholder inserts a flagged image node with the placeholder art"
+      - "apps/web/tests/placeholder.test.ts::fillImageNode replaces the art, clears the flag and records the objectKey"
+      - "apps/web/tests/placeholder.test.ts::fillImageNode with a video keeps a poster fallback but plays the live clip (AC91)"
+  AC92:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_video_templates_are_animated"
+    web:
+      - "apps/web/tests/graphics.test.ts::resolveSprites expands a template sprite id into its filmstrip (AC92)"
+  AC93:
+    tier: P2
+    web:
+      - "apps/web/tests/anim.test.ts::frameIndexAt honours loopFrames and fps (speed) (AC93)"
+  AC94:
+    tier: P2
+    api:
+      - "apps/api/tests/test_seed_images.py::test_provided_image_prefers_a_dropped_file"
+      - "apps/api/tests/test_seed_images.py::test_slugify"
+  AC95:
+    tier: P2
+    api:
+      - "apps/api/tests/test_agent_features.py::test_templates_use_the_media_placeholder_item"
+  AC99:
     tier: P2
     api:
       - "apps/api/tests/test_social.py::test_schedule_lands_pending_approval"
@@ -489,7 +605,7 @@ acceptance:
       - "apps/api/tests/test_social.py::test_approve_publishes_via_simulated_connector"
       - "apps/api/tests/test_social.py::test_reject_sets_rejected_with_note"
       - "apps/api/tests/test_social.py::test_cannot_approve_a_non_pending_post"
-  AC81:
+  AC100:
     tier: P3
     api:
       - "apps/api/tests/test_engagement.py::test_rows_carry_project_and_campaign_names"

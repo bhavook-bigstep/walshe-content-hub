@@ -23,12 +23,16 @@ test("pan and zoom move the studio viewport; zoom control clears the assistant",
   const panXY = async () => (await canvas.getAttribute("data-pan"))!.split(",").map(Number);
   const zoom = async () => Number(await canvas.getAttribute("data-zoom"));
 
-  // Pan: dragging empty canvas translates the viewport by the drag delta (+140, +90).
+  // Pan: with the Hand tool (keyboard "h"), dragging the canvas translates the viewport by the drag
+  // delta (+140, +90). (In the default Select tool a plain left-drag on empty space draws a marquee
+  // instead; the Hand tool — like Space / middle button — pans. AC86.)
+  await page.keyboard.press("h");
   const [bx, by] = await panXY();
   await page.mouse.move(px, py);
   await page.mouse.down();
   await page.mouse.move(px + 140, py + 90, { steps: 8 });
   await page.mouse.up();
+  await page.keyboard.press("v"); // back to the default Select tool
   const [ax, ay] = await panXY();
   expect(Math.abs(ax - bx - 140)).toBeLessThanOrEqual(3);
   expect(Math.abs(ay - by - 90)).toBeLessThanOrEqual(3);
@@ -70,11 +74,25 @@ test("selecting an entity and pressing Delete removes it", async ({ page }) => {
   expect(sx).toBeGreaterThan(box.x);
   expect(sx).toBeLessThan(box.x + box.width); // the computed point is on the canvas
 
-  await page.mouse.click(sx, sy); // select the entity under the pointer
+  // Select the entity, retrying the click until the selection actually registers — the Inspector
+  // ("Edit element") only appears for a selected element. A single click can race the canvas render
+  // and silently miss, leaving Delete a no-op; that intermittently flaked this smoke test on busy CI
+  // runners. Retrying the click until the Inspector shows makes selection deterministic.
+  const inspector = page.getByRole("heading", { name: "Edit element" });
+  await expect(async () => {
+    await page.mouse.click(sx, sy);
+    await expect(inspector).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+
   await page.keyboard.press("Delete");
-  await expect.poll(async () => Number(await canvas.getAttribute("data-entities"))).toBe(before - 1);
+  await expect
+    .poll(async () => Number(await canvas.getAttribute("data-entities")), { timeout: 15000 })
+    .toBe(before - 1);
+  await expect(inspector).toBeHidden(); // the only element is gone → the Inspector closes
 
   // With nothing selected, Delete is a no-op (guards the empty-selection branch).
   await page.keyboard.press("Delete");
-  await expect.poll(async () => Number(await canvas.getAttribute("data-entities"))).toBe(before - 1);
+  await expect
+    .poll(async () => Number(await canvas.getAttribute("data-entities")), { timeout: 15000 })
+    .toBe(before - 1);
 });

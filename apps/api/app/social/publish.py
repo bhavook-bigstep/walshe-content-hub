@@ -1,4 +1,4 @@
-"""Shared publish orchestration for one image post to Instagram (AC34 / AC79).
+"""Shared publish orchestration for one image post to Instagram (AC34 / AC98).
 
 Both the Studio publish-now route and the campaign approve->publish route go through here, so the
 guards can never diverge: preflight (Contract 1 / AC6 / AC34), a duplicate-publish block, the

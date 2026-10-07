@@ -136,6 +136,102 @@ def test_project_from_template_seeds_workspace(client, agent_headers) -> None:
     assert node["fontSize"] == 123 and node["fontWeight"] == "bold"
 
 
+def test_template_gallery_covers_sizes_and_orientations(client, agent_headers) -> None:
+    """AC88 — the gallery offers a rich, modern set spanning multiple sizes + orientations, each a
+    well-formed workspace whose declared dimensions are consistent with its format."""
+    templates = client.get("/me/design-templates", headers=agent_headers).json()
+    by_id = {t["id"] for t in templates}
+    # The modern set is present.
+    assert {"aegean-minimal", "alpine-clean", "heritage-trail", "trip-card"} <= by_id
+    assert len(templates) >= 15
+
+    # Multiple distinct formats, including a landscape, a portrait and a square.
+    formats = {t["format"] for t in templates}
+    assert {"social", "post", "story", "wide", "flyer", "card"} <= formats
+
+    # A landscape template really is wider than tall; a story is taller than wide.
+    wide = next(t for t in templates if t["id"] == "alpine-clean")
+    assert wide["width"] > wide["height"]
+    story = next(t for t in templates if t["format"] == "story")
+    assert story["height"] > story["width"]
+
+    # Every template carries a thumbnail background + at least one node, and a description.
+    for t in templates:
+        assert t["width"] > 0 and t["height"] > 0
+        assert t["background"], f"{t['id']} has no thumbnail background"
+        assert t["nodes"], f"{t['id']} has no nodes"
+        assert t["description"], f"{t['id']} has no description"
+
+
+def test_templates_use_the_media_placeholder_item(client, agent_headers) -> None:
+    """AC95 — templates drop the first-class media-placeholder item (dashed "Add media" frame) for
+    their photo zones, not a hand-built colour box + hint text."""
+    from app.design_templates import TEMPLATE_WORKSPACES
+
+    # Known photo-led templates now carry a placeholder image node, no 'photo_hint' text.
+    for tid in ("destination-poster", "aegean-minimal", "alpine-clean", "destination-reel"):
+        nodes = [n for s in TEMPLATE_WORKSPACES[tid]["scenes"] for n in s["nodes"]]
+        assert any(n.get("placeholder") for n in nodes), f"{tid} should use a media placeholder"
+        assert not any("hint" in str(n.get("id", "")) for n in nodes), f"{tid} still has a hint box"
+        # No leftover solid 'photo' shape box.
+        boxes = [
+            n for n in nodes
+            if n.get("id", "").startswith("photo") and n.get("type") == "shape"
+        ]
+        assert not boxes, f"{tid} still has a solid photo box"
+
+
+def test_video_templates_are_animated(client, agent_headers) -> None:
+    """AC92 — the gallery includes animated VIDEO templates: multi-scene storyboards that reference
+    sprites, carry narration and animate text/sprites. Opening one seeds that workspace."""
+    from app.design_templates import TEMPLATE_WORKSPACES
+
+    sprite_ids = {
+        "walking-panda", "blooming-flower", "flapping-bird", "spinning-sun", "falling-leaf",
+        "swimming-fish", "bobbing-boat", "twinkle-star", "breeze", "hot-air-balloon",
+    }
+    templates = client.get("/me/design-templates", headers=agent_headers).json()
+    ids = {t["id"] for t in templates}
+    assert {"destination-reel", "social-promo-video", "event-teaser-video"} <= ids
+
+    for tid in ("destination-reel", "social-promo-video", "event-teaser-video"):
+        ws = TEMPLATE_WORKSPACES[tid]
+        scenes = ws["scenes"]
+        assert len(scenes) >= 2  # multi-scene storyboard
+        assert any(s.get("narration") for s in scenes)  # has narration
+        nodes = [n for s in scenes for n in s["nodes"]]
+        sprites = [n for n in nodes if n.get("sprite")]
+        assert sprites and all(n["sprite"] in sprite_ids for n in sprites)  # valid sprite refs
+        assert any(n.get("placeholder") for n in nodes)  # a photo placeholder hero
+        assert any(n.get("anim") for n in nodes)  # text/sprite animation
+
+    # Opening a video template seeds its multi-scene workspace.
+    created = client.post(
+        "/me/projects",
+        headers=agent_headers,
+        json={"name": "Reel", "template_id": "destination-reel"},
+    )
+    assert created.status_code == 201, created.text
+    pid = created.json()["id"]
+    ws = client.get(f"/me/projects/{pid}/workspace", headers=agent_headers).json()
+    assert len(ws["scenes"]) == 3
+    assert any(s.get("narration") for s in ws["scenes"])
+
+
+def test_project_from_landscape_template_keeps_orientation(client, agent_headers) -> None:
+    """AC88 — a landscape (wide) template seeds a 1920×1080 workspace, not the square default."""
+    created = client.post(
+        "/me/projects",
+        headers=agent_headers,
+        json={"name": "Deck", "template_id": "alpine-clean"},
+    )
+    assert created.status_code == 201, created.text
+    pid = created.json()["id"]
+    assert created.json()["format"] == "wide"
+    ws = client.get(f"/me/projects/{pid}/workspace", headers=agent_headers).json()
+    assert ws["metadata"]["width"] == 1920 and ws["metadata"]["height"] == 1080
+
+
 def test_project_from_collection_seeds_workspace(client, provider_headers, agent_headers) -> None:
     # AC75 — creating a project from a collection seeds reference_content.collections,
     # and GET /workspace returns it resolved (collection entries with their items).
@@ -282,3 +378,31 @@ def test_brand_kit_and_templates(client: TestClient, agent_headers: dict[str, st
     assert templates.status_code == 200
     assert len(templates.json()) >= 1
     assert {"id", "name", "format", "description"} <= set(templates.json()[0].keys())
+
+
+def test_brand_logo_upload(client: TestClient, agent_headers: dict[str, str]) -> None:
+    """AC90 — the agent uploads a logo image (not a URL); it's stored owner-only and set as the
+    brand kit's logo_url, and the agent can fetch it back through the asset gate."""
+    png = b"\x89PNG\r\n\x1a\nbrand-logo-bytes"
+    up = client.post(
+        "/me/brand-kit/logo",
+        headers=agent_headers,
+        files={"file": ("logo.png", png, "image/png")},
+    )
+    assert up.status_code == 200, up.text
+    logo_url = up.json()["logo_url"]
+    assert logo_url and logo_url.startswith("/assets/users/")
+    assert "/brand-logo/" in logo_url
+
+    # It persists on the kit and the owner can fetch the bytes.
+    assert client.get("/me/brand-kit", headers=agent_headers).json()["logo_url"] == logo_url
+    served = client.get(logo_url, headers=agent_headers)
+    assert served.status_code == 200 and served.content == png
+
+    # A non-image is rejected at the boundary.
+    bad = client.post(
+        "/me/brand-kit/logo",
+        headers=agent_headers,
+        files={"file": ("x.svg", b"<svg/>", "image/svg+xml")},
+    )
+    assert bad.status_code == 415

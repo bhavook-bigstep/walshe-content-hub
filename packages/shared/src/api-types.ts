@@ -419,7 +419,7 @@ export interface paths {
         put?: never;
         /**
          * Approve Post
-         * @description Approve AND publish a pending post in one action (AC78/AC79). PoC self-approval: the owning
+         * @description Approve AND publish a pending post in one action (AC97/AC98). PoC self-approval: the owning
          *     agent is also the reviewer (a separate reviewer person/role is a backlog item). Approval records
          *     the reviewer and publishes immediately via the shared path (preflight + dedup + receipt); on a
          *     guard/publish failure nothing is approved and the reason is returned (422/409/503/502).
@@ -442,7 +442,7 @@ export interface paths {
         put?: never;
         /**
          * Reject Post
-         * @description Reject a pending post with a reason (AC78); it drops to rejected and is editable again.
+         * @description Reject a pending post with a reason (AC97); it drops to rejected and is editable again.
          */
         post: operations["reject_post_campaigns__campaign_id__posts__post_id__reject_post"];
         delete?: never;
@@ -1007,6 +1007,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/brand-kit/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Brand Logo
+         * @description Upload a brand logo image: stored under the agent's own ``users/<id>/`` prefix (owner-only)
+         *     and recorded as the brand kit's ``logo_url`` (served path). Replaces the paste-a-URL flow.
+         */
+        post: operations["upload_brand_logo_me_brand_kit_logo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/collections": {
         parameters: {
             query?: never;
@@ -1486,6 +1507,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/render/video-frames": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render Video Frames
+         * @description Encode pre-rendered WYSIWYG animation frames into an MP4 (preview == export).
+         */
+        post: operations["render_video_frames_render_video_frames_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/social/instagram/publish": {
         parameters: {
             query?: never;
@@ -1869,6 +1910,11 @@ export interface components {
              */
             note: string;
         };
+        /** Body_upload_brand_logo_me_brand_kit_logo_post */
+        Body_upload_brand_logo_me_brand_kit_logo_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_cover_catalog__entry_id__cover_post */
         Body_upload_cover_catalog__entry_id__cover_post: {
             /** File */
@@ -1908,10 +1954,14 @@ export interface components {
         BrandKitOut: {
             /** Accent Color */
             accent_color: string;
+            /** Body Font */
+            body_font: string;
             /** Contact Email */
             contact_email: string | null;
             /** Contact Name */
             contact_name: string | null;
+            /** Heading Font */
+            heading_font: string;
             /** Logo Url */
             logo_url: string | null;
             /** Primary Color */
@@ -1923,10 +1973,14 @@ export interface components {
         BrandKitUpdate: {
             /** Accent Color */
             accent_color?: string | null;
+            /** Body Font */
+            body_font?: string | null;
             /** Contact Email */
             contact_email?: string | null;
             /** Contact Name */
             contact_name?: string | null;
+            /** Heading Font */
+            heading_font?: string | null;
             /** Logo Url */
             logo_url?: string | null;
             /** Primary Color */
@@ -2516,6 +2570,46 @@ export interface components {
          * @enum {string}
          */
         EntryVisibility: "draft" | "public" | "private";
+        /** FrameScene */
+        FrameScene: {
+            /**
+             * Caption
+             * @default
+             */
+            caption: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Frames */
+            frames: string[];
+            /** Narration */
+            narration?: components["schemas"]["NarrationCue"][];
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /**
+             * Transition
+             * @default none
+             * @enum {string}
+             */
+            transition: "none" | "fade" | "slide-left" | "zoom";
+        };
+        /** FramesVideoRequest */
+        FramesVideoRequest: {
+            /**
+             * Fps
+             * @default 20
+             */
+            fps: number;
+            /**
+             * Narrate
+             * @default false
+             */
+            narrate: boolean;
+            /** Scenes */
+            scenes: components["schemas"]["FrameScene"][];
+        };
         /**
          * GenerateRequest
          * @description Ask the AI layer to generate an image + text into the user's Agent storage (AC51).
@@ -2705,6 +2799,19 @@ export interface components {
             entry_title: string;
             /** Object Key */
             object_key: string;
+        };
+        /** NarrationCue */
+        NarrationCue: {
+            /**
+             * At Ms
+             * @default 0
+             */
+            at_ms: number;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
         };
         /** OrganizationOut */
         OrganizationOut: {
@@ -4113,6 +4220,8 @@ export interface operations {
                 season?: components["schemas"]["Season"] | null;
                 type?: components["schemas"]["CatalogType"] | null;
                 q?: string | null;
+                tags?: string[] | null;
+                org?: string | null;
             };
             header?: never;
             path?: never;
@@ -5185,6 +5294,39 @@ export interface operations {
             };
         };
     };
+    upload_brand_logo_me_brand_kit_logo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_brand_logo_me_brand_kit_logo_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandKitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_collections_me_collections_get: {
         parameters: {
             query?: never;
@@ -6092,6 +6234,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["VideoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    render_video_frames_render_video_frames_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FramesVideoRequest"];
             };
         };
         responses: {

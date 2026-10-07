@@ -234,9 +234,10 @@ def _metrics(reach: int) -> dict[str, int]:
 
 
 def _seed_social(db: Session, agent_id: int, comps: dict[str, int], now: datetime) -> None:
-    """Several demo campaigns with posts across platforms + engagement, plus a couple of standalone
-    posts, so Campaigns / Social / Engagement (per-campaign + per-platform + per-post) are
-    populated. Idempotent: skipped once the agent already has a campaign."""
+    """Several demo campaigns with Instagram posts + engagement, plus a standalone post, so
+    Campaigns / Social / Engagement (per-campaign + per-post) are populated. Instagram-only because
+    it is the sole connected platform in the PoC. Idempotent: skipped once the agent has a
+    campaign."""
     if db.execute(select(Campaign).where(Campaign.agent_id == agent_id)).first() is not None:
         return
 
@@ -255,21 +256,20 @@ def _seed_social(db: Session, agent_id: int, comps: dict[str, int], now: datetim
     c_city = campaign("City Breaks Winter", "Dublin & Belfast", -10, 40)
     c_trade = campaign("Trade Spring Showcase", "Ireland", -30, 15)
 
-    # (campaign_id | None, project name, channel, caption, days-ago published | None, reach | None).
+    # (campaign_id | None, project name, caption, days-ago published | None, reach | None).
+    # Instagram is the only connected platform in the PoC, so every demo post is Instagram — the
+    # seeded data mirrors the Connected Platforms page (unconnected channels carry no data).
     # days-ago/reach present → a published post with engagement; absent → a pending_approval post.
     plan = [
-        (c_autumn, "Galway launch post", "instagram", "Cliffs of Moher at golden hour.", 18, 2412),
-        (c_autumn, "Cliffs of Moher feature", "instagram", "214m above the Atlantic.", 9, 1536),
-        (c_autumn, "Galway launch post", "facebook", "Galway harbour festival returns.", 12, 1980),
-        (c_city, "Dublin city lights", "facebook", "Dublin's winter light trail.", 6, 1340),
-        (c_city, "Dublin city lights", "x", "Winter in the capital.", 4, 880),
-        (c_trade, "Cliffs of Moher feature", "linkedin", "Trade-ready Wild Atlantic Way.", 25, 640),
-        (c_trade, "Galway launch post", "instagram", "Meet Irish suppliers this spring.", 20, 1120),
-        (c_autumn, "Dublin city lights", "instagram", "Coming soon to the campaign.", None, None),
-        (None, "Galway launch post", "x", "A quick standalone teaser.", None, None),
-        (None, "Cliffs of Moher feature", "instagram", "A simple published post.", 3, 760),
+        (c_autumn, "Galway launch post", "Cliffs of Moher at golden hour.", 18, 2412),
+        (c_autumn, "Cliffs of Moher feature", "214m above the Atlantic.", 9, 1536),
+        (c_autumn, "Dublin city lights", "Coming soon to the campaign.", None, None),
+        (c_city, "Dublin city lights", "Dublin's winter light trail.", 6, 1340),
+        (c_trade, "Galway launch post", "Meet Irish suppliers this spring.", 20, 1120),
+        (None, "Cliffs of Moher feature", "A simple published post.", 3, 760),
     ]
-    for idx, (camp_id, comp_name, channel, caption, days_ago, reach) in enumerate(plan):
+    for idx, (camp_id, comp_name, caption, days_ago, reach) in enumerate(plan):
+        channel = "instagram"
         published = days_ago is not None
         when = now - timedelta(days=days_ago) if published else now + timedelta(days=3)
         post = Post(
@@ -331,6 +331,8 @@ def seed_demo(db: Session) -> dict[str, int]:
         agent1.id,
         primary_color="#0E6B5E",
         accent_color="#F3C96B",
+        heading_font="display",
+        body_font="sans",
         contact_name="Alex Rivera",
         contact_email="alex@riveratravel.example",
         website="riveratravel.example",
@@ -341,6 +343,18 @@ def seed_demo(db: Session) -> dict[str, int]:
         "West coast favourites",
         [by_title["Cliffs of Moher"], by_title["Wild Atlantic Way"]],
     )
+    _collection(
+        db,
+        agent1.id,
+        "Honeymoon highlights",
+        [by_title["Cliffs of Moher"], by_title["Autumn Escapes"], by_title["Wild Atlantic Way"]],
+    )
+    _collection(
+        db,
+        agent1.id,
+        "Festival season",
+        [by_title["Harbour Festival"], by_title["Dublin Lights"]],
+    )
     comp1 = _composition(
         db, agent1.id, "Galway launch post",
         [by_title["Harbour Festival"], by_title["Cliffs of Moher"]],
@@ -349,8 +363,8 @@ def seed_demo(db: Session) -> dict[str, int]:
         db, agent1.id, "Cliffs of Moher feature", [by_title["Cliffs of Moher"]]
     )
     comp_dublin = _composition(db, agent1.id, "Dublin city lights", [by_title["Dublin Lights"]])
-    # Several live campaigns + posts across platforms + engagement so Campaigns / Social /
-    # Engagement (per-campaign + per-platform + per-post) are populated for the demo (not empty).
+    # Several live campaigns + Instagram posts + engagement so Campaigns / Social /
+    # Engagement (per-campaign + per-post) are populated for the demo (not empty).
     _seed_social(db, agent1.id, {
         "Galway launch post": comp1.id,
         "Cliffs of Moher feature": comp_cliffs.id,
@@ -363,12 +377,26 @@ def seed_demo(db: Session) -> dict[str, int]:
         agent2.id,
         primary_color="#1F3A5F",
         accent_color="#E06A63",
+        heading_font="serif",
+        body_font="sans",
         contact_name="Sam Doyle",
         contact_email="sam@citybreaks.example",
         website="citybreaks.example",
     )
     _collection(
         db, agent2.id, "City breaks", [by_title["Dublin Lights"], by_title["Titanic Quarter"]]
+    )
+    _collection(
+        db,
+        agent2.id,
+        "Winter escapes",
+        [by_title["Dublin Lights"], by_title["Autumn Escapes"]],
+    )
+    _collection(
+        db,
+        agent2.id,
+        "Heritage & harbours",
+        [by_title["Titanic Quarter"], by_title["Cliffs of Moher"]],
     )
     _composition(db, agent2.id, "Dublin teaser", [by_title["Dublin Lights"]])
 

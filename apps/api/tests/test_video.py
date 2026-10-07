@@ -16,11 +16,13 @@ from app.media.video import (
     SCENE_SECONDS,
     _filter,
     _supports_drawtext,
+    build_frames_clip_cmd,
     build_scene_cmd,
     build_scene_script,
     clamp_duration,
     escape_drawtext,
     render_video,
+    render_video_frames,
 )
 from app.models.catalog import Asset, CatalogEntry, CatalogType, EntryStatus
 
@@ -453,3 +455,110 @@ def test_render_degrades_without_drawtext(tmp_path, monkeypatch):
     # No drawtext anywhere (overlay dropped); captions still live in the sidecar SRT.
     assert not any("drawtext=" in part for c in calls for part in c)
     assert (tmp_path / "captions.srt").exists()
+
+
+def _jpeg_data_url() -> str:
+    import base64
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (30, 60, 120)).save(buf, "JPEG")
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def test_build_frames_clip_cmd_structure():
+    cmd = build_frames_clip_cmd("/frames/frame%05d.jpg", 20, "/out.mp4")
+    assert "-framerate" in cmd and "20" in cmd
+    assert "/frames/frame%05d.jpg" in cmd
+    vf = cmd[cmd.index("-vf") + 1]
+    assert "trunc(iw/2)*2" in vf  # even dims for yuv420p
+    assert "libx264" in cmd and "-shortest" in cmd and cmd[-1] == "/out.mp4"
+
+
+def test_render_video_frames_sequences_and_stitches(tmp_path):
+    scenes = build_scene_script(ITEMS)  # two scenes
+    dirs = []
+    for i in range(2):
+        d = tmp_path / f"s{i}"
+        d.mkdir()
+        dirs.append(str(d))
+    calls: list[list[str]] = []
+    out = render_video_frames(
+        scenes,
+        dirs,
+        fps=20,
+        tts=False,
+        runner=lambda c, **k: calls.append(list(c)),
+        which={"ffmpeg": "/x/ffmpeg"}.get,
+    )
+    clip_cmds = [c for c in calls if c[0] == "ffmpeg" and "-framerate" in c]
+    assert len(clip_cmds) == 2  # one image-sequence clip per scene
+    assert any("frame%05d.jpg" in " ".join(c) for c in clip_cmds)
+    assert calls[-1][-1] == out  # final stitch writes the video
+
+
+def test_video_frames_route(client, agent_headers, provider_headers, monkeypatch):
+    def _fake_frames(scenes, dirs, fps=20, tts=False, cues=None):
+        return _fake(scenes)
+
+    monkeypatch.setattr(render_mod, "encode_frames", _fake_frames)
+    body = {
+        "fps": 20,
+        "scenes": [
+            {
+                "title": "A",
+                "caption": "a",
+                "duration_ms": 2000,
+                "transition": "fade",
+                "frames": [_jpeg_data_url(), _jpeg_data_url()],
+            }
+        ],
+    }
+    assert client.post("/render/video-frames", json=body).status_code in (401, 403)
+    assert (
+        client.post("/render/video-frames", headers=provider_headers, json=body).status_code == 403
+    )
+    resp = client.post("/render/video-frames", headers=agent_headers, json=body)
+    assert resp.status_code == 200 and resp.headers["content-type"] == "video/mp4"
+
+    # A non-data: frame (never a network URL) is rejected rather than fetched.
+    bad = {
+        "fps": 20,
+        "scenes": [{"duration_ms": 1000, "transition": "none", "frames": ["http://x/a.jpg"]}],
+    }
+    assert client.post("/render/video-frames", headers=agent_headers, json=bad).status_code == 503
+
+
+def test_scene_script_uses_explicit_narration():
+    scenes = build_scene_script(
+        [
+            {"title": "T", "description": "C", "narration": "A custom voiceover line."},
+            {"title": "U", "description": ""},
+        ]
+    )
+    assert scenes[0].narration == "A custom voiceover line."  # explicit script wins
+    assert scenes[1].narration == "U"  # falls back to title when no script/caption
+
+
+def test_render_frames_lays_cued_narration(tmp_path):
+    # Each narration cue is spoken (TTS) and placed at its offset via adelay + amix.
+    scenes = build_scene_script(
+        [{"title": "A", "description": "a", "duration_ms": 4000, "transition": "none"}]
+    )
+    d = tmp_path / "s0"
+    d.mkdir()
+    calls: list[list[str]] = []
+    render_video_frames(
+        scenes,
+        [str(d)],
+        fps=20,
+        tts=True,
+        cues=[[{"at_ms": 0, "text": "Hello"}, {"at_ms": 2000, "text": "the harbour"}]],
+        runner=lambda c, **k: calls.append(list(c)),
+        which={"ffmpeg": "/x/ffmpeg", "say": "/x/say"}.get,
+    )
+    assert sum(1 for c in calls if c[0] == "say") == 2  # one TTS clip per cue
+    mix = [c for c in calls if "-filter_complex" in c]
+    assert any("adelay=" in " ".join(c) and "amix=" in " ".join(c) for c in mix)
