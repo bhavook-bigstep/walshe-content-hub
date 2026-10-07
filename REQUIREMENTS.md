@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.52.0 |
+| **Version** | 2.53.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -634,13 +634,18 @@ extraction, LLM tool-call insert, and a notification bell. All prior ACs stay gr
 
 - **AC87** — **One-click brand kit in the studio.** The brand kit gains **typography** (a heading
   and body font key, editable on the Brand-kit page, seeded per agent), and the Design Studio gets
-  an **Apply brand kit** button that, in one click, applies the kit's aesthetics across the whole
-  design: every scene takes a soft brand-accent background, headings take the primary colour + the
-  brand heading font, body text takes a readable ink + the brand body font, shapes take a brand
-  fill, and the logo + contact block are injected on the first scene. Pure/deterministic (same kit
-  → same design) so preview == export, and idempotent on re-apply. Proof: web (`applyBrandKit`
-  recolours headings/body/shapes, sets the brand fonts + tinted background, injects a brand-styled
-  contact block, and is deterministic + idempotent; `hexMix` blends the tint).
+  an **Apply brand kit** button that, in one click, brands the whole design: a **logo watermark on
+  every scene** and a **designed closing "Contact" scene** (logo centred, a name heading, an accent
+  divider, the email, and the website as a highlighted link, with text colour chosen for contrast
+  on the brand-primary card). A **"Recolour scenes to brand"** toggle controls the palette/font pass
+  independently: when on (default) each content scene takes a soft brand-accent background, primary
+  headings in the heading font, inked body in the body font and brand-filled shapes; when off the
+  template keeps its own colours while the logo + contact scene still apply. Pure/deterministic
+  (same kit + options → same design) so preview == export, and idempotent on re-apply (watermarks +
+  contact scene are replaced, never stacked). Proof: web (`applyBrandKit` recolours
+  headings/body/shapes + tinted background, places a per-scene logo watermark, appends the contact
+  scene with email + website link, honours `colors:false`, and is deterministic + idempotent;
+  `hexMix` blends the tint).
 
 - **AC88** — **A modern template gallery across sizes + orientations.** The studio adds **five new
   formats** beyond square/story/pamphlet — **Portrait post** (1080×1350), **Presentation**
@@ -759,6 +764,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 | 2.8.0 | 2026-10-04 | **Sound agentic architecture, increment 1** (charter `docs/plans/2026-10-04-sound-agentic-architecture-charter.md`): added **AC41–AC42** — a structured **Creative Plan IR** (Brief→Plan→Copy→Visual→Validate) as the contract between agent/generators/validators, built only from visible+approved items (asset selection, no generative imagery), and **claim-grounding validation** (every claim traces to an approved source field; the validator enforces it, not the prompt). Knowledge-domains+pgvector RAG and observability are later increments. All prior ACs stay green. | user + Claude |
 | 2.9.0 | 2026-10-04 | **Sound agentic architecture, increment 2** (same charter): added **AC43–AC44** — **knowledge domains + query classifier** (product/asset/brand/marketing, tenant/permission-scoped, `GET /knowledge`) and **hybrid semantic retrieval + rerank** behind one `RetrievalBackend` (real **pgvector** on Postgres + deterministic in-Python cosine fallback for SQLite/hermetic tests; embeddings via the AC16 gateway). Observability + LangSmith is the next increment. All prior ACs stay green. | user + Claude |
 | 2.10.0 | 2026-10-05 | **Sound agentic architecture, increment 3** (same charter): added **AC45** — **agent-run tracing** (content-free in-app `AgentRun` trace per assistant/plan/knowledge run, admin-viewable at `GET /traces`) + **LangSmith** export of the LangGraph loop/creative plan/provider calls, env-gated and off by default (no key → no egress; hermetic tests + demo unaffected). All prior ACs stay green. | user + Claude |
+| 2.53.0 | 2026-10-07 | **Refined brand apply** (reworked **AC87** on ⏸G feedback): Apply brand kit now places a **logo watermark on every scene** (was scene 1 only) and appends a **designed closing "Contact" scene** (centred logo, name heading, accent divider, email, website as a highlighted link, contrast-aware text on the brand-primary card) — so every workspace gains a polished last page with the agent's contact + website. Added a **"Recolour scenes to brand"** toggle: off keeps the template's own colours/fonts while still applying the logo + contact scene (`applyBrandKit(design, brand, { colors })`). Pure/deterministic + idempotent (watermarks + contact scene replaced, never stacked). Same cycle shipped **full video media** (local upload, live canvas render, scene-synced export composite with a per-clip in-point) — refines AC47/AC79/AC80/AC92, no new AC. All prior ACs stay green. | user + Claude |
 | 2.52.0 | 2026-10-07 | **Media placeholder (image+video) · sprite loop/speed · seed-from-folder · template placeholders** (reworked **AC91**; added **AC93**, **AC94**, **AC95**): the placeholder is now a transparent dashed subtle-grey "Add media" frame that fills from the drawer with an image (objectKey) or a video (poster + videoKey; the drawer surfaces video assets). The Inspector gains a sprite **Loop** toggle + **Speed (fps)** slider (`frameIndexAt` honours `loopFrames`/`fps`). Seeding prefers real images dropped in `seed-assets/catalog/<slug>/…` (committed README + MANIFEST guide); `SEED_ASSETS_DIR` overrides. Every photo-led template now uses the media-placeholder item instead of a box + hint. All prior ACs stay green. | user + Claude |
 | 2.51.0 | 2026-10-07 | **Fix video export of multi-scene designs** (refines AC47/AC79/AC80): a multi-scene render (e.g. the Destination Reel template) posts ~12 MB of WYSIWYG frames to `/render/video-frames`; the dev same-origin `/api` **rewrite proxy dropped the large body** and returned 500 ("Video rendering unavailable") before it reached the API — the backend + ffmpeg render the exact payload fine (verified by a direct POST → valid MP4). Added a streaming proxy route handler (`app/api/render/video-frames/route.ts`) that forwards the full body with no size cap (inert in prod/e2e, which use an absolute API URL). No AC/test change. | user + Claude |
 | 2.50.0 | 2026-10-07 | **Animated video templates** (added **AC92**): the gallery leads with three multi-scene animated video templates (Destination Reel ▶, Social Promo ▶, Event Teaser ▶) showcasing the whole studio — frame sprites referenced by id (`resolveSprites` expands id→filmstrip on load), sprite motion via keyframes on top of the frame animation, text entry+exit animation, image-placeholder heroes, abstract shapes, transitions and per-scene narration — so they export as narrated animated MP4s. All prior ACs stay green. | user + Claude |
