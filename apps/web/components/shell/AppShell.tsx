@@ -206,7 +206,7 @@ function SidebarInner({
             <img src="/brand/voyago-icon.png" alt="Voyago" className="h-7 w-7 object-contain" />
           </Link>
         ) : (
-          <Logo onClick={onNavigate} />
+          <Logo className="h-12" onClick={onNavigate} />
         )}
       </div>
       <nav aria-label="Primary" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
