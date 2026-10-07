@@ -12,6 +12,9 @@ import {
   type LayerMove,
 } from "../../lib/studio/ops";
 import { inlineDesignImages } from "../../lib/studio/inline-images";
+import { prepareForExport } from "../../lib/studio/export-prep";
+import { rasterizeSvgSources } from "../../lib/studio/rasterize-svg";
+import { resolveSprites } from "../../lib/studio/graphics";
 import { renderDesignToPng } from "../../lib/studio/render";
 import { FORMAT_NAMES, FORMAT_PRESETS, type FormatName } from "../../lib/studio/formats";
 import Spinner from "../ui/Spinner";
@@ -154,10 +157,14 @@ export default function StudioMenuBar(props: Props) {
         const href = await renderDesignToPng(design, sceneIndex);
         triggerDownload(href, filenameFor(design.format, "png", page));
       } else if (kind === "pdf") {
-        // Inline photos to data: URLs so the server-side PDF embeds the real images.
-        const blob = await renderPdf(scenesAsPages(await inlineDesignImages(design)));
+        // Normalise for a still export (drop placeholders, sprites → frame 0), rasterise inline SVGs
+        // to PNG + inline photos to data: URLs, so the server-side PDF embeds real bitmaps (never a
+        // neutral box for a sprite/placeholder/sticker).
+        const prepped = await rasterizeSvgSources(prepareForExport(resolveSprites(design)));
+        const blob = await renderPdf(scenesAsPages(await inlineDesignImages(prepped)));
         triggerBlob(blob, filenameFor(design.format, "pdf"));
       } else {
+        // Email HTML emits only text nodes, so image prep isn't needed here.
         const html = await renderEmailHtml(scenesAsPages(design));
         triggerBlob(new Blob([html], { type: "text/html" }), filenameFor(design.format, "html"));
       }

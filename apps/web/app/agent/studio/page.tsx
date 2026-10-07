@@ -75,6 +75,13 @@ import {
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
 import GroupPanel from "../../../components/studio/GroupPanel";
+import BuilderDemoOverlay, { type DemoCursor } from "../../../components/studio/BuilderDemoOverlay";
+import {
+  runBuilderDemo,
+  type DemoController,
+  type DemoItem,
+  type ScenePoint,
+} from "../../../lib/studio/builder-demo";
 
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
@@ -188,6 +195,11 @@ function StudioEditor() {
   const [brandColors, setBrandColors] = useState(true);
   // Whether a scene is selected (clicking the empty workspace deselects → hides the scene controls).
   const [sceneSelected, setSceneSelected] = useState(true);
+  // Scripted AI-Builder demo: an "agent" that builds an animated reel live from the collection.
+  const [demoRunning, setDemoRunning] = useState(false);
+  const [demoThinking, setDemoThinking] = useState<string | null>(null);
+  const [demoCursor, setDemoCursor] = useState<DemoCursor | null>(null);
+  const demoCancelRef = useRef(false);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
@@ -751,6 +763,216 @@ function StudioEditor() {
   // Cancel any running animation frame on unmount.
   useEffect(() => stopRaf, [stopRaf]);
 
+  // ── Scripted AI-Builder demo ───────────────────────────────────────────────────────────────────
+  // Refs give the async director the latest live state across its many awaits (it also writes
+  // designRef itself so sequential ops compose before React re-renders).
+  const designRef = useRef(design);
+  designRef.current = design;
+  const sceneRectRef = useRef(sceneRect);
+  sceneRectRef.current = sceneRect;
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
+  const panelItemsRef = useRef(panelItems);
+  panelItemsRef.current = panelItems;
+  // The collection group the demo "adds" to the drawer (built from the resolved items at run time).
+  const demoCollectionRef = useRef<MediaGroup | null>(null);
+
+  const reduceMotion =
+    typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const demoWait = (ms: number) =>
+    new Promise<void>((resolve) => {
+      if (demoCancelRef.current) return resolve();
+      setTimeout(resolve, reduceMotion ? Math.min(ms, 30) : ms);
+    });
+
+  // Map a scene-local point on the active scene to studio-container pixels (positions the AI cursor).
+  function scenePointToPx(p: ScenePoint): { left: number; top: number } | null {
+    const r = sceneRectRef.current;
+    const d = designRef.current;
+    if (!r || !d.width || !d.height) return null;
+    return { left: r.left + (p.x / d.width) * r.width, top: r.top + (p.y / d.height) * r.height };
+  }
+
+  // Build the controller the scripted agent drives — the mechanism by which "the AI" operates the
+  // canvas (move cursor, add/animate a node, type copy, switch scene, play the preview).
+  function makeDemoController(): DemoController {
+    return {
+      cancelled: () => demoCancelRef.current,
+      wait: demoWait,
+      fit: () => controlsRef.current?.fit(),
+      async think(text) {
+        setDemoThinking("");
+        for (let i = 1; i <= text.length && !demoCancelRef.current; i++) {
+          setDemoThinking(text.slice(0, i));
+          await demoWait(14);
+        }
+        setDemoThinking(text);
+        await demoWait(650);
+      },
+      async moveTo(point) {
+        if (!point) {
+          setDemoCursor(null);
+          return;
+        }
+        const px = scenePointToPx(point);
+        if (px) {
+          setDemoCursor({ ...px });
+          await demoWait(520); // let the cursor glide
+        }
+      },
+      async goToScene(index) {
+        setSceneIndex(index);
+        setSceneSelected(true);
+        await demoWait(360); // let the canvas reframe + report the new scene rect
+      },
+      async addNode(sceneIndex, mutate) {
+        const before = new Set((designRef.current.scenes[sceneIndex]?.nodes ?? []).map((n) => n.id));
+        const next = mutate(designRef.current);
+        designRef.current = next;
+        setDesign(next);
+        setDemoCursor((c) => (c ? { ...c, pressing: true } : c));
+        await demoWait(180);
+        setDemoCursor((c) => (c ? { ...c, pressing: false } : c));
+        return next.scenes[sceneIndex]?.nodes.find((n) => !before.has(n.id))?.id ?? null;
+      },
+      async update(mutate) {
+        const next = mutate(designRef.current);
+        designRef.current = next;
+        setDesign(next);
+        await demoWait(140);
+      },
+      async typeText(sceneIndex, nodeId, full) {
+        for (let i = 1; i <= full.length && !demoCancelRef.current; i++) {
+          const next = editText(designRef.current, sceneIndex, nodeId, full.slice(0, i));
+          designRef.current = next;
+          setDesign(next);
+          await demoWait(34);
+        }
+        const done = editText(designRef.current, sceneIndex, nodeId, full);
+        designRef.current = done;
+        setDesign(done);
+      },
+      async select(sceneIndex, nodeId) {
+        if (nodeId === null) {
+          setSelected(null);
+          setSelectedIds([]);
+          setSelectedScene(null);
+          return;
+        }
+        setSelectedScene(sceneIndex);
+        setSelectedIds([nodeId]);
+        setSelected({ scene: sceneIndex, nodeId });
+        await demoWait(200);
+      },
+      async play() {
+        if (playingRef.current) return;
+        playStartRef.current = { wall: performance.now(), base: 0 };
+        setPlayhead(0);
+        setPlaying(true);
+        playLoop();
+        await demoWait(100);
+      },
+      async cursorTo(px) {
+        setDemoCursor(px ? { ...px } : null);
+        await demoWait(px ? 520 : 150);
+      },
+      async openDrawer() {
+        setDrawerOpen(true);
+        await demoWait(450);
+      },
+      async closeDrawer() {
+        setDrawerOpen(false);
+        await demoWait(400);
+      },
+      async showCollection() {
+        const group = demoCollectionRef.current;
+        if (group) setGallery([group]);
+        setDemoCursor((c) => (c ? { ...c, pressing: true } : c));
+        await demoWait(260);
+        setDemoCursor((c) => (c ? { ...c, pressing: false } : c));
+      },
+      closeAll() {
+        setDrawerOpen(false);
+        setMediaOpen(false);
+        setAddCollectionOpen(false);
+      },
+    };
+  }
+
+  // The hook the AI Builder's "Generate design" calls — runs the scripted demo regardless of input.
+  async function runBuilderDemoFlow() {
+    if (demoRunning) return;
+    demoCancelRef.current = false;
+    setDemoRunning(true);
+    // Stop any preview and start from a clean square artboard, so the agent builds from scratch.
+    setPlaying(false);
+    stopRaf();
+    const fresh = newDesign("social");
+    designRef.current = fresh;
+    setDesign(fresh);
+    setSceneIndex(0);
+    setSceneSelected(true);
+    setSelected(null);
+    setSelectedIds([]);
+    setSelectedScene(null);
+    await demoWait(450);
+    controlsRef.current?.fit();
+    // The media the agent builds with: prefer the open collection's items (already resolved with
+    // imagery); otherwise connect a seeded collection and pull its entry images in, so the reel uses
+    // real photos rather than text-only fallbacks.
+    let items: DemoItem[] = (panelItemsRef.current ?? []).map((i) => ({
+      id: Number(i.id),
+      title: i.title,
+      destination: i.destination,
+      description: i.description,
+      imageSrc: i.imageSrc,
+    }));
+    let collectionName: string | undefined;
+    if (!items.some((i) => i.imageSrc)) {
+      try {
+        const cols = await listCollections();
+        const chosen = cols.find((c) => (c.item_ids?.length ?? 0) > 0) ?? cols[0];
+        if (chosen) {
+          const resolved = await resolveCollection(chosen.id);
+          collectionName = resolved.name;
+          const panels = await Promise.all((resolved.items ?? []).map(toPanelItem));
+          items = panels.map((p) => ({
+            id: Number(p.id),
+            title: p.title,
+            destination: p.destination,
+            description: p.description,
+            imageSrc: p.imageSrc,
+          }));
+        }
+      } catch {
+        /* keep whatever items we have; the director falls back to sample content if empty */
+      }
+    }
+    // The group the demo "adds" to the drawer, built from the resolved items' imagery.
+    demoCollectionRef.current = collectionName
+      ? {
+          id: "demo-collection",
+          title: collectionName,
+          kind: "collection",
+          tiles: items
+            .filter((i) => i.imageSrc)
+            .map((i) => ({ key: `demo-${i.id}`, label: i.title, src: i.imageSrc!, catalogItemId: String(i.id) })),
+        }
+      : null;
+    try {
+      await runBuilderDemo(makeDemoController(), items, { collectionName });
+    } finally {
+      demoCollectionRef.current = null;
+      setDemoCursor(null);
+      setDemoThinking(null);
+      setDemoRunning(false);
+    }
+  }
+
+  function stopDemo() {
+    demoCancelRef.current = true;
+  }
+
   // One-click apply of the brand kit's aesthetics (palette · fonts · logo · contact). The kit is
   // fetched lazily on first click and cached, so no on-mount request races the canvas setup.
   const applyBrand = useCallback(async () => {
@@ -1036,13 +1258,20 @@ function StudioEditor() {
           <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
         </div>
 
-        {/* Bottom AI dock: AI Builder / Planner tabs. */}
+        {/* Bottom AI dock: AI Builder / Planner tabs. Starting the Builder plays the scripted demo. */}
         <StudioBottomDock
           design={design}
           sceneIndex={sceneIndex}
           onChange={setDesign}
           items={panelItems}
+          onDemoBuild={runBuilderDemoFlow}
+          demoRunning={demoRunning}
         />
+
+        {/* Scripted AI-Builder demo overlay: the AI cursor + streamed "thinking". */}
+        {demoRunning && (
+          <BuilderDemoOverlay cursor={demoCursor} thinking={demoThinking} onStop={stopDemo} />
+        )}
 
         {/* AC63 — a new project starts from a collection; prompt when opened without one. */}
         {!hasProject && (

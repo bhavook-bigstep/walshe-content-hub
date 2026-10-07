@@ -87,6 +87,8 @@ export default function BuilderPanel({
   items,
   onChange,
   generate = builderDesign,
+  onDemoBuild,
+  demoRunning = false,
 }: {
   design: DesignDoc;
   sceneIndex: number;
@@ -94,15 +96,28 @@ export default function BuilderPanel({
   items: BuilderCatalogItem[];
   onChange: (next: DesignDoc) => void;
   generate?: (body: DesignRequest) => Promise<Record<string, unknown>>;
+  /** Demo mode: when set, "Generate design" runs this scripted build (the prompt is optional). */
+  onDemoBuild?: (prompt: string) => void | Promise<void>;
+  demoRunning?: boolean;
 }) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const canRun = !loading && prompt.trim().length > 0 && items.length > 0;
+  // In demo mode the prompt + items are optional (the script falls back to sample content); otherwise
+  // a brief and at least one catalog item are required.
+  const canRun =
+    !loading && !demoRunning && (onDemoBuild ? true : prompt.trim().length > 0 && items.length > 0);
 
   async function run() {
+    // Demo mode: hand off to the scripted builder (the page owns the running UI + overlay).
+    if (onDemoBuild) {
+      setError(null);
+      setNotice(null);
+      await onDemoBuild(prompt.trim());
+      return;
+    }
     setLoading(true);
     setError(null);
     setNotice(null);
@@ -129,7 +144,9 @@ export default function BuilderPanel({
   return (
     <section className="flex flex-col gap-3" aria-label="Builder" aria-busy={loading}>
       <p className="text-small text-walshe-grey">
-        Describe what you want and the AI Builder drafts it from your selected catalog items.
+        {onDemoBuild
+          ? "Describe what you want, then watch the AI Builder compose an animated reel from your collection — live on the canvas."
+          : "Describe what you want and the AI Builder drafts it from your selected catalog items."}
       </p>
       <label className="block">
         <span className="label">Design brief</span>
@@ -144,14 +161,18 @@ export default function BuilderPanel({
         />
       </label>
       {items.length === 0 ? (
-        <p className="text-small text-walshe-grey">Select at least one catalog item for the Builder to use.</p>
+        <p className="text-small text-walshe-grey">
+          {onDemoBuild
+            ? "No collection open — the Builder will use sample destinations. Open a project from a collection for your own imagery."
+            : "Select at least one catalog item for the Builder to use."}
+        </p>
       ) : (
         <p className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-walshe-teal px-3 py-1 text-small font-semibold text-white">
           {items.length} catalog item{items.length === 1 ? "" : "s"} selected
         </p>
       )}
       <button type="button" className="btn-primary self-start" disabled={!canRun} onClick={() => void run()}>
-        {loading ? "Generating…" : "Generate design"}
+        {demoRunning ? "Building…" : loading ? "Generating…" : "Generate design"}
       </button>
       {notice && <p role="status" className="text-small text-walshe-mint">{notice}</p>}
       {error && <p role="alert" className="text-small text-walshe-danger">{error}</p>}
