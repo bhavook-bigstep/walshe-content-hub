@@ -181,10 +181,12 @@ def content_performance(
         TrendPoint(date=day, reach=trend_reach[day], engagements=trend_eng.get(day, 0))
         for day in sorted(trend_reach)
     ]
+    # Totals count each post once (summing the per-entry rows would double-count a composition that
+    # uses several of this provider's entries), keeping the KPIs consistent with the trend's end.
     return PerformanceOut(
         total_uses=sum(r.uses for r in rows),
-        total_reach=sum(r.reach for r in rows),
-        total_engagements=sum(r.engagements for r in rows),
+        total_reach=sum(reach_by_post.get(pid, 0) for pid in relevant_posts),
+        total_engagements=sum(eng_by_post.get(pid, 0) for pid in relevant_posts),
         rows=rows,
         trend=trend,
     )
