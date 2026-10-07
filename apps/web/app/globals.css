@@ -277,10 +277,11 @@
   :root[data-theme="light"] .theme-light-only { display: block; }
   :root[data-theme="dark"] .theme-dark-only { display: block; }
 
-  /* The scroll-scrubbed plane transition is motion; reduced-motion viewers skip it entirely so the
-     hero leads straight into the first section (no long empty scroll). */
+  /* The scroll-scrubbed plane hero wipe is motion; reduced-motion viewers get a static hero (the
+     section collapses to its pinned height and the plane/white sheet are hidden). */
   @media (prefers-reduced-motion: reduce) {
-    .plane-transition { display: none; }
+    .hero-flight { height: auto; }
+    .hero-flight .hero-fx { display: none; }
   }
 
   @media (prefers-reduced-motion: no-preference) {
