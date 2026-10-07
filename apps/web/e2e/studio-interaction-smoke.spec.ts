@@ -74,13 +74,21 @@ test("selecting an entity and pressing Delete removes it", async ({ page }) => {
   expect(sx).toBeGreaterThan(box.x);
   expect(sx).toBeLessThan(box.x + box.width); // the computed point is on the canvas
 
-  await page.mouse.click(sx, sy); // select the entity under the pointer
+  // Select the entity, retrying the click until the selection actually registers — the Inspector
+  // ("Edit element") only appears for a selected element. A single click can race the canvas render
+  // and silently miss, leaving Delete a no-op; that intermittently flaked this smoke test on busy CI
+  // runners. Retrying the click until the Inspector shows makes selection deterministic.
+  const inspector = page.getByRole("heading", { name: "Edit element" });
+  await expect(async () => {
+    await page.mouse.click(sx, sy);
+    await expect(inspector).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+
   await page.keyboard.press("Delete");
-  // Longer poll window: under CI load the canvas rebuild after a delete can take >5s, which flaked
-  // this smoke test on a busy runner (it passes locally and on a quiet runner).
   await expect
     .poll(async () => Number(await canvas.getAttribute("data-entities")), { timeout: 15000 })
     .toBe(before - 1);
+  await expect(inspector).toBeHidden(); // the only element is gone → the Inspector closes
 
   // With nothing selected, Delete is a no-op (guards the empty-selection branch).
   await page.keyboard.press("Delete");
