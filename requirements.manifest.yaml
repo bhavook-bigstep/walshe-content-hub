@@ -488,3 +488,9 @@ acceptance:
       - "apps/api/tests/test_social.py::test_approve_publishes_via_simulated_connector"
       - "apps/api/tests/test_social.py::test_reject_sets_rejected_with_note"
       - "apps/api/tests/test_social.py::test_cannot_approve_a_non_pending_post"
+  AC81:
+    tier: P3
+    api:
+      - "apps/api/tests/test_engagement.py::test_rows_carry_project_and_campaign_names"
+    web:
+      - "apps/web/tests/engagement-dashboard.test.ts::byPlatform and byCampaign roll up the latest snapshot per post, sorted by reach"

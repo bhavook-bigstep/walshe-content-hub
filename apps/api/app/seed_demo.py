@@ -219,74 +219,75 @@ def _composition(db: Session, agent_id: int, name: str, item_ids: list[int]) -> 
     return c
 
 
-# (caption, days-ago it published, metrics) for the demo's published posts — realistic Instagram
-# numbers so the Engagement dashboard + Home tiles read like a live account (metric keys match the
-# registry in app/social/metrics.py).
-_PUBLISHED = [
-    (
-        "Cliffs of Moher at golden hour. #WildAtlanticWay #VisitIreland",
-        18,
-        {"reach": 2412, "views": 3188, "likes": 182, "comments": 14, "saved": 39,
-         "shares": 11, "total_interactions": 246},
-    ),
-    (
-        "Seven days, one epic coast — the Wild Atlantic Way. #Ireland #TravelTrade",
-        9,
-        {"reach": 1536, "views": 2044, "likes": 121, "comments": 8, "saved": 27,
-         "shares": 6, "total_interactions": 162},
-    ),
-]
+def _metrics(reach: int) -> dict[str, int]:
+    """Realistic Instagram-shaped metrics derived from a reach value (keys match the registry in
+    app/social/metrics.py), so the Engagement dashboard + breakdowns read like a live account."""
+    return {
+        "reach": reach,
+        "views": int(reach * 1.3),
+        "likes": int(reach * 0.08),
+        "comments": max(1, int(reach * 0.006)),
+        "saved": int(reach * 0.017),
+        "shares": max(1, int(reach * 0.005)),
+        "total_interactions": int(reach * 0.102),
+    }
 
 
-def _seed_social(db: Session, agent_id: int, composition_id: int, now: datetime) -> None:
-    """A demo campaign with published posts + engagement, so the Campaigns / Engagement / Home
-    screens are populated. Idempotent: skipped once the agent already has a campaign."""
+def _seed_social(db: Session, agent_id: int, comps: dict[str, int], now: datetime) -> None:
+    """Several demo campaigns with posts across platforms + engagement, plus a couple of standalone
+    posts, so Campaigns / Social / Engagement (per-campaign + per-platform + per-post) are
+    populated. Idempotent: skipped once the agent already has a campaign."""
     if db.execute(select(Campaign).where(Campaign.agent_id == agent_id)).first() is not None:
         return
-    campaign = Campaign(
-        agent_id=agent_id,
-        name="Autumn on the Wild Atlantic",
-        destination="Ireland",
-        starts_on=(now - timedelta(days=20)).date(),
-        ends_on=(now + timedelta(days=25)).date(),
-        status=CampaignStatus.active,
-        created_at=now - timedelta(days=20),
-    )
-    db.add(campaign)
-    db.flush()
 
-    for idx, (caption, days_ago, metrics) in enumerate(_PUBLISHED):
-        when = now - timedelta(days=days_ago)
+    def campaign(name: str, dest: str, start_days: int, end_days: int) -> int:
+        c = Campaign(
+            agent_id=agent_id, name=name, destination=dest,
+            starts_on=(now + timedelta(days=start_days)).date(),
+            ends_on=(now + timedelta(days=end_days)).date(),
+            status=CampaignStatus.active, created_at=now + timedelta(days=start_days),
+        )
+        db.add(c)
+        db.flush()
+        return c.id
+
+    c_autumn = campaign("Autumn on the Wild Atlantic", "Ireland", -20, 25)
+    c_city = campaign("City Breaks Winter", "Dublin & Belfast", -10, 40)
+    c_trade = campaign("Trade Spring Showcase", "Ireland", -30, 15)
+
+    # (campaign_id | None, project name, channel, caption, days-ago published | None, reach | None).
+    # days-ago/reach present → a published post with engagement; absent → a pending_approval post.
+    plan = [
+        (c_autumn, "Galway launch post", "instagram", "Cliffs of Moher at golden hour.", 18, 2412),
+        (c_autumn, "Cliffs of Moher feature", "instagram", "214m above the Atlantic.", 9, 1536),
+        (c_autumn, "Galway launch post", "facebook", "Galway harbour festival returns.", 12, 1980),
+        (c_city, "Dublin city lights", "facebook", "Dublin's winter light trail.", 6, 1340),
+        (c_city, "Dublin city lights", "x", "Winter in the capital.", 4, 880),
+        (c_trade, "Cliffs of Moher feature", "linkedin", "Trade-ready Wild Atlantic Way.", 25, 640),
+        (c_trade, "Galway launch post", "instagram", "Meet Irish suppliers this spring.", 20, 1120),
+        (c_autumn, "Dublin city lights", "instagram", "Coming soon to the campaign.", None, None),
+        (None, "Galway launch post", "x", "A quick standalone teaser.", None, None),
+        (None, "Cliffs of Moher feature", "instagram", "A simple published post.", 3, 760),
+    ]
+    for idx, (camp_id, comp_name, channel, caption, days_ago, reach) in enumerate(plan):
+        published = days_ago is not None
+        when = now - timedelta(days=days_ago) if published else now + timedelta(days=3)
         post = Post(
-            campaign_id=campaign.id,
-            composition_id=composition_id,
-            channel="instagram",
-            platform="instagram",
+            campaign_id=camp_id, composition_id=comps[comp_name], channel=channel, platform=channel,
             caption=caption,
-            status=PostStatus.published,
-            scheduled_at=when,
-            published_at=when,
-            external_id=f"stub-seed-{idx + 1}",
-            approved_by=agent_id,
-            reviewed_at=when,
+            status=PostStatus.published if published else PostStatus.pending_approval,
+            scheduled_at=when, published_at=when if published else None,
+            external_id=f"sim-{channel}-seed-{idx + 1}" if published else None,
+            approved_by=agent_id if published else None,
+            reviewed_at=when if published else None,
         )
         db.add(post)
         db.flush()
-        db.add(Engagement(post_id=post.id, platform="instagram", metrics=metrics,
-                          fetched_at=now - timedelta(hours=2)))
-        db.add(PostInsightsSync(post_id=post.id, last_synced_at=now - timedelta(hours=2),
-                                sync_status="ok"))
-
-    # One post still awaiting approval, so the approval lifecycle is visible on the calendar.
-    db.add(Post(
-        campaign_id=campaign.id,
-        composition_id=composition_id,
-        channel="instagram",
-        platform="instagram",
-        caption="Dublin Lights winter trail — launching soon. #Dublin #VisitIreland",
-        status=PostStatus.pending_approval,
-        scheduled_at=now + timedelta(days=3),
-    ))
+        if reach is not None:
+            db.add(Engagement(post_id=post.id, platform=channel, metrics=_metrics(reach),
+                              fetched_at=now - timedelta(hours=2)))
+            db.add(PostInsightsSync(post_id=post.id, last_synced_at=now - timedelta(hours=2),
+                                    sync_status="ok"))
     db.flush()
 
 
@@ -341,14 +342,20 @@ def seed_demo(db: Session) -> dict[str, int]:
         [by_title["Cliffs of Moher"], by_title["Wild Atlantic Way"]],
     )
     comp1 = _composition(
-        db,
-        agent1.id,
-        "Galway launch post",
+        db, agent1.id, "Galway launch post",
         [by_title["Harbour Festival"], by_title["Cliffs of Moher"]],
     )
-    # A live campaign with published posts + engagement so Campaigns / Social / Engagement / Home
-    # are populated for the demo (not empty).
-    _seed_social(db, agent1.id, comp1.id, now)
+    comp_cliffs = _composition(
+        db, agent1.id, "Cliffs of Moher feature", [by_title["Cliffs of Moher"]]
+    )
+    comp_dublin = _composition(db, agent1.id, "Dublin city lights", [by_title["Dublin Lights"]])
+    # Several live campaigns + posts across platforms + engagement so Campaigns / Social /
+    # Engagement (per-campaign + per-platform + per-post) are populated for the demo (not empty).
+    _seed_social(db, agent1.id, {
+        "Galway launch post": comp1.id,
+        "Cliffs of Moher feature": comp_cliffs.id,
+        "Dublin city lights": comp_dublin.id,
+    }, now)
 
     # Agent 2 (Sam): city-breaks focus, a brand kit, a collection + a draft project.
     _brand_kit(

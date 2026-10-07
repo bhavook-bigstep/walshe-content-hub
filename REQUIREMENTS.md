@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.32.0 |
+| **Version** | 2.33.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -578,12 +578,23 @@ Social approval gate (v2.32.0):
   published via the sim connector (schedule/approve/publish audited), reject → rejected with a note,
   and a non-pending post is a 409.
 
-**Priority tiers** (build order; acceptance reports honestly against all 80):
+Engagement performance views (v2.33.0):
+
+- **AC81** — **Performance breakdowns by project, platform, and campaign.** Each engagement row the
+  dashboard reads (`GET /engagement`, agent-scoped) is enriched with its **project/composition name**
+  and its **campaign** (id + name, null when the post has no campaign), so the agent reads a post by
+  its project name — not "Post #1" — and can roll performance up **per platform** and **per campaign**
+  (latest snapshot per post, summed within each group, strongest reach first). The campaigns calendar
+  gives **each campaign a distinct colour**. Proof: pytest asserts an engagement row carries its
+  `composition_name` and `campaign_name`; vitest asserts the per-platform / per-campaign roll-ups take
+  the latest snapshot per post and sort by reach.
+
+**Priority tiers** (build order; acceptance reports honestly against all 81):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · campaigns = AC77,78,79 · social-approval = AC80 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · campaigns = AC77,78,79 · social-approval = AC80 · performance = AC81 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -610,6 +621,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.33.0 | 2026-10-07 | **Engagement performance views** (user feedback): added **AC81** — `/engagement` rows now carry the **project/composition name** and **campaign** (id + name), so the dashboard reads posts by project name and rolls performance up **per platform** and **per campaign** (latest snapshot per post, summed, strongest reach first); the campaigns calendar colours each campaign distinctly. Expanded the demo seed (3 campaigns across FB/IG/X/LinkedIn with engagement + standalone project posts). All prior ACs stay green. | user + Claude |
 | 2.32.0 | 2026-10-07 | **Social send now goes through approval** (user feedback): added **AC80** — `/social/schedule` lands a post in `pending_approval` (no direct publish); the owning agent approves (→ publishes via the simulated connector) or rejects (with a reason), mirroring the campaign gate; posts are listed from the server (`GET /social/posts`, carrying the project name) so the list survives a refresh. Removed the direct `/social/publish` + `/social/unpublish`. All prior ACs stay green. | user + Claude |
 | 2.31.0 | 2026-10-07 | **Merge `origin/dev` into the campaign/Instagram branch + renumber.** Integrated dev's AC64–76 (Auto-Catalog agent, Auto-Catalog v2, Structured-Workspace renumber to AC75, conversational assistant, Studio redesign). The campaign increment (originally AC65–67 on this branch) is **renumbered to AC77 (campaign management), AC78 (self-approval gate), AC79 (live Instagram publish)** to resolve the AC-number collision with dev's Auto-Catalog ACs; the manifest, tests and code comments were updated to match, and the generated API types regenerated. Behaviour unchanged: approve = publish (one action), preflight + duplicate-guard + S3 hosting + receipt, missing-capture → 409, Graph error 200/10 mapped. All prior ACs stay green. | user + Claude |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |

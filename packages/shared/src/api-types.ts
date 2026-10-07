@@ -2276,6 +2276,12 @@ export interface components {
         DisplayStatus: "draft" | "in_review" | "approved" | "expiring_soon" | "expired" | "withdrawn";
         /** EngagementOut */
         EngagementOut: {
+            /** Campaign Id */
+            campaign_id?: number | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Composition Name */
+            composition_name?: string | null;
             /**
              * Fetched At
              * Format: date-time
