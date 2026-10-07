@@ -65,7 +65,10 @@ def test_media_team_and_performance(
 
     perf = client.get("/me/performance", headers=provider_headers)
     assert perf.status_code == 200
-    assert "rows" in perf.json() and "total_reach" in perf.json()
+    body = perf.json()
+    assert "rows" in body and "total_reach" in body and "total_engagements" in body
+    # Each row carries the engagement metric alongside uses/reach.
+    assert all("engagements" in row for row in body["rows"])
 
     # Provider workspace endpoints are provider-only.
     assert client.get("/me/media", headers=agent_headers).status_code == 403

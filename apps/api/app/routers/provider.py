@@ -119,30 +119,47 @@ def content_performance(
     # Reach per composition (via its published posts). Engagement is platform-tagged snapshots now,
     # so take the LATEST snapshot per post (reach, else views), not a sum.
     reach_by_post: dict[int, int] = {}
+    eng_by_post: dict[int, int] = {}
     eng_rows = db.execute(
         select(Engagement.post_id, Engagement.metrics).order_by(Engagement.fetched_at)
     ).all()
     for post_id, metrics in eng_rows:  # ascending fetched_at → last write wins = latest snapshot
         m = metrics or {}
         reach_by_post[post_id] = int(m.get("reach", m.get("views", 0)) or 0)
+        # Engagements: the platform's total_interactions if present, else the parts summed.
+        interactions = m.get("total_interactions")
+        if interactions is None:
+            parts = ("likes", "comments", "saved", "shares")
+            interactions = sum(int(m.get(k, 0) or 0) for k in parts)
+        eng_by_post[post_id] = int(interactions or 0)
     post_comp = dict(db.execute(select(Post.id, Post.composition_id)).all())
-    impressions_by_comp: dict[int, int] = {}
-    for post_id, reach in reach_by_post.items():
-        comp_id = post_comp.get(post_id)
-        if comp_id is not None:
-            impressions_by_comp[comp_id] = impressions_by_comp.get(comp_id, 0) + reach
+    reach_by_comp: dict[int, int] = {}
+    eng_by_comp: dict[int, int] = {}
+    for post_id, comp_id in post_comp.items():
+        if comp_id is None:
+            continue
+        reach_by_comp[comp_id] = reach_by_comp.get(comp_id, 0) + reach_by_post.get(post_id, 0)
+        eng_by_comp[comp_id] = eng_by_comp.get(comp_id, 0) + eng_by_post.get(post_id, 0)
 
     rows: list[PerformanceRow] = []
     for entry in entries:
         using = [c for c in comps if entry.id in (c.item_ids or [])]
-        reach = sum(impressions_by_comp.get(c.id, 0) for c in using)
+        reach = sum(reach_by_comp.get(c.id, 0) for c in using)
+        engagements = sum(eng_by_comp.get(c.id, 0) for c in using)
         rows.append(
-            PerformanceRow(entry_id=entry.id, title=entry.title, uses=len(using), reach=reach)
+            PerformanceRow(
+                entry_id=entry.id,
+                title=entry.title,
+                uses=len(using),
+                reach=reach,
+                engagements=engagements,
+            )
         )
 
-    rows.sort(key=lambda r: (r.reach, r.uses), reverse=True)
+    rows.sort(key=lambda r: (r.reach, r.engagements, r.uses), reverse=True)
     return PerformanceOut(
         total_uses=sum(r.uses for r in rows),
         total_reach=sum(r.reach for r in rows),
+        total_engagements=sum(r.engagements for r in rows),
         rows=rows,
     )

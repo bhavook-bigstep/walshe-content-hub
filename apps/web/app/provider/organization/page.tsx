@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import PageHeader from "../../../components/ui/PageHeader";
 import {
   ApiError,
   fetchAssetObjectUrl,
@@ -21,13 +20,15 @@ import {
 
 export default function ProviderOrganizationPage() {
   return (
-    <div className="h-full space-y-8 overflow-y-auto">
-      <PageHeader
-        title="Organization"
-      />
-      <OrgProfileCard />
-      <InviteAgentsCard />
-      <TeamCard />
+    <div className="space-y-6">
+      {/* Profile (the main form) leads on the left; invites + team stack on the right. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
+        <OrgProfileCard />
+        <div className="space-y-6">
+          <InviteAgentsCard />
+          <TeamCard />
+        </div>
+      </div>
     </div>
   );
 }
@@ -95,37 +96,47 @@ function OrgProfileCard() {
     }
   }
 
-  if (status === "loading") return <div className="card p-6 text-body text-walshe-grey">Loading…</div>;
+  if (status === "loading") return <div className="card h-64 animate-pulse bg-walshe-stone/60" aria-hidden />;
   if (status === "notfound")
     return <div className="card p-8 text-center text-walshe-grey">No organization linked to this account.</div>;
   if (status === "error")
     return <div className="card p-6"><p role="alert" className="text-small text-walshe-danger">Could not load your organization.</p></div>;
 
   return (
-    <form onSubmit={onSubmit} className="card space-y-5 p-6" aria-label="Organization profile" aria-busy={saving}>
-      {org && (
+    <form onSubmit={onSubmit} className="card space-y-6 p-6 sm:p-7" aria-label="Organization profile" aria-busy={saving}>
+      <div className="flex items-start justify-between gap-4">
         <div>
-          {org.verified ? <span className="chip-verified">Verified board</span> : <span className="chip-draft">Pending verification</span>}
+          <h2 className="text-h3 text-walshe-ink">Board profile</h2>
+          <p className="mt-1 text-small text-walshe-grey">How agents see your organization across the hub.</p>
         </div>
-      )}
+        {org && (
+          org.verified
+            ? <span className="chip-verified shrink-0">Verified board</span>
+            : <span className="chip-draft shrink-0">Pending verification</span>
+        )}
+      </div>
 
-      <div className="flex items-center gap-4">
+      {/* Logo */}
+      <div className="flex items-center gap-5 rounded-md border border-walshe-line bg-walshe-mist/50 p-4">
         {logoSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoSrc} className="h-16 w-16 rounded-sm object-cover" alt="Organization logo" />
+          <img src={logoSrc} className="h-20 w-20 flex-none rounded-md object-cover" alt="Organization logo" />
         ) : (
-          <div className="grid h-16 w-16 place-items-center rounded-sm bg-walshe-stone text-small text-walshe-grey">Logo</div>
+          <div className="grid h-20 w-20 flex-none place-items-center rounded-md border border-dashed border-walshe-line bg-walshe-stone text-[11px] font-medium text-walshe-grey">
+            Logo
+          </div>
         )}
-        <label className="block">
-          <span className="label">Logo (jpg, jpeg, png)</span>
+        <div className="min-w-0">
+          <span className="label">Logo</span>
           <input
             type="file"
             accept="image/png,image/jpeg"
             aria-label="Upload organization logo"
-            className="block text-small text-walshe-grey file:mr-3 file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-medium file:text-white"
+            className="mt-1 block w-full text-small text-walshe-grey file:mr-3 file:cursor-pointer file:rounded-pill file:border-0 file:bg-walshe-teal file:px-4 file:py-2 file:text-small file:font-semibold file:text-white"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void onLogo(f); }}
           />
-        </label>
+          <p className="mt-1.5 text-[12px] text-walshe-grey">JPG or PNG — a square image reads best.</p>
+        </div>
       </div>
 
       <label className="block">
@@ -134,21 +145,24 @@ function OrgProfileCard() {
       </label>
       <label className="block">
         <span className="label">Blurb</span>
-        <textarea value={blurb} onChange={(e) => setBlurb(e.target.value)} className="field-area" />
+        <textarea value={blurb} onChange={(e) => setBlurb(e.target.value)} className="field-area" rows={3} />
       </label>
       <label className="block">
         <span className="label">Markets</span>
         <input type="text" value={marketsText} onChange={(e) => setMarketsText(e.target.value)} className="field" placeholder="Australia, New Zealand, Fiji" />
+        <span className="mt-1.5 block text-[12px] text-walshe-grey">Comma-separated — the destinations you represent.</span>
       </label>
 
-      {error && <p role="alert" className="text-small font-medium text-walshe-danger">{error}</p>}
-      {saved && <p role="status" className="text-small font-medium text-walshe-green">Profile saved.</p>}
-      <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : "Save changes"}</button>
+      <div className="flex items-center gap-4 border-t border-walshe-line pt-5">
+        <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : "Save changes"}</button>
+        {error && <p role="alert" className="text-small font-medium text-walshe-danger">{error}</p>}
+        {saved && <p role="status" className="text-small font-medium text-walshe-green">Profile saved.</p>}
+      </div>
     </form>
   );
 }
 
-// --- Invite agents to private content (AC54), moved here from the Catalog page --------------------
+// --- Invite agents to private content (AC54) -----------------------------------------------------
 function InviteAgentsCard() {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [email, setEmail] = useState("");
@@ -173,13 +187,22 @@ function InviteAgentsCard() {
     }
   }
 
+  async function remove(id: number, label: string) {
+    setError(null);
+    try {
+      setCatalog(await uninviteAgent(id));
+    } catch {
+      setError(`Could not remove ${label}.`);
+    }
+  }
+
   return (
     <section className="card p-6" aria-label="Invited agents">
       <h2 className="text-h3 text-walshe-ink">Invited agents</h2>
       <p className="mt-1 text-small text-walshe-grey">
         Invite agents by email to see your catalog&rsquo;s <strong>private</strong> entries.
       </p>
-      <form onSubmit={add} className="mt-3 flex items-end gap-2">
+      <form onSubmit={add} className="mt-4 flex items-end gap-2">
         <label className="flex-1">
           <span className="label">Agent email</span>
           <input type="email" className="field h-11 w-full" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="agent@example.com" aria-label="Agent email" />
@@ -190,20 +213,29 @@ function InviteAgentsCard() {
       {invited.length > 0 ? (
         <ul className="mt-4 flex flex-wrap gap-2" aria-label="Invited agent list">
           {invited.map((a) => (
-            <li key={a.id} className="inline-flex items-center gap-2 rounded-pill bg-walshe-stone px-3 py-1 text-small text-walshe-ink">
+            <li key={a.id} className="inline-flex items-center gap-2 rounded-pill bg-walshe-stone py-1 pl-3 pr-1.5 text-small text-walshe-ink">
               {a.email}
-              <button type="button" aria-label={`Remove ${a.email}`} onClick={async () => setCatalog(await uninviteAgent(a.id))} className="text-walshe-grey hover:text-walshe-danger">✕</button>
+              <button
+                type="button"
+                aria-label={`Remove ${a.email}`}
+                onClick={() => void remove(a.id, a.email)}
+                className="grid h-5 w-5 place-items-center rounded-full text-walshe-grey transition-colors hover:bg-walshe-danger/15 hover:text-walshe-danger"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mt-4 text-small text-walshe-grey">No agents invited yet.</p>
+        <p className="mt-4 rounded-md border border-dashed border-walshe-line px-4 py-3 text-small text-walshe-grey">
+          No agents invited yet.
+        </p>
       )}
     </section>
   );
 }
 
-// --- Team (colleagues on the same org), moved here from the sidebar's Team page -------------------
+// --- Team (colleagues on the same org) -----------------------------------------------------------
 function TeamCard() {
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [email, setEmail] = useState("");
@@ -238,22 +270,28 @@ function TeamCard() {
 
       {team === null ? (
         <p className="mt-3 text-small text-walshe-grey">Loading…</p>
+      ) : team.length === 0 ? (
+        <p className="mt-4 rounded-md border border-dashed border-walshe-line px-4 py-3 text-small text-walshe-grey">
+          No colleagues yet.
+        </p>
       ) : (
-        <ul className="mt-3 divide-y divide-walshe-line" aria-label="Team members">
+        <ul className="mt-4 space-y-2" aria-label="Team members">
           {team.map((m) => (
-            <li key={m.id} className="flex items-center justify-between gap-3 py-2">
-              <span className="min-w-0">
+            <li key={m.id} className="flex items-center gap-3 rounded-md border border-walshe-line/70 p-2.5">
+              <span aria-hidden className="grid h-9 w-9 flex-none place-items-center rounded-full bg-walshe-teal/10 text-small font-bold text-walshe-teal">
+                {(m.display_name || m.email).trim().charAt(0).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1">
                 <span className="block truncate text-small font-medium text-walshe-ink">{m.display_name || m.email}</span>
                 <span className="block truncate text-[12px] text-walshe-grey">{m.email}</span>
               </span>
-              <span className={m.approved ? "chip-verified" : "chip-draft"}>{m.approved ? "Active" : "Pending"}</span>
+              <span className={m.approved ? "chip-verified shrink-0" : "chip-draft shrink-0"}>{m.approved ? "Active" : "Pending"}</span>
             </li>
           ))}
-          {team.length === 0 && <li className="py-2 text-small text-walshe-grey">No colleagues yet.</li>}
         </ul>
       )}
 
-      <form onSubmit={invite} className="mt-4 space-y-3 border-t border-walshe-line pt-4">
+      <form onSubmit={invite} className="mt-5 space-y-3 border-t border-walshe-line pt-5">
         <p className="label">Invite a colleague</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <input type="email" className="field h-11" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" aria-label="Colleague email" />

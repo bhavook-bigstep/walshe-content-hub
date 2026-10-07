@@ -2889,6 +2889,11 @@ export interface components {
         PerformanceOut: {
             /** Rows */
             rows: components["schemas"]["PerformanceRow"][];
+            /**
+             * Total Engagements
+             * @default 0
+             */
+            total_engagements: number;
             /** Total Reach */
             total_reach: number;
             /** Total Uses */
@@ -2896,6 +2901,11 @@ export interface components {
         };
         /** PerformanceRow */
         PerformanceRow: {
+            /**
+             * Engagements
+             * @default 0
+             */
+            engagements: number;
             /** Entry Id */
             entry_id: number;
             /** Reach */
