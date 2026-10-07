@@ -40,18 +40,6 @@ export default function ProviderHomePage() {
 
   return (
     <div className="space-y-8 pb-10">
-      {/* Welcome header */}
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="eyebrow">Provider workspace</p>
-          <h1 className="font-display mt-2 text-h1 font-semibold text-walshe-ink">Welcome back</h1>
-          <p className="mt-2 max-w-xl text-body text-walshe-grey">
-            Publish verified destination content and see how the trade puts it to work.
-          </p>
-        </div>
-        <Link href="/provider/catalog" className="btn-primary shrink-0">Open catalog</Link>
-      </header>
-
       {/* KPIs */}
       <section aria-label="Key figures" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading ? (
