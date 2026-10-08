@@ -15,6 +15,7 @@ export const SOCIAL_PLATFORMS: readonly SocialPlatform[] = [
   { key: "x", name: "X", blurb: "Short posts & threads" },
   { key: "tiktok", name: "TikTok", blurb: "Short-form video" },
   { key: "snapchat", name: "Snapchat", blurb: "Stories & Spotlight" },
+  { key: "youtube", name: "YouTube", blurb: "Videos & Shorts" },
 ];
 
 /** Platforms connected out of the box (only Instagram, mirroring the seed + real publish path). */

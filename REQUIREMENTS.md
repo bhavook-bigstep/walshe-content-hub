@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.61.0 |
+| **Version** | 2.62.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -794,11 +794,11 @@ Social organization page (v2.57.0):
 - **AC101** — **Social organization workspace.** The agent's Social page is an organization workspace
   with two tabs: **Posts** (the composer → pre-send check → approval → the unified posts list, AC99)
   and **Connected platforms** — a grid of the org's social accounts (**Instagram, Facebook, X,
-  TikTok, Snapchat**) with Connect / Connected state. In the PoC this is a **front-end illusion** (no
+  TikTok, Snapchat, YouTube**) with Connect / Connected state. In the PoC this is a **front-end illusion** (no
   OAuth / back-end): **Instagram starts connected** (the one real publish path), the rest offer
   **Connect**; the state is remembered per-browser, keyed by the organization (tenant) so org-mates
   share one view. The page's dropdowns use the app's custom **`Select`** (matching Studio/catalog),
-  not native selects. Proof: vitest asserts the platform catalogue (5 platforms, Instagram first) and
+  not native selects. Proof: vitest asserts the platform catalogue (6 platforms, Instagram first) and
   that only Instagram is connected by default, with a stored map merging over that default.
 
 **Priority tiers** (build order; acceptance reports honestly against all 101):
@@ -833,6 +833,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.62.0 | 2026-10-08 | **YouTube on Connected platforms** (user feedback, refines **AC101**): added **YouTube** to the org's Connected-platforms catalogue (6 platforms now; Instagram still the only one connected by default, YouTube offers **Connect** like FB/X/TikTok/Snapchat — still a front-end illusion, no OAuth). Shows YouTube's real brand tile (simple-icons glyph, `#FF0000`). All prior ACs stay green. | user + Claude |
 | 2.61.0 | 2026-10-07 | **Approve greenlights; posts on schedule** (user feedback, refines **AC99**): approving a social post no longer always publishes immediately — it **greenlights** the post, which then posts **at its scheduled time** (immediately if that time has passed or none is set, otherwise it waits in `approved` and the list publishes it when due — a PoC scheduler stand-in, no background worker). Renamed the buttons to just **"Approve"** (social + campaign). The Posts list is now **clickable** (inline detail) and shows **plain-word status** ("Posts in 2 days" / "Posted 3 hours ago" / "Awaiting approval · scheduled for …"), with a `chip-info` "Scheduled" state. Campaign (real-Instagram) posts still publish on the explicit Approve click — auto-firing real posts from a page load is deliberately out of scope for the PoC (needs a real scheduler). All prior ACs stay green. | user + Claude |
 | 2.60.0 | 2026-10-07 | **Campaign composer dropdowns** (user feedback): the campaign post composer's Project + Platform pickers now use the app's custom `Select` (matching Studio/catalog/social) instead of native system selects, and the composer `.card` gets `overflow-visible` so the menus aren't clipped. All prior ACs stay green. | user + Claude |
 | 2.59.0 | 2026-10-07 | **Social/Engagement polish** (user feedback, refines AC100/AC101): Connected-platform cards now show the real **brand logos** (accurate simple-icons glyphs on app-style tiles) instead of initials; fixed the Social composer **dropdowns clipping** (added `overflow-visible` to the `.card` form, same fix dev used for the catalog filter bar); and the Engagement **By platform / By campaign** roll-ups now render as **grouped bar charts** (reach + interactions, with the chart's built-in data-table toggle) instead of plain tables. All prior ACs stay green. | user + Claude |

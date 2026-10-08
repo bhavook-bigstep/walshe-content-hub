@@ -617,6 +617,6 @@ acceptance:
   AC101:
     tier: P3
     web:
-      - "apps/web/tests/social-platforms.test.ts::offers the five PoC platforms with Instagram first"
+      - "apps/web/tests/social-platforms.test.ts::offers the six PoC platforms with Instagram first"
       - "apps/web/tests/social-platforms.test.ts::only Instagram is connected by default"
       - "apps/web/tests/social-platforms.test.ts::a stored map merges over the defaults (Instagram stays unless turned off)"
