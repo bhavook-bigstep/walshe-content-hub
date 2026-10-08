@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.63.0 |
+| **Version** | 2.65.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -72,7 +72,8 @@ travel/aviation tone ("Premium brands, trusted outcomes"; 50 years in 2026).
 - **AC13** `[explicit]` — **Rudimentary video (MP4)**: from selected catalog images + a scene script, the API renders a video via the **demo-video mechanism** (ffmpeg zoompan + `drawtext` overlays + optional TTS voiceover/captions). Builder can auto-generate the scene script; Agent can edit scenes/text and re-render.
 
 ### Social media engagement layer
-- **AC14** `[explicit]` — Schedule / "publish" a design/post to a (simulated) connected social account.
+- **AC14** `[explicit]` — Schedule / publish a design/post to a connected social account. Instagram is
+  wired end-to-end (real publish, AC99); the deterministic connector remains the no-key stub/fallback.
 - **AC15** `[inferred]` — Engagement **dashboard** showing impressions/clicks/engagement for published posts (seeded/mock).
 
 ### Cross-cutting
@@ -760,23 +761,23 @@ AC96–AC98 on the studio-animation merge** to avoid the collision with the anim
 
 Social approval gate (v2.55.0):
 
-- **AC99** — **Social send goes through approval.** Scheduling a composition to a channel
-  (`POST /social/schedule`, preflight-gated per AC34) creates a post in **`pending_approval`** —
-  there is **no direct publish**. The owning agent **approves** it (`POST /social/posts/{id}/approve`,
-  PoC self-approval like AC97), which **greenlights** it and records the reviewer; the post then
-  **posts at its scheduled time** via the **simulated connector** (deterministic, no egress —
-  Contract 2/4): if the scheduled time has already arrived (or none was set) it posts immediately,
-  otherwise it waits in **`approved`** and is published when its time comes. With no background
-  worker, due `approved` posts are published **when the list is loaded** (`GET /social/posts`) — the
-  PoC's scheduler stand-in. **Reject** (`/reject`, with a reason) sends it back to `rejected`. The
-  agent's posts are listed from the server (agent-scoped, carrying the **project/composition name**)
-  so the list survives a page refresh; the list covers **both social- and campaign-scheduled posts**
-  (any post built from the agent's compositions) and sorts **pending-approval first** so the items
-  needing action lead. Proof: pytest asserts schedule → pending_approval, the list persists with the
-  composition name, pending posts sort ahead of a newer published post, approving a **future**-dated
-  post greenlights it (`approved`, not yet published) and loading the list after its time posts it,
-  approving a **past/undated** post posts immediately, approve audits schedule/approve/publish,
-  reject → rejected with a note, and a non-pending post is a 409.
+- **AC99** — **Social send goes through approval, then posts to Instagram for real.** Scheduling a
+  composition (`POST /social/schedule`, multipart, preflight-gated per AC34) **captures the
+  composition's rendered JPEG** and creates a post in **`pending_approval`** — there is **no direct
+  publish**. The owning agent **approves** it (`POST /social/posts/{id}/approve`, PoC self-approval
+  like AC97), which records the reviewer and **publishes the captured image to Instagram
+  immediately** through the **same shared path as Studio/campaigns** (`publish_post` — preflight,
+  duplicate guard, S3 hosting, the env-selected real/stub connector). The scheduled time is a
+  **planning label only** (no background worker, so approval posts now, not at a future time).
+  **Reject** (`/reject`, with a reason) sends it back to `rejected`. The agent's posts are listed
+  from the server (agent-scoped, carrying the **project/composition name**) so the list survives a
+  page refresh; the list covers **both social- and campaign-scheduled posts** (any post built from
+  the agent's compositions) and sorts **pending-approval first** so the items needing action lead.
+  Only **Instagram** is connectable (the one real publish path). Proof: pytest asserts schedule →
+  pending_approval, schedule without an image is a 422, the list persists with the composition name,
+  pending posts sort ahead of a newer published post, approve publishes via the **real** connector
+  (`stub-*` id in tests, never `sim-*`) auditing schedule/approve/publish, approve posts immediately
+  even for a future-dated post, reject → rejected with a note, and a non-pending post is a 409.
 
 Engagement performance views (v2.55.0):
 
@@ -794,11 +795,11 @@ Social organization page (v2.57.0):
 - **AC101** — **Social organization workspace.** The agent's Social page is an organization workspace
   with two tabs: **Posts** (the composer → pre-send check → approval → the unified posts list, AC99)
   and **Connected platforms** — a grid of the org's social accounts (**Instagram, Facebook, X,
-  TikTok, Snapchat, YouTube**) with Connect / Connected state. In the PoC this is a **front-end illusion** (no
+  TikTok, YouTube**) with Connect / Connected state. In the PoC this is a **front-end illusion** (no
   OAuth / back-end): **Instagram starts connected** (the one real publish path), the rest offer
   **Connect**; the state is remembered per-browser, keyed by the organization (tenant) so org-mates
   share one view. The page's dropdowns use the app's custom **`Select`** (matching Studio/catalog),
-  not native selects. Proof: vitest asserts the platform catalogue (6 platforms, Instagram first) and
+  not native selects. Proof: vitest asserts the platform catalogue (5 platforms, Instagram first) and
   that only Instagram is connected by default, with a stored map merging over that default.
 
 **Priority tiers** (build order; acceptance reports honestly against all 101):
@@ -833,6 +834,8 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.65.0 | 2026-10-08 | **Remove Snapchat from Connected platforms** (user feedback, refines **AC101**): the connectable set is now **5 platforms** (Instagram, Facebook, X, TikTok, YouTube) — Snapchat dropped from the catalogue, its brand tile removed, vitest updated. All prior ACs stay green. | user + Claude |
+| 2.64.0 | 2026-10-08 | **Social Posts tab publishes to Instagram for real** (user feedback, reworks **AC99**): the Social page is no longer the simulated layer — scheduling now **captures the composition's rendered JPEG** (client renders the design, uploads it multipart) and **Approve publishes it to Instagram immediately** through the **same shared path as Studio/campaigns** (`publish_post`: preflight, duplicate guard, S3 hosting, real/stub connector). Chosen behaviour (no background worker): approve posts now; the scheduled time is a planning label. Only Instagram is connectable. Dropped the sim-connector publish + the publish-due-on-load scheduler stand-in; removed the "(simulated)" wording. Social tests rewritten onto the real/stub path; API types regenerated (`/social/schedule` is now multipart, `ScheduleRequest` gone). All prior ACs stay green. | user + Claude |
 | 2.63.0 | 2026-10-08 | **Simulated posts no longer block a real publish** (bug fix, refines **AC98**): the real-publish duplicate guard treated the Social page's **simulated** publishes (`sim-*` ids, never sent to Instagram) as if the composition were already live, so after sim-publishing on the Social page the genuine Studio/campaign publish 409'd ("This composition is already published to Instagram"). The guard now counts only a **real** prior publish (non-`sim-*`, non-null external id); a real second publish of the same composition still 409s. All prior ACs stay green. | user + Claude |
 | 2.62.0 | 2026-10-08 | **YouTube on Connected platforms** (user feedback, refines **AC101**): added **YouTube** to the org's Connected-platforms catalogue (6 platforms now; Instagram still the only one connected by default, YouTube offers **Connect** like FB/X/TikTok/Snapchat — still a front-end illusion, no OAuth). Shows YouTube's real brand tile (simple-icons glyph, `#FF0000`). All prior ACs stay green. | user + Claude |
 | 2.61.0 | 2026-10-07 | **Approve greenlights; posts on schedule** (user feedback, refines **AC99**): approving a social post no longer always publishes immediately — it **greenlights** the post, which then posts **at its scheduled time** (immediately if that time has passed or none is set, otherwise it waits in `approved` and the list publishes it when due — a PoC scheduler stand-in, no background worker). Renamed the buttons to just **"Approve"** (social + campaign). The Posts list is now **clickable** (inline detail) and shows **plain-word status** ("Posts in 2 days" / "Posted 3 hours ago" / "Awaiting approval · scheduled for …"), with a `chip-info` "Scheduled" state. Campaign (real-Instagram) posts still publish on the explicit Approve click — auto-firing real posts from a page load is deliberately out of scope for the PoC (needs a real scheduler). All prior ACs stay green. | user + Claude |

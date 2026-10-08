@@ -577,6 +577,47 @@
         "title": "Body_reject_post_campaigns__campaign_id__posts__post_id__reject_post",
         "type": "object"
       },
+      "Body_schedule_social_schedule_post": {
+        "properties": {
+          "channel": {
+            "default": "instagram",
+            "title": "Channel",
+            "type": "string"
+          },
+          "composition_id": {
+            "title": "Composition Id",
+            "type": "integer"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          }
+        },
+        "required": [
+          "composition_id"
+        ],
+        "title": "Body_schedule_social_schedule_post",
+        "type": "object"
+      },
       "Body_upload_brand_logo_me_brand_kit_logo_post": {
         "properties": {
           "file": {
@@ -3578,36 +3619,6 @@
         ],
         "title": "Role",
         "type": "string"
-      },
-      "ScheduleRequest": {
-        "properties": {
-          "channel": {
-            "title": "Channel",
-            "type": "string"
-          },
-          "composition_id": {
-            "title": "Composition Id",
-            "type": "integer"
-          },
-          "scheduled_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Scheduled At"
-          }
-        },
-        "required": [
-          "composition_id",
-          "channel"
-        ],
-        "title": "ScheduleRequest",
-        "type": "object"
       },
       "Season": {
         "description": "The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter.",
@@ -8668,7 +8679,7 @@
     },
     "/social/posts": {
       "get": {
-        "description": "The agent's own posts — social- AND campaign-scheduled (any post built from one of their\ncompositions) — so the list survives a page refresh. Pending-approval posts (the ones needing\naction) sort first, then newest-first within each group. Approved posts whose scheduled time has\narrived are published first (the PoC scheduler stand-in).",
+        "description": "The agent's own posts — social- AND campaign-scheduled (any post built from one of their\ncompositions) — so the list survives a page refresh. Pending-approval posts (the ones needing\naction) sort first, then newest-first within each group.",
         "operationId": "list_posts_social_posts_get",
         "responses": {
           "200": {
@@ -8699,7 +8710,7 @@
     },
     "/social/posts/{post_id}/approve": {
       "post": {
-        "description": "Approve a post (AC99). Approval greenlights it and records the reviewer; the post then posts\n**at its scheduled time** — if that time has already arrived (or there is none) it posts\nimmediately via the simulated connector, otherwise it waits in `approved` until due.",
+        "description": "Approve AND publish a pending post in one action (AC99). PoC self-approval: the owning agent\nis also the reviewer. Approval records the reviewer and publishes the captured image immediately\nvia the shared real path (preflight + duplicate guard + receipt); on a guard/publish failure\nnothing is approved and the reason is returned (422/409/503/502).",
         "operationId": "approve_social_posts__post_id__approve_post",
         "parameters": [
           {
@@ -8747,7 +8758,7 @@
     },
     "/social/posts/{post_id}/reject": {
       "post": {
-        "description": "Reject a pending post with a reason (AC80); it drops to rejected and is editable again.",
+        "description": "Reject a pending post with a reason (AC99); it drops to rejected and is editable again.",
         "operationId": "reject_social_posts__post_id__reject_post",
         "parameters": [
           {
@@ -8852,13 +8863,13 @@
     },
     "/social/schedule": {
       "post": {
-        "description": "Schedule a composition to a channel. Preflight-gated; lands in pending_approval (AC80).",
+        "description": "Schedule a composition to Instagram, capturing its rendered JPEG now (so approve can publish\nit for real). Preflight-gated; lands in pending_approval (AC99).",
         "operationId": "schedule_social_schedule_post",
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/ScheduleRequest"
+                "$ref": "#/components/schemas/Body_schedule_social_schedule_post"
               }
             }
           },

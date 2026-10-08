@@ -1559,8 +1559,7 @@ export interface paths {
          * List Posts
          * @description The agent's own posts — social- AND campaign-scheduled (any post built from one of their
          *     compositions) — so the list survives a page refresh. Pending-approval posts (the ones needing
-         *     action) sort first, then newest-first within each group. Approved posts whose scheduled time has
-         *     arrived are published first (the PoC scheduler stand-in).
+         *     action) sort first, then newest-first within each group.
          */
         get: operations["list_posts_social_posts_get"];
         put?: never;
@@ -1582,9 +1581,10 @@ export interface paths {
         put?: never;
         /**
          * Approve
-         * @description Approve a post (AC99). Approval greenlights it and records the reviewer; the post then posts
-         *     **at its scheduled time** — if that time has already arrived (or there is none) it posts
-         *     immediately via the simulated connector, otherwise it waits in `approved` until due.
+         * @description Approve AND publish a pending post in one action (AC99). PoC self-approval: the owning agent
+         *     is also the reviewer. Approval records the reviewer and publishes the captured image immediately
+         *     via the shared real path (preflight + duplicate guard + receipt); on a guard/publish failure
+         *     nothing is approved and the reason is returned (422/409/503/502).
          */
         post: operations["approve_social_posts__post_id__approve_post"];
         delete?: never;
@@ -1604,7 +1604,7 @@ export interface paths {
         put?: never;
         /**
          * Reject
-         * @description Reject a pending post with a reason (AC80); it drops to rejected and is editable again.
+         * @description Reject a pending post with a reason (AC99); it drops to rejected and is editable again.
          */
         post: operations["reject_social_posts__post_id__reject_post"];
         delete?: never;
@@ -1644,7 +1644,8 @@ export interface paths {
         put?: never;
         /**
          * Schedule
-         * @description Schedule a composition to a channel. Preflight-gated; lands in pending_approval (AC80).
+         * @description Schedule a composition to Instagram, capturing its rendered JPEG now (so approve can publish
+         *     it for real). Preflight-gated; lands in pending_approval (AC99).
          */
         post: operations["schedule_social_schedule_post"];
         delete?: never;
@@ -1914,6 +1915,20 @@ export interface components {
              * @default
              */
             note: string;
+        };
+        /** Body_schedule_social_schedule_post */
+        Body_schedule_social_schedule_post: {
+            /**
+             * Channel
+             * @default instagram
+             */
+            channel: string;
+            /** Composition Id */
+            composition_id: number;
+            /** Image */
+            image?: string | null;
+            /** Scheduled At */
+            scheduled_at?: string | null;
         };
         /** Body_upload_brand_logo_me_brand_kit_logo_post */
         Body_upload_brand_logo_me_brand_kit_logo_post: {
@@ -3103,15 +3118,6 @@ export interface components {
          * @enum {string}
          */
         Role: "super_admin" | "content_provider" | "tourism_agent";
-        /** ScheduleRequest */
-        ScheduleRequest: {
-            /** Channel */
-            channel: string;
-            /** Composition Id */
-            composition_id: number;
-            /** Scheduled At */
-            scheduled_at?: string | null;
-        };
         /**
          * Season
          * @description The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter.
@@ -6456,7 +6462,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ScheduleRequest"];
+                "multipart/form-data": components["schemas"]["Body_schedule_social_schedule_post"];
             };
         };
         responses: {

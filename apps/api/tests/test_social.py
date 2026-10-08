@@ -1,8 +1,14 @@
-"""AC14 social schedule/publish (simulated). Clock injected; synthetic data only."""
+"""AC99 social schedule + approve → REAL Instagram publish (stub connector in tests).
+
+The Social page captures the composition's rendered JPEG at schedule time and publishes it through
+the SAME shared path as Studio/campaigns (``publish_post``) — approve posts immediately. Tests run
+on the stub connector (no keys -> no egress, deterministic ``stub-*`` ids). Synthetic data only.
+"""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import io
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,6 +25,7 @@ from app.services import social_sim
 from tests.conftest import auth_header
 
 FIXED = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+JPEG = b"\xff\xd8\xff" + b"\x00" * 64  # minimal "JPEG" (magic bytes + filler)
 
 
 @pytest.fixture
@@ -68,9 +75,15 @@ def _agent(c):
     return auth_header(c, Role.tourism_agent)
 
 
-def _schedule(sclient, h, channel="instagram"):
-    return sclient.post("/social/schedule", headers=h,
-                        json={"composition_id": 1, "channel": channel})
+def _files():
+    return {"image": ("post.jpg", io.BytesIO(JPEG), "image/jpeg")}
+
+
+def _schedule(sclient, h, channel="instagram", scheduled_at=None):
+    data = {"composition_id": "1", "channel": channel}
+    if scheduled_at is not None:
+        data["scheduled_at"] = scheduled_at
+    return sclient.post("/social/schedule", headers=h, data=data, files=_files())
 
 
 def test_schedule_lands_pending_approval(sclient):
@@ -83,6 +96,14 @@ def test_schedule_lands_pending_approval(sclient):
     assert body["scheduled_at"].startswith("2026-01-02T03:04:05")
 
 
+def test_schedule_requires_an_image(sclient):
+    # A real post needs a rendered image — scheduling without one is a 422, not a blank post.
+    h = _agent(sclient)
+    r = sclient.post("/social/schedule", headers=h,
+                     data={"composition_id": "1", "channel": "instagram"})
+    assert r.status_code == 422, r.text
+
+
 def test_posts_list_persists_with_composition_name(sclient):
     # The list is served from the server so a refresh keeps it (the old page bug).
     h = _agent(sclient)
@@ -93,41 +114,28 @@ def test_posts_list_persists_with_composition_name(sclient):
     assert rows[0]["composition_name"] == "Cliffs promo"  # project name, not "Post #1"
 
 
-def test_approve_future_schedule_greenlights_then_posts_when_due(sclient):
-    # Approve greenlights a future-scheduled post without publishing; it posts when the scheduled
-    # time arrives (publish-due-on-load, since the PoC has no background worker).
-    from datetime import timedelta
-
+def test_approve_publishes_via_real_connector(sclient):
+    # Approve IS the publish decision: it posts immediately through the shared real path (stub in
+    # tests → a ``stub-*`` id, never ``sim-*``). This is a genuine Instagram publish in production.
     h = _agent(sclient)
-    future = (FIXED + timedelta(days=1)).isoformat()
-    pid = sclient.post(
-        "/social/schedule", headers=h,
-        json={"composition_id": 1, "channel": "instagram", "scheduled_at": future},
-    ).json()["id"]
-
+    pid = _schedule(sclient, h).json()["id"]
     r = sclient.post(f"/social/posts/{pid}/approve", headers=h)
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "approved"  # greenlit, not yet posted
-    assert r.json()["published_at"] is None
+    body = r.json()
+    assert body["status"] == "published"
+    assert body["published_at"].startswith("2026-01-02T03:04:05")
+    assert body["external_id"].startswith("stub-")  # real path, not the simulated sim-* id
+    with sclient.app_.state.sessionmaker() as db:
+        actions = [a.action for a in db.scalars(select(AuditLog).order_by(AuditLog.id))]
+    assert actions == ["schedule", "approve", "publish"]
 
-    # Time passes; listing the posts publishes the ones now due.
-    sclient.app_.dependency_overrides[clock.now] = lambda: FIXED + timedelta(days=2)
-    post = next(p for p in sclient.get("/social/posts", headers=h).json() if p["id"] == pid)
-    assert post["status"] == "published"
-    assert post["published_at"] is not None
 
-
-def test_approve_past_schedule_posts_immediately(sclient):
-    # If the scheduled time already passed, approving posts right away.
-    from datetime import timedelta
-
+def test_approve_posts_immediately_even_when_scheduled_future(sclient):
+    # The chosen behaviour (no background worker): approve posts to Instagram right away; the
+    # scheduled time is only a planning label, never a deferred trigger.
     h = _agent(sclient)
-    past = (FIXED - timedelta(days=1)).isoformat()
-    pid = sclient.post(
-        "/social/schedule", headers=h,
-        json={"composition_id": 1, "channel": "instagram", "scheduled_at": past},
-    ).json()["id"]
-
+    future = (FIXED + timedelta(days=1)).isoformat()
+    pid = _schedule(sclient, h, scheduled_at=future).json()["id"]
     r = sclient.post(f"/social/posts/{pid}/approve", headers=h)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "published"
@@ -138,26 +146,12 @@ def test_posts_list_orders_pending_first(sclient):
     # Pending-approval posts (the ones needing action) sort to the top, even when a published post
     # has a newer id — the reviewer sees what to act on first.
     h = _agent(sclient)
-    a = _schedule(sclient, h, channel="instagram").json()["id"]  # stays pending
-    b = _schedule(sclient, h, channel="facebook").json()["id"]  # approved → published (higher id)
+    a = _schedule(sclient, h).json()["id"]  # stays pending
+    b = _schedule(sclient, h).json()["id"]  # approved → published (higher id)
     assert sclient.post(f"/social/posts/{b}/approve", headers=h).status_code == 200
     rows = sclient.get("/social/posts", headers=h).json()
     assert rows[0]["id"] == a and rows[0]["status"] == "pending_approval"
     assert rows[1]["id"] == b and rows[1]["status"] == "published"
-
-
-def test_approve_publishes_via_simulated_connector(sclient):
-    h = _agent(sclient)
-    pid = _schedule(sclient, h).json()["id"]
-    r = sclient.post(f"/social/posts/{pid}/approve", headers=h)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["status"] == "published"
-    assert body["published_at"].startswith("2026-01-02T03:04:05")
-    assert body["external_id"].startswith("sim-instagram-")
-    with sclient.app_.state.sessionmaker() as db:
-        actions = [a.action for a in db.scalars(select(AuditLog).order_by(AuditLog.id))]
-    assert actions == ["schedule", "approve", "publish"]
 
 
 def test_reject_sets_rejected_with_note(sclient):
@@ -178,14 +172,20 @@ def test_cannot_approve_a_non_pending_post(sclient):
 
 
 def test_agent_only_and_validation(sclient):
-    body = {"composition_id": 1, "channel": "x"}
-    assert sclient.post("/social/schedule", json=body).status_code == 401
+    # auth first, then composition (404), then channel (422) — all with a valid image present.
+    assert sclient.post("/social/schedule", data={"composition_id": "1", "channel": "instagram"},
+                        files=_files()).status_code == 401
     ph = auth_header(sclient, Role.content_provider)
-    assert sclient.post("/social/schedule", headers=ph, json=body).status_code == 403
+    assert sclient.post("/social/schedule", headers=ph,
+                        data={"composition_id": "1", "channel": "instagram"},
+                        files=_files()).status_code == 403
     h = _agent(sclient)
-    bad_channel = sclient.post("/social/schedule", headers=h, json={**body, "channel": "myspace"})
+    bad_channel = sclient.post("/social/schedule", headers=h,
+                               data={"composition_id": "1", "channel": "myspace"}, files=_files())
     assert bad_channel.status_code == 422
-    missing_comp = sclient.post("/social/schedule", headers=h, json={**body, "composition_id": 99})
+    missing_comp = sclient.post("/social/schedule", headers=h,
+                                data={"composition_id": "99", "channel": "instagram"},
+                                files=_files())
     assert missing_comp.status_code == 404
 
 

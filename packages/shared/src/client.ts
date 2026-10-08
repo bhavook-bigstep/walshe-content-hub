@@ -59,7 +59,6 @@ export type EntryStatus = Entry["status"];
 export type DesignRequest = Schemas["DesignRequest"];
 export type VideoRequest = Schemas["VideoRequest"];
 export type FramesVideoRequest = Schemas["FramesVideoRequest"];
-export type ScheduleRequest = Schemas["ScheduleRequest"];
 export type Post = Schemas["PostOut"];
 export type Engagement = Schemas["EngagementOut"];
 export type InstagramPublishResult = Schemas["InstagramPublishOut"];
@@ -632,8 +631,10 @@ export async function preflightSend(compositionId: number, channel: string): Pro
   return (await (await send("/social/preflight", json(body))).json()) as Preflight;
 }
 
-export async function scheduleSocialPost(body: ScheduleRequest): Promise<Post> {
-  return (await (await send("/social/schedule", json(body))).json()) as Post;
+/** Schedule a real Instagram post — the composition's rendered JPEG is captured in the form
+ *  (buildSocialPostForm) so approve can publish it. Multipart, mirroring scheduleCampaignPost. */
+export async function scheduleSocialPost(form: FormData): Promise<Post> {
+  return (await (await send("/social/schedule", { method: "POST", body: form })).json()) as Post;
 }
 
 /** The agent's own social posts (newest first) — persisted server-side, so the list survives a refresh. */

@@ -4,10 +4,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import ConnectedPlatforms from "../../../components/social/ConnectedPlatforms";
 import PageHeader from "../../../components/ui/PageHeader";
 import Select from "../../../components/ui/Select";
+import { buildSocialPostForm } from "../../../lib/social/form";
 import { relativeTime } from "../../../lib/social/timing";
+import { migrateDesign } from "../../../lib/studio/ops";
+import { renderDesignToJpegBlob } from "../../../lib/studio/render";
 import {
   ApiError,
   approveSocialPost,
+  getProject,
   listProjects,
   listSocialPosts,
   me,
@@ -20,8 +24,8 @@ import {
   type User,
 } from "../../../lib/api";
 
-// Simulated connected channels (no real network integration in this PoC).
-const CHANNELS: readonly string[] = ["facebook", "instagram", "x", "linkedin"];
+// Instagram is the one platform wired end-to-end (real publish path) — the only connectable channel.
+const CHANNELS: readonly string[] = ["instagram"];
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // Label + chip per post status. `approved` = greenlit, posting at its scheduled time.
@@ -124,15 +128,29 @@ export default function AgentSocialPage() {
         setError("This post isn’t ready to send yet — see the pre-send check below.");
         return;
       }
-      await scheduleSocialPost({
-        composition_id: id,
+      // Render the composition's design to a JPEG now and upload it, so approve can publish the
+      // real image to Instagram (the shared publish path — same as the Studio/campaign flow).
+      const project = await getProject(id);
+      const design = migrateDesign(project.design);
+      if (!design) throw new Error("This composition has no design to render into an image yet.");
+      const jpeg = await renderDesignToJpegBlob(design, 0);
+      const form = buildSocialPostForm({
+        compositionId: id,
         channel,
-        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        scheduledAtISO: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        jpeg,
       });
+      await scheduleSocialPost(form);
       setPreflight(null);
       await reloadPosts();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not schedule the post.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not schedule the post.",
+      );
     } finally {
       setBusy(false);
     }
@@ -163,7 +181,7 @@ export default function AgentSocialPage() {
       <PageHeader
         breadcrumbs={[{ label: "Home", href: "/agent" }, { label: "Social" }]}
         title="Social"
-        description="Your organization's posts and connected accounts — approving a post sends it on the (simulated) channel."
+        description="Your organization's posts and connected accounts — approving a post publishes it to Instagram."
       />
 
       {/* Tabs — the Social page reads like an organization workspace: its posts and the accounts the

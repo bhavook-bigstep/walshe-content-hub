@@ -6,11 +6,17 @@ expiry boundary is reproducible. Synthetic fixtures only.
 
 from __future__ import annotations
 
+import io
 from datetime import datetime, timedelta, timezone
 
 from app import clock
 
 T0 = datetime(2026, 6, 1, tzinfo=timezone.utc)
+JPEG = b"\xff\xd8\xff" + b"\x00" * 64  # minimal "JPEG" (magic bytes + filler)
+
+
+def _files():
+    return {"image": ("post.jpg", io.BytesIO(JPEG), "image/jpeg")}
 
 
 def _fix_clock(app, instant: datetime) -> None:
@@ -79,10 +85,10 @@ def test_publish_blocked_until_preflight_clean(client, provider_headers, agent_h
     _fix_clock(app, T0)
     entry_id = _approved_entry(client, provider_headers, expires_at=T0 + timedelta(days=1))
     project_id = _project(client, agent_headers, [entry_id])
-    body = {"composition_id": project_id, "channel": "instagram"}
+    body = {"composition_id": str(project_id), "channel": "instagram"}
 
     _fix_clock(app, T0 + timedelta(days=2))  # expired → scheduling must be blocked
-    r = client.post("/social/schedule", headers=agent_headers, json=body)
+    r = client.post("/social/schedule", headers=agent_headers, data=body, files=_files())
     assert r.status_code == 422, r.text
     detail = r.json()["detail"]
     assert detail["error"] == "preflight_failed"
@@ -91,7 +97,7 @@ def test_publish_blocked_until_preflight_clean(client, provider_headers, agent_h
     # Fix the problem (clock back inside validity) → the schedule now goes through, landing in
     # pending_approval; approving it then publishes (nothing sends without a review).
     _fix_clock(app, T0)
-    r = client.post("/social/schedule", headers=agent_headers, json=body)
+    r = client.post("/social/schedule", headers=agent_headers, data=body, files=_files())
     assert r.status_code == 201, r.text
     assert r.json()["status"] == "pending_approval"
     pid = r.json()["id"]
@@ -130,7 +136,8 @@ def test_empty_composition_passes_preflight_and_reaches_approval_gate(client, ag
     r = client.post(
         "/social/schedule",
         headers=agent_headers,
-        json={"composition_id": empty, "channel": "instagram"},
+        data={"composition_id": str(empty), "channel": "instagram"},
+        files=_files(),
     )
     assert r.status_code == 201, r.text
     assert r.json()["status"] == "pending_approval"

@@ -2,13 +2,12 @@ import { describe, expect, test } from "vitest";
 import { DEFAULT_CONNECTED, mergeConnections, SOCIAL_PLATFORMS } from "../lib/social/platforms";
 
 describe("social platforms", () => {
-  test("offers the six PoC platforms with Instagram first", () => {
+  test("offers the five PoC platforms with Instagram first", () => {
     expect(SOCIAL_PLATFORMS.map((p) => p.key)).toEqual([
       "instagram",
       "facebook",
       "x",
       "tiktok",
-      "snapchat",
       "youtube",
     ]);
   });

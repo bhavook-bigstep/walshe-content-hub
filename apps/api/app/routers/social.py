@@ -1,38 +1,55 @@
-"""Social schedule + approval routes (AC14 / AC80) — agent-only, simulated connector.
+"""Social schedule + approval routes (AC99) — agent-only, REAL Instagram publish.
 
-Scheduling a composition to a channel creates a post in ``pending_approval``; nothing is sent until
-the owning agent approves it (PoC self-approval, mirroring the campaign flow). Approve publishes via
-the deterministic simulated connector (Contract 2/4 — no OAuth, no egress); reject sends it back
-with a reason. Posts are listed from the server (``GET /social/posts``) so they persist across
-refreshes. There is no direct publish — nothing goes out without a review.
+Scheduling a composition to a channel captures its rendered JPEG now and creates a post in
+``pending_approval``; nothing is sent until the owning agent approves it (PoC self-approval,
+mirroring the campaign flow). Approve publishes the captured image through the SAME shared path as
+Studio/campaigns (``app.social.publish.publish_post`` — preflight, duplicate guard, S3 hosting, the
+env-selected connector) and posts immediately. Reject sends it back with a reason. Posts are listed
+from the server (``GET /social/posts``) so they persist across refreshes. The scheduled time is a
+planning label only — there is no background worker, so approval posts now (not at a future time).
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import datetime, timezone
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, field_serializer
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app import audit, clock
-from app.deps import get_db, require_role
+from app.config import Settings
+from app.deps import get_db, get_settings, require_role
 from app.models.composition import Composition
 from app.models.post import Post, PostStatus
 from app.models.user import Role, User
-from app.services import preflight, social_sim
+from app.services import preflight
+from app.social import publish as publish_svc
+from app.storage.minio_client import Storage
 
 router = APIRouter(prefix="/social", tags=["social"])
 
 _agent_only = require_role(Role.tourism_agent)
+_MAX_BYTES = 8 * 1024 * 1024  # Instagram image limit (mirrors app/routers/instagram.py)
+# Only Instagram is wired end-to-end (real publish path); it is the one connected platform in the
+# PoC. The set is the seam other platforms slot into later without reshaping this route.
+_SUPPORTED_CHANNELS = {"instagram"}
 
 
-class ScheduleRequest(BaseModel):
-    composition_id: int
-    channel: str
-    scheduled_at: datetime | None = None
+def get_storage(request: Request) -> Storage:  # mirrors app/routers/campaigns.py:39-40
+    return request.app.state.storage
 
 
 class PreflightRequest(BaseModel):
@@ -102,48 +119,44 @@ def _preflight(db: Session, user: User, comp: Composition, channel: str, now: da
         )
 
 
-def _channel(channel: str) -> str:
+def _read_jpeg(image: UploadFile) -> bytes:
+    data = image.file.read()
+    if data[:3] != b"\xff\xd8\xff":
+        raise HTTPException(422, "Image must be a JPEG (Instagram does not accept PNG)")
+    if len(data) > _MAX_BYTES:
+        raise HTTPException(422, "Image exceeds Instagram's 8 MB limit")
+    return data
+
+
+def _parse_scheduled_at(raw: str) -> datetime:
+    """Parse an ISO-8601 datetime to UTC. A naive value is assumed UTC (the scheduled time is a
+    display label only in the PoC, so we are lenient rather than rejecting it)."""
     try:
-        return social_sim.validate_channel(channel)
-    except social_sim.UnsupportedChannel as err:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unsupported channel") from err
+        dt = datetime.fromisoformat(raw)
+    except ValueError as err:
+        raise HTTPException(422, "scheduled_at must be an ISO-8601 datetime") from err
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
-def _due(scheduled_at: datetime | None, now: datetime) -> bool:
-    """A post is due to post when it has no scheduled time or its scheduled time has arrived."""
-    if scheduled_at is None:
-        return True
-    if scheduled_at.tzinfo is None:
-        scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
-    return scheduled_at <= now
+def _captured_bytes(storage: Storage, post: Post) -> bytes | None:
+    """Read the image captured at schedule time; a clean 409 (not a 500) if it is gone.
 
-
-def _publish_now(db: Session, post: Post, reviewer_id: int, now: datetime) -> None:
-    """Publish a post via the simulated connector and record the receipt (no commit)."""
-    receipt = social_sim.publish(channel=post.channel, composition_id=post.composition_id, now=now)
-    post.status = PostStatus.published
-    post.external_id = receipt.external_id
-    post.published_at = receipt.published_at
-    if post.approved_by is None:
-        post.approved_by = reviewer_id
-    if post.reviewed_at is None:
-        post.reviewed_at = now
-    audit.record(db, actor_id=reviewer_id, action="publish", target_type="post", target_id=post.id)
-
-
-def _publish_due(db: Session, agent_id: int, now: datetime) -> None:
-    """Publish every approved (greenlit) post whose scheduled time has arrived — the PoC's stand-in
-    for a background scheduler (no worker; due posts post when the agent loads their list)."""
-    approved = db.execute(
-        select(Post)
-        .join(Composition, Composition.id == Post.composition_id)
-        .where(Composition.agent_id == agent_id, Post.status == PostStatus.approved)
-    ).scalars().all()
-    published = [p for p in approved if _due(p.scheduled_at, now)]
-    for post in published:
-        _publish_now(db, post, post.approved_by or agent_id, now)
-    if published:
-        db.commit()
+    The dev in-memory store is wiped on restart, so a post scheduled in a previous process has a
+    media_object_key but no bytes. Set ASSET_DIR (filesystem) so captures survive restarts.
+    """
+    if not post.media_object_key:
+        return None
+    try:
+        data, _ = storage.get_object(post.media_object_key)
+        return data
+    except (KeyError, FileNotFoundError) as err:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "The captured image for this post is no longer available — reschedule it to re-capture "
+            "it (set ASSET_DIR so captures persist across restarts).",
+        ) from err
 
 
 def _out(db: Session, post: Post) -> PostOut:
@@ -160,13 +173,10 @@ def _out(db: Session, post: Post) -> PostOut:
 def list_posts(
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
-    now: datetime = Depends(clock.now),
 ) -> list[PostOut]:
     """The agent's own posts — social- AND campaign-scheduled (any post built from one of their
     compositions) — so the list survives a page refresh. Pending-approval posts (the ones needing
-    action) sort first, then newest-first within each group. Approved posts whose scheduled time has
-    arrived are published first (the PoC scheduler stand-in)."""
-    _publish_due(db, user.id, now)
+    action) sort first, then newest-first within each group."""
     pending_first = case((Post.status == PostStatus.pending_approval, 0), else_=1)
     rows = db.execute(
         select(Post, Composition.name)
@@ -200,21 +210,35 @@ def preflight_check(
 
 @router.post("/schedule", response_model=PostOut, status_code=status.HTTP_201_CREATED)
 def schedule(
-    body: ScheduleRequest,
+    composition_id: int = Form(...),
+    channel: str = Form("instagram"),
+    scheduled_at: str | None = Form(None),
+    image: UploadFile | None = File(None),
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
+    storage: Storage = Depends(get_storage),
     now: datetime = Depends(clock.now),
 ) -> PostOut:
-    """Schedule a composition to a channel. Preflight-gated; lands in pending_approval (AC80)."""
-    comp = _owned_composition(db, body.composition_id, user)
-    _preflight(db, user, comp, body.channel, now)
-    channel = _channel(body.channel)
+    """Schedule a composition to Instagram, capturing its rendered JPEG now (so approve can publish
+    it for real). Preflight-gated; lands in pending_approval (AC99)."""
+    comp = _owned_composition(db, composition_id, user)
+    if channel not in _SUPPORTED_CHANNELS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Only Instagram is connected")
+    if image is None:
+        raise HTTPException(422, "Provide the rendered image to post")
+    data = _read_jpeg(image)  # validate before writing anything
+    _preflight(db, user, comp, channel, now)
+    sched_utc = _parse_scheduled_at(scheduled_at) if scheduled_at else now
+
     post = Post(
-        composition_id=body.composition_id, channel=channel, platform=channel,
-        status=PostStatus.pending_approval, scheduled_at=body.scheduled_at or now,
+        composition_id=composition_id, channel=channel, platform=channel,
+        status=PostStatus.pending_approval, scheduled_at=sched_utc,
     )
     db.add(post)
-    db.flush()
+    db.flush()  # assign post.id for the storage key
+    key = f"social-posts/{post.id}/{uuid4().hex}.jpg"  # uuid avoids a same-second replace clash
+    storage.put_object(key, data, "image/jpeg")  # captured now; approve publishes from this
+    post.media_object_key = key
     audit.record(db, actor_id=user.id, action="schedule", target_type="post", target_id=post.id)
     db.commit()
     db.refresh(post)
@@ -226,27 +250,34 @@ def approve(
     post_id: int,
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(get_storage),
     now: datetime = Depends(clock.now),
 ) -> PostOut:
-    """Approve a post (AC99). Approval greenlights it and records the reviewer; the post then posts
-    **at its scheduled time** — if that time has already arrived (or there is none) it posts
-    immediately via the simulated connector, otherwise it waits in `approved` until due."""
+    """Approve AND publish a pending post in one action (AC99). PoC self-approval: the owning agent
+    is also the reviewer. Approval records the reviewer and publishes the captured image immediately
+    via the shared real path (preflight + duplicate guard + receipt); on a guard/publish failure
+    nothing is approved and the reason is returned (422/409/503/502)."""
     post = _agent_post(db, post_id, user)
     if post.status != PostStatus.pending_approval:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"Only a pending_approval post can be approved (is '{post.status.value}')",
         )
+    comp = db.get(Composition, post.composition_id)
+    if comp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Composition not found")
+
+    media_bytes = _captured_bytes(storage, post)
+    # Record the reviewer now; if a guard below rejects (422/409/503) the session rolls back and the
+    # post stays pending_approval. On a connector failure the publish path commits it as `failed`.
     post.approved_by = user.id
     post.reviewed_at = now
     post.review_note = ""
     audit.record(db, actor_id=user.id, action="approve", target_type="post", target_id=post.id)
-    if _due(post.scheduled_at, now):
-        _publish_now(db, post, user.id, now)  # scheduled time has passed → post now
-    else:
-        post.status = PostStatus.approved  # greenlit; posts when its scheduled time arrives
-    db.commit()
-    db.refresh(post)
+    publish_svc.publish_post(
+        db, settings, now, user=user, post=post, composition=comp, media_bytes=media_bytes
+    )
     return _out(db, post)
 
 
@@ -258,7 +289,7 @@ def reject(
     db: Session = Depends(get_db),
     now: datetime = Depends(clock.now),
 ) -> PostOut:
-    """Reject a pending post with a reason (AC80); it drops to rejected and is editable again."""
+    """Reject a pending post with a reason (AC99); it drops to rejected and is editable again."""
     post = _agent_post(db, post_id, user)
     if post.status != PostStatus.pending_approval:
         raise HTTPException(
