@@ -127,13 +127,14 @@ function initialsOf(name: string | null | undefined, email: string): string {
   return email.charAt(0).toUpperCase();
 }
 
-function Logo({ className = "logo-mark h-10 w-[71px]", onClick }: { className?: string; onClick?: () => void }) {
+function Logo({ className = "h-9", onClick }: { className?: string; onClick?: () => void }) {
   return (
-    <Link href="/" onClick={onClick} className="group inline-flex items-center" aria-label="The Walshe Group — home">
-      <span
-        role="img"
-        aria-label="The Walshe Group"
-        className={`${className} bg-chrome-fg transition-colors duration-300 group-hover:bg-walshe-gold`}
+    <Link href="/" onClick={onClick} className="group inline-flex items-center" aria-label="Voyago — home">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/voyago-wordmark-white.png"
+        alt="Voyago"
+        className={`${className} w-auto shrink-0 transition-transform duration-300 group-hover:-translate-y-px`}
       />
     </Link>
   );
@@ -198,13 +199,14 @@ function SidebarInner({
           <Link
             href="/"
             onClick={onNavigate}
-            aria-label="The Walshe Group — home"
-            className="grid h-9 w-9 place-items-center rounded-md bg-chrome-fg/10 text-base font-extrabold text-chrome-fg transition-colors hover:bg-walshe-gold hover:text-walshe-base"
+            aria-label="Voyago — home"
+            className="grid h-9 w-9 place-items-center overflow-hidden rounded-md transition-transform hover:scale-105"
           >
-            W
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/voyago-icon.png" alt="Voyago" className="h-7 w-7 object-contain" />
           </Link>
         ) : (
-          <Logo onClick={onNavigate} />
+          <Logo className="h-12" onClick={onNavigate} />
         )}
       </div>
       <nav aria-label="Primary" className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -462,7 +464,19 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
       </aside>
 
       {/* Main column */}
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="relative isolate flex min-w-0 flex-1 flex-col">
+        {/* Provider workspace watermark: a top-down plane anchored to the right, only its left half
+            visible, very light. Behind the content (-z-10 within this isolated column); provider only. */}
+        {role === "content_provider" && (
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/img/plane.png"
+              alt=""
+              className="absolute right-0 top-24 h-[125%] w-auto max-w-none translate-x-1/2 opacity-[0.2]"
+            />
+          </div>
+        )}
         {/* Sidebar collapse toggle — a subtle round button on the sidebar's right edge (desktop). */}
         <button
           type="button"
@@ -490,7 +504,7 @@ export default function AppShell({ role, children }: { role: Role; children: Rea
             </svg>
           </button>
           <span className="lg:hidden">
-            <Logo className="logo-mark h-7 w-[50px]" />
+            <Logo className="h-7" />
           </span>
           <Breadcrumbs pathname={pathname} />
           {/* Right-side top-bar controls: the provider's import-job bell (AC74) + light/dark toggle. */}

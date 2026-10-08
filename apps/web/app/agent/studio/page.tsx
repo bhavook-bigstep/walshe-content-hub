@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Canvas } from "fabric";
 import type { StudioControls } from "../../../components/studio/StudioCanvas";
 import type { BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
@@ -13,9 +13,14 @@ import SceneEdgeControls, { type SceneRect } from "../../../components/studio/Sc
 import type { CatalogImageOption } from "../../../components/studio/Toolbar";
 import WorkspaceDrawer, {
   MEDIA_DND_TYPE,
+  TEXT_DND_TYPE,
   type MediaGroup,
   type MediaTile,
+  type TextGroup,
+  type TextSnippet,
 } from "../../../components/studio/WorkspaceDrawer";
+import { entryTextGroups } from "../../../lib/studio/entry-text";
+import type { ModeratableEntry } from "../../../lib/studio/moderation";
 import Dialog from "../../../components/ui/Dialog";
 import Link from "next/link";
 import {
@@ -26,6 +31,7 @@ import {
   getProject,
   getWorkspace,
   listCollections,
+  listMySprites,
   listDesignTemplates,
   renderVideoFrames,
   resolveCollection,
@@ -43,13 +49,21 @@ import {
 import { applyBrandKit } from "../../../lib/studio/branding";
 import { composeEntryCard } from "../../../lib/studio/entry-card";
 import { resolveDesignImageSrcs } from "../../../lib/studio/resolve-images";
+import { resolveUserSprites } from "../../../lib/studio/resolve-sprites";
 import { resolveSprites } from "../../../lib/studio/graphics";
 import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
 import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/studio/formats";
 import {
   DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
+  addText,
+  chainIds,
+  chainMemberDurationMs,
   deleteNode,
+  insertCurveAnchor,
+  isSprite,
+  moveCurvePoint,
+  translateCurve,
   duplicateNode,
   editText,
   fillImageNode,
@@ -64,6 +78,7 @@ import {
   newDesign,
   reorderNode,
   speakableCues,
+  syncChainStarts,
   resizeNode,
   setNodeAnim,
   updateNode,
@@ -75,6 +90,14 @@ import {
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
 import GroupPanel from "../../../components/studio/GroupPanel";
+import BuilderDemoOverlay, { type DemoCursor } from "../../../components/studio/BuilderDemoOverlay";
+import SpriteChainPanel from "../../../components/studio/SpriteChainPanel";
+import {
+  runBuilderDemo,
+  type DemoController,
+  type DemoItem,
+  type ScenePoint,
+} from "../../../lib/studio/builder-demo";
 
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
@@ -151,7 +174,12 @@ export default function StudioPage() {
 }
 
 function StudioEditor() {
-  const [design, setDesign] = useState<DesignDoc>(() => seeded("social"));
+  const [design, setDesignRaw] = useState<DesignDoc>(() => seeded("social"));
+  // Every design update is normalised so each chained successor's start keeps mirroring its
+  // predecessor's end (a child's 0s state is never independent). Stable identity for callback deps.
+  const setDesign = useCallback((arg: DesignDoc | ((prev: DesignDoc) => DesignDoc)) => {
+    setDesignRaw((prev) => syncChainStarts(typeof arg === "function" ? (arg as (p: DesignDoc) => DesignDoc)(prev) : arg));
+  }, []);
   // The selected element (for the Inspector). Scene-scoped by index + node id.
   const [selected, setSelected] = useState<{ scene: number; nodeId: string } | null>(null);
   // The full selection (one id = single element; many = a group / multi-selection) + its scene.
@@ -178,6 +206,8 @@ function StudioEditor() {
   const [rendering, setRendering] = useState(false);
   // The active scene's on-screen rect, so the per-scene edge controls can hug its edges.
   const [sceneRect, setSceneRect] = useState<SceneRect | null>(null);
+  // The FIRST scene's on-screen rect, so the "Play all" control hugs the left edge of scene 1.
+  const [firstSceneRect, setFirstSceneRect] = useState<SceneRect | null>(null);
   // Workspace tool (CorelDraw-style): "select" rubber-bands a marquee on empty-drag; "hand" pans.
   const [tool, setTool] = useState<"select" | "hand">("select");
   // The agent's brand kit, fetched lazily on first apply — powers one-click "Apply brand kit" (AC87).
@@ -188,9 +218,18 @@ function StudioEditor() {
   const [brandColors, setBrandColors] = useState(true);
   // Whether a scene is selected (clicking the empty workspace deselects → hides the scene controls).
   const [sceneSelected, setSceneSelected] = useState(true);
+  // Scripted AI-Builder demo: an "agent" that builds an animated reel live from the collection.
+  const [demoRunning, setDemoRunning] = useState(false);
+  const [demoThinking, setDemoThinking] = useState<string | null>(null);
+  const [demoCursor, setDemoCursor] = useState<DemoCursor | null>(null);
+  const demoCancelRef = useRef(false);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
+  // "Play all": play every scene in order (scene 1 → 2 → 3 …), distinct from the per-scene loop.
+  const [playingAll, setPlayingAll] = useState(false);
+  const playingAllRef = useRef(false);
+  playingAllRef.current = playingAll;
   // Add a voiceover (TTS) to the exported video, reading each scene's narration script.
   const [narrate, setNarrate] = useState(false);
   // Editable project name (rename).
@@ -198,9 +237,32 @@ function StudioEditor() {
   const params = useSearchParams();
   const router = useRouter();
   const projectId = params.get("project");
-  const hasProject = Boolean(projectId);
+  // A project is "open" from the URL, or one the session created in place (e.g. the AI Builder demo).
+  const hasProject = Boolean(projectId) || (project?.id ?? 0) > 0;
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
+
+  // The attached collections' entries, flattened to labelled text fields (shared source for the left
+  // drawer's TEXT tab + the AI Builder's Content Moderation check). Grouped by the entry they come
+  // from. Derived synchronously from the resolved workspace — no blob URLs needed, just strings.
+  const entryTextData = useMemo(() => {
+    const entries = (workspace?.reference_content.collections ?? []).flatMap((c) => c.entries ?? []);
+    return entryTextGroups(entries);
+  }, [workspace]);
+  const textGroups = useMemo<TextGroup[]>(
+    () =>
+      entryTextData.map((g) => ({
+        id: g.id,
+        title: g.title,
+        subtitle: g.subtitle,
+        snippets: g.fields.map((f, i) => ({ key: `${g.id}:${i}`, label: f.label, text: f.value })),
+      })),
+    [entryTextData],
+  );
+  const moderationEntries = useMemo<ModeratableEntry[]>(
+    () => entryTextData.map((g) => ({ id: g.entryId, title: g.title, fields: g.fields })),
+    [entryTextData],
+  );
 
   // Load the usable media from the project's structured workspace (AC75): collection entries
   // (builder grounding + placeable images) + the project's own uploads/generated assets. The whole
@@ -332,6 +394,19 @@ function StudioEditor() {
           // its stable object key so the media reappears (AC75).
           const resolved = await resolveDesignImageSrcs(migrated, fetchAssetObjectUrl);
           if (!cancelled) setDesign(resolved);
+          // Imported sprites store an ephemeral `frames` (dead now) + a stable `user:<id>` ref —
+          // re-resolve their frame URLs from the server so the animation reappears.
+          try {
+            const mine = await listMySprites();
+            const byId = new Map(mine.map((s) => [s.id, s]));
+            const withSprites = await resolveUserSprites(resolved, async (id) => {
+              const sp = byId.get(id);
+              return sp ? Promise.all(sp.frame_keys.map(fetchAssetObjectUrl)) : [];
+            });
+            if (!cancelled) setDesign(withSprites);
+          } catch {
+            /* imported sprites optional */
+          }
         })
         .catch(() => {});
       return () => {
@@ -475,24 +550,57 @@ function StudioEditor() {
     });
   }
 
+  // Place a text snippet (from the drawer's TEXT tab) on the active scene. Click → default spot;
+  // drop → at the cursor. Goes on as a normal, editable text node (addText keeps it serialisable).
+  function placeText(snippet: TextSnippet, at?: { x: number; y: number }) {
+    const w = 540;
+    const h = 96;
+    setDesign((d) => {
+      const n = d.scenes[sceneIndex]?.nodes.length ?? 0;
+      const off = (n % 8) * 28;
+      const placement = at
+        ? { x: at.x - w / 2, y: at.y - h / 2, width: w, height: h, fontSize: 30 }
+        : { x: 80 + off, y: 80 + off, width: w, height: h, fontSize: 30 };
+      return addText(d, sceneIndex, snippet.text, placement);
+    });
+  }
+
+  // Jump to a flagged element (from the moderation list): focus its scene and select it.
+  function selectNode(scene: number, nodeId: string) {
+    setSceneIndex(scene);
+    setSelected({ scene, nodeId });
+    setSelectedIds([nodeId]);
+    setSelectedScene(scene);
+  }
+
   function onCanvasDrop(e: React.DragEvent) {
-    const raw = e.dataTransfer.getData(MEDIA_DND_TYPE);
-    if (!raw) return;
+    const mediaRaw = e.dataTransfer.getData(MEDIA_DND_TYPE);
+    const textRaw = mediaRaw ? "" : e.dataTransfer.getData(TEXT_DND_TYPE);
+    if (!mediaRaw && !textRaw) return;
     e.preventDefault();
+    const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
+    if (mediaRaw) {
+      try {
+        const t = JSON.parse(mediaRaw) as {
+          src: string;
+          catalogItemId: string;
+          objectKey?: string;
+          kind?: "image" | "video";
+          width?: number;
+          height?: number;
+        };
+        placeTile(
+          { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, kind: t.kind, width: t.width, height: t.height },
+          pt,
+        );
+      } catch {
+        /* ignore a malformed payload */
+      }
+      return;
+    }
     try {
-      const t = JSON.parse(raw) as {
-        src: string;
-        catalogItemId: string;
-        objectKey?: string;
-        kind?: "image" | "video";
-        width?: number;
-        height?: number;
-      };
-      const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
-      placeTile(
-        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, kind: t.kind, width: t.width, height: t.height },
-        pt,
-      );
+      const t = JSON.parse(textRaw) as { text: string };
+      if (t.text) placeText({ key: "", label: "", text: t.text }, pt);
     } catch {
       /* ignore a malformed payload */
     }
@@ -724,6 +832,10 @@ function StudioEditor() {
       stopRaf();
       return;
     }
+    if (playingAllRef.current) {
+      setPlayingAll(false); // leaving the all-scenes run for a single-scene loop
+      stopRaf();
+    }
     const start = playhead >= sceneDurRef.current ? 0 : playhead;
     playStartRef.current = { wall: performance.now(), base: start };
     setPlayhead(start);
@@ -740,8 +852,10 @@ function StudioEditor() {
     controlsRef.current?.previewAt(t > 0 ? t : null);
   }
 
-  // Reset the transport (back to the editable, static layout) when the active scene changes.
+  // Reset the transport (back to the editable, static layout) when the active scene changes —
+  // unless "Play all" is driving the scene changes itself.
   useEffect(() => {
+    if (playingAllRef.current) return;
     setPlaying(false);
     stopRaf();
     setPlayhead(0);
@@ -750,6 +864,296 @@ function StudioEditor() {
 
   // Cancel any running animation frame on unmount.
   useEffect(() => stopRaf, [stopRaf]);
+
+  // ── Scripted AI-Builder demo ───────────────────────────────────────────────────────────────────
+  // Refs give the async director the latest live state across its many awaits (it also writes
+  // designRef itself so sequential ops compose before React re-renders).
+  const designRef = useRef(design);
+  designRef.current = design;
+  const sceneRectRef = useRef(sceneRect);
+  sceneRectRef.current = sceneRect;
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
+  const panelItemsRef = useRef(panelItems);
+  panelItemsRef.current = panelItems;
+  // The collection group the demo "adds" to the drawer (built from the resolved items at run time).
+  const demoCollectionRef = useRef<MediaGroup | null>(null);
+
+  // ── "Play all": run every scene in order (1 → 2 → 3 …), each for its own duration ───────────────
+  const allStartRef = useRef<{ wall: number; scene: number }>({ wall: 0, scene: 0 });
+  const playAllLoop = useCallback(() => {
+    rafRef.current = requestAnimationFrame((ts) => {
+      const d = designRef.current;
+      const { wall, scene } = allStartRef.current;
+      const dur = d.scenes[scene]?.durationMs ?? DEFAULT_SCENE_DURATION_MS;
+      const t = ts - wall;
+      if (t >= dur) {
+        const nextScene = scene + 1 < d.scenes.length ? scene + 1 : 0; // loop the whole reel
+        allStartRef.current = { wall: ts, scene: nextScene };
+        setSceneIndex(nextScene);
+        setSceneSelected(true);
+        setPlayhead(0);
+        controlsRef.current?.previewAt(0, { playing: true });
+        playAllLoop();
+        return;
+      }
+      setPlayhead(t);
+      controlsRef.current?.previewAt(t, { playing: true });
+      playAllLoop();
+    });
+  }, []);
+
+  function togglePlayAll() {
+    if (playingAllRef.current) {
+      setPlayingAll(false);
+      stopRaf();
+      controlsRef.current?.previewAt(null);
+      return;
+    }
+    setPlaying(false); // supersede any per-scene loop
+    stopRaf();
+    setPlayingAll(true);
+    setSceneIndex(0);
+    setSceneSelected(true);
+    setPlayhead(0);
+    allStartRef.current = { wall: performance.now(), scene: 0 };
+    playAllLoop();
+  }
+
+  const reduceMotion =
+    typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const demoWait = (ms: number) =>
+    new Promise<void>((resolve) => {
+      if (demoCancelRef.current) return resolve();
+      setTimeout(resolve, reduceMotion ? Math.min(ms, 30) : ms);
+    });
+
+  // Map a scene-local point on the active scene to studio-container pixels (positions the AI cursor).
+  function scenePointToPx(p: ScenePoint): { left: number; top: number } | null {
+    const r = sceneRectRef.current;
+    const d = designRef.current;
+    if (!r || !d.width || !d.height) return null;
+    return { left: r.left + (p.x / d.width) * r.width, top: r.top + (p.y / d.height) * r.height };
+  }
+
+  // Build the controller the scripted agent drives — the mechanism by which "the AI" operates the
+  // canvas (move cursor, add/animate a node, type copy, switch scene, play the preview).
+  function makeDemoController(): DemoController {
+    return {
+      cancelled: () => demoCancelRef.current,
+      wait: demoWait,
+      fit: () => controlsRef.current?.fit(),
+      async think(text) {
+        setDemoThinking("");
+        for (let i = 1; i <= text.length && !demoCancelRef.current; i++) {
+          setDemoThinking(text.slice(0, i));
+          await demoWait(14);
+        }
+        setDemoThinking(text);
+        await demoWait(650);
+      },
+      async moveTo(point) {
+        if (!point) {
+          setDemoCursor(null);
+          return;
+        }
+        const px = scenePointToPx(point);
+        if (px) {
+          setDemoCursor({ ...px });
+          await demoWait(520); // let the cursor glide
+        }
+      },
+      async goToScene(index) {
+        setSceneIndex(index);
+        setSceneSelected(true);
+        await demoWait(360); // let the canvas reframe + report the new scene rect
+      },
+      async addNode(sceneIndex, mutate) {
+        const before = new Set((designRef.current.scenes[sceneIndex]?.nodes ?? []).map((n) => n.id));
+        const next = mutate(designRef.current);
+        designRef.current = next;
+        setDesign(next);
+        setDemoCursor((c) => (c ? { ...c, pressing: true } : c));
+        await demoWait(180);
+        setDemoCursor((c) => (c ? { ...c, pressing: false } : c));
+        return next.scenes[sceneIndex]?.nodes.find((n) => !before.has(n.id))?.id ?? null;
+      },
+      async update(mutate) {
+        const next = mutate(designRef.current);
+        designRef.current = next;
+        setDesign(next);
+        await demoWait(140);
+      },
+      async typeText(sceneIndex, nodeId, full) {
+        for (let i = 1; i <= full.length && !demoCancelRef.current; i++) {
+          const next = editText(designRef.current, sceneIndex, nodeId, full.slice(0, i));
+          designRef.current = next;
+          setDesign(next);
+          await demoWait(34);
+        }
+        const done = editText(designRef.current, sceneIndex, nodeId, full);
+        designRef.current = done;
+        setDesign(done);
+      },
+      async select(sceneIndex, nodeId) {
+        if (nodeId === null) {
+          setSelected(null);
+          setSelectedIds([]);
+          setSelectedScene(null);
+          return;
+        }
+        setSelectedScene(sceneIndex);
+        setSelectedIds([nodeId]);
+        setSelected({ scene: sceneIndex, nodeId });
+        await demoWait(200);
+      },
+      async play() {
+        if (playingRef.current) return;
+        playStartRef.current = { wall: performance.now(), base: 0 };
+        setPlayhead(0);
+        setPlaying(true);
+        playLoop();
+        await demoWait(100);
+      },
+      async cursorTo(px) {
+        setDemoCursor(px ? { ...px } : null);
+        await demoWait(px ? 520 : 150);
+      },
+      async openDrawer() {
+        setDrawerOpen(true);
+        await demoWait(450);
+      },
+      async closeDrawer() {
+        setDrawerOpen(false);
+        await demoWait(400);
+      },
+      async showCollection() {
+        const group = demoCollectionRef.current;
+        if (group) setGallery([group]);
+        setDemoCursor((c) => (c ? { ...c, pressing: true } : c));
+        await demoWait(260);
+        setDemoCursor((c) => (c ? { ...c, pressing: false } : c));
+      },
+      closeAll() {
+        setDrawerOpen(false);
+        setMediaOpen(false);
+        setAddCollectionOpen(false);
+      },
+    };
+  }
+
+  // The hook the AI Builder's "Generate design" calls — runs the scripted demo regardless of input.
+  async function runBuilderDemoFlow() {
+    if (demoRunning) return;
+    demoCancelRef.current = false;
+    setDemoRunning(true);
+    // Stop any preview and start from a clean square artboard, so the agent builds from scratch.
+    setPlaying(false);
+    setPlayingAll(false);
+    stopRaf();
+    const fresh = newDesign("social");
+    designRef.current = fresh;
+    setDesign(fresh);
+    setSceneIndex(0);
+    setSceneSelected(true);
+    setSelected(null);
+    setSelectedIds([]);
+    setSelectedScene(null);
+    await demoWait(450);
+    controlsRef.current?.fit();
+    // The media the agent builds with. If the open project already has image-bearing items, reuse
+    // them; otherwise resolve a seeded collection and pull its real photos in.
+    let builderItems: BuilderCatalogItem[] = panelItemsRef.current ?? [];
+    let collectionName: string | undefined;
+    let chosenId: number | undefined;
+    let resolvedEntries: Entry[] = [];
+    if (!builderItems.some((i) => i.imageSrc)) {
+      try {
+        const cols = await listCollections();
+        // Prefer the collection with the most entries (most imagery for the reel).
+        const chosen = [...cols].sort((a, b) => (b.item_ids?.length ?? 0) - (a.item_ids?.length ?? 0))[0];
+        if (chosen) {
+          chosenId = chosen.id;
+          const resolved = await resolveCollection(chosen.id);
+          collectionName = resolved.name;
+          resolvedEntries = resolved.items ?? [];
+          const panels = await Promise.all((resolved.items ?? []).map(toPanelItem));
+          builderItems = panels;
+          demoCollectionRef.current = {
+            id: `collection-${resolved.id}`,
+            title: resolved.name,
+            kind: "collection",
+            tiles: panels
+              .filter((p) => p.imageSrc)
+              .map((p) => ({ key: `entry-${p.id}`, label: p.title, src: p.imageSrc!, catalogItemId: `entry-${p.id}` })),
+          };
+        }
+      } catch {
+        /* keep whatever items we have; the director falls back to sample content if empty */
+      }
+    }
+
+    // Ensure a REAL, saved project to build into — so the result autosaves and the collection is
+    // genuinely attached. If none is open, create one (with the collection); otherwise attach the
+    // collection to the open project if it isn't there yet.
+    if (!(project && project.id > 0 && workspace)) {
+      try {
+        const created = await createProject({
+          name: collectionName ? `${collectionName} — AI itinerary` : "AI itinerary",
+          format: design.format,
+          ...(chosenId ? { collection_id: chosenId } : {}),
+        });
+        const ws = await getWorkspace(created.id);
+        setProject({ id: created.id, name: created.name });
+        setWorkspace(ws);
+        // Reflect the project in the URL WITHOUT a Next navigation, so a refresh reopens it but no
+        // mid-demo reload wipes the in-progress build.
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", `/agent/studio?project=${created.id}`);
+        }
+      } catch {
+        /* fall back to an unsaved build */
+      }
+    } else if (chosenId && !(workspace.reference_content.collections ?? []).some((c) => c.collection_id === chosenId)) {
+      try {
+        const nextWs: WorkspaceResolved = {
+          ...workspace,
+          reference_content: {
+            ...workspace.reference_content,
+            collections: [
+              ...(workspace.reference_content.collections ?? []),
+              { collection_id: chosenId, name: collectionName ?? "Collection", entries: resolvedEntries },
+            ],
+          },
+        };
+        setWorkspace(await saveWorkspace(project.id, toWorkspaceIn(nextWs, designRef.current)));
+      } catch {
+        /* keep the live pull even if the persist fails */
+      }
+    }
+
+    // Make the pulled collection usable by the Builder/drawer for real (the drawer reveal happens in
+    // the controller's showCollection). Kept after the run so the collection stays in the project.
+    setPanelItems(builderItems);
+    const items: DemoItem[] = builderItems.map((i) => ({
+      id: Number(i.id),
+      title: i.title,
+      destination: i.destination,
+      description: i.description,
+      imageSrc: i.imageSrc,
+    }));
+    try {
+      await runBuilderDemo(makeDemoController(), items, { collectionName });
+    } finally {
+      setDemoCursor(null);
+      setDemoThinking(null);
+      setDemoRunning(false);
+    }
+  }
+
+  function stopDemo() {
+    demoCancelRef.current = true;
+  }
 
   // One-click apply of the brand kit's aesthetics (palette · fonts · logo · contact). The kit is
   // fetched lazily on first click and cached, so no on-mount request races the canvas setup.
@@ -825,7 +1229,10 @@ function StudioEditor() {
       <div
         className="absolute inset-0"
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes(MEDIA_DND_TYPE)) {
+          if (
+            e.dataTransfer.types.includes(MEDIA_DND_TYPE) ||
+            e.dataTransfer.types.includes(TEXT_DND_TYPE)
+          ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
           }
@@ -869,9 +1276,48 @@ function StudioEditor() {
           onControls={(c) => (controlsRef.current = c)}
           selectedNodeId={selected?.nodeId ?? null}
           onActiveSceneRect={setSceneRect}
+          onFirstSceneRect={setFirstSceneRect}
+          onCurvePointMove={(scene, nodeId, index, point) => setDesign((d) => moveCurvePoint(d, scene, nodeId, index, point))}
+          onCurveMove={(scene, nodeId, dx, dy) => setDesign((d) => translateCurve(d, scene, nodeId, dx, dy))}
+          onCurveAnchorAdd={(scene, nodeId, point) => setDesign((d) => insertCurveAnchor(d, scene, nodeId, point))}
           highlightActive={sceneSelected}
           tool={tool}
         />
+
+        {/* Play all scenes in order (1 → 2 → 3 …) — distinct from the per-scene loop. Anchored just
+            to the LEFT of the first scene; it moves with the storyboard (and scrolls out of view with
+            it — no clamping to the screen edge). */}
+        {!demoRunning && firstSceneRect && (
+          <div
+            className="pointer-events-auto absolute z-30 flex -translate-x-full -translate-y-1/2 flex-col items-center gap-1.5 pr-4"
+            style={{ left: firstSceneRect.left, top: firstSceneRect.top + firstSceneRect.height / 2 }}
+          >
+            <button
+              type="button"
+              onClick={togglePlayAll}
+              aria-label={playingAll ? "Stop playing all scenes" : "Play all scenes in order"}
+              title={playingAll ? "Stop" : "Play all scenes in order"}
+              className={`grid h-16 w-16 place-items-center rounded-full border shadow-xl backdrop-blur-md transition-colors ${
+                playingAll
+                  ? "border-walshe-teal bg-walshe-teal text-white"
+                  : "border-walshe-line/70 bg-chrome-bg/95 text-walshe-teal hover:bg-walshe-ink/5"
+              }`}
+            >
+              {playingAll ? (
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" />
+                </svg>
+              ) : (
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M8 5.5v13a1 1 0 001.54.84l10-6.5a1 1 0 000-1.68l-10-6.5A1 1 0 008 5.5z" />
+                </svg>
+              )}
+            </button>
+            <span className="rounded-full bg-chrome-bg/95 px-2 py-0.5 text-[11px] font-semibold text-walshe-ink shadow-lift backdrop-blur-md">
+              {playingAll ? "Playing…" : "Play all"}
+            </span>
+          </div>
+        )}
 
         {/* One-click brand kit: logo watermark on every scene + a designed contact scene, and
             (optionally) a palette/font recolour across the design (AC87). The kit is fetched lazily
@@ -936,7 +1382,9 @@ function StudioEditor() {
           groups={gallery}
           loading={hasProject && panelItems === null}
           hasProject={hasProject}
+          textGroups={textGroups}
           onPlace={(t) => placeTile(t)}
+          onPlaceText={(s) => placeText(s)}
           onAddCollection={() => setAddCollectionOpen(true)}
           onUpload={() => setMediaOpen(true)}
           onGenerate={() => setMediaOpen(true)}
@@ -987,9 +1435,10 @@ function StudioEditor() {
         {/* Right tool rail: creation tools only (icons + hover names). */}
         <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />
 
-        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props). */}
-        {selectedIds.length > 1 && selectedScene !== null && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props).
+            Hidden while the AI Builder demo runs so its selections don't pop edit chrome. */}
+        {!demoRunning && selectedIds.length > 1 && selectedScene !== null && (
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <GroupPanel
               count={selectedIds.length}
               isGroup={Boolean(selectedGroupId)}
@@ -1002,11 +1451,48 @@ function StudioEditor() {
           </div>
         )}
 
-        {/* Inspector: appears when a single element is selected, styling controls for it. */}
-        {selectedNode && selectedIds.length <= 1 && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+        {/* Sprite chain: vertical numbered cards to the left of the Inspector — join a sprite to a
+            successor that starts where it ends. Shown for a selected sprite. */}
+        {!demoRunning && selected && selectedNode && selectedIds.length <= 1 && isSprite(selectedNode) && (
+          <SpriteChainPanel
+            design={design}
+            sceneIndex={selected.scene}
+            selectedNodeId={selected.nodeId}
+            onChange={setDesign}
+            onSelect={(scene, nodeId) => {
+              setSceneIndex(scene);
+              setSceneSelected(true);
+              setSelectedScene(scene);
+              setSelectedIds([nodeId]);
+              setSelected({ scene, nodeId });
+            }}
+          />
+        )}
+
+        {/* Inspector: appears when a single element is selected, styling controls for it.
+            Hidden while the AI Builder demo runs (the agent's own selections shouldn't open it). */}
+        {!demoRunning && selectedNode && selectedIds.length <= 1 && (
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-small font-bold text-walshe-ink">Edit element</h2>
+              {(() => {
+                // When the selected element is part of a sprite chain, say which member this is —
+                // so it reads as the SAME Edit-element box now editing the successor, not a new one.
+                const scene = selected && design.scenes[selected.scene];
+                const chain = scene && selected ? chainIds(scene, selected.nodeId) : [];
+                const pos = selected ? chain.indexOf(selected.nodeId) : -1;
+                return (
+                  <h2 className="text-small font-bold text-walshe-ink">
+                    {chain.length > 1 && pos >= 0 ? (
+                      <>
+                        Edit sprite{" "}
+                        <span className="font-medium text-walshe-grey">· {pos + 1} of {chain.length} in chain</span>
+                      </>
+                    ) : (
+                      "Edit element"
+                    )}
+                  </h2>
+                );
+              })()}
               <button
                 type="button"
                 aria-label="Deselect"
@@ -1023,8 +1509,31 @@ function StudioEditor() {
               onDelete={() => selected && onNodeDelete(selected.scene, selected.nodeId)}
               onLayer={layerSelected}
               onAnim={animSelected}
-              sceneDurationMs={design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS}
-              playheadMs={playhead}
+              {...(() => {
+                const sceneDur = design.scenes[sceneIndex]?.durationMs ?? DEFAULT_SCENE_DURATION_MS;
+                const sc = selected ? design.scenes[selected.scene] : undefined;
+                const chain = sc && selected ? chainIds(sc, selected.nodeId) : [];
+                const pos = selected ? chain.indexOf(selected.nodeId) : -1;
+                if (!sc || chain.length <= 1 || pos < 0) {
+                  return { sceneDurationMs: sceneDur, playheadMs: playhead, startLocked: false };
+                }
+                // Chained sprite: scope the keyframe track to THIS member's slot (its own 0..slotDur)
+                // with a playhead local to its on-stage window — so keyframes are confined to the
+                // time it actually animates, not the whole scene run.
+                const byId = new Map(sc.nodes.map((n) => [n.id, n]));
+                const slotDur = chainMemberDurationMs(selectedNode);
+                let start = 0;
+                for (let i = 0; i < pos; i++) {
+                  const m = byId.get(chain[i]);
+                  if (m) start += chainMemberDurationMs(m);
+                }
+                // A successor (pos > 0) starts where its predecessor ends — its 0s state is locked.
+                return {
+                  sceneDurationMs: slotDur,
+                  playheadMs: Math.max(0, Math.min(slotDur, playhead - start)),
+                  startLocked: pos > 0,
+                };
+              })()}
             />
           </div>
         )}
@@ -1036,13 +1545,22 @@ function StudioEditor() {
           <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
         </div>
 
-        {/* Bottom AI dock: AI Builder / Planner tabs. */}
+        {/* Bottom AI dock: AI Builder / Planner tabs. Starting the Builder plays the scripted demo. */}
         <StudioBottomDock
           design={design}
           sceneIndex={sceneIndex}
           onChange={setDesign}
           items={panelItems}
+          moderationEntries={moderationEntries}
+          onSelectNode={selectNode}
+          onDemoBuild={runBuilderDemoFlow}
+          demoRunning={demoRunning}
         />
+
+        {/* Scripted AI-Builder demo overlay: the AI cursor + streamed "thinking". */}
+        {demoRunning && (
+          <BuilderDemoOverlay cursor={demoCursor} thinking={demoThinking} onStop={stopDemo} />
+        )}
 
         {/* AC63 — a new project starts from a collection; prompt when opened without one. */}
         {!hasProject && (

@@ -10,13 +10,18 @@ import { clear, setSession, setToken } from "../../lib/session";
 // immediately; a Content Provider self-registers into a pending queue and lands on a holding screen.
 type Step = "choose" | "agent" | "provider";
 
+// Auth-screen lockup — the Voyago wordmark above the parent-company descriptor.
 function AuthMark({ tone = "ink" }: { tone?: "ink" | "light" }) {
-  const sub = tone === "light" ? "text-white/70" : "text-walshe-grey";
+  const sub = tone === "light" ? "text-white/75" : "text-walshe-grey";
   return (
-    <span className="inline-flex flex-col gap-2.5">
+    <span className="inline-flex flex-col items-start gap-2.5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/img/walshe-group-white.png" alt="The Walshe Group" className="h-12 w-auto" />
-      <span className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${sub}`}>Content Hub</span>
+      <img
+        src="/brand/voyago-wordmark-white.png"
+        alt="Voyago"
+        className={`h-16 w-auto shrink-0 ${tone === "light" ? "drop-shadow-[0_4px_18px_rgba(0,0,0,0.45)]" : ""}`}
+      />
+      <span className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${sub}`}>A Walshe Group product</span>
     </span>
   );
 }
@@ -140,9 +145,15 @@ export default function RegisterPage() {
 
           {step === "choose" && (
             <>
+              <Link
+                href="/login"
+                className="mb-5 inline-flex items-center gap-1.5 text-small font-medium text-walshe-grey transition-colors hover:text-walshe-ink"
+              >
+                <span aria-hidden>←</span> Back
+              </Link>
               <div className="mb-7">
                 <p className="eyebrow">Create your account</p>
-                <h1 className="mt-3 text-h2 text-walshe-ink">How will you use the hub?</h1>
+                <h1 className="mt-3 text-h2 text-walshe-ink">How will you use Voyago?</h1>
                 <p className="mt-2 text-body text-walshe-grey">Pick the option that describes you.</p>
               </div>
               <div className="space-y-3">

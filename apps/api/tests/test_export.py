@@ -206,6 +206,25 @@ def test_pdf_embeds_inline_data_image():
     assert b"/Subtype /Image" in pdf
 
 
+def test_pdf_skips_unfilled_media_placeholder():
+    # An unfilled media placeholder exports transparent — no embedded image AND no neutral frame box
+    # (so the slot is blank). A plain undecodable image still draws the frame, so it renders larger.
+    box = {"type": "image", "x": 10, "y": 10, "width": 200, "height": 150}
+    placeholder = {
+        "width": 600,
+        "height": 400,
+        "pages": [{"nodes": [{**box, "placeholder": True, "src": "blob:ph"}]}],
+    }
+    plain = {"width": 600, "height": 400, "pages": [{"nodes": [{**box, "src": "blob:nope"}]}]}
+
+    ph_pdf = design_to_pdf(placeholder)
+    plain_pdf = design_to_pdf(plain)
+    assert ph_pdf.startswith(b"%PDF")
+    assert b"/Subtype /Image" not in ph_pdf  # nothing embedded
+    # The placeholder drew nothing; the plain image drew a frame, so it renders larger.
+    assert len(ph_pdf) < len(plain_pdf)
+
+
 def test_pdf_image_without_inline_source_falls_back_to_frame():
     # A non-data src (e.g. a client blob: URL the server can't read) must not embed or crash;
     # it renders the neutral placeholder frame instead.

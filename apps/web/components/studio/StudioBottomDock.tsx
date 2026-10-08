@@ -1,37 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import BuilderPanel, { type BuilderCatalogItem } from "./BuilderPanel";
 import CreativePlanPanel from "./CreativePlanPanel";
+import ModerationPanel from "./ModerationPanel";
 import type { DesignDoc } from "../../lib/studio/ops";
+import { moderateWorkspace, type ModeratableEntry } from "../../lib/studio/moderation";
 
-type Tab = "builder" | "planner";
+type Tab = "builder" | "planner" | "moderation";
 
 interface Props {
   design: DesignDoc;
   sceneIndex: number;
   onChange: (next: DesignDoc) => void;
   items: BuilderCatalogItem[] | null;
+  /** The attached collections' entries (flattened to facts) — the moderation ground truth. */
+  moderationEntries: ModeratableEntry[];
+  /** Jump to a flagged element on the canvas. */
+  onSelectNode?: (sceneIndex: number, nodeId: string) => void;
+  /** When set, starting the Builder runs this scripted demo instead of calling the API. */
+  onDemoBuild?: (prompt: string) => void | Promise<void>;
+  /** Whether the scripted demo is currently running (disables the Generate button). */
+  demoRunning?: boolean;
 }
 
 /**
  * The studio's AI dock (AC46/47 UI): a bottom button that slides up a drawer with two tabs —
  * the grounded AI Builder and the Creative Planner. The panels themselves are unchanged.
  */
-export default function StudioBottomDock({ design, sceneIndex, onChange, items }: Props) {
+export default function StudioBottomDock({
+  design,
+  sceneIndex,
+  onChange,
+  items,
+  moderationEntries,
+  onSelectNode,
+  onDemoBuild,
+  demoRunning,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("builder");
 
-  const tabBtn = (id: Tab, label: string) => (
+  // Re-checked on every design/collection change, so the Moderation tab constantly reflects the
+  // current workspace (and its tab badge updates live even while the panel is closed).
+  const flags = useMemo(
+    () => moderateWorkspace(design, moderationEntries),
+    [design, moderationEntries],
+  );
+
+  const tabBtn = (id: Tab, label: string, badge?: number) => (
     <button
       type="button"
       aria-pressed={tab === id}
       onClick={() => setTab(id)}
-      className={`rounded-lg px-4 py-1.5 text-small font-semibold transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-small font-semibold transition-colors ${
         tab === id ? "bg-walshe-teal text-white" : "text-walshe-grey hover:bg-walshe-ink/10 hover:text-walshe-ink"
       }`}
     >
       {label}
+      {badge ? (
+        <span
+          className={`grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold tabular-nums ${
+            tab === id ? "bg-white/25 text-white" : "bg-walshe-danger/15 text-walshe-danger"
+          }`}
+        >
+          {badge}
+        </span>
+      ) : null}
     </button>
   );
 
@@ -63,6 +98,7 @@ export default function StudioBottomDock({ design, sceneIndex, onChange, items }
           <div className="flex flex-none items-center gap-2 border-b border-walshe-line px-4 py-2.5">
             {tabBtn("builder", "AI Builder")}
             {tabBtn("planner", "Planner")}
+            {tabBtn("moderation", "Moderation", flags.length)}
             <button
               type="button"
               aria-label="Close the AI studio"
@@ -76,15 +112,38 @@ export default function StudioBottomDock({ design, sceneIndex, onChange, items }
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {tab === "builder" ? (
-              items === null ? (
+            {tab === "moderation" ? (
+              <ModerationPanel
+                flags={flags}
+                hasEntries={moderationEntries.length > 0}
+                onSelect={onSelectNode}
+              />
+            ) : tab === "builder" ? (
+              // In demo mode the Builder is always available (it falls back to sample content when no
+              // collection is open); otherwise it needs approved catalog items to draft from.
+              !onDemoBuild && items === null ? (
                 <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
-              ) : items.length === 0 ? (
+              ) : !onDemoBuild && items !== null && items.length === 0 ? (
                 <p role="status" className="text-small text-walshe-grey">
                   No approved catalog items available for the AI Builder.
                 </p>
               ) : (
-                <BuilderPanel design={design} sceneIndex={sceneIndex} items={items} onChange={onChange} />
+                <BuilderPanel
+                  design={design}
+                  sceneIndex={sceneIndex}
+                  items={items ?? []}
+                  onChange={onChange}
+                  demoRunning={demoRunning}
+                  // Starting the demo slides the dock down so the agent's build is fully visible.
+                  onDemoBuild={
+                    onDemoBuild
+                      ? (prompt) => {
+                          setOpen(false);
+                          return onDemoBuild(prompt);
+                        }
+                      : undefined
+                  }
+                />
               )
             ) : (
               <CreativePlanPanel itemIds={(items ?? []).map((i) => Number(i.id))} />

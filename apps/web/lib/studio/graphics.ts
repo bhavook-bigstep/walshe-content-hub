@@ -236,6 +236,31 @@ function balloonFrames(): string[] {
   });
 }
 
+// Driving car — the wheels spin and the body bobs over the road (a "traveler" for an itinerary).
+function carFrames(): string[] {
+  const N = 6;
+  return Array.from({ length: N }, (_, i) => {
+    const ph = (i / N) * TAU;
+    const bob = Math.sin(ph * 2) * 1.6;
+    const by = (y: number) => r1(y + bob);
+    const wheel = (cx: number) => {
+      const spokes = Array.from({ length: 4 }, (_, k) => {
+        const a = ph + (k * Math.PI) / 2;
+        return `<line x1="${cx}" y1="78" x2="${r1(cx + Math.cos(a) * 9)}" y2="${r1(78 + Math.sin(a) * 9)}" stroke="#94a3b8" stroke-width="3"/>`;
+      }).join("");
+      return `<circle cx="${cx}" cy="78" r="15" fill="#1f2937"/>${spokes}<circle cx="${cx}" cy="78" r="5" fill="#cbd5e1"/>`;
+    };
+    return svgVB(170, 110,
+      `<rect x="14" y="${by(46)}" width="142" height="30" rx="14" fill="#0ea5e9"/>` +
+      `<path d="M46 ${by(50)}q8 -28 34 -28h24q18 0 26 28z" fill="#38bdf8" stroke="#0284c7" stroke-width="2"/>` +
+      `<path d="M58 ${by(48)}q6 -18 22 -18h6v18z" fill="#e0f2fe"/>` +
+      `<path d="M92 ${by(48)}v-18h10q12 0 18 18z" fill="#e0f2fe"/>` +
+      `<circle cx="150" cy="${by(62)}" r="5" fill="#fde047"/>` +
+      wheel(52) + wheel(124),
+    );
+  });
+}
+
 function frameSprite(id: string, label: string, w: number, h: number, frames: string[], fps = 8): SpriteDef {
   return { id, label, width: w, height: h, svg: frames[0], frames: frames.map(svgDataUrl), fps, enter: null };
 }
@@ -268,4 +293,5 @@ export const SPRITE_ANIMATIONS: SpriteDef[] = [
   frameSprite("twinkle-star", "Twinkling star", 170, 170, starFrames(), 8),
   frameSprite("breeze", "Breeze", 280, 160, breezeFrames(), 10),
   frameSprite("hot-air-balloon", "Hot-air balloon", 150, 200, balloonFrames(), 6),
+  frameSprite("driving-car", "Driving car", 170, 110, carFrames(), 10),
 ];

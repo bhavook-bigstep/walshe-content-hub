@@ -199,3 +199,16 @@ class DesignTemplate(BaseModel):
     height: int = 1080
     background: str = ""
     nodes: list[dict] = Field(default_factory=list)
+
+
+class UserSpriteOut(BaseModel):
+    """An imported sprite animation: its ordered frame object keys + playback metadata."""
+
+    id: int
+    name: str
+    fps: int
+    frame_width: int
+    frame_height: int
+    frame_keys: list[str]
+
+    model_config = {"from_attributes": True}

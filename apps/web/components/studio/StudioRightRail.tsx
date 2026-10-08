@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  addCurve,
   addGraphic,
   addPlaceholder,
   addShape,
@@ -18,6 +19,7 @@ import {
   type GraphicDef,
   type SpriteDef,
 } from "../../lib/studio/graphics";
+import SpriteImportPanel from "./SpriteImportPanel";
 
 type Tool = "text" | "shapes" | "photo" | "background" | "graphics" | "animated";
 
@@ -144,7 +146,7 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
   return (
     <div ref={rootRef} className="pointer-events-auto absolute right-3 top-24 z-30 flex items-start gap-2">
       {activeTool && (
-        <div className="w-64 rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+        <div className="no-scrollbar max-h-[calc(100vh-9rem)] w-64 overflow-y-auto rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
           <h2 className="mb-3 text-small font-bold text-walshe-ink">{activeTool.label}</h2>
 
           {active === "text" && (
@@ -167,15 +169,27 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
           )}
 
           {active === "shapes" && (
-            <div className="flex flex-wrap gap-2">
-              {(["rect", "ellipse", "line"] as ShapeKind[]).map((s) => (
-                <button key={s} type="button" className={chip} onClick={() => onChange(addShape(design, sceneIndex, s))}>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {(["rect", "ellipse", "line"] as ShapeKind[]).map((s) => (
+                  <button key={s} type="button" className={chip} onClick={() => onChange(addShape(design, sceneIndex, s))}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                      {SHAPE_ICON[s]}
+                    </svg>
+                    {s}
+                  </button>
+                ))}
+                <button type="button" className={chip} onClick={() => { onChange(addCurve(design, sceneIndex)); setActive(null); }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                    {SHAPE_ICON[s]}
+                    <path d="M4 18C9 18 9 7 14 7s5 8 6 8" />
                   </svg>
-                  {s}
+                  curve
                 </button>
-              ))}
+              </div>
+              <p className="text-[11px] leading-snug text-walshe-grey">
+                Curve adds an editable line — select it, drag the round anchors to bend it, and
+                double-click the line to add an anchor.
+              </p>
             </div>
           )}
 
@@ -236,15 +250,22 @@ export default function StudioRightRail({ design, sceneIndex, onChange }: Props)
           )}
 
           {active === "animated" && (
-            <GraphicGrid
-              title="Sprite animations"
-              items={SPRITE_ANIMATIONS}
-              onPick={(g) => {
-                const s = g as SpriteDef;
-                // Insert as a frame-by-frame sprite: its filmstrip plays on preview + export.
-                onChange(addGraphic(design, sceneIndex, { width: s.width, height: s.height, frames: s.frames, fps: s.fps }));
-              }}
-            />
+            <div className="space-y-3">
+              {/* Your imported sprites + the "+" upload button, at the top of the window. */}
+              <SpriteImportPanel design={design} sceneIndex={sceneIndex} onChange={onChange} />
+              <div className="border-t border-walshe-line/70 pt-3">
+                <GraphicGrid
+                  title="Sprite library"
+                  items={SPRITE_ANIMATIONS}
+                  onPick={(g) => {
+                    const s = g as SpriteDef;
+                    // Insert as a frame-by-frame sprite. Carry the sprite id so the node references the
+                    // sprite in the workspace JSON (agent-/MCP-friendly); `frames` is the resolvable cache.
+                    onChange(addGraphic(design, sceneIndex, { width: s.width, height: s.height, frames: s.frames, fps: s.fps, sprite: s.id }));
+                  }}
+                />
+              </div>
+            </div>
           )}
         </div>
       )}

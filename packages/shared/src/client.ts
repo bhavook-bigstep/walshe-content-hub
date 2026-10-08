@@ -459,6 +459,33 @@ export async function generateLibraryMedia(prompt: string): Promise<UserAsset[]>
   return (await (await send("/me/library/generate", json({ prompt }))).json()) as UserAsset[];
 }
 
+/** An imported sprite animation: ordered frame object keys + playback metadata. */
+export type UserSprite = Schemas["UserSpriteOut"];
+
+/** Import a sprite sheet (PNG) or a ZIP of sheets; the server slices each into frames. `cols`/`rows`
+ * override the auto-detected grid (for non-square / multi-row sheets). */
+export async function importSprites(
+  file: File,
+  opts: { cols?: number; rows?: number; fps?: number } = {},
+): Promise<UserSprite[]> {
+  const form = new FormData();
+  form.append("file", file);
+  if (opts.cols) form.append("cols", String(opts.cols));
+  if (opts.rows) form.append("rows", String(opts.rows));
+  if (opts.fps) form.append("fps", String(opts.fps));
+  return (await (await send("/me/sprites/import", { method: "POST", body: form })).json()) as UserSprite[];
+}
+
+/** List the caller's imported sprites (newest first). */
+export async function listMySprites(): Promise<UserSprite[]> {
+  return (await (await send("/me/sprites")).json()) as UserSprite[];
+}
+
+/** Delete one of the caller's imported sprites (used to discard the ones not kept after an import). */
+export async function deleteSprite(spriteId: number): Promise<void> {
+  await send(`/me/sprites/${spriteId}`, { method: "DELETE" });
+}
+
 export async function getBrandKit(): Promise<BrandKit> {
   return (await (await send("/me/brand-kit")).json()) as BrandKit;
 }

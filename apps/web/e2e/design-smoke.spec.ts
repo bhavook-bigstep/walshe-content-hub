@@ -21,7 +21,7 @@ async function loginAsAgent(page: Page): Promise<void> {
 // AC20 — branded public landing page: hero headline + primary CTA into sign-in.
 test("landing page shows hero headline and a sign-in CTA", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Verified destinations");
+  await expect(page.getByRole("img", { name: "Voyago" }).first()).toBeVisible();
   const signIn = page.getByRole("link", { name: "Sign in" }).first();
   await expect(signIn).toBeVisible();
   await signIn.click();
@@ -35,16 +35,16 @@ test("landing page has no horizontal scroll on mobile", async ({ page }) => {
   expect(await hasNoHorizontalScroll(page)).toBe(true);
 });
 
-// AC21 — branded app shell: Walshe logo + role-aware nav after login.
+// AC21 — branded app shell: Voyago logo + role-aware nav after login.
 test("agent app shell shows branded nav and logo", async ({ page }) => {
   await allowApiCors(page);
   await loginAsAgent(page);
-  // Expand the icon rail (collapsed by default) to show the labelled nav + Walshe wordmark.
+  // Expand the icon rail (collapsed by default) to show the labelled nav + Voyago wordmark.
   await page.getByRole("button", { name: "Expand sidebar" }).click();
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav.getByRole("link", { name: "Catalog" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Design Studio" })).toBeVisible();
-  await expect(page.getByRole("img", { name: /walshe/i }).first()).toBeVisible();
+  await expect(page.getByRole("img", { name: /voyago/i }).first()).toBeVisible();
 });
 
 // AC22 — polished dashboard: stat tiles + a chart render for the agent.
@@ -53,9 +53,8 @@ test("agent dashboard renders stat tiles and a designed engagement panel", async
   await loginAsAgent(page);
   await expect(page.getByTestId("stat-tile").first()).toBeVisible();
   expect(await page.getByTestId("stat-tile").count()).toBeGreaterThanOrEqual(3);
-  // With no seeded engagement the panel shows its designed empty state; once a post is published
-  // and metrics arrive, the same slot renders the chart (data-testid="engagement-chart").
-  await expect(page.getByRole("heading", { name: /no engagement yet/i })).toBeVisible();
+  // Seeded engagement renders the chart in the engagement slot (data-testid="engagement-chart").
+  await expect(page.getByTestId("engagement-chart").first()).toBeVisible();
 });
 
 // AC23 — responsive: no horizontal overflow on the agent dashboard at mobile width.

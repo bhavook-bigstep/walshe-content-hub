@@ -525,6 +525,47 @@
         "title": "Body_import_document_me_auto_catalog_import_post",
         "type": "object"
       },
+      "Body_import_sprite_sheets_me_sprites_import_post": {
+        "properties": {
+          "cols": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cols"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "fps": {
+            "default": 10,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rows"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_sprite_sheets_me_sprites_import_post",
+        "type": "object"
+      },
       "Body_publish_social_instagram_publish_post": {
         "properties": {
           "caption": {
@@ -2950,6 +2991,11 @@
             "title": "Rows",
             "type": "array"
           },
+          "total_engagements": {
+            "default": 0,
+            "title": "Total Engagements",
+            "type": "integer"
+          },
           "total_reach": {
             "title": "Total Reach",
             "type": "integer"
@@ -2957,6 +3003,14 @@
           "total_uses": {
             "title": "Total Uses",
             "type": "integer"
+          },
+          "trend": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "title": "Trend",
+            "type": "array"
           }
         },
         "required": [
@@ -2969,6 +3023,11 @@
       },
       "PerformanceRow": {
         "properties": {
+          "engagements": {
+            "default": 0,
+            "title": "Engagements",
+            "type": "integer"
+          },
           "entry_id": {
             "title": "Entry Id",
             "type": "integer"
@@ -3821,6 +3880,29 @@
         "title": "TokenResponse",
         "type": "object"
       },
+      "TrendPoint": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "engagements": {
+            "title": "Engagements",
+            "type": "integer"
+          },
+          "reach": {
+            "title": "Reach",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "reach",
+          "engagements"
+        ],
+        "title": "TrendPoint",
+        "type": "object"
+      },
       "UserAssetOut": {
         "description": "A user's own stored asset (AC51) — uploaded (``local``) or generated (``agent``).",
         "properties": {
@@ -3941,6 +4023,48 @@
           "approved"
         ],
         "title": "UserOut",
+        "type": "object"
+      },
+      "UserSpriteOut": {
+        "description": "An imported sprite animation: its ordered frame object keys + playback metadata.",
+        "properties": {
+          "fps": {
+            "title": "Fps",
+            "type": "integer"
+          },
+          "frame_height": {
+            "title": "Frame Height",
+            "type": "integer"
+          },
+          "frame_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Frame Keys",
+            "type": "array"
+          },
+          "frame_width": {
+            "title": "Frame Width",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "fps",
+          "frame_width",
+          "frame_height",
+          "frame_keys"
+        ],
+        "title": "UserSpriteOut",
         "type": "object"
       },
       "ValidationError": {
@@ -8340,6 +8464,129 @@
         "summary": "Save Workspace",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/me/sprites": {
+      "get": {
+        "description": "List the caller's imported sprites (newest first). Owner-scoped.",
+        "operationId": "list_sprites_me_sprites_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserSpriteOut"
+                  },
+                  "title": "Response List Sprites Me Sprites Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Sprites",
+        "tags": [
+          "me-sprites"
+        ]
+      }
+    },
+    "/me/sprites/import": {
+      "post": {
+        "description": "Slice an uploaded sprite sheet (PNG) or a ZIP of sheets into frame images and save them as\nthe caller's sprites. `cols`/`rows` override the auto-detected grid; `fps` sets the speed.",
+        "operationId": "import_sprite_sheets_me_sprites_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_sprite_sheets_me_sprites_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserSpriteOut"
+                  },
+                  "title": "Response Import Sprite Sheets Me Sprites Import Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Sprite Sheets",
+        "tags": [
+          "me-sprites"
+        ]
+      }
+    },
+    "/me/sprites/{sprite_id}": {
+      "delete": {
+        "description": "Delete one of the caller's sprites (the frame objects are left in storage, owner-only).",
+        "operationId": "delete_sprite_me_sprites__sprite_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sprite_id",
+            "required": true,
+            "schema": {
+              "title": "Sprite Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Sprite",
+        "tags": [
+          "me-sprites"
         ]
       }
     },

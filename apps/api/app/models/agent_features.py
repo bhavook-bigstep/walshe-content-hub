@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
 
@@ -16,6 +16,22 @@ class Collection(Base):
     agent_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     item_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+
+
+class UserSprite(Base):
+    """An imported sprite animation: a sprite sheet sliced into ordered frame images, stored
+    under the owner's ``users/<id>/sprites/<sprite id>/`` prefix. Owner-scoped."""
+
+    __tablename__ = "user_sprites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    # Ordered storage object keys of the frame PNGs (resolved to served URLs by the studio).
+    frame_keys: Mapped[list[str]] = mapped_column(JSON, default=list)
+    fps: Mapped[int] = mapped_column(Integer, default=10)
+    frame_width: Mapped[int] = mapped_column(Integer, default=0)
+    frame_height: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class BrandKit(Base):

@@ -22,6 +22,7 @@ from app.schemas.provider import (
     PerformanceRow,
     TeamInvite,
     TeamMember,
+    TrendPoint,
 )
 from app.security import hash_password
 
@@ -116,33 +117,76 @@ def content_performance(
     )
     comps = db.execute(select(Composition)).scalars().all()
 
-    # Reach per composition (via its published posts). Engagement is platform-tagged snapshots now,
-    # so take the LATEST snapshot per post (reach, else views), not a sum.
-    reach_by_post: dict[int, int] = {}
-    eng_rows = db.execute(
-        select(Engagement.post_id, Engagement.metrics).order_by(Engagement.fetched_at)
-    ).all()
-    for post_id, metrics in eng_rows:  # ascending fetched_at → last write wins = latest snapshot
-        m = metrics or {}
-        reach_by_post[post_id] = int(m.get("reach", m.get("views", 0)) or 0)
+    entry_ids = {e.id for e in entries}
     post_comp = dict(db.execute(select(Post.id, Post.composition_id)).all())
-    impressions_by_comp: dict[int, int] = {}
-    for post_id, reach in reach_by_post.items():
-        comp_id = post_comp.get(post_id)
-        if comp_id is not None:
-            impressions_by_comp[comp_id] = impressions_by_comp.get(comp_id, 0) + reach
+    # Compositions (and thus posts) that actually reference this provider's content.
+    used_comp_ids = {c.id for c in comps if entry_ids.intersection(c.item_ids or [])}
+    relevant_posts = {pid for pid, cid in post_comp.items() if cid in used_comp_ids}
+
+    def _reach(m: dict) -> int:
+        return int(m.get("reach", m.get("views", 0)) or 0)
+
+    def _engagements(m: dict) -> int:
+        inter = m.get("total_interactions")
+        if inter is None:
+            inter = sum(int(m.get(k, 0) or 0) for k in ("likes", "comments", "saved", "shares"))
+        return int(inter or 0)
+
+    # One pass over snapshots (ascending fetched_at): the LATEST snapshot per post drives the
+    # per-entry totals; every snapshot feeds the day-by-day trend (for this provider's posts only).
+    reach_by_post: dict[int, int] = {}
+    eng_by_post: dict[int, int] = {}
+    trend_reach: dict[str, int] = {}
+    trend_eng: dict[str, int] = {}
+    eng_rows = db.execute(
+        select(Engagement.post_id, Engagement.metrics, Engagement.fetched_at).order_by(
+            Engagement.fetched_at
+        )
+    ).all()
+    for post_id, metrics, fetched_at in eng_rows:
+        m = metrics or {}
+        r, e = _reach(m), _engagements(m)
+        reach_by_post[post_id] = r  # last write wins = latest snapshot
+        eng_by_post[post_id] = e
+        if post_id in relevant_posts and fetched_at is not None:
+            day = fetched_at.date().isoformat()
+            trend_reach[day] = trend_reach.get(day, 0) + r
+            trend_eng[day] = trend_eng.get(day, 0) + e
+
+    reach_by_comp: dict[int, int] = {}
+    eng_by_comp: dict[int, int] = {}
+    for post_id, comp_id in post_comp.items():
+        if comp_id is None:
+            continue
+        reach_by_comp[comp_id] = reach_by_comp.get(comp_id, 0) + reach_by_post.get(post_id, 0)
+        eng_by_comp[comp_id] = eng_by_comp.get(comp_id, 0) + eng_by_post.get(post_id, 0)
 
     rows: list[PerformanceRow] = []
     for entry in entries:
         using = [c for c in comps if entry.id in (c.item_ids or [])]
-        reach = sum(impressions_by_comp.get(c.id, 0) for c in using)
+        reach = sum(reach_by_comp.get(c.id, 0) for c in using)
+        engagements = sum(eng_by_comp.get(c.id, 0) for c in using)
         rows.append(
-            PerformanceRow(entry_id=entry.id, title=entry.title, uses=len(using), reach=reach)
+            PerformanceRow(
+                entry_id=entry.id,
+                title=entry.title,
+                uses=len(using),
+                reach=reach,
+                engagements=engagements,
+            )
         )
 
-    rows.sort(key=lambda r: (r.reach, r.uses), reverse=True)
+    rows.sort(key=lambda r: (r.reach, r.engagements, r.uses), reverse=True)
+    trend = [
+        TrendPoint(date=day, reach=trend_reach[day], engagements=trend_eng.get(day, 0))
+        for day in sorted(trend_reach)
+    ]
+    # Totals count each post once (summing the per-entry rows would double-count a composition that
+    # uses several of this provider's entries), keeping the KPIs consistent with the trend's end.
     return PerformanceOut(
         total_uses=sum(r.uses for r in rows),
-        total_reach=sum(r.reach for r in rows),
+        total_reach=sum(reach_by_post.get(pid, 0) for pid in relevant_posts),
+        total_engagements=sum(eng_by_post.get(pid, 0) for pid in relevant_posts),
         rows=rows,
+        trend=trend,
     )

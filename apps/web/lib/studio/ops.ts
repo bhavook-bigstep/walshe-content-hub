@@ -24,6 +24,12 @@ import { getFormatPreset, isFormatName, type FormatName } from "./formats";
 export type NodeType = "text" | "shape" | "image" | "background";
 export type ShapeKind = "rect" | "ellipse" | "line";
 
+/** One anchor of an editable curve (scene-local coordinates). */
+export interface CurvePoint {
+  x: number;
+  y: number;
+}
+
 /** The transition played INTO the next scene when the sequence is stitched to video. */
 export type TransitionKind = "none" | "fade" | "slide-left" | "zoom";
 export const TRANSITION_KINDS: readonly TransitionKind[] = ["none", "fade", "slide-left", "zoom"];
@@ -135,6 +141,9 @@ export interface DesignNode {
   stroke?: string;
   /** shape: stroke width in px */
   strokeWidth?: number;
+  /** shape (curve): ordered anchor points, scene-local coords. A `shape` node with `points` renders
+   * as an editable curve smoothed through the anchors (2 points = a straight line). */
+  points?: CurvePoint[];
 
   /** optional keyframe animation (position/scale/rotation/opacity over time within the scene) */
   anim?: NodeAnimation;
@@ -165,6 +174,14 @@ export interface DesignNode {
   /** image only — a built-in sprite id (e.g. "walking-panda"); the studio resolves it to `frames`
    * + `fps` on load (so templates can reference a sprite without embedding its filmstrip). */
   sprite?: string;
+  /** sprite only — the id of the sprite that plays NEXT, starting where this one finishes (same
+   * place/state). Chains sprite animations: head → successor → …; during preview/export each plays
+   * its filmstrip once in turn. */
+  successorId?: string;
+  /** sprite-chain only — how long (ms) this member holds the stage before handing off to its
+   * successor. Overrides the member's natural filmstrip length; the sprite loops its frames to fill
+   * the slot. Undefined = use the filmstrip length. */
+  chainDurMs?: number;
 }
 
 /** The style keys that `updateNode` may patch on a node (never id/type/geometry writes). */
@@ -396,6 +413,137 @@ export function addShape(
   return next;
 }
 
+// ── Editable curves (CorelDraw-style) ────────────────────────────────────────────────────────────
+// A curve is a `shape` node carrying ordered `points`. It renders smoothed through the anchors
+// (Catmull-Rom spline) so dragging an anchor bends the line; two anchors is a straight line.
+
+/** Axis-aligned bounding box of a point set (min 1×1 so a degenerate curve still has a size). */
+export function pointsBounds(points: CurvePoint[]): { x: number; y: number; width: number; height: number } {
+  if (points.length === 0) return { x: 0, y: 0, width: 1, height: 1 };
+  let minX = points[0].x, minY = points[0].y, maxX = points[0].x, maxY = points[0].y;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+}
+
+/** One point on the Catmull-Rom spline between p1→p2 (p0/p3 are the neighbours), at 0≤t≤1. */
+function catmullRom(p0: CurvePoint, p1: CurvePoint, p2: CurvePoint, p3: CurvePoint, t: number): CurvePoint {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const f = (a: number, b: number, c: number, d: number) =>
+    0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+  return { x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) };
+}
+
+/**
+ * Sample the smooth curve through `points` into a dense polyline (so it can render as a Fabric
+ * Polyline and export identically). 0–2 anchors pass through unchanged (a point / a straight line);
+ * 3+ anchors are interpolated with a Catmull-Rom spline, `perSegment` samples per span. Pure.
+ */
+export function sampleCurve(points: CurvePoint[], perSegment = 18): CurvePoint[] {
+  if (points.length <= 2) return points.map((p) => ({ ...p }));
+  const out: CurvePoint[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] ?? points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? points[i + 1];
+    for (let s = 0; s < perSegment; s++) out.push(catmullRom(p0, p1, p2, p3, s / perSegment));
+  }
+  out.push({ ...points[points.length - 1] });
+  return out;
+}
+
+/** Add an editable curve — starts as a straight 2-anchor line; drag/add anchors to bend it. */
+export function addCurve(design: DesignDoc, sceneIndex: number, placement: NodePlacement = {}): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const x = placement.x ?? 140;
+  const y = placement.y ?? 260;
+  const w = placement.width ?? 520;
+  const points: CurvePoint[] = [
+    { x, y: y + w * 0.15 },
+    { x: x + w, y },
+  ];
+  const b = pointsBounds(points);
+  scene.nodes.push({
+    id: nextId("shape", scene),
+    type: "shape",
+    shape: "line",
+    points,
+    x: b.x,
+    y: b.y,
+    width: b.width,
+    height: b.height,
+    stroke: placement.stroke ?? placement.color ?? "#111111",
+    strokeWidth: placement.strokeWidth ?? 6,
+    ...stylePlacement(placement),
+  });
+  return next;
+}
+
+/** Whether a node is an editable curve (a shape carrying 2+ anchor points). */
+export function isCurve(node: DesignNode): boolean {
+  return node.type === "shape" && Array.isArray(node.points) && node.points.length >= 2;
+}
+
+/** Replace a curve's anchor points (and re-fit its bounding box). */
+export function setCurvePoints(design: DesignDoc, sceneIndex: number, nodeId: string, points: CurvePoint[]): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    const b = pointsBounds(points);
+    return { ...n, points: points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })), x: b.x, y: b.y, width: b.width, height: b.height };
+  });
+}
+
+/** Move one anchor of a curve to a new scene-local point. */
+export function moveCurvePoint(design: DesignDoc, sceneIndex: number, nodeId: string, index: number, point: CurvePoint): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    if (!n.points || index < 0 || index >= n.points.length) return n;
+    const points = n.points.map((p, i) => (i === index ? { x: Math.round(point.x), y: Math.round(point.y) } : p));
+    const b = pointsBounds(points);
+    return { ...n, points, x: b.x, y: b.y, width: b.width, height: b.height };
+  });
+}
+
+/** Translate every anchor of a curve by (dx, dy) — used when the whole curve is dragged. */
+export function translateCurve(design: DesignDoc, sceneIndex: number, nodeId: string, dx: number, dy: number): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    if (!n.points) return n;
+    const points = n.points.map((p) => ({ x: Math.round(p.x + dx), y: Math.round(p.y + dy) }));
+    const b = pointsBounds(points);
+    return { ...n, points, x: b.x, y: b.y, width: b.width, height: b.height };
+  });
+}
+
+/** Insert a new anchor on the curve nearest to `point` (splits the closest segment). */
+export function insertCurveAnchor(design: DesignDoc, sceneIndex: number, nodeId: string, point: CurvePoint): DesignDoc {
+  return mapNode(design, sceneIndex, nodeId, (n) => {
+    if (!n.points || n.points.length < 2) return n;
+    // Find the segment whose midpoint-projection is closest to the click, insert the anchor after it.
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < n.points.length - 1; i++) {
+      const a = n.points[i];
+      const b = n.points[i + 1];
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const d = (mx - point.x) ** 2 + (my - point.y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    const points = [...n.points.slice(0, best + 1), { x: Math.round(point.x), y: Math.round(point.y) }, ...n.points.slice(best + 1)];
+    const bb = pointsBounds(points);
+    return { ...n, points, x: bb.x, y: bb.y, width: bb.width, height: bb.height };
+  });
+}
+
 /** Set a scene's background colour (AC9 "backgrounds"). */
 export function setBackground(design: DesignDoc, sceneIndex: number, color: string): DesignDoc {
   assertScene(design, sceneIndex);
@@ -462,6 +610,8 @@ export function addGraphic(
     loop?: NodeAnimation["loop"];
     frames?: string[];
     fps?: number;
+    /** A sprite id — e.g. an imported sprite `user:<id>` — so its filmstrip can re-resolve on reload. */
+    sprite?: string;
   },
   placement: NodePlacement = {},
 ): DesignDoc {
@@ -477,6 +627,7 @@ export function addGraphic(
     height: placement.height ?? g.height,
     src: g.src ?? g.frames?.[0],
     ...(g.frames && g.frames.length > 1 ? { frames: g.frames, fps: g.fps ?? 10 } : {}),
+    ...(g.sprite ? { sprite: g.sprite } : {}),
     ...stylePlacement(placement),
   };
   if (g.enter || g.loop) {
@@ -488,6 +639,226 @@ export function addGraphic(
     };
   }
   scene.nodes.push(node);
+  return next;
+}
+
+// ── Sprite chaining (join animations: head → successor → …) ─────────────────────────────────────
+// Each member plays its filmstrip once in turn; a successor begins at its predecessor's END state
+// (position / scale / rotation / opacity), so two animations read as one continuous motion.
+
+/** A sprite's end transform (its last keyframe's values, falling back to its base) — the state a
+ * successor should start from. Lightweight + pure (no engine import). */
+export function spriteEndTransform(node: DesignNode): {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+  opacity: number;
+} {
+  const base = { x: node.x, y: node.y, scale: 1, rotation: node.angle ?? 0, opacity: node.opacity ?? 1 };
+  const kfs = node.anim?.keyframes;
+  if (!kfs || kfs.length === 0) return base;
+  const last = kfs.reduce((a, b) => (b.t >= a.t ? b : a));
+  return {
+    x: last.x ?? base.x,
+    y: last.y ?? base.y,
+    scale: last.scale ?? base.scale,
+    rotation: last.rotation ?? base.rotation,
+    opacity: last.opacity ?? base.opacity,
+  };
+}
+
+/** Whether a node is a frame sprite (2+ frames or a sprite id). */
+export function isSprite(node: DesignNode): boolean {
+  return node.type === "image" && ((node.frames?.length ?? 0) > 1 || !!node.sprite);
+}
+
+/** A sprite's play-once filmstrip length in ms (0 for a non-sprite). Mirrors anim.ts `spriteOwnMs`,
+ * duplicated here to avoid an ops→anim import cycle. */
+function spriteOwnDurMs(node: DesignNode): number {
+  const n = node.frames?.length ?? 0;
+  if (n < 2) return 0;
+  const fps = node.fps && node.fps > 0 ? node.fps : 10;
+  return (n / fps) * 1000;
+}
+
+/** One chain member's slot length: an explicit `chainDurMs` override, else the longer of its
+ * filmstrip and its own keyframe track. Kept in sync with anim.ts `memberDurMs`. */
+function memberDurMs(node: DesignNode): number {
+  if (node.chainDurMs && node.chainDurMs > 0) return Math.round(node.chainDurMs);
+  const anim = node.anim?.keyframes?.length ? Math.max(...node.anim.keyframes.map((k) => k.t)) : 0;
+  return Math.max(spriteOwnDurMs(node), anim, 1);
+}
+
+/** A chain member's current on-stage duration (ms): its `chainDurMs` override or its filmstrip
+ * length. For the duration control in the chain panel. */
+export function chainMemberDurationMs(node: DesignNode): number {
+  return memberDurMs(node);
+}
+
+/** Total time (ms) a sprite chain needs to play through, back-to-back, start to finish. */
+export function chainTotalMs(scene: Scene, nodeId: string): number {
+  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+  return chainIds(scene, nodeId).reduce((sum, id) => {
+    const n = byId.get(id);
+    return sum + (n ? memberDurMs(n) : 0);
+  }, 0);
+}
+
+/** The settable range for a chain member's on-stage duration (ms). */
+export const MIN_CHAIN_MEMBER_MS = 200;
+export const MAX_CHAIN_MEMBER_MS = 10000;
+
+/** Grow (never shrink) a scene's duration so a sprite chain containing `nodeId` plays in full before
+ * the scene loops, with a short tail so the last frame reads. Mutates `scene` in place. */
+function extendSceneForChain(scene: Scene, nodeId: string): void {
+  const needed = chainTotalMs(scene, nodeId) + 300;
+  scene.durationMs = clampSceneDuration(Math.max(scene.durationMs, needed));
+}
+
+/** Set how long a chained sprite holds the stage before its successor starts. Clamped to a sane
+ * range; the scene grows to keep the whole chain visible. Pure op (design → design). */
+export function setChainDuration(
+  design: DesignDoc,
+  sceneIndex: number,
+  nodeId: string,
+  ms: number,
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const node = scene.nodes.find((n) => n.id === nodeId);
+  if (!node || !isSprite(node)) return design;
+  node.chainDurMs = Math.min(MAX_CHAIN_MEMBER_MS, Math.max(MIN_CHAIN_MEMBER_MS, Math.round(ms)));
+  extendSceneForChain(scene, nodeId);
+  return next;
+}
+
+/** The ordered chain of sprite ids that `nodeId` belongs to (head → … → tail). A standalone sprite
+ * returns just itself. Cycle-safe. */
+export function chainIds(scene: Scene, nodeId: string): string[] {
+  const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+  if (!byId.has(nodeId)) return [];
+  // Walk back to the head (the node no one points at as a successor).
+  const predOf = new Map<string, string>();
+  for (const n of scene.nodes) if (n.successorId) predOf.set(n.successorId, n.id);
+  let head = nodeId;
+  const seenBack = new Set<string>();
+  while (predOf.has(head) && !seenBack.has(head)) {
+    seenBack.add(head);
+    head = predOf.get(head)!;
+  }
+  // Walk forward collecting the chain.
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  let cur: string | undefined = head;
+  while (cur && byId.has(cur) && !seen.has(cur)) {
+    seen.add(cur);
+    ids.push(cur);
+    cur = byId.get(cur)!.successorId;
+  }
+  return ids;
+}
+
+/**
+ * Add a sprite as the successor of `parentId`: a new sprite node placed at the parent's end state
+ * (so the motion continues seamlessly), linked into the chain right after the parent. The parent is
+ * set to play once (so it finishes before the successor starts). Returns the new design.
+ */
+export function addSuccessorSprite(
+  design: DesignDoc,
+  sceneIndex: number,
+  parentId: string,
+  sprite: { frames: string[]; fps?: number; width: number; height: number; spriteRef?: string },
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const parent = scene.nodes.find((n) => n.id === parentId);
+  if (!parent || sprite.frames.length === 0) return design;
+
+  const end = spriteEndTransform(parent);
+  const w = Math.max(1, Math.round((parent.width || sprite.width) * end.scale));
+  const h = Math.max(1, Math.round((parent.height || sprite.height) * end.scale));
+  const node: DesignNode = {
+    id: nextId("image", scene),
+    type: "image",
+    x: Math.round(end.x),
+    y: Math.round(end.y),
+    width: w,
+    height: h,
+    src: sprite.frames[0],
+    frames: sprite.frames,
+    fps: sprite.fps ?? 10,
+    loopFrames: false,
+    angle: end.rotation,
+    opacity: end.opacity,
+    ...(sprite.spriteRef ? { sprite: sprite.spriteRef } : {}),
+  };
+  // Insert into the chain right after the parent (preserving any existing successor).
+  node.successorId = parent.successorId;
+  parent.successorId = node.id;
+  parent.loopFrames = false; // a chained sprite plays once so its successor can take over
+  scene.nodes.push(node);
+  extendSceneForChain(scene, parentId); // grow the scene so the whole chain actually plays
+  return next;
+}
+
+/**
+ * Normalise every sprite chain so each successor STARTS exactly where its predecessor ENDS: the
+ * child's base transform (and its t≤0 "start" keyframe, if any) is pinned to the predecessor's end
+ * state. The child's 0s state is therefore never independent — it always mirrors the parent's end.
+ * Cascades head→tail (a child's end feeds its own child). Pure + deterministic; idempotent. Returns
+ * the input unchanged when there are no chains, so non-chain edits don't allocate.
+ */
+export function syncChainStarts(design: DesignDoc): DesignDoc {
+  if (!design.scenes.some((s) => s.nodes.some((n) => n.successorId))) return design;
+  const next = cloneDesign(design);
+  for (const scene of next.scenes) {
+    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+    const hasPred = new Set<string>();
+    for (const n of scene.nodes) if (n.successorId && byId.has(n.successorId)) hasPred.add(n.successorId);
+    for (const head of scene.nodes) {
+      if (hasPred.has(head.id)) continue; // start only from a chain head
+      const seen = new Set<string>();
+      let cur: DesignNode | undefined = head;
+      while (cur && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        const child: DesignNode | undefined = cur.successorId ? byId.get(cur.successorId) : undefined;
+        if (child) {
+          const end = spriteEndTransform(cur); // cur is already synced (we walk head→tail)
+          child.x = Math.round(end.x);
+          child.y = Math.round(end.y);
+          child.angle = end.rotation;
+          child.opacity = end.opacity;
+          // Pin the child's start ("0s") keyframe to the locked start so authored motion begins there.
+          if (child.anim?.keyframes?.length) {
+            child.anim = {
+              ...child.anim,
+              keyframes: child.anim.keyframes.map((k: AnimKeyframe) =>
+                k.t <= 0
+                  ? { ...k, x: child.x, y: child.y, rotation: end.rotation, opacity: end.opacity, scale: end.scale }
+                  : k,
+              ),
+            };
+          }
+        }
+        cur = child;
+      }
+    }
+  }
+  return next;
+}
+
+/** Remove `nodeId` from its chain and delete it (its predecessor re-links to its successor). */
+export function removeSuccessor(design: DesignDoc, sceneIndex: number, nodeId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const target = scene.nodes.find((n) => n.id === nodeId);
+  if (!target) return design;
+  for (const n of scene.nodes) if (n.successorId === nodeId) n.successorId = target.successorId;
+  scene.nodes = scene.nodes.filter((n) => n.id !== nodeId);
   return next;
 }
 
