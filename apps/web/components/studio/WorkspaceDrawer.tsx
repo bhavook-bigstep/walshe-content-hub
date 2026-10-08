@@ -25,15 +25,38 @@ export interface MediaGroup {
   tiles: MediaTile[];
 }
 
-// The MIME key used to carry a media tile from the drawer onto the canvas via native drag-drop.
+// A single placeable text snippet drawn from a catalog entry's fields.
+export interface TextSnippet {
+  key: string;
+  /** Short field label, e.g. "Title", "Highlight". */
+  label: string;
+  /** The text placed on the canvas. */
+  text: string;
+}
+
+// The entry a group of text snippets comes from (text is grouped by entry).
+export interface TextGroup {
+  id: string;
+  title: string;
+  /** Context line, e.g. "event · Galway". */
+  subtitle?: string;
+  snippets: TextSnippet[];
+}
+
+// The MIME keys used to carry a tile / snippet from the drawer onto the canvas via native drag-drop.
 export const MEDIA_DND_TYPE = "application/x-walsh-media";
+export const TEXT_DND_TYPE = "application/x-walsh-text";
 
 interface Props {
   open: boolean;
   onToggle: () => void;
   groups: MediaGroup[];
-  /** Click-to-place a tile on the active scene. */
+  /** Text snippets grouped by the entry they come from (the Text tab). */
+  textGroups: TextGroup[];
+  /** Click-to-place a media tile on the active scene. */
   onPlace: (tile: MediaTile) => void;
+  /** Click-to-place a text snippet on the active scene. */
+  onPlaceText: (snippet: TextSnippet) => void;
   /** The + menu actions. */
   onAddCollection: () => void;
   onUpload: () => void;
@@ -72,7 +95,9 @@ export default function WorkspaceDrawer({
   open,
   onToggle,
   groups,
+  textGroups,
   onPlace,
+  onPlaceText,
   onAddCollection,
   onUpload,
   onGenerate,
@@ -81,6 +106,8 @@ export default function WorkspaceDrawer({
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Left-drawer top navigation: Media (default, unchanged) vs Text (entry copy, grouped by entry).
+  const [tab, setTab] = useState<"media" | "text">("media");
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -101,9 +128,24 @@ export default function WorkspaceDrawer({
       }`}
     >
       <aside className="pointer-events-auto flex w-72 flex-col overflow-hidden rounded-r-xl border border-l-0 border-walshe-line/70 bg-chrome-bg/95 shadow-xl backdrop-blur-md">
-      {/* Header: title + add menu. */}
-      <header className="flex flex-none items-center gap-2 border-b border-walshe-line/70 px-3 py-2.5">
-        <h2 className="text-small font-bold text-walshe-ink">Media library</h2>
+      {/* Header: Media/Text tabs + add menu. */}
+      <header className="flex flex-none items-center gap-2 border-b border-walshe-line/70 px-3 py-2">
+        <div role="tablist" aria-label="Library" className="flex gap-1">
+          {(["media", "text"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className={`rounded-md px-3 py-1 text-small font-semibold capitalize transition-colors ${
+                tab === t ? "bg-walshe-teal text-white" : "text-walshe-grey hover:bg-walshe-ink/10 hover:text-walshe-ink"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
         <div className="relative ml-auto" ref={menuRef}>
           <button
             type="button"
@@ -151,7 +193,8 @@ export default function WorkspaceDrawer({
               Start a project from a collection to load its media here, then add uploads or AI media.
             </p>
           </div>
-        ) : groups.length === 0 ? (
+        ) : tab === "media" ? (
+          groups.length === 0 ? (
           <div className="px-3 py-8 text-center">
             <p className="text-small font-medium text-walshe-ink">No media yet</p>
             <p className="mt-1 text-[12px] text-walshe-grey">
@@ -239,11 +282,78 @@ export default function WorkspaceDrawer({
               </section>
             );
           })
+          )
+        ) : textGroups.length === 0 ? (
+          <div className="px-3 py-8 text-center">
+            <p className="text-small font-medium text-walshe-ink">No text yet</p>
+            <p className="mt-1 text-[12px] text-walshe-grey">
+              Add a collection and its entries&rsquo; copy appears here, grouped by entry — click to place.
+            </p>
+          </div>
+        ) : (
+          textGroups.map((g) => {
+            const isCollapsed = collapsed[g.id];
+            return (
+              <section key={g.id} className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => setCollapsed((c) => ({ ...c, [g.id]: !c[g.id] }))}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-walshe-ink/5"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="text-walshe-grey">
+                    <path d="M4 7V5h16v2M9 20h6M12 5v15" />
+                  </svg>
+                  <span className="truncate text-[12px] font-bold uppercase tracking-wide text-walshe-grey">
+                    {g.title}
+                  </span>
+                  <span className="text-[11px] text-walshe-grey">{g.snippets.length}</span>
+                  <svg
+                    width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+                    className={`ml-auto text-walshe-grey transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                {!isCollapsed && (
+                  g.snippets.length === 0 ? (
+                    <p className="px-2 pb-2 pt-0.5 text-[11px] text-walshe-grey">No copy.</p>
+                  ) : (
+                    <div className="space-y-1 px-1 pb-2 pt-1">
+                      {g.subtitle && (
+                        <p className="px-1.5 pb-0.5 text-[11px] text-walshe-grey">{g.subtitle}</p>
+                      )}
+                      {g.snippets.map((s) => (
+                        <button
+                          key={s.key}
+                          type="button"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData(TEXT_DND_TYPE, JSON.stringify({ text: s.text }));
+                            e.dataTransfer.effectAllowed = "copy";
+                          }}
+                          onClick={() => onPlaceText(s)}
+                          title={`${s.label} — click or drag onto the canvas`}
+                          className="group block w-full rounded-md border border-walshe-line bg-walshe-base px-2.5 py-1.5 text-left transition-colors hover:border-walshe-teal/60 hover:bg-walshe-ink/[0.03] focus:outline-none focus:ring-2 focus:ring-walshe-teal"
+                        >
+                          <span className="block text-[10px] font-bold uppercase tracking-wide text-walshe-grey">
+                            {s.label}
+                          </span>
+                          <span className="mt-0.5 block overflow-hidden text-small text-walshe-ink [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">
+                            {s.text}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                )}
+              </section>
+            );
+          })
         )}
       </div>
 
       <footer className="flex-none border-t border-walshe-line/70 px-3 py-2 text-[11px] text-walshe-grey">
-        Click a tile to place it · or drag onto the canvas
+        {tab === "media" ? "Click a tile to place it · or drag onto the canvas" : "Click a snippet to place it · or drag onto the canvas"}
       </footer>
       </aside>
 

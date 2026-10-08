@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Canvas } from "fabric";
 import type { StudioControls } from "../../../components/studio/StudioCanvas";
 import type { BuilderCatalogItem } from "../../../components/studio/BuilderPanel";
@@ -13,9 +13,14 @@ import SceneEdgeControls, { type SceneRect } from "../../../components/studio/Sc
 import type { CatalogImageOption } from "../../../components/studio/Toolbar";
 import WorkspaceDrawer, {
   MEDIA_DND_TYPE,
+  TEXT_DND_TYPE,
   type MediaGroup,
   type MediaTile,
+  type TextGroup,
+  type TextSnippet,
 } from "../../../components/studio/WorkspaceDrawer";
+import { entryTextGroups } from "../../../lib/studio/entry-text";
+import type { ModeratableEntry } from "../../../lib/studio/moderation";
 import Dialog from "../../../components/ui/Dialog";
 import Link from "next/link";
 import {
@@ -51,6 +56,7 @@ import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/stu
 import {
   DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
+  addText,
   chainIds,
   chainMemberDurationMs,
   deleteNode,
@@ -235,6 +241,28 @@ function StudioEditor() {
   const hasProject = Boolean(projectId) || (project?.id ?? 0) > 0;
   const canvasRef = useRef<Canvas | null>(null);
   const controlsRef = useRef<StudioControls | null>(null);
+
+  // The attached collections' entries, flattened to labelled text fields (shared source for the left
+  // drawer's TEXT tab + the AI Builder's Content Moderation check). Grouped by the entry they come
+  // from. Derived synchronously from the resolved workspace — no blob URLs needed, just strings.
+  const entryTextData = useMemo(() => {
+    const entries = (workspace?.reference_content.collections ?? []).flatMap((c) => c.entries ?? []);
+    return entryTextGroups(entries);
+  }, [workspace]);
+  const textGroups = useMemo<TextGroup[]>(
+    () =>
+      entryTextData.map((g) => ({
+        id: g.id,
+        title: g.title,
+        subtitle: g.subtitle,
+        snippets: g.fields.map((f, i) => ({ key: `${g.id}:${i}`, label: f.label, text: f.value })),
+      })),
+    [entryTextData],
+  );
+  const moderationEntries = useMemo<ModeratableEntry[]>(
+    () => entryTextData.map((g) => ({ id: g.entryId, title: g.title, fields: g.fields })),
+    [entryTextData],
+  );
 
   // Load the usable media from the project's structured workspace (AC75): collection entries
   // (builder grounding + placeable images) + the project's own uploads/generated assets. The whole
@@ -522,24 +550,57 @@ function StudioEditor() {
     });
   }
 
+  // Place a text snippet (from the drawer's TEXT tab) on the active scene. Click → default spot;
+  // drop → at the cursor. Goes on as a normal, editable text node (addText keeps it serialisable).
+  function placeText(snippet: TextSnippet, at?: { x: number; y: number }) {
+    const w = 540;
+    const h = 96;
+    setDesign((d) => {
+      const n = d.scenes[sceneIndex]?.nodes.length ?? 0;
+      const off = (n % 8) * 28;
+      const placement = at
+        ? { x: at.x - w / 2, y: at.y - h / 2, width: w, height: h, fontSize: 30 }
+        : { x: 80 + off, y: 80 + off, width: w, height: h, fontSize: 30 };
+      return addText(d, sceneIndex, snippet.text, placement);
+    });
+  }
+
+  // Jump to a flagged element (from the moderation list): focus its scene and select it.
+  function selectNode(scene: number, nodeId: string) {
+    setSceneIndex(scene);
+    setSelected({ scene, nodeId });
+    setSelectedIds([nodeId]);
+    setSelectedScene(scene);
+  }
+
   function onCanvasDrop(e: React.DragEvent) {
-    const raw = e.dataTransfer.getData(MEDIA_DND_TYPE);
-    if (!raw) return;
+    const mediaRaw = e.dataTransfer.getData(MEDIA_DND_TYPE);
+    const textRaw = mediaRaw ? "" : e.dataTransfer.getData(TEXT_DND_TYPE);
+    if (!mediaRaw && !textRaw) return;
     e.preventDefault();
+    const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
+    if (mediaRaw) {
+      try {
+        const t = JSON.parse(mediaRaw) as {
+          src: string;
+          catalogItemId: string;
+          objectKey?: string;
+          kind?: "image" | "video";
+          width?: number;
+          height?: number;
+        };
+        placeTile(
+          { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, kind: t.kind, width: t.width, height: t.height },
+          pt,
+        );
+      } catch {
+        /* ignore a malformed payload */
+      }
+      return;
+    }
     try {
-      const t = JSON.parse(raw) as {
-        src: string;
-        catalogItemId: string;
-        objectKey?: string;
-        kind?: "image" | "video";
-        width?: number;
-        height?: number;
-      };
-      const pt = controlsRef.current?.clientToScenePoint(e.clientX, e.clientY) ?? undefined;
-      placeTile(
-        { key: t.catalogItemId, label: "", src: t.src, catalogItemId: t.catalogItemId, objectKey: t.objectKey, kind: t.kind, width: t.width, height: t.height },
-        pt,
-      );
+      const t = JSON.parse(textRaw) as { text: string };
+      if (t.text) placeText({ key: "", label: "", text: t.text }, pt);
     } catch {
       /* ignore a malformed payload */
     }
@@ -1168,7 +1229,10 @@ function StudioEditor() {
       <div
         className="absolute inset-0"
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes(MEDIA_DND_TYPE)) {
+          if (
+            e.dataTransfer.types.includes(MEDIA_DND_TYPE) ||
+            e.dataTransfer.types.includes(TEXT_DND_TYPE)
+          ) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "copy";
           }
@@ -1318,7 +1382,9 @@ function StudioEditor() {
           groups={gallery}
           loading={hasProject && panelItems === null}
           hasProject={hasProject}
+          textGroups={textGroups}
           onPlace={(t) => placeTile(t)}
+          onPlaceText={(s) => placeText(s)}
           onAddCollection={() => setAddCollectionOpen(true)}
           onUpload={() => setMediaOpen(true)}
           onGenerate={() => setMediaOpen(true)}
@@ -1485,6 +1551,8 @@ function StudioEditor() {
           sceneIndex={sceneIndex}
           onChange={setDesign}
           items={panelItems}
+          moderationEntries={moderationEntries}
+          onSelectNode={selectNode}
           onDemoBuild={runBuilderDemoFlow}
           demoRunning={demoRunning}
         />
