@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.62.0 |
+| **Version** | 2.63.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -833,6 +833,7 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.63.0 | 2026-10-08 | **Simulated posts no longer block a real publish** (bug fix, refines **AC98**): the real-publish duplicate guard treated the Social page's **simulated** publishes (`sim-*` ids, never sent to Instagram) as if the composition were already live, so after sim-publishing on the Social page the genuine Studio/campaign publish 409'd ("This composition is already published to Instagram"). The guard now counts only a **real** prior publish (non-`sim-*`, non-null external id); a real second publish of the same composition still 409s. All prior ACs stay green. | user + Claude |
 | 2.62.0 | 2026-10-08 | **YouTube on Connected platforms** (user feedback, refines **AC101**): added **YouTube** to the org's Connected-platforms catalogue (6 platforms now; Instagram still the only one connected by default, YouTube offers **Connect** like FB/X/TikTok/Snapchat — still a front-end illusion, no OAuth). Shows YouTube's real brand tile (simple-icons glyph, `#FF0000`). All prior ACs stay green. | user + Claude |
 | 2.61.0 | 2026-10-07 | **Approve greenlights; posts on schedule** (user feedback, refines **AC99**): approving a social post no longer always publishes immediately — it **greenlights** the post, which then posts **at its scheduled time** (immediately if that time has passed or none is set, otherwise it waits in `approved` and the list publishes it when due — a PoC scheduler stand-in, no background worker). Renamed the buttons to just **"Approve"** (social + campaign). The Posts list is now **clickable** (inline detail) and shows **plain-word status** ("Posts in 2 days" / "Posted 3 hours ago" / "Awaiting approval · scheduled for …"), with a `chip-info` "Scheduled" state. Campaign (real-Instagram) posts still publish on the explicit Approve click — auto-firing real posts from a page load is deliberately out of scope for the PoC (needs a real scheduler). All prior ACs stay green. | user + Claude |
 | 2.60.0 | 2026-10-07 | **Campaign composer dropdowns** (user feedback): the campaign post composer's Project + Platform pickers now use the app's custom `Select` (matching Studio/catalog/social) instead of native system selects, and the composer `.card` gets `overflow-visible` so the menus aren't clipped. All prior ACs stay green. | user + Claude |

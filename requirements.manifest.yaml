@@ -467,6 +467,8 @@ acceptance:
       - "apps/api/tests/test_campaign_approval.py::test_approve_publishes_immediately"
       - "apps/api/tests/test_campaign_approval.py::test_approve_blocked_by_preflight_stays_pending"
       - "apps/api/tests/test_campaign_approval.py::test_approve_with_missing_capture_is_graceful_409"
+      - "apps/api/tests/test_instagram_publish_route.py::test_publish_same_composition_twice_conflicts"
+      - "apps/api/tests/test_instagram_publish_route.py::test_simulated_social_post_does_not_block_real_publish"
   AC76:
     tier: P2
     api:
