@@ -49,11 +49,16 @@ def run_preflight(
             )
         )
 
-    # An empty composition is NOT a preflight failure (AC34, v2.34.0): a post with no catalog items
-    # proceeds straight to the approval gate (AC80) — the human reviewer is the control for empty or
-    # unverified posts, not this automated check. We only validate items that ARE present.
     item_ids = composition.item_ids or []
-    if item_ids:
+    if not item_ids:
+        issues.append(
+            PreflightIssue(
+                code="no_content",
+                message="This post has no catalog content yet.",
+                fix="Add at least one approved item before sending.",
+            )
+        )
+    else:
         # One visibility pass (approved + brand-safe + unexpired + off-limits + scope); the loaded
         # entries are reused for the staleness check so there is no extra query (AC33/AC34).
         visible = visibility.agent_visible_entries_by_ids(db, agent, item_ids, now=now)
