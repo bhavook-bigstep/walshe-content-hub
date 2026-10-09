@@ -2,16 +2,14 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import CaptionKeywordsComposer from "../../../../components/ai/CaptionKeywordsComposer";
+import AiCaptionControls from "../../../../components/ai/AiCaptionControls";
 import CampaignCalendar from "../../../../components/campaigns/CampaignCalendar";
 import PageHeader from "../../../../components/ui/PageHeader";
-import Select from "../../../../components/ui/Select";
 import {
   ApiError, approveCampaignPost, deleteCampaign, getCampaign, getProject, listProjects,
   patchCampaignPost, rejectCampaignPost, scheduleCampaignPost,
   type CampaignDetail, type CampaignPost, type Project,
 } from "../../../../lib/api";
-import { combineCopy } from "../../../../lib/ai/caption";
 import {
   buildCampaignPatchForm, buildCampaignPostForm, CAMPAIGN_PLATFORMS, localInputToOffsetISO,
 } from "../../../../lib/campaigns/form";
@@ -36,7 +34,6 @@ export default function CampaignDetailPage() {
   const [projectId, setProjectId] = useState("");
   const [platform, setPlatform] = useState(CAMPAIGN_PLATFORMS[0].value);
   const [caption, setCaption] = useState("");
-  const [keywords, setKeywords] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,12 +67,11 @@ export default function CampaignDetailPage() {
       if (!design) throw new Error("This project has no usable design to render.");
       const jpeg = await renderDesignToJpegBlob(design, 0);
       const form = buildCampaignPostForm({
-        // Caption + keywords are edited separately, then sent as one caption (keywords below it).
-        compositionId: Number(projectId), caption: combineCopy(caption, keywords), platform,
+        compositionId: Number(projectId), caption, platform,
         scheduledAtISO: scheduledAt ? localInputToOffsetISO(scheduledAt) : null, jpeg,
       });
       await scheduleCampaignPost(id, form);
-      setCaption(""); setKeywords(""); setScheduledAt("");
+      setCaption(""); setScheduledAt("");
       await reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : (e instanceof Error ? e.message : "Could not schedule the post."));
@@ -184,36 +180,38 @@ export default function CampaignDetailPage() {
       {/* Two columns: schedule a post on the left (sticky), the campaign calendar on the right —
           so the planning surface stays in view instead of being pushed below a long scroll. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(340px,1fr)_1.7fr] lg:items-start">
-        {/* overflow-visible overrides .card's overflow-hidden so the Select dropdowns aren't clipped. */}
-        <form onSubmit={onSchedule} className="card space-y-5 overflow-visible p-6 lg:sticky lg:top-6" aria-busy={busy}>
-          <CaptionKeywordsComposer
-            compositionId={projectId ? Number(projectId) : null}
-            caption={caption}
-            onCaptionChange={setCaption}
-            keywords={keywords}
-            onKeywordsChange={setKeywords}
-          />
+        <form onSubmit={onSchedule} className="card space-y-5 p-6 lg:sticky lg:top-6" aria-busy={busy}>
+          <div className="flex flex-col gap-1.5">
+            <span className="label">Caption</span>
+            <textarea
+              className="field min-h-24 w-full resize-y"
+              aria-label="Caption"
+              rows={3}
+              placeholder="Write a caption, or generate one from your content…"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+            />
+            <AiCaptionControls
+              compositionId={projectId ? Number(projectId) : null}
+              caption={caption}
+              onCaptionChange={setCaption}
+            />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
+            <label className="flex flex-col gap-1.5">
               <span className="label">Project</span>
-              <Select
-                value={projectId}
-                onChange={setProjectId}
-                options={projects.map((p) => ({ value: String(p.id), label: p.name || `Project #${p.id}` }))}
-                placeholder={projects.length === 0 ? "No saved projects" : "Select a project"}
-                disabled={projects.length === 0}
-                aria-label="Project"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
+              <select className="field" aria-label="Project" value={projectId}
+                      onChange={(e) => setProjectId(e.target.value)}>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name || `Project #${p.id}`}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
               <span className="label">Platform</span>
-              <Select
-                value={platform}
-                onChange={setPlatform}
-                options={CAMPAIGN_PLATFORMS.map((p) => ({ value: p.value, label: p.label }))}
-                aria-label="Platform"
-              />
-            </div>
+              <select className="field" aria-label="Platform" value={platform}
+                      onChange={(e) => setPlatform(e.target.value)}>
+                {CAMPAIGN_PLATFORMS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </label>
             <label className="flex flex-col gap-1.5 sm:col-span-2">
               <span className="label">When</span>
               <input type="datetime-local" className="field" aria-label="Scheduled at"
@@ -317,7 +315,7 @@ export default function CampaignDetailPage() {
                   <>
                     <button type="button" className="btn-primary h-12" disabled={busy}
                             onClick={() => void runPostAction(() => approveCampaignPost(id, selected.id))}>
-                      {busy ? "Publishing…" : "Approve"}
+                      {busy ? "Publishing…" : "Approve & publish"}
                     </button>
                     <button type="button" className="btn-ghost h-12 text-walshe-danger" disabled={busy}
                             onClick={() => void runPostAction(() => rejectCampaignPost(id, selected.id, rejectNote))}>

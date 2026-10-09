@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app import clock
 from app.config import Settings
 from app.deps import get_db, get_settings, require_role
-from app.models.campaign import Campaign
 from app.models.composition import Composition
 from app.models.engagement import Engagement
 from app.models.post import Post
@@ -32,11 +31,6 @@ class EngagementOut(BaseModel):
     platform: str
     metrics: dict[str, int]
     fetched_at: datetime
-    # Enrichment for the dashboard: the project (composition) + campaign a post belongs to, so the
-    # per-post table reads by name and the page can break performance down by campaign.
-    composition_name: str | None = None
-    campaign_id: int | None = None
-    campaign_name: str | None = None
 
 
 class RefreshOut(BaseModel):
@@ -47,24 +41,20 @@ class RefreshOut(BaseModel):
 def list_engagement(
     user: User = Depends(_agent_only),
     db: Session = Depends(get_db),
-) -> list[EngagementOut]:
+) -> list[Engagement]:
     # Scope to the caller's own posts (via their compositions) — never expose another agent's or
-    # tenant's metrics. Enrich each row with its project + campaign name for the dashboard.
-    rows = db.execute(
-        select(Engagement, Composition.name, Post.campaign_id, Campaign.name)
-        .join(Post, Post.id == Engagement.post_id)
-        .join(Composition, Composition.id == Post.composition_id)
-        .outerjoin(Campaign, Campaign.id == Post.campaign_id)
-        .where(Composition.agent_id == user.id)
-        .order_by(Engagement.post_id, Engagement.id)
-    ).all()
-    return [
-        EngagementOut(
-            post_id=e.post_id, platform=e.platform, metrics=e.metrics, fetched_at=e.fetched_at,
-            composition_name=comp_name, campaign_id=camp_id, campaign_name=camp_name,
+    # tenant's metrics.
+    return list(
+        db.execute(
+            select(Engagement)
+            .join(Post, Post.id == Engagement.post_id)
+            .join(Composition, Composition.id == Post.composition_id)
+            .where(Composition.agent_id == user.id)
+            .order_by(Engagement.post_id, Engagement.id)
         )
-        for e, comp_name, camp_id, camp_name in rows
-    ]
+        .scalars()
+        .all()
+    )
 
 
 @router.post("/refresh", response_model=RefreshOut)
