@@ -10,6 +10,7 @@ import {
   groupAncestry,
   groupDepth,
   groupNodes,
+  groupParentEntryMs,
   groupRegistry,
   renameGroup,
   setGroupAnim,
@@ -129,7 +130,11 @@ export default function GroupTreePanel({
   const enter: EnterType | "none" = activeGroup?.anim?.enter ?? "none";
   const durationMs = activeGroup?.anim?.durationMs ?? DEFAULT_GROUP_ENTER_MS;
   const ease: Easing = activeGroup?.anim?.ease ?? "easeOut";
-  const arrivalMs = activeGroup?.anim?.startMs ?? 0; // when the whole group appears
+  // A child can't appear before its parent's entry time; its own arrival is author-relative on top.
+  // The control shows ABSOLUTE scene-time, defaulting to (and clamped at) the parent's entry time.
+  const parentEntryMs = activeGroupId ? groupParentEntryMs(scene, activeGroupId) : 0;
+  const arrivalRelMs = activeGroup?.anim?.startMs ?? 0; // author-relative (0 = at parent's entry)
+  const appearsAtMs = parentEntryMs + arrivalRelMs; // absolute scene-time shown in the control
   const loopType: GroupLoop =
     activeGroup?.anim?.loop?.type === "pulse" || activeGroup?.anim?.loop?.type === "bob"
       ? activeGroup.anim.loop.type
@@ -143,7 +148,7 @@ export default function GroupTreePanel({
     const l = next.loop ?? loopType;
     const dur = next.durationMs ?? durationMs;
     const es = next.ease ?? ease;
-    const sm = next.startMs ?? arrivalMs;
+    const sm = next.startMs ?? arrivalRelMs;
     onChange(
       setGroupAnim(
         design,
@@ -254,12 +259,17 @@ export default function GroupTreePanel({
             <div className="flex items-center gap-1">
               <input
                 type="number"
-                min={0}
+                min={parentEntryMs}
                 max={15000}
                 step={100}
-                value={arrivalMs}
-                onChange={(e) => emitAnim({ startMs: Math.max(0, Number(e.target.value) || 0) })}
+                value={appearsAtMs}
+                // Absolute scene-time. A child defaults to its parent's entry time and can't be set
+                // earlier; the stored value is author-relative (absolute − parent entry).
+                onChange={(e) =>
+                  emitAnim({ startMs: Math.max(0, (Number(e.target.value) || 0) - parentEntryMs) })
+                }
                 aria-label="Group appearance timestamp"
+                title={parentEntryMs > 0 ? `Can't appear before its parent's entry (${parentEntryMs}ms)` : undefined}
                 className={`${field} w-20`}
               />
               <span className="text-[11px] text-walshe-grey">ms</span>

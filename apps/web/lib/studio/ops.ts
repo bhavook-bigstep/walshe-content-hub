@@ -1278,6 +1278,16 @@ function groupArrivalMs(g: SceneGroup | undefined): number {
   return Math.max(0, Math.round(g?.anim?.startMs ?? 0));
 }
 
+/** The scene-time (ms) at which a group's own context begins = Σ (arrival + entrance duration) of its
+ * ANCESTORS strictly above it. A child can never appear before this — its parent's entry time — and
+ * its own `startMs` (author-relative) is added on top. Top-level groups → 0. The UI uses this to
+ * default + clamp a child's "Appears at" control to the parent's entry time. */
+export function groupParentEntryMs(scene: Scene, groupId: string): number {
+  return groupAncestry(scene, groupId)
+    .slice(1)
+    .reduce((s, g) => s + groupArrivalMs(g) + groupEnterMs(g), 0);
+}
+
 /** Whether an anim is a previously-baked "hold-hidden" guard (opacity-only keyframes, no entrance
  * intent). Such guards are fully recomputed each recompose, so recognising them keeps recompose
  * idempotent AND able to update a static child when an ancestor's entrance duration changes. */

@@ -11,6 +11,7 @@ import {
   duplicateGroup,
   groupAncestry,
   groupDepth,
+  groupParentEntryMs,
   groupNodes,
   groupSubtreeIds,
   migrateDesign,
@@ -147,6 +148,18 @@ describe("nested group sequencing", () => {
 
     // The arrival timestamp round-trips through persistence.
     expect(roundTrip(d).scenes[0].groups!.find((x) => x.id === p)!.anim?.startMs).toBe(500);
+  });
+
+  it("test_parent_entry_floor_for_children", () => {
+    // A child's parent-entry time (the floor it can't appear before) = Σ (arrival + entrance) of its
+    // ancestors. The UI defaults + clamps a child's "Appears at" to this.
+    let { d, p, c, g } = nested3();
+    d = setGroupAnim(d, 0, p, "rise", undefined, { startMs: 500 }); // P: appears 500, enters 600
+    d = setGroupAnim(d, 0, c, "rise", undefined); // C: arrival 0, enters 600
+    const scene = d.scenes[0];
+    expect(groupParentEntryMs(scene, p)).toBe(0); // top-level: no parent
+    expect(groupParentEntryMs(scene, c)).toBe(500 + DEFAULT_GROUP_ENTER_MS); // after P appears + enters
+    expect(groupParentEntryMs(scene, g)).toBe(500 + DEFAULT_GROUP_ENTER_MS + DEFAULT_GROUP_ENTER_MS); // + C
   });
 
   it("test_group_appears_late_with_no_entrance", () => {
