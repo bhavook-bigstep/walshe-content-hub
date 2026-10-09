@@ -68,13 +68,6 @@ import {
   editText,
   fillImageNode,
   isPlaceholder,
-  deleteGroup,
-  duplicateGroup,
-  groupNodes,
-  setGroupAnim,
-  ungroupNodes,
-  updateGroupStyle,
-  type EnterType,
   migrateDesign,
   moveNode,
   newDesign,
@@ -91,7 +84,7 @@ import {
   type NodeStyle,
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
-import GroupPanel, { type GroupState } from "../../../components/studio/GroupPanel";
+import GroupTreePanel from "../../../components/studio/GroupTreePanel";
 import BuilderDemoOverlay, { type DemoCursor } from "../../../components/studio/BuilderDemoOverlay";
 import SpriteChainPanel from "../../../components/studio/SpriteChainPanel";
 import {
@@ -775,59 +768,18 @@ function StudioEditor() {
   }
 
   // ── Grouping ──────────────────────────────────────────────────────────────────────────────────
-  // The group id shared by the whole selection (null when the selection isn't a single group).
-  const selectedGroupId: string | null = (() => {
-    if (selectedScene === null || selectedIds.length < 2) return null;
-    const nodes = design.scenes[selectedScene]?.nodes ?? [];
-    const gids = selectedIds.map((id) => nodes.find((n) => n.id === id)?.groupId);
-    return gids[0] && gids.every((g) => g === gids[0]) ? gids[0]! : null;
-  })();
-
-  function groupSelected() {
-    if (selectedScene === null || selectedIds.length < 2) return;
-    setDesign((d) => groupNodes(d, selectedScene, selectedIds));
-  }
-  function ungroupSelected() {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => ungroupNodes(d, selectedScene, selectedGroupId));
-  }
-  function groupAnim(enter: EnterType | null, loop: NodeAnimation["loop"]) {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => setGroupAnim(d, selectedScene, selectedGroupId, enter, loop));
-  }
-  function groupOpacity(opacity: number) {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { opacity }));
-  }
-  function groupColor(color: string) {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { color }));
-  }
-  function groupDuplicate() {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => duplicateGroup(d, selectedScene, selectedGroupId));
-  }
-  function groupDelete() {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => deleteGroup(d, selectedScene, selectedGroupId));
+  // The unified GroupTreePanel (nested-group editor) owns all group ops directly against the design;
+  // the page only clears selection / re-selects a node when the tree asks (via the handlers below).
+  function clearSelection() {
     setSelected(null);
     setSelectedIds([]);
     setSelectedScene(null);
   }
-  // The group's current shared values, read back from its members so the Group panel's controls
-  // reflect the live design after it's closed and reopened (not stale local state).
-  const groupState: GroupState | null = (() => {
-    if (selectedScene === null || !selectedGroupId) return null;
-    const m = (design.scenes[selectedScene]?.nodes ?? []).find((n) => n.groupId === selectedGroupId);
-    if (!m) return null;
-    const loopType = m.anim?.loop?.type;
-    return {
-      enter: m.anim?.enter?.type ?? "none",
-      loop: loopType === "pulse" || loopType === "bob" ? loopType : "none",
-      opacity: Math.round((m.opacity ?? 1) * 100),
-      color: m.color ?? "#111111",
-    };
-  })();
+  function selectSingleNode(nodeId: string) {
+    if (selectedScene === null) return;
+    setSelectedIds([nodeId]);
+    setSelected({ scene: selectedScene, nodeId });
+  }
 
   // ── Animation preview transport (play/scrub the active scene's animation) ──────────────────────
   const sceneDurRef = useRef(DEFAULT_SCENE_DURATION_MS);
@@ -1470,18 +1422,13 @@ function StudioEditor() {
             Hidden while the AI Builder demo runs so its selections don't pop edit chrome. */}
         {!demoRunning && selectedIds.length > 1 && selectedScene !== null && (
           <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
-            <GroupPanel
-              count={selectedIds.length}
-              isGroup={Boolean(selectedGroupId)}
-              groupId={selectedGroupId}
-              state={groupState}
-              onGroup={groupSelected}
-              onUngroup={ungroupSelected}
-              onAnim={groupAnim}
-              onOpacity={groupOpacity}
-              onColor={groupColor}
-              onDuplicate={groupDuplicate}
-              onDelete={groupDelete}
+            <GroupTreePanel
+              design={design}
+              sceneIndex={selectedScene}
+              selectedIds={selectedIds}
+              onChange={setDesign}
+              onSelectNode={selectSingleNode}
+              onClearSelection={clearSelection}
             />
           </div>
         )}

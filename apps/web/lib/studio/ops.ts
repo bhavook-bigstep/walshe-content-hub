@@ -147,7 +147,8 @@ export interface DesignNode {
 
   /** optional keyframe animation (position/scale/rotation/opacity over time within the scene) */
   anim?: NodeAnimation;
-  /** group membership — nodes sharing a groupId move/animate together (flat; no nested groups) */
+  /** group membership — the node's INNERMOST group id (nesting lives on `Scene.groups.parentId`).
+   * Nodes sharing a groupId move/animate together; ancestry is read from the group registry. */
   groupId?: string;
 
   /** image only — a frame-by-frame sprite: an ordered list of frame image srcs cycled over time
@@ -220,6 +221,39 @@ export interface NarrationCue {
   text: string;
 }
 
+// ── Nested group model (AC1–AC7) ────────────────────────────────────────────────────────────────
+// A node's `groupId` is its INNERMOST group; nesting lives on the group registry (`Scene.groups`),
+// where each `SceneGroup` points at its enclosing group via `parentId`. This keeps node records flat
+// (a node belongs to exactly one innermost group) while the *nesting* is expressed between groups —
+// so an empty intermediate group can exist and the whole tree round-trips through save/load (D7).
+
+/** A group's animation intent: an entrance preset applied to the group + an emphasis loop. The
+ * entrance `durationMs` drives how long a child stays hidden before it plays (strict parent-first). */
+export interface GroupAnim {
+  /** entrance preset for the whole group (undefined = no group entrance) */
+  enter?: EnterType;
+  /** entrance duration in ms (default {@link DEFAULT_GROUP_ENTER_MS}); drives children's start offset */
+  durationMs?: number;
+  ease?: Easing;
+  /** emphasis/character loop applied to members */
+  loop?: NodeAnimation["loop"];
+}
+
+/** One group in a scene's group registry. The tree is formed by `parentId` links. */
+export interface SceneGroup {
+  /** "group-N" (shares the id scheme used on `DesignNode.groupId`) */
+  readonly id: string;
+  /** enclosing group id; undefined = a top-level group */
+  parentId?: string;
+  /** display label in the tree */
+  name?: string;
+  /** group-level entrance + loop authoring intent (baked onto members by `recomposeSceneGroups`) */
+  anim?: GroupAnim;
+}
+
+/** The default group entrance duration (ms) when a group has an entrance but no explicit duration. */
+export const DEFAULT_GROUP_ENTER_MS = 600;
+
 /** A page promoted to a storyboard scene (AC46): adds identity, lifespan and a transition. */
 export interface Scene extends DesignPage {
   readonly id: string;
@@ -230,6 +264,9 @@ export interface Scene extends DesignPage {
   transition: TransitionKind;
   /** optional time-cued voiceover lines read over this scene when the video is narrated */
   narration?: NarrationCue[];
+  /** nested-group registry (AC1/AC3): group ids + parent links + group-level animation intent.
+   * Optional so pre-existing scenes (and tests) that omit it stay valid (AC8). */
+  groups?: SceneGroup[];
 }
 
 /** Normalise a scene's narration to cues (handles the legacy single-string form). Keeps blank-text
@@ -346,6 +383,7 @@ export function cloneDesign(design: DesignDoc): DesignDoc {
       transition: s.transition,
       background: s.background,
       nodes: s.nodes.map((n) => ({ ...n })),
+      groups: s.groups ? s.groups.map((g) => ({ ...g, ...(g.anim ? { anim: { ...g.anim } } : {}) })) : undefined,
     })),
   };
 }
@@ -1154,34 +1192,257 @@ export function setNodeAnim(
   });
 }
 
+// ── Nested-group hierarchy helpers (pure) — AC1/AC3/AC4 ──────────────────────────────────────────
+
+/** Index a scene's group registry by id (tolerant of a missing `groups`). */
+export function groupRegistry(scene: Scene): Map<string, SceneGroup> {
+  const m = new Map<string, SceneGroup>();
+  for (const g of scene.groups ?? []) if (g && typeof g.id === "string") m.set(g.id, g);
+  return m;
+}
+
+/** A group's ancestry, innermost→outermost (includes the group itself first). Cycle-safe — bounded
+ * by the registry size, mirroring the sprite-chain cycle guard (chainIds). */
+export function groupAncestry(scene: Scene, groupId: string): SceneGroup[] {
+  const reg = groupRegistry(scene);
+  const out: SceneGroup[] = [];
+  const seen = new Set<string>();
+  let cur: string | undefined = groupId;
+  while (cur && reg.has(cur) && !seen.has(cur) && out.length <= reg.size) {
+    seen.add(cur);
+    const g: SceneGroup = reg.get(cur)!;
+    out.push(g);
+    cur = g.parentId;
+  }
+  return out;
+}
+
+/** The nesting depth of a group (1 = top-level). 0 for an unknown group. Drives tree indentation. */
+export function groupDepth(scene: Scene, groupId: string): number {
+  return groupAncestry(scene, groupId).length;
+}
+
+/** A group plus every descendant group id (for delete/duplicate/ungroup over a whole subtree). */
+export function groupSubtreeIds(scene: Scene, groupId: string): string[] {
+  const reg = groupRegistry(scene);
+  if (!reg.has(groupId)) return [];
+  const out = [groupId];
+  const seen = new Set(out);
+  const queue = [groupId];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const g of reg.values()) {
+      if (g.parentId === cur && !seen.has(g.id)) {
+        seen.add(g.id);
+        out.push(g.id);
+        queue.push(g.id);
+      }
+    }
+  }
+  return out;
+}
+
+/** The ancestry of a node's innermost group (innermost→outermost); empty when the node is ungrouped. */
+export function nodeGroupChain(scene: Scene, node: DesignNode): SceneGroup[] {
+  return node.groupId ? groupAncestry(scene, node.groupId) : [];
+}
+
+/** The next free `group-N` id for a scene — scans both the registry and node tags so an empty
+ * (member-less) group never collides with a reused id. */
+function nextGroupId(scene: Scene): string {
+  let max = 0;
+  const scan = (s: string | undefined) => {
+    const m = /^group-(\d+)$/.exec(s ?? "");
+    if (m) max = Math.max(max, Number(m[1]));
+  };
+  for (const g of scene.groups ?? []) scan(g.id);
+  for (const n of scene.nodes) scan(n.groupId);
+  return `group-${max + 1}`;
+}
+
+// ── Timing core: bake strict parent-first start-offsets into keyframes (D6) — AC4/AC5 ────────────
+
+/** A group's effective entrance duration (ms): 0 when the group has no entrance preset. */
+function groupEnterMs(g: SceneGroup | undefined): number {
+  if (!g?.anim?.enter) return 0;
+  return g.anim.durationMs ?? DEFAULT_GROUP_ENTER_MS;
+}
+
+/** Whether an anim is a previously-baked "hold-hidden" guard (opacity-only keyframes, no entrance
+ * intent). Such guards are fully recomputed each recompose, so recognising them keeps recompose
+ * idempotent AND able to update a static child when an ancestor's entrance duration changes. */
+function isHoldGuard(anim: NodeAnimation | undefined): boolean {
+  if (!anim || anim.enter || !anim.keyframes.length) return false;
+  return anim.keyframes.every(
+    (k) => k.x === undefined && k.y === undefined && k.scale === undefined && k.rotation === undefined && k.opacity !== undefined,
+  );
+}
+
+/**
+ * Bake strict parent-first sequencing into a scene's keyframes (Approach A, D6). For each grouped
+ * node the entrance start is offset by the summed entrance durations of its ANCESTOR groups (above
+ * its own innermost layer), so a child stays hidden until its parent group has finished entering —
+ * recursively for deeper nesting (AC4/D5). The scene's `durationMs` grows (clamped) so late children
+ * aren't truncated (AC5). The engine never reads `groups`; it just plays the baked keyframes, so the
+ * canvas preview and the MP4 export stay in lockstep (preview == export, Contract 4).
+ *
+ * Pure + idempotent: a node's `enter.startMs` is the single store of author intent and is always
+ * author-relative; the baked keyframe `t` carries the ancestor offset and is recomputed every run,
+ * never read back. Sprite-chain members (timed by `chainSegments`) are skipped to avoid double-offset.
+ */
+export function recomposeSceneGroups(scene: Scene): Scene {
+  if (!scene.groups || scene.groups.length === 0) return scene;
+  const reg = groupRegistry(scene);
+  const chainMember = new Set<string>();
+  for (const n of scene.nodes) {
+    if (n.successorId) {
+      chainMember.add(n.id);
+      chainMember.add(n.successorId);
+    }
+  }
+  let latestEnd = 0;
+  const nodes = scene.nodes.map((n) => {
+    if (!n.groupId || !reg.has(n.groupId) || chainMember.has(n.id)) return n;
+    // Ancestors strictly above the node's own innermost group: ancestry[0] is the innermost group.
+    const startDelay = groupAncestry(scene, n.groupId)
+      .slice(1)
+      .reduce((s, g) => s + groupEnterMs(g), 0);
+    const en = n.anim?.enter;
+    if (en) {
+      const ownStart = Math.max(0, en.startMs ?? 0);
+      const dur = Math.max(1, en.durationMs ?? DEFAULT_GROUP_ENTER_MS);
+      const track = enterTrack(n, en.type, startDelay + ownStart, dur, en.ease);
+      latestEnd = Math.max(latestEnd, startDelay + ownStart + dur);
+      return {
+        ...n,
+        anim: {
+          keyframes: track.keyframes,
+          enter: { type: en.type, startMs: ownStart, durationMs: dur, ...(en.ease ? { ease: en.ease } : {}) },
+          ...(n.anim?.loop ? { loop: n.anim.loop } : {}),
+        },
+      };
+    }
+    // No entrance preset. A custom dope-sheet track (motion/scale keyframes) is left untouched
+    // (charter non-goal: group-level custom dope-sheets); only a static child needs a hold guard.
+    const wasGuard = isHoldGuard(n.anim);
+    const hasCustomTrack = !!n.anim?.keyframes.length && !wasGuard;
+    if (hasCustomTrack) return n;
+    const loop = n.anim?.loop;
+    if (startDelay > 0) {
+      const base = n.opacity ?? 1;
+      latestEnd = Math.max(latestEnd, startDelay);
+      return {
+        ...n,
+        anim: {
+          keyframes: [
+            { t: 0, opacity: 0 },
+            { t: startDelay, opacity: 0 },
+            { t: startDelay, opacity: base },
+          ],
+          ...(loop ? { loop } : {}),
+        },
+      };
+    }
+    // Top-level / no ancestor delay: drop a stale guard, keep a loop-only track, else leave as-is.
+    if (wasGuard) {
+      if (loop) return { ...n, anim: { keyframes: [], loop } };
+      const copy = { ...n };
+      delete copy.anim;
+      return copy;
+    }
+    return n;
+  });
+  const grown =
+    latestEnd > 0 ? clampSceneDuration(Math.max(scene.durationMs, latestEnd + 300)) : scene.durationMs;
+  return { ...scene, nodes, durationMs: grown };
+}
+
+/** Apply {@link recomposeSceneGroups} to every scene. Returns the input unchanged (no clone) when no
+ * scene has groups, so non-grouped edits don't allocate. */
+export function recomposeGroups(design: DesignDoc): DesignDoc {
+  if (!design.scenes.some((s) => s.groups && s.groups.length)) return design;
+  const next = cloneDesign(design);
+  next.scenes = next.scenes.map((s) => recomposeSceneGroups(s));
+  return next;
+}
+
 /** Node ids belonging to a group, in scene order. */
 export function groupMemberIds(scene: Scene, groupId: string): string[] {
   return scene.nodes.filter((n) => n.groupId === groupId).map((n) => n.id);
 }
 
-/** Group the given nodes (flat, no nesting): assign them all a fresh shared groupId, replacing any
- * existing group tags. Returns the new design. */
+/** Group the given nodes under a fresh shared innermost groupId and register the group (AC3). When
+ * every selected node already shares one innermost group `P`, the new group nests INSIDE `P`
+ * (`parentId = P`) — grouping a sub-selection creates a nested child group. Otherwise the new group
+ * is top-level. Baked sequencing is refreshed via `recomposeGroups`. Returns the new design. */
 export function groupNodes(design: DesignDoc, sceneIndex: number, nodeIds: readonly string[]): DesignDoc {
   assertScene(design, sceneIndex);
   const ids = new Set(nodeIds);
   if (ids.size < 2) return design;
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
-  let max = 0;
-  for (const n of scene.nodes) {
-    const m = /^group-(\d+)$/.exec(n.groupId ?? "");
-    if (m) max = Math.max(max, Number(m[1]));
-  }
-  const gid = `group-${max + 1}`;
+  // Nest when all selected nodes already share one innermost group.
+  const existing = [...ids].map((id) => scene.nodes.find((n) => n.id === id)?.groupId);
+  const parentId = existing[0] && existing.every((g) => g === existing[0]) ? existing[0] : undefined;
+  const gid = nextGroupId(scene);
   for (const n of scene.nodes) if (ids.has(n.id)) n.groupId = gid;
-  return next;
+  scene.groups = [...(scene.groups ?? []), { id: gid, ...(parentId ? { parentId } : {}) }];
+  return recomposeGroups(next);
 }
 
-/** Remove a group's tag from all its members (ungroup). */
+/** Nest an existing group inside another (set its `parentId`), rejecting cycles. Recomposes. */
+export function nestGroup(
+  design: DesignDoc,
+  sceneIndex: number,
+  childGroupId: string,
+  parentGroupId: string | undefined,
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const child = (scene.groups ?? []).find((g) => g.id === childGroupId);
+  if (!child) return design;
+  if (parentGroupId) {
+    if (parentGroupId === childGroupId) return design;
+    // Reject a cycle: parent must not be the child or one of its descendants.
+    if (groupSubtreeIds(scene, childGroupId).includes(parentGroupId)) return design;
+    if (!(scene.groups ?? []).some((g) => g.id === parentGroupId)) return design;
+    child.parentId = parentGroupId;
+  } else {
+    delete child.parentId;
+  }
+  return recomposeGroups(next);
+}
+
+/** Ungroup: remove a group and REPARENT its contents to the group's own parent (AC3). Descendant
+ * groups whose `parentId === groupId` and member nodes tagged with it are lifted one level up (or
+ * released to top-level when the group was top-level). Styling/animation survives. Recomposes. */
 export function ungroupNodes(design: DesignDoc, sceneIndex: number, groupId: string): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
-  for (const n of next.scenes[sceneIndex].nodes) if (n.groupId === groupId) delete n.groupId;
+  const scene = next.scenes[sceneIndex];
+  const removed = (scene.groups ?? []).find((g) => g.id === groupId);
+  const newParent = removed?.parentId; // undefined ⇒ children become top-level / nodes ungrouped
+  for (const n of scene.nodes) {
+    if (n.groupId !== groupId) continue;
+    if (newParent) n.groupId = newParent;
+    else delete n.groupId;
+  }
+  if (scene.groups) {
+    for (const g of scene.groups) if (g.parentId === groupId) g.parentId = newParent;
+    scene.groups = scene.groups.filter((g) => g.id !== groupId);
+    if (scene.groups.length === 0) scene.groups = undefined;
+  }
+  return recomposeGroups(next);
+}
+
+/** Rename a group (its tree label, AC2). */
+export function renameGroup(design: DesignDoc, sceneIndex: number, groupId: string, name: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const g = (next.scenes[sceneIndex].groups ?? []).find((x) => x.id === groupId);
+  if (!g) return design;
+  g.name = name;
   return next;
 }
 
@@ -1193,68 +1454,142 @@ export function setGroupAnim(
   groupId: string,
   enter: EnterType | null,
   loop?: NodeAnimation["loop"],
+  opts?: { durationMs?: number; ease?: Easing },
 ): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
-  for (const n of next.scenes[sceneIndex].nodes) {
-    if (n.groupId !== groupId) continue;
+  const scene = next.scenes[sceneIndex];
+  const durationMs = Math.max(1, Math.round(opts?.durationMs ?? DEFAULT_GROUP_ENTER_MS));
+  const ease: Easing = opts?.ease ?? "easeOut";
+  // Record the intent on the group registry so it round-trips (AC6) and nested timing can read the
+  // group's entrance duration to offset descendants (AC4).
+  const g = (scene.groups ?? []).find((x) => x.id === groupId);
+  if (g) {
     if (enter || loop) {
-      const keyframes = enter ? enterTrack(n, enter, 0, 600).keyframes : [];
+      g.anim = {
+        ...(enter ? { enter, durationMs, ease } : {}),
+        ...(loop ? { loop } : {}),
+      };
+    } else {
+      delete g.anim;
+    }
+  }
+  // Stamp the group's direct members with the entrance (author-relative start 0); recompose then
+  // bakes any ancestor parent-first offset into the keyframe `t`. Sprite-chain members are left to
+  // the chain timeline (chainSegments) so a group entrance never fights the chain's own appearance.
+  const chainMember = new Set<string>();
+  for (const n of scene.nodes) {
+    if (n.successorId) {
+      chainMember.add(n.id);
+      chainMember.add(n.successorId);
+    }
+  }
+  for (const n of scene.nodes) {
+    if (n.groupId !== groupId || chainMember.has(n.id)) continue;
+    if (enter || loop) {
+      const keyframes = enter ? enterTrack(n, enter, 0, durationMs, ease).keyframes : [];
       n.anim = {
         keyframes,
-        ...(enter ? { enter: { type: enter, startMs: 0, durationMs: 600, ease: "easeOut" as Easing } } : {}),
+        ...(enter ? { enter: { type: enter, startMs: 0, durationMs, ease } } : {}),
         ...(loop ? { loop } : {}),
       };
     } else {
       delete n.anim;
     }
   }
-  return next;
+  return recomposeGroups(next);
 }
 
-/** Patch a style property on every member of a group (e.g. opacity). */
+/** Patch a style property on every member of a group AND its nested sub-groups (the whole subtree). */
 export function updateGroupStyle(design: DesignDoc, sceneIndex: number, groupId: string, patch: Partial<NodeStyle>): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
-  for (const n of next.scenes[sceneIndex].nodes) {
-    if (n.groupId !== groupId) continue;
+  const scene = next.scenes[sceneIndex];
+  const subtree = new Set(groupSubtreeIds(scene, groupId));
+  // Fall back to the flat group id when the registry is absent (defensive for legacy scenes).
+  const inScope = (gid: string | undefined) => (subtree.size ? !!gid && subtree.has(gid) : gid === groupId);
+  for (const n of scene.nodes) {
+    if (!inScope(n.groupId)) continue;
     const rec = n as unknown as Record<string, unknown>;
     for (const [k, v] of Object.entries(patch)) {
       if (v === undefined) delete rec[k];
       else rec[k] = v;
     }
   }
-  return next;
+  return recomposeGroups(next);
 }
 
-/** Delete every member of a group. */
+/** Delete every member of a group and its nested sub-groups, and drop those groups from the registry. */
 export function deleteGroup(design: DesignDoc, sceneIndex: number, groupId: string): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
-  scene.nodes = scene.nodes.filter((n) => n.groupId !== groupId);
-  return next;
+  const subtree = new Set(groupSubtreeIds(scene, groupId));
+  const inScope = (gid: string | undefined) => (subtree.size ? !!gid && subtree.has(gid) : gid === groupId);
+  scene.nodes = scene.nodes.filter((n) => !inScope(n.groupId));
+  if (scene.groups) {
+    scene.groups = scene.groups.filter((g) => !subtree.has(g.id));
+    if (scene.groups.length === 0) scene.groups = undefined;
+  }
+  return recomposeGroups(next);
 }
 
-/** Duplicate every member of a group (offset), as a NEW group placed above the originals. The copies
- * share a fresh group id and each gets a fresh unique node id. */
+/** Duplicate a group's whole subtree (members + nested sub-groups), offset, as a NEW top-level group
+ * above the originals. Descendant groups are cloned with fresh ids and remapped `parentId`s; every
+ * copied node gets a fresh unique node id and is re-tagged to the cloned group. */
 export function duplicateGroup(design: DesignDoc, sceneIndex: number, groupId: string): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
-  const members = scene.nodes.filter((n) => n.groupId === groupId);
+  const subtree = groupSubtreeIds(scene, groupId);
+  const inScope = subtree.length
+    ? (gid: string | undefined) => !!gid && subtree.includes(gid)
+    : (gid: string | undefined) => gid === groupId;
+  const members = scene.nodes.filter((n) => inScope(n.groupId));
   if (members.length === 0) return next;
-  let max = 0;
-  for (const n of scene.nodes) {
-    const m = /^group-(\d+)$/.exec(n.groupId ?? "");
-    if (m) max = Math.max(max, Number(m[1]));
+
+  // Map each old group id in the subtree to a fresh id (allocated in order, collision-free).
+  const idMap = new Map<string, string>();
+  const scanMax = () => {
+    let max = 0;
+    const scan = (s: string | undefined) => {
+      const m = /^group-(\d+)$/.exec(s ?? "");
+      if (m) max = Math.max(max, Number(m[1]));
+    };
+    for (const g of scene.groups ?? []) scan(g.id);
+    for (const g of idMap.values()) scan(g);
+    for (const n of scene.nodes) scan(n.groupId);
+    return max;
+  };
+  const toClone = subtree.length ? subtree : [groupId];
+  for (const oldId of toClone) idMap.set(oldId, `group-${scanMax() + 1}`);
+
+  // Clone the SceneGroup entries, remapping parentId within the subtree (the subtree root becomes
+  // top-level). Only clone groups that actually exist in the registry.
+  if (scene.groups) {
+    const reg = groupRegistry(scene);
+    const clones: SceneGroup[] = [];
+    for (const oldId of toClone) {
+      const src = reg.get(oldId);
+      if (!src) continue;
+      const parent = oldId === groupId ? undefined : src.parentId ? idMap.get(src.parentId) : undefined;
+      clones.push({
+        ...src,
+        id: idMap.get(oldId)!,
+        ...(parent ? { parentId: parent } : {}),
+        ...(src.anim ? { anim: { ...src.anim } } : {}),
+      });
+      if (oldId === groupId && clones[clones.length - 1].parentId) delete clones[clones.length - 1].parentId;
+    }
+    scene.groups = [...scene.groups, ...clones];
   }
-  const gid = `group-${max + 1}`;
+
   for (const src of members) {
     // Push one at a time so nextId sees the prior copy and never repeats an id.
-    scene.nodes.push({ ...src, id: nextId(src.type, scene), x: src.x + 24, y: src.y + 24, groupId: gid });
+    const mappedGid = src.groupId ? idMap.get(src.groupId) ?? idMap.get(groupId) : idMap.get(groupId);
+    scene.nodes.push({ ...src, id: nextId(src.type, scene), x: src.x + 24, y: src.y + 24, groupId: mappedGid });
   }
-  return next;
+  return recomposeGroups(next);
 }
 
 /** Duplicate a node on the same scene, offset slightly, placed just above the original. Returns
@@ -1342,6 +1677,16 @@ export function migrateDesign(raw: unknown): DesignDoc | null {
     let id = typeof page.id === "string" && page.id ? page.id : `scene-n${i + 1}`;
     while (seenIds.has(id)) id = `scene-n${i + 1}-${seenIds.size}`;
     seenIds.add(id);
+    // Carry the nested-group registry so group + element props round-trip (AC6, D9). Malformed
+    // entries are dropped and a dangling parentId (parent no longer present) is pruned to top-level.
+    const rawGroups = (Array.isArray(page.groups) ? (page.groups as unknown[]) : []).filter(isSceneGroup);
+    const groupIds = new Set(rawGroups.map((g) => g.id));
+    const groups = rawGroups.map((g) => {
+      if (!g.parentId || groupIds.has(g.parentId)) return { ...g };
+      const copy = { ...g };
+      delete copy.parentId; // dangling parent → lift to top-level
+      return copy;
+    });
     return {
       id,
       name: typeof page.name === "string" ? page.name : `Scene ${i + 1}`,
@@ -1352,9 +1697,20 @@ export function migrateDesign(raw: unknown): DesignDoc | null {
       transition,
       background: typeof page.background === "string" ? page.background : undefined,
       nodes,
+      groups: groups.length ? groups : undefined,
     };
   });
   return { format, width, height, scenes };
+}
+
+/** A stored value is a usable group registry entry only if it has a string id (parent/name/anim are
+ * optional and defensively narrowed). */
+function isSceneGroup(g: unknown): g is SceneGroup {
+  if (!g || typeof g !== "object") return false;
+  const grp = g as Record<string, unknown>;
+  if (typeof grp.id !== "string" || !grp.id) return false;
+  if (grp.parentId !== undefined && typeof grp.parentId !== "string") return false;
+  return true;
 }
 
 /** A stored value is a usable node only if it has a string id + a known node type. */
