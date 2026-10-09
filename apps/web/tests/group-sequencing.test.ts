@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { nodeStateAt } from "../lib/studio/anim";
-import { GROUP_ROW_CONTROLS } from "../lib/studio/group-controls";
 import {
   DEFAULT_GROUP_ENTER_MS,
   MAX_SCENE_DURATION_MS,
@@ -15,7 +14,6 @@ import {
   groupNodes,
   groupSubtreeIds,
   migrateDesign,
-  nestGroup,
   newDesign,
   recomposeGroups,
   renameGroup,
@@ -24,7 +22,9 @@ import {
   setNodeAnim,
   setSceneDuration,
   ungroupNodes,
+  updateGroupStyle,
   type DesignDoc,
+  type Scene,
 } from "../lib/studio/ops";
 
 // AC1–AC8 — Nested group editor with strict parent-first sequenced animation. The timing is BAKED
@@ -104,9 +104,6 @@ describe("nested group sequencing", () => {
     expect(scene.nodes.find((n) => n.id === b)!.groupId).toBe(p); // b lifted to P
     expect(scene.nodes.find((n) => n.id === cc)!.groupId).toBe(g); // cc still in G
     expect(scene.nodes.find((n) => n.id === a)!.groupId).toBe(p); // a untouched
-
-    // nestGroup rejects a cycle (nesting a parent inside its own descendant is a no-op).
-    expect(nestGroup(d, 0, p, g)).toBe(d);
   });
 
   it("test_strict_parent_first_offsets", () => {
@@ -297,25 +294,103 @@ describe("nested group sequencing", () => {
     expect(na.anim?.keyframes).toEqual(custom.keyframes);
   });
 
-  it("test_unified_group_controls_contract", () => {
-    // AC7 — the folded panel's group row exposes exactly the unified control set (group/ungroup/nest,
-    // rename, entrance type+duration+easing, emphasis loop, colour, opacity, duplicate, delete).
-    expect([...GROUP_ROW_CONTROLS].sort()).toEqual(
-      [
-        "colour",
-        "delete",
-        "duplicate",
-        "emphasis-loop",
-        "entrance-duration",
-        "entrance-easing",
-        "entrance-type",
-        "group",
-        "nest",
-        "opacity",
-        "rename",
-        "ungroup",
-      ].sort(),
+  it("test_grown_scene_clamps_at_ceiling", () => {
+    // AC5 (boundary) — when the summed parent-first entrances push the last child past the 15s
+    // ceiling, the grown duration is CLAMPED to MAX_SCENE_DURATION_MS (not left to overrun). Three
+    // 8s entrances nest so the deepest child ends at 8000(P)+8000(C)+8000(own)=24000ms → clamp.
+    let { d, p, c, g } = nested3();
+    d = setGroupAnim(d, 0, p, "rise", undefined, { durationMs: 8000 });
+    d = setGroupAnim(d, 0, c, "rise", undefined, { durationMs: 8000 });
+    d = setGroupAnim(d, 0, g, "rise", undefined, { durationMs: 8000 });
+    const scene = recomposeGroups(d).scenes[0];
+    // Sanity: the un-clamped timeline really does exceed the ceiling (+300 tail → 24300 > 15000).
+    const latestEnd = Math.max(
+      ...scene.nodes.map((n) => (n.anim?.keyframes.length ? Math.max(...n.anim.keyframes.map((k) => k.t)) : 0)),
     );
+    expect(latestEnd + 300).toBeGreaterThan(MAX_SCENE_DURATION_MS);
+    expect(scene.durationMs).toBe(MAX_SCENE_DURATION_MS);
+  });
+
+  it("test_set_group_anim_opts_duration_easing_and_min_guard", () => {
+    // AC7 (entrance duration + easing controls) — opts.durationMs/opts.ease are baked onto the
+    // registry AND every member's entrance; the Math.max(1, round(...)) guard clamps a 0/negative/
+    // fractional duration to a valid minimum (the risk path setGroupAnim's guard protects).
+    const { d, p, a } = nested3();
+    // Explicit duration + easing are recorded on the registry and the member's baked entrance.
+    const styled = setGroupAnim(d, 0, p, "rise", undefined, { durationMs: 900, ease: "bounce" });
+    const grp = styled.scenes[0].groups!.find((x) => x.id === p)!;
+    expect(grp.anim?.durationMs).toBe(900);
+    expect(grp.anim?.ease).toBe("bounce");
+    const na = styled.scenes[0].nodes.find((n) => n.id === a)!; // in P (top-level) → no ancestor offset
+    expect(na.anim?.enter?.durationMs).toBe(900);
+    expect(na.anim?.enter?.ease).toBe("bounce");
+    expect(Math.max(...na.anim!.keyframes.map((k) => k.t))).toBe(900); // baked end = 0 + duration
+    expect(na.anim!.keyframes.find((k) => k.opacity === 1)!.ease).toBe("bounce"); // easing on the "to" kf
+
+    // Guard: a zero/negative/fractional duration clamps to the >=1 minimum (never 0 or a non-integer).
+    for (const bad of [0, -250, 0.4]) {
+      const guarded = setGroupAnim(d, 0, p, "rise", undefined, { durationMs: bad });
+      expect(guarded.scenes[0].groups!.find((x) => x.id === p)!.anim?.durationMs).toBe(1);
+      const gn = guarded.scenes[0].nodes.find((n) => n.id === a)!;
+      expect(gn.anim?.enter?.durationMs).toBe(1);
+    }
+  });
+
+  it("test_update_group_style_patches_nested_subtree", () => {
+    // AC7 (colour/opacity controls) — a style patch on the ROOT group reaches members of nested
+    // sub-groups (the subtree-wide path), not just the root's direct members.
+    const { d, p, a, b, cc, dd } = nested3(); // a∈P, b∈C⊂P, cc&dd∈G⊂C⊂P
+    const styled = updateGroupStyle(d, 0, p, { color: "#ff0000", opacity: 0.25 });
+    const scene = styled.scenes[0];
+    for (const id of [a, b, cc, dd]) {
+      const n = scene.nodes.find((x) => x.id === id)!;
+      expect(n.color).toBe("#ff0000");
+      expect(n.opacity).toBe(0.25);
+    }
+  });
+
+  it("test_update_group_style_legacy_flat_fallback", () => {
+    // AC7 (defensive) — a node tagged with a groupId that has NO registry entry (legacy/hand-edited
+    // scene) still gets patched via the `gid === groupId` fallback branch.
+    let d = newDesign("social");
+    d = addText(d, 0, "Legacy", { x: 0, y: 0 });
+    // Tag the node with a group id but leave `scene.groups` absent (no registry).
+    d = { ...d, scenes: d.scenes.map((s, i) => (i === 0 ? { ...s, nodes: s.nodes.map((n) => ({ ...n, groupId: "orphan" })) } : s)) };
+    const styled = updateGroupStyle(d, 0, "orphan", { color: "#00ff00" });
+    expect(styled.scenes[0].nodes[0].color).toBe("#00ff00");
+  });
+
+  it("test_group_ancestry_bounded_under_cyclic_registry", () => {
+    // AC1 (corruption path) — migrateDesign only prunes DANGLING parentIds, not cycles, so a stored
+    // a→b→a parent loop survives save/reload. groupAncestry's seen-set + size bound is then the sole
+    // defence: every hierarchy helper must TERMINATE and return bounded output (never loop forever).
+    const migrated = migrateDesign({
+      scenes: [
+        {
+          id: "scene-n1",
+          nodes: [{ id: "n", type: "text", x: 0, y: 0, groupId: "a" }],
+          groups: [
+            { id: "a", parentId: "b" },
+            { id: "b", parentId: "a" }, // cycle: both parents exist, so neither is pruned
+          ],
+        },
+      ],
+    })!;
+    const scene: Scene = migrated.scenes[0];
+    // The cycle really did survive migration (not pruned).
+    expect(scene.groups!.find((g) => g.id === "a")!.parentId).toBe("b");
+    expect(scene.groups!.find((g) => g.id === "b")!.parentId).toBe("a");
+
+    // All three helpers terminate and stay bounded by the registry size (no runaway).
+    const anc = groupAncestry(scene, "a");
+    expect(anc.length).toBeLessThanOrEqual(scene.groups!.length);
+    expect(new Set(anc.map((g) => g.id)).size).toBe(anc.length); // no id repeats
+    expect(groupDepth(scene, "a")).toBeLessThanOrEqual(scene.groups!.length);
+    const sub = groupSubtreeIds(scene, "a");
+    expect(sub.length).toBeLessThanOrEqual(scene.groups!.length);
+    expect(new Set(sub).size).toBe(sub.length);
+    // recompose also terminates over the cyclic scene (uses groupAncestry internally).
+    expect(() => recomposeGroups(migrated)).not.toThrow();
   });
 
   it("test_existing_flat_grouping_contract_preserved", () => {

@@ -1390,30 +1390,6 @@ export function groupNodes(design: DesignDoc, sceneIndex: number, nodeIds: reado
   return recomposeGroups(next);
 }
 
-/** Nest an existing group inside another (set its `parentId`), rejecting cycles. Recomposes. */
-export function nestGroup(
-  design: DesignDoc,
-  sceneIndex: number,
-  childGroupId: string,
-  parentGroupId: string | undefined,
-): DesignDoc {
-  assertScene(design, sceneIndex);
-  const next = cloneDesign(design);
-  const scene = next.scenes[sceneIndex];
-  const child = (scene.groups ?? []).find((g) => g.id === childGroupId);
-  if (!child) return design;
-  if (parentGroupId) {
-    if (parentGroupId === childGroupId) return design;
-    // Reject a cycle: parent must not be the child or one of its descendants.
-    if (groupSubtreeIds(scene, childGroupId).includes(parentGroupId)) return design;
-    if (!(scene.groups ?? []).some((g) => g.id === parentGroupId)) return design;
-    child.parentId = parentGroupId;
-  } else {
-    delete child.parentId;
-  }
-  return recomposeGroups(next);
-}
-
 /** Ungroup: remove a group and REPARENT its contents to the group's own parent (AC3). Descendant
  * groups whose `parentId === groupId` and member nodes tagged with it are lifted one level up (or
  * released to top-level when the group was top-level). Styling/animation survives. Recomposes. */
