@@ -178,6 +178,21 @@ def test_publish_same_composition_twice_conflicts(igclient):
     assert second.status_code == 409, second.text
 
 
+def test_simulated_social_post_does_not_block_real_publish(igclient):
+    """A Social-page simulated publish (``sim-*`` id) is not really on Instagram, so it must NOT
+    trip the real-publish dedup guard (AC98). Only a real/stub publish counts as already-live."""
+    from app.models.post import Post, PostStatus
+
+    with igclient.app_.state.sessionmaker() as db:
+        db.add(Post(composition_id=1, channel="instagram", status=PostStatus.published,
+                    external_id="sim-instagram-1-123", published_at=FIXED))
+        db.commit()
+    h = _headers(igclient, AGENT1)
+    r = igclient.post("/social/instagram/publish", headers=h,
+                      data={"composition_id": 1, "caption": "x"}, files=_files())
+    assert r.status_code == 200, r.text
+
+
 def test_publish_live_rejects_prehosted_image_url(tmp_path, monkeypatch):
     """In live mode an arbitrary pre-hosted image_url is rejected (render+upload path only)."""
     from app.social import publish as publish_svc

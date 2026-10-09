@@ -27,3 +27,12 @@ export function appendHashtags(caption: string, hashtags: string[]): string {
   const base = caption.trimEnd();
   return base ? `${base}\n\n${line}` : line;
 }
+
+/**
+ * Combine the separately-edited caption and keywords boxes into the single caption that is sent.
+ * Each part is trimmed; blank parts are dropped; present parts are joined by a blank line. So an
+ * empty keywords box sends just the caption, and vice-versa.
+ */
+export function combineCopy(caption: string, keywords: string): string {
+  return [caption.trim(), keywords.trim()].filter(Boolean).join("\n\n");
+}

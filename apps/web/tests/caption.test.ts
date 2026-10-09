@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendHashtags } from "../lib/ai/caption";
+import { appendHashtags, combineCopy } from "../lib/ai/caption";
 
 describe("appendHashtags", () => {
   it("returns just the tag line when the caption is empty", () => {
@@ -22,5 +22,21 @@ describe("appendHashtags", () => {
   it("returns the caption unchanged when every tag is a duplicate or blank", () => {
     expect(appendHashtags("Trip #Travel", ["#travel", "  ", ""])).toBe("Trip #Travel");
     expect(appendHashtags("Trip #Travel", [])).toBe("Trip #Travel");
+  });
+});
+
+describe("combineCopy", () => {
+  it("joins caption and keywords with a blank line", () => {
+    expect(combineCopy("Visit the cliffs!", "#Travel #Clare")).toBe("Visit the cliffs!\n\n#Travel #Clare");
+  });
+
+  it("drops a blank part (sends just the caption, or just the keywords)", () => {
+    expect(combineCopy("Caption only", "")).toBe("Caption only");
+    expect(combineCopy("   ", "#Travel")).toBe("#Travel");
+    expect(combineCopy("", "")).toBe("");
+  });
+
+  it("trims each part", () => {
+    expect(combineCopy("  Hello  ", "  #x  ")).toBe("Hello\n\n#x");
   });
 });
