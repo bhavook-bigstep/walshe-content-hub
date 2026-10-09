@@ -139,4 +139,35 @@ describe("studio grouping ops", () => {
     // Pure: the original still has all three.
     expect(grouped.scenes[0].nodes).toHaveLength(3);
   });
+
+  it("groups two whole groups into one parent, each sub-group retained", () => {
+    let d = newDesign("social");
+    d = addText(d, 0, "A", { x: 10, y: 10 });
+    d = addText(d, 0, "B", { x: 50, y: 50 });
+    d = addText(d, 0, "C", { x: 100, y: 100 });
+    d = addText(d, 0, "D", { x: 150, y: 150 });
+    const [a, b, c, dd] = d.scenes[0].nodes.map((n) => n.id);
+    d = groupNodes(d, 0, [a, b]);
+    const g1 = d.scenes[0].nodes.find((n) => n.id === a)!.groupId!;
+    d = groupNodes(d, 0, [c, dd]);
+    const g2 = d.scenes[0].nodes.find((n) => n.id === c)!.groupId!;
+    // Each group gets its own behaviour.
+    d = setGroupAnim(d, 0, g1, "rise", undefined);
+    d = setGroupAnim(d, 0, g2, "fade", undefined);
+
+    // Select BOTH whole groups and group them → a new parent nesting G1 + G2.
+    d = groupNodes(d, 0, [a, b, c, dd]);
+    const scene = d.scenes[0];
+    // Nodes keep their original innermost groups (the sub-groups are preserved, not flattened).
+    expect(scene.nodes.find((n) => n.id === a)!.groupId).toBe(g1);
+    expect(scene.nodes.find((n) => n.id === c)!.groupId).toBe(g2);
+    // A new top-level parent now encloses both sub-groups.
+    const parent = scene.groups!.find((x) => x.id === g1)!.parentId;
+    expect(parent).toBeTruthy();
+    expect(scene.groups!.find((x) => x.id === g2)!.parentId).toBe(parent);
+    expect(scene.groups!.find((x) => x.id === parent)!.parentId).toBeUndefined();
+    // Each sub-group retains its own animation behaviour.
+    expect(scene.groups!.find((x) => x.id === g1)!.anim?.enter).toBe("rise");
+    expect(scene.groups!.find((x) => x.id === g2)!.anim?.enter).toBe("fade");
+  });
 });

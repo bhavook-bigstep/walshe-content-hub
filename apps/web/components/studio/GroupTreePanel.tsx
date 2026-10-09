@@ -9,6 +9,7 @@ import {
   duplicateGroup,
   groupAncestry,
   groupDepth,
+  groupDescendantNodeIds,
   groupNodes,
   groupParentEntryMs,
   groupRegistry,
@@ -104,6 +105,19 @@ export default function GroupTreePanel({
       return gids[0] && gids.every((g) => g === gids[0]);
     })();
 
+  // Whole groups wholly contained in the selection → grouping nests them as sub-groups (each keeps
+  // its own behaviour) under a new parent, rather than flattening (group-of-groups).
+  const wholeGroupCount = (() => {
+    const sel = new Set(selectedIds);
+    const gids = new Set(
+      selectedIds.map((id) => scene.nodes.find((n) => n.id === id)?.groupId).filter(Boolean) as string[],
+    );
+    return [...gids].filter((gid) => {
+      const d = groupDescendantNodeIds(scene, gid);
+      return d.length > 0 && d.every((id) => sel.has(id));
+    }).length;
+  })();
+
   function emitGroup() {
     if (selectedIds.length < 2) return;
     onChange(groupNodes(design, sceneIndex, selectedIds));
@@ -184,7 +198,11 @@ export default function GroupTreePanel({
           onClick={emitGroup}
           className="w-full rounded-md border border-walshe-teal bg-walshe-teal px-3 py-2 text-small font-semibold text-white transition-colors hover:bg-walshe-teal/90"
         >
-          {allShareParent && selectionGroupId ? `Nest ${selectedIds.length} as sub-group` : `Group ${selectedIds.length} items`}
+          {allShareParent && selectionGroupId
+            ? `Nest ${selectedIds.length} as sub-group`
+            : wholeGroupCount >= 2
+              ? `Group ${wholeGroupCount} groups into one`
+              : `Group ${selectedIds.length} items`}
         </button>
       )}
 

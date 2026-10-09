@@ -1246,6 +1246,12 @@ export function groupSubtreeIds(scene: Scene, groupId: string): string[] {
   return out;
 }
 
+/** All node ids under a group (its own members + every descendant group's members), any depth. */
+export function groupDescendantNodeIds(scene: Scene, groupId: string): string[] {
+  const sub = new Set(groupSubtreeIds(scene, groupId));
+  return scene.nodes.filter((n) => n.groupId && sub.has(n.groupId)).map((n) => n.id);
+}
+
 /** The ancestry of a node's innermost group (innermost→outermost); empty when the node is ungrouped. */
 export function nodeGroupChain(scene: Scene, node: DesignNode): SceneGroup[] {
   return node.groupId ? groupAncestry(scene, node.groupId) : [];
@@ -1405,12 +1411,46 @@ export function groupNodes(design: DesignDoc, sceneIndex: number, nodeIds: reado
   if (ids.size < 2) return design;
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
-  // Nest when all selected nodes already share one innermost group.
-  const existing = [...ids].map((id) => scene.nodes.find((n) => n.id === id)?.groupId);
-  const parentId = existing[0] && existing.every((g) => g === existing[0]) ? existing[0] : undefined;
+  const groups = scene.groups ?? [];
+
+  // A group is "fully selected" when every node in its subtree is in the selection. Such a group is
+  // grouped AS A UNIT (it keeps its own tag + behaviour and just gains a parent) — this is how two
+  // whole groups become one nested group. A partial selection of a group's members is "loose": those
+  // nodes move into the new group (the pre-nesting flatten behaviour, unchanged).
+  const fullySelected = new Set(
+    groups
+      .filter((g) => {
+        const d = groupDescendantNodeIds(scene, g.id);
+        return d.length > 0 && d.every((id) => ids.has(id));
+      })
+      .map((g) => g.id),
+  );
+  // Maximal fully-selected groups: those whose parent isn't itself fully selected (avoid re-parenting
+  // a group whose ancestor is already being grouped as a whole).
+  const maximalGroups = [...fullySelected].filter((gid) => {
+    const g = groups.find((x) => x.id === gid)!;
+    return !g.parentId || !fullySelected.has(g.parentId);
+  });
+  // Loose nodes: selected nodes whose innermost group is NOT being grouped as a whole unit.
+  const looseNodes = [...ids].filter((id) => {
+    const n = scene.nodes.find((x) => x.id === id);
+    return n && (!n.groupId || !fullySelected.has(n.groupId));
+  });
+
+  // Need at least two units (whole groups and/or loose nodes) to form a new group.
+  if (maximalGroups.length + looseNodes.length < 2) return design;
+
+  // Nest the new group at the units' common parent level (top-level when they don't share one).
+  const parents = [
+    ...maximalGroups.map((gid) => groups.find((x) => x.id === gid)!.parentId),
+    ...looseNodes.map((id) => scene.nodes.find((x) => x.id === id)!.groupId),
+  ];
+  const parentId = parents.every((p) => p === parents[0]) ? parents[0] : undefined;
+
   const gid = nextGroupId(scene);
-  for (const n of scene.nodes) if (ids.has(n.id)) n.groupId = gid;
-  scene.groups = [...(scene.groups ?? []), { id: gid, ...(parentId ? { parentId } : {}) }];
+  for (const g of groups) if (maximalGroups.includes(g.id)) g.parentId = gid; // whole groups → sub-groups
+  for (const n of scene.nodes) if (looseNodes.includes(n.id)) n.groupId = gid; // loose nodes → members
+  scene.groups = [...groups, { id: gid, ...(parentId ? { parentId } : {}) }];
   return recomposeGroups(next);
 }
 
