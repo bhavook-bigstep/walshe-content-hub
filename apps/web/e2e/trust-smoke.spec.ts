@@ -27,10 +27,22 @@ test("agent sees a preflight issue before sending", async ({ page }) => {
   await loginAs(page, "agent@example.test", /\/agent$/);
 
   await page.goto("/agent/social");
-  // The seeded "Trade Showcase teaser" holds an expired item, so the check must fail.
-  // The Composition picker is the app's custom <Select> (no longer a native <select>), so drive
-  // it via chooseOption rather than Playwright's selectOption.
-  await chooseOption(page, "Composition", "Trade Showcase teaser");
+  // The seeded "Trade Showcase teaser" composition holds an expired item, so the check must fail.
+  // The Composition picker is the app's custom <Select> (no longer a native <select>), and the
+  // shared e2e DB also holds many other saved compositions, so interact explicitly rather than
+  // fire-and-forget: wait for projects to load (the trigger enables), open the menu, pick the
+  // target, and confirm the value committed — which also closes the menu — before running the
+  // check. Retried as a unit so a click that lands before the list settles can't wedge the menu
+  // open over the next control.
+  const composition = page.getByRole("button", { name: "Composition" });
+  await expect(composition).toBeEnabled();
+  await expect(async () => {
+    if ((await composition.getAttribute("aria-expanded")) !== "true") await composition.click();
+    await page
+      .getByRole("option", { name: "Trade Showcase teaser", exact: true })
+      .click({ timeout: 3_000 });
+    await expect(composition).toHaveText(/Trade Showcase teaser/, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.getByRole("button", { name: /run pre-send check/i }).click();
 
   const issues = page.getByTestId("preflight-issues");
