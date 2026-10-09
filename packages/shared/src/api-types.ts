@@ -1609,6 +1609,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/social/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Posts
+         * @description The agent's own posts — social- AND campaign-scheduled (any post built from one of their
+         *     compositions) — so the list survives a page refresh. Pending-approval posts (the ones needing
+         *     action) sort first, then newest-first within each group.
+         */
+        get: operations["list_posts_social_posts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/social/posts/{post_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve
+         * @description Approve AND publish a pending post in one action (AC99). PoC self-approval: the owning agent
+         *     is also the reviewer. Approval records the reviewer and publishes the captured image immediately
+         *     via the shared real path (preflight + duplicate guard + receipt); on a guard/publish failure
+         *     nothing is approved and the reason is returned (422/409/503/502).
+         */
+        post: operations["approve_social_posts__post_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/social/posts/{post_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description Reject a pending post with a reason (AC99); it drops to rejected and is editable again.
+         */
+        post: operations["reject_social_posts__post_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/social/preflight": {
         parameters: {
             query?: never;
@@ -1620,26 +1685,9 @@ export interface paths {
         put?: never;
         /**
          * Preflight Check
-         * @description Dry-run the pre-send check (AC34) so the agent sees issues before trying to send.
+         * @description Dry-run the pre-send check (AC34) so the agent sees issues before scheduling.
          */
         post: operations["preflight_check_social_preflight_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/social/publish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Publish */
-        post: operations["publish_social_publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1655,28 +1703,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Schedule */
-        post: operations["schedule_social_schedule_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/social/unpublish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
         /**
-         * Unpublish
-         * @description Revert a published post to scheduled; traceable via audit (Contract 3).
+         * Schedule
+         * @description Schedule a composition to Instagram, capturing its rendered JPEG now (so approve can publish
+         *     it for real). Preflight-gated; lands in pending_approval (AC99).
          */
-        post: operations["unpublish_social_unpublish_post"];
+        post: operations["schedule_social_schedule_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1958,6 +1990,20 @@ export interface components {
              * @default
              */
             note: string;
+        };
+        /** Body_schedule_social_schedule_post */
+        Body_schedule_social_schedule_post: {
+            /**
+             * Channel
+             * @default instagram
+             */
+            channel: string;
+            /** Composition Id */
+            composition_id: number;
+            /** Image */
+            image?: string | null;
+            /** Scheduled At */
+            scheduled_at?: string | null;
         };
         /** Body_upload_brand_logo_me_brand_kit_logo_post */
         Body_upload_brand_logo_me_brand_kit_logo_post: {
@@ -2379,6 +2425,12 @@ export interface components {
         DisplayStatus: "draft" | "in_review" | "approved" | "expiring_soon" | "expired" | "withdrawn";
         /** EngagementOut */
         EngagementOut: {
+            /** Campaign Id */
+            campaign_id?: number | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Composition Name */
+            composition_name?: string | null;
             /**
              * Fetched At
              * Format: date-time
@@ -2946,10 +2998,19 @@ export interface components {
             channel: string;
             /** Composition Id */
             composition_id: number;
+            /** Composition Name */
+            composition_name?: string | null;
+            /** External Id */
+            external_id?: string | null;
             /** Id */
             id: number;
             /** Published At */
             published_at: string | null;
+            /**
+             * Review Note
+             * @default
+             */
+            review_note: string;
             /** Scheduled At */
             scheduled_at: string | null;
             status: components["schemas"]["PostStatus"];
@@ -2974,6 +3035,13 @@ export interface components {
             issues: components["schemas"]["PreflightIssueOut"][];
             /** Ok */
             ok: boolean;
+        };
+        /** PreflightRequest */
+        PreflightRequest: {
+            /** Channel */
+            channel: string;
+            /** Composition Id */
+            composition_id: number;
         };
         /**
          * ProfileUpdate
@@ -3059,13 +3127,6 @@ export interface components {
             /** Name */
             name?: string | null;
         };
-        /** PublishRequest */
-        PublishRequest: {
-            /** Channel */
-            channel: string;
-            /** Composition Id */
-            composition_id: number;
-        };
         /** ReferenceContent */
         ReferenceContent: {
             /** Collections */
@@ -3106,6 +3167,14 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** RejectRequest */
+        RejectRequest: {
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
         /** RenderRequest */
         RenderRequest: {
             /** Design */
@@ -3139,15 +3208,6 @@ export interface components {
          * @enum {string}
          */
         Role: "super_admin" | "content_provider" | "tourism_agent";
-        /** ScheduleRequest */
-        ScheduleRequest: {
-            /** Channel */
-            channel: string;
-            /** Composition Id */
-            composition_id: number;
-            /** Scheduled At */
-            scheduled_at?: string | null;
-        };
         /**
          * Season
          * @description The fixed season list (AC53) — a closed vocabulary so it works as a catalog filter.
@@ -6473,6 +6533,92 @@ export interface operations {
             };
         };
     };
+    list_posts_social_posts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostOut"][];
+                };
+            };
+        };
+    };
+    approve_social_posts__post_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_social_posts__post_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     preflight_check_social_preflight_post: {
         parameters: {
             query?: never;
@@ -6482,7 +6628,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PublishRequest"];
+                "application/json": components["schemas"]["PreflightRequest"];
             };
         };
         responses: {
@@ -6506,39 +6652,6 @@ export interface operations {
             };
         };
     };
-    publish_social_publish_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PublishRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PostOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     schedule_social_schedule_post: {
         parameters: {
             query?: never;
@@ -6548,45 +6661,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ScheduleRequest"];
+                "multipart/form-data": components["schemas"]["Body_schedule_social_schedule_post"];
             };
         };
         responses: {
             /** @description Successful Response */
             201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PostOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unpublish_social_unpublish_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PublishRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
                 headers: {
                     [name: string]: unknown;
                 };

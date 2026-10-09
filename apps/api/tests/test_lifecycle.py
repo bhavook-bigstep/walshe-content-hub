@@ -7,6 +7,7 @@ fixtures only; no real secrets or PII.
 
 from __future__ import annotations
 
+import io
 from datetime import datetime, timedelta, timezone
 
 from app import clock
@@ -176,7 +177,8 @@ def test_expired_dropped_from_projects_and_schedule(client, provider_headers, ag
     r = client.post(
         "/social/schedule",
         headers=agent_headers,
-        json={"composition_id": project_id, "channel": "instagram"},
+        data={"composition_id": str(project_id), "channel": "instagram"},
+        files={"image": ("post.jpg", io.BytesIO(b"\xff\xd8\xff" + b"\x00" * 64), "image/jpeg")},
     )
     assert r.status_code == 201, r.text
 

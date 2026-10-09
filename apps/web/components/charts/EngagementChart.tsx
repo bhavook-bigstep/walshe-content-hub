@@ -10,13 +10,23 @@ export interface ChartSeries {
 }
 
 export interface ChartPoint {
-  label: string; // x-axis category (e.g. "Post #1")
+  label: string; // x-axis category (e.g. a project name) — may repeat across points
   values: Record<string, number>; // metric key -> value
+  id?: string | number; // stable unique id (e.g. post id); labels can repeat, so keys use this
 }
 
 const W = 640;
 const H = 260;
 const PAD = { top: 16, right: 16, bottom: 36, left: 48 };
+
+// A unique React key per point. Two posts can share a project name, so the label alone is not a
+// safe key (React "two children with the same key"); prefer the point's id, fall back to label+index.
+const keyOf = (p: ChartPoint, i: number): string => String(p.id ?? `${p.label}#${i}`);
+
+/** Shorten an axis label to fit its slot, with an ellipsis; the full label stays available on hover. */
+export function truncateLabel(s: string, maxChars: number): string {
+  return s.length > maxChars ? `${s.slice(0, Math.max(1, maxChars - 1))}…` : s;
+}
 
 function marker(shape: string, x: number, y: number, color: string) {
   if (shape === "square") return <rect x={x - 3.5} y={y - 3.5} width={7} height={7} fill={color} />;
@@ -52,6 +62,9 @@ export default function EngagementChart({
   const slotCenter = (i: number) => PAD.left + (i + 0.5) * slotW;
   const y = (v: number) => PAD.top + plotH - (v / max) * plotH;
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
+  // Keep x-axis labels inside their slot so they don't overlap when there are many posts (~7px/char
+  // at 11px); the full name is still readable via the <title> tooltip + the per-post table below.
+  const maxLabelChars = Math.max(6, Math.floor(slotW / 7));
 
   return (
     <section className="card p-5" aria-labelledby={titleId}>
@@ -94,8 +107,8 @@ export default function EngagementChart({
               </tr>
             </thead>
             <tbody>
-              {points.map((p) => (
-                <tr key={p.label} className="border-b border-walshe-line/60">
+              {points.map((p, i) => (
+                <tr key={keyOf(p, i)} className="border-b border-walshe-line/60">
                   <td className="py-2 pr-4">{p.label}</td>
                   {series.map((s) => (
                     <td key={s.key} className="py-2 pr-4 tabular-nums">
@@ -127,14 +140,15 @@ export default function EngagementChart({
             );
           })}
           {points.map((p, i) => (
-            <text key={p.label} x={slotCenter(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="rgb(var(--walshe-grey))">
-              {p.label}
+            <text key={keyOf(p, i)} x={slotCenter(i)} y={H - 12} textAnchor="middle" fontSize="11" fill="rgb(var(--walshe-grey))">
+              {truncateLabel(p.label, maxLabelChars)}
+              <title>{p.label}</title>
             </text>
           ))}
           {points.map((p, i) => {
             const groupStart = slotCenter(i) - groupW / 2;
             return (
-              <g key={p.label}>
+              <g key={keyOf(p, i)}>
                 {series.map((s, j) => {
                   const v = val(p, s.key);
                   const bx = groupStart + j * (barW + barGap);
