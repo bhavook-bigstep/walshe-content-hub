@@ -1570,7 +1570,11 @@ function StudioEditor() {
             window's overflow doesn't clip it). The wrapper spans the window's full height so the
             handle sits exactly at its vertical centre. */}
         {!demoRunning && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
-          <div className="pointer-events-none absolute right-[23rem] top-24 z-40 flex h-[calc(100vh-13rem)] items-center">
+          <div
+            className={`pointer-events-none absolute top-24 z-40 flex h-[calc(100vh-13rem)] items-center transition-[right] duration-300 ease-out ${
+              treeOpen ? "right-[39.5rem]" : "right-[23rem]"
+            }`}
+          >
             <button
               type="button"
               onClick={() => setTreeOpen((o) => !o)}
