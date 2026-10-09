@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { byCampaign, byPlatform, latestByPost, sumMetric } from "../lib/engagement/metrics";
+import { latestByPost, sumMetric } from "../lib/engagement/metrics";
 
 const rows = [
   { post_id: 1, platform: "instagram", metrics: { reach: 10, total_interactions: 3 }, fetched_at: "2026-01-01T00:00:00Z" },
@@ -18,23 +18,6 @@ describe("engagement metrics helpers", () => {
     expect(sumMetric(rows, "reach")).toBe(30); // 25 (post 1 latest) + 5 (post 2)
     expect(sumMetric(rows, "total_interactions")).toBe(8); // 7 + 1
     expect(sumMetric(rows, "nope")).toBe(0);
-  });
-
-  test("byPlatform and byCampaign roll up the latest snapshot per post, sorted by reach", () => {
-    const mixed = [
-      { post_id: 1, platform: "instagram", campaign_name: "Autumn", metrics: { reach: 100 }, fetched_at: "2026-01-02T00:00:00Z" },
-      { post_id: 1, platform: "instagram", campaign_name: "Autumn", metrics: { reach: 120 }, fetched_at: "2026-01-03T00:00:00Z" }, // newer wins
-      { post_id: 2, platform: "facebook", campaign_name: "Autumn", metrics: { reach: 30 }, fetched_at: "2026-01-02T00:00:00Z" },
-      { post_id: 3, platform: "facebook", campaign_name: null, metrics: { reach: 50 }, fetched_at: "2026-01-02T00:00:00Z" },
-    ];
-    const plat = byPlatform(mixed);
-    expect(plat.map((g) => g.label)).toEqual(["instagram", "facebook"]); // 120 > 80
-    expect(plat.find((g) => g.label === "instagram")!.metrics.reach).toBe(120); // latest snapshot
-    expect(plat.find((g) => g.label === "facebook")!.metrics.reach).toBe(80); // 30 + 50
-
-    const camp = byCampaign(mixed);
-    expect(camp.find((g) => g.label === "Autumn")!.metrics.reach).toBe(150); // 120 + 30
-    expect(camp.some((g) => g.label === "No campaign")).toBe(true); // null campaign bucketed
   });
 
   test("tolerates a row with missing/undefined metrics (legacy/stale data) without crashing", () => {

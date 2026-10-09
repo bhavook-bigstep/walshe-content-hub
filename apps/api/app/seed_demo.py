@@ -18,12 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.clock import now as clock_now
 from app.models.agent_features import BrandKit, Collection
-from app.models.campaign import Campaign, CampaignStatus
 from app.models.catalog import CatalogEntry, CatalogType, EntryStatus, Season
 from app.models.composition import Composition
-from app.models.engagement import Engagement
-from app.models.post import Post, PostStatus
-from app.models.post_insights_sync import PostInsightsSync
 from app.models.user import Role, Tenant, User
 from app.security import hash_password
 from app.services.catalog_migration import decompose_entries_to_items
@@ -219,76 +215,6 @@ def _composition(db: Session, agent_id: int, name: str, item_ids: list[int]) -> 
     return c
 
 
-def _metrics(reach: int) -> dict[str, int]:
-    """Realistic Instagram-shaped metrics derived from a reach value (keys match the registry in
-    app/social/metrics.py), so the Engagement dashboard + breakdowns read like a live account."""
-    return {
-        "reach": reach,
-        "views": int(reach * 1.3),
-        "likes": int(reach * 0.08),
-        "comments": max(1, int(reach * 0.006)),
-        "saved": int(reach * 0.017),
-        "shares": max(1, int(reach * 0.005)),
-        "total_interactions": int(reach * 0.102),
-    }
-
-
-def _seed_social(db: Session, agent_id: int, comps: dict[str, int], now: datetime) -> None:
-    """Several demo campaigns with Instagram posts + engagement, plus a standalone post, so
-    Campaigns / Social / Engagement (per-campaign + per-post) are populated. Instagram-only because
-    it is the sole connected platform in the PoC. Idempotent: skipped once the agent has a
-    campaign."""
-    if db.execute(select(Campaign).where(Campaign.agent_id == agent_id)).first() is not None:
-        return
-
-    def campaign(name: str, dest: str, start_days: int, end_days: int) -> int:
-        c = Campaign(
-            agent_id=agent_id, name=name, destination=dest,
-            starts_on=(now + timedelta(days=start_days)).date(),
-            ends_on=(now + timedelta(days=end_days)).date(),
-            status=CampaignStatus.active, created_at=now + timedelta(days=start_days),
-        )
-        db.add(c)
-        db.flush()
-        return c.id
-
-    c_autumn = campaign("Autumn on the Wild Atlantic", "Ireland", -20, 25)
-    c_city = campaign("City Breaks Winter", "Dublin & Belfast", -10, 40)
-    c_trade = campaign("Trade Spring Showcase", "Ireland", -30, 15)
-
-    # (campaign_id | None, project name, caption, days-ago published | None, reach | None).
-    # Instagram is the only connected platform in the PoC, so every demo post is Instagram — the
-    # seeded data mirrors the Connected Platforms page (unconnected channels carry no data).
-    # days-ago/reach present → a published post with engagement; absent → a pending_approval post.
-    plan = [
-        (c_autumn, "Galway launch post", "Cliffs of Moher at golden hour.", 18, 2412),
-        (c_autumn, "Cliffs of Moher feature", "214m above the Atlantic.", 9, 1536),
-        (c_autumn, "Dublin city lights", "Coming soon to the campaign.", None, None),
-        (c_city, "Dublin city lights", "Dublin's winter light trail.", 6, 1340),
-        (c_trade, "Galway launch post", "Meet Irish suppliers this spring.", 20, 1120),
-        (None, "Cliffs of Moher feature", "A simple published post.", 3, 760),
-    ]
-    for idx, (camp_id, comp_name, caption, days_ago, reach) in enumerate(plan):
-        channel = "instagram"
-        published = days_ago is not None
-        when = now - timedelta(days=days_ago) if published else now + timedelta(days=3)
-        post = Post(
-            campaign_id=camp_id, composition_id=comps[comp_name], channel=channel, platform=channel,
-            caption=caption,
-            status=PostStatus.published if published else PostStatus.pending_approval,
-            scheduled_at=when, published_at=when if published else None,
-            external_id=f"sim-{channel}-seed-{idx + 1}" if published else None,
-            approved_by=agent_id if published else None,
-            reviewed_at=when if published else None,
-        )
-        db.add(post)
-        db.flush()
-        if reach is not None:
-            db.add(Engagement(post_id=post.id, platform=channel, metrics=_metrics(reach),
-                              fetched_at=now - timedelta(hours=2)))
-            db.add(PostInsightsSync(post_id=post.id, last_synced_at=now - timedelta(hours=2),
-                                    sync_status="ok"))
-    db.flush()
 
 
 def seed_demo(db: Session) -> dict[str, int]:
@@ -355,21 +281,12 @@ def seed_demo(db: Session) -> dict[str, int]:
         "Festival season",
         [by_title["Harbour Festival"], by_title["Dublin Lights"]],
     )
-    comp1 = _composition(
-        db, agent1.id, "Galway launch post",
+    _composition(
+        db,
+        agent1.id,
+        "Galway launch post",
         [by_title["Harbour Festival"], by_title["Cliffs of Moher"]],
     )
-    comp_cliffs = _composition(
-        db, agent1.id, "Cliffs of Moher feature", [by_title["Cliffs of Moher"]]
-    )
-    comp_dublin = _composition(db, agent1.id, "Dublin city lights", [by_title["Dublin Lights"]])
-    # Several live campaigns + Instagram posts + engagement so Campaigns / Social /
-    # Engagement (per-campaign + per-post) are populated for the demo (not empty).
-    _seed_social(db, agent1.id, {
-        "Galway launch post": comp1.id,
-        "Cliffs of Moher feature": comp_cliffs.id,
-        "Dublin city lights": comp_dublin.id,
-    }, now)
 
     # Agent 2 (Sam): city-breaks focus, a brand kit, a collection + a draft project.
     _brand_kit(
@@ -411,9 +328,6 @@ def seed_demo(db: Session) -> dict[str, int]:
         "entries": db.scalar(select(func.count()).select_from(CatalogEntry)),
         "collections": db.scalar(select(func.count()).select_from(Collection)),
         "compositions": db.scalar(select(func.count()).select_from(Composition)),
-        "campaigns": db.scalar(select(func.count()).select_from(Campaign)),
-        "posts": db.scalar(select(func.count()).select_from(Post)),
-        "engagement": db.scalar(select(func.count()).select_from(Engagement)),
     }
 
 
