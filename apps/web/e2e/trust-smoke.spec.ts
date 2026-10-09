@@ -27,8 +27,29 @@ test("agent sees a preflight issue before sending", async ({ page }) => {
   await loginAs(page, "agent@example.test", /\/agent$/);
 
   await page.goto("/agent/social");
-  // The seeded "Trade Showcase teaser" holds an expired item, so the check must fail.
-  await page.getByLabel("Composition").selectOption({ label: "Trade Showcase teaser" });
+  // The seeded "Trade Showcase teaser" composition holds an expired item, so the check must fail.
+  // The Composition picker is the app's custom <Select> (no longer a native <select>), and the
+  // shared e2e DB also holds many other saved compositions, so interact explicitly. The menu is
+  // absolutely positioned and overlaps the sibling "Run pre-send check" button; on the slower CI
+  // runner it could linger open after a pick and intercept that click. So select AND confirm the
+  // menu actually closed (aria-expanded=false), dismissing it with Escape if it lingers — all
+  // retried as a unit so neither a too-early click nor a wedged-open menu can slip through.
+  const composition = page.getByRole("button", { name: "Composition" });
+  await expect(composition).toBeEnabled();
+  await expect(async () => {
+    if ((await composition.getAttribute("aria-expanded")) !== "true") await composition.click();
+    await page
+      .getByRole("option", { name: "Trade Showcase teaser", exact: true })
+      .click({ timeout: 3_000 });
+    await expect(composition).toHaveText(/Trade Showcase teaser/, { timeout: 1_500 });
+    if ((await composition.getAttribute("aria-expanded")) === "true") {
+      await composition.focus();
+      await page.keyboard.press("Escape");
+    }
+    await expect(composition).toHaveAttribute("aria-expanded", "false", { timeout: 1_500 });
+  }).toPass({ timeout: 20_000 });
+  // The listbox is gone, so the next control is unobstructed.
+  await expect(page.getByRole("listbox", { name: "Composition" })).toHaveCount(0);
   await page.getByRole("button", { name: /run pre-send check/i }).click();
 
   const issues = page.getByTestId("preflight-issues");
