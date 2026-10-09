@@ -1227,6 +1227,36 @@ export function updateGroupStyle(design: DesignDoc, sceneIndex: number, groupId:
   return next;
 }
 
+/** Delete every member of a group. */
+export function deleteGroup(design: DesignDoc, sceneIndex: number, groupId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  scene.nodes = scene.nodes.filter((n) => n.groupId !== groupId);
+  return next;
+}
+
+/** Duplicate every member of a group (offset), as a NEW group placed above the originals. The copies
+ * share a fresh group id and each gets a fresh unique node id. */
+export function duplicateGroup(design: DesignDoc, sceneIndex: number, groupId: string): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  const members = scene.nodes.filter((n) => n.groupId === groupId);
+  if (members.length === 0) return next;
+  let max = 0;
+  for (const n of scene.nodes) {
+    const m = /^group-(\d+)$/.exec(n.groupId ?? "");
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  const gid = `group-${max + 1}`;
+  for (const src of members) {
+    // Push one at a time so nextId sees the prior copy and never repeats an id.
+    scene.nodes.push({ ...src, id: nextId(src.type, scene), x: src.x + 24, y: src.y + 24, groupId: gid });
+  }
+  return next;
+}
+
 /** Duplicate a node on the same scene, offset slightly, placed just above the original. Returns
  * the new design; the copy gets a fresh unique id. */
 export function duplicateNode(design: DesignDoc, sceneIndex: number, nodeId: string): DesignDoc {
