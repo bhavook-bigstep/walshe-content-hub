@@ -1449,7 +1449,7 @@ function StudioEditor() {
             sprite (its chain panel owns that slot) and during the demo. */}
         {!demoRunning && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
           <div
-            className={`absolute right-[23.5rem] top-24 z-20 flex max-h-[calc(100vh-13rem)] w-64 flex-col overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-3 shadow-xl backdrop-blur-md transition-[transform,opacity] duration-300 ease-out ${
+            className={`absolute right-[23.5rem] top-24 z-20 flex h-[calc(100vh-13rem)] w-64 flex-col overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-3 shadow-xl backdrop-blur-md transition-[transform,opacity] duration-300 ease-out ${
               treeOpen ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-[120%] opacity-0"
             }`}
             aria-hidden={!treeOpen}
@@ -1488,7 +1488,7 @@ function StudioEditor() {
         {/* Edit-element window — the unified editor shown for ANY selection (a representative element
             is always selected). The handle on its left edge opens the structure tree drawer above. */}
         {!demoRunning && selectedNode && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <div className="mb-2 flex items-center justify-between">
               {(() => {
                 // When the selected element is part of a sprite chain, say which member this is —
@@ -1567,20 +1567,23 @@ function StudioEditor() {
         )}
 
         {/* Structure-tree drawer handle — a sibling of the Edit-element window (not a child, so the
-            window's overflow doesn't clip it), pinned to the window's left edge. */}
+            window's overflow doesn't clip it). The wrapper spans the window's full height so the
+            handle sits exactly at its vertical centre. */}
         {!demoRunning && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
-          <button
-            type="button"
-            onClick={() => setTreeOpen((o) => !o)}
-            aria-expanded={treeOpen}
-            aria-label={treeOpen ? "Hide structure" : "Show structure"}
-            title={treeOpen ? "Hide structure" : "Show structure"}
-            className="pointer-events-auto absolute right-[23rem] top-1/2 z-40 flex h-14 w-6 -translate-y-1/2 items-center justify-center rounded-l-lg border border-r-0 border-walshe-line/70 bg-chrome-bg/95 text-walshe-ink shadow-xl backdrop-blur-md transition-colors hover:bg-walshe-ink/5"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`transition-transform ${treeOpen ? "rotate-180" : ""}`}>
-              <path d="M15 6l-6 6 6 6" />
-            </svg>
-          </button>
+          <div className="pointer-events-none absolute right-[23rem] top-24 z-40 flex h-[calc(100vh-13rem)] items-center">
+            <button
+              type="button"
+              onClick={() => setTreeOpen((o) => !o)}
+              aria-expanded={treeOpen}
+              aria-label={treeOpen ? "Hide structure" : "Show structure"}
+              title={treeOpen ? "Hide structure" : "Show structure"}
+              className="pointer-events-auto flex h-14 w-6 items-center justify-center rounded-l-lg border border-r-0 border-walshe-line/70 bg-chrome-bg/95 text-walshe-ink shadow-xl backdrop-blur-md transition-colors hover:bg-walshe-ink/5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`transition-transform ${treeOpen ? "rotate-180" : ""}`}>
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
+          </div>
         )}
 
         {/* Zoom / fit — bottom-right, shifted left to clear the Q/A assistant button. */}
