@@ -29,11 +29,11 @@ test("agent sees a preflight issue before sending", async ({ page }) => {
   await page.goto("/agent/social");
   // The seeded "Trade Showcase teaser" composition holds an expired item, so the check must fail.
   // The Composition picker is the app's custom <Select> (no longer a native <select>), and the
-  // shared e2e DB also holds many other saved compositions, so interact explicitly rather than
-  // fire-and-forget: wait for projects to load (the trigger enables), open the menu, pick the
-  // target, and confirm the value committed — which also closes the menu — before running the
-  // check. Retried as a unit so a click that lands before the list settles can't wedge the menu
-  // open over the next control.
+  // shared e2e DB also holds many other saved compositions, so interact explicitly. The menu is
+  // absolutely positioned and overlaps the sibling "Run pre-send check" button; on the slower CI
+  // runner it could linger open after a pick and intercept that click. So select AND confirm the
+  // menu actually closed (aria-expanded=false), dismissing it with Escape if it lingers — all
+  // retried as a unit so neither a too-early click nor a wedged-open menu can slip through.
   const composition = page.getByRole("button", { name: "Composition" });
   await expect(composition).toBeEnabled();
   await expect(async () => {
@@ -41,8 +41,15 @@ test("agent sees a preflight issue before sending", async ({ page }) => {
     await page
       .getByRole("option", { name: "Trade Showcase teaser", exact: true })
       .click({ timeout: 3_000 });
-    await expect(composition).toHaveText(/Trade Showcase teaser/, { timeout: 2_000 });
+    await expect(composition).toHaveText(/Trade Showcase teaser/, { timeout: 1_500 });
+    if ((await composition.getAttribute("aria-expanded")) === "true") {
+      await composition.focus();
+      await page.keyboard.press("Escape");
+    }
+    await expect(composition).toHaveAttribute("aria-expanded", "false", { timeout: 1_500 });
   }).toPass({ timeout: 20_000 });
+  // The listbox is gone, so the next control is unobstructed.
+  await expect(page.getByRole("listbox", { name: "Composition" })).toHaveCount(0);
   await page.getByRole("button", { name: /run pre-send check/i }).click();
 
   const issues = page.getByTestId("preflight-issues");
