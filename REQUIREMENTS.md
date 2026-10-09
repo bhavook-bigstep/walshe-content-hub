@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.54.0 |
+| **Version** | 2.65.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -72,7 +72,8 @@ travel/aviation tone ("Premium brands, trusted outcomes"; 50 years in 2026).
 - **AC13** `[explicit]` — **Rudimentary video (MP4)**: from selected catalog images + a scene script, the API renders a video via the **demo-video mechanism** (ffmpeg zoompan + `drawtext` overlays + optional TTS voiceover/captions). Builder can auto-generate the scene script; Agent can edit scenes/text and re-render.
 
 ### Social media engagement layer
-- **AC14** `[explicit]` — Schedule / "publish" a design/post to a (simulated) connected social account.
+- **AC14** `[explicit]` — Schedule / publish a design/post to a connected social account. Instagram is
+  wired end-to-end (real publish, AC99); the deterministic connector remains the no-key stub/fallback.
 - **AC15** `[inferred]` — Engagement **dashboard** showing impressions/clicks/engagement for published posts (seeded/mock).
 
 ### Cross-cutting
@@ -205,8 +206,12 @@ Increment 2 — **Trust, approval & audit**:
   check runs over the composition — every referenced item must be currently visible+valid (approved,
   brand-safe, in scope, not expired, not off-limits), the channel must be supported, and stale
   (master-edited) items are flagged. On failure it returns the **specific fixes in plain words** and
-  the send is blocked (FR-42). Proof: pytest asserts a composition with an expired item fails
-  preflight and publish is blocked until clean; Playwright shows the preflight message in the UI.
+  the send is blocked (FR-42). An **empty composition (no catalog items) is NOT a preflight
+  failure** (v2.34.0): it proceeds straight to the approval gate (AC80), where the **human reviewer
+  is the control** for empty/unverified posts — preflight only validates items that are present.
+  Proof: pytest asserts a composition with an expired item fails preflight and publish is blocked
+  until clean, and that an empty composition passes preflight and schedules to `pending_approval`;
+  Playwright shows the preflight message in the UI.
 - **AC35** — **Send-back-with-reason**: a reviewer returns an entry to its owner with a reason; the
   entry drops to `draft` with the reason recorded and shown, and re-enters review on resubmit
   (FR-14). Proof: pytest asserts send-back sets draft + stores the reason + writes an audit row, and
@@ -754,12 +759,55 @@ AC96–AC98 on the studio-animation merge** to avoid the collision with the anim
   publishes via the stub (receipt stored), preflight blocks unapproved content (post stays pending),
   and a missing capture returns 409; a real post is a manual, user-triggered check.
 
-**Priority tiers** (build order; acceptance reports honestly against all 98):
+Social approval gate (v2.55.0):
+
+- **AC99** — **Social send goes through approval, then posts to Instagram for real.** Scheduling a
+  composition (`POST /social/schedule`, multipart, preflight-gated per AC34) **captures the
+  composition's rendered JPEG** and creates a post in **`pending_approval`** — there is **no direct
+  publish**. The owning agent **approves** it (`POST /social/posts/{id}/approve`, PoC self-approval
+  like AC97), which records the reviewer and **publishes the captured image to Instagram
+  immediately** through the **same shared path as Studio/campaigns** (`publish_post` — preflight,
+  duplicate guard, S3 hosting, the env-selected real/stub connector). The scheduled time is a
+  **planning label only** (no background worker, so approval posts now, not at a future time).
+  **Reject** (`/reject`, with a reason) sends it back to `rejected`. The agent's posts are listed
+  from the server (agent-scoped, carrying the **project/composition name**) so the list survives a
+  page refresh; the list covers **both social- and campaign-scheduled posts** (any post built from
+  the agent's compositions) and sorts **pending-approval first** so the items needing action lead.
+  Only **Instagram** is connectable (the one real publish path). Proof: pytest asserts schedule →
+  pending_approval, schedule without an image is a 422, the list persists with the composition name,
+  pending posts sort ahead of a newer published post, approve publishes via the **real** connector
+  (`stub-*` id in tests, never `sim-*`) auditing schedule/approve/publish, approve posts immediately
+  even for a future-dated post, reject → rejected with a note, and a non-pending post is a 409.
+
+Engagement performance views (v2.55.0):
+
+- **AC100** — **Performance breakdowns by project, platform, and campaign.** Each engagement row the
+  dashboard reads (`GET /engagement`, agent-scoped) is enriched with its **project/composition name**
+  and its **campaign** (id + name, null when the post has no campaign), so the agent reads a post by
+  its project name — not "Post #1" — and can roll performance up **per platform** and **per campaign**
+  (latest snapshot per post, summed within each group, strongest reach first). The campaigns calendar
+  gives **each campaign a distinct colour**. Proof: pytest asserts an engagement row carries its
+  `composition_name` and `campaign_name`; vitest asserts the per-platform / per-campaign roll-ups take
+  the latest snapshot per post and sort by reach.
+
+Social organization page (v2.57.0):
+
+- **AC101** — **Social organization workspace.** The agent's Social page is an organization workspace
+  with two tabs: **Posts** (the composer → pre-send check → approval → the unified posts list, AC99)
+  and **Connected platforms** — a grid of the org's social accounts (**Instagram, Facebook, X,
+  TikTok, YouTube**) with Connect / Connected state. In the PoC this is a **front-end illusion** (no
+  OAuth / back-end): **Instagram starts connected** (the one real publish path), the rest offer
+  **Connect**; the state is remembered per-browser, keyed by the organization (tenant) so org-mates
+  share one view. The page's dropdowns use the app's custom **`Select`** (matching Studio/catalog),
+  not native selects. Proof: vitest asserts the platform catalogue (5 platforms, Instagram first) and
+  that only Instagram is connected by default, with a stored map merging over that default.
+
+**Priority tiers** (build order; acceptance reports honestly against all 101):
 P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surrounding = AC2,5,14,15,24 ·
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 · social-approval = AC99 · performance = AC100 · social-org = AC101 (all prior stay green).
 
 ## 4. Non-functional / system contracts
 
@@ -786,8 +834,18 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.65.0 | 2026-10-08 | **Remove Snapchat from Connected platforms** (user feedback, refines **AC101**): the connectable set is now **5 platforms** (Instagram, Facebook, X, TikTok, YouTube) — Snapchat dropped from the catalogue, its brand tile removed, vitest updated. All prior ACs stay green. | user + Claude |
+| 2.64.0 | 2026-10-08 | **Social Posts tab publishes to Instagram for real** (user feedback, reworks **AC99**): the Social page is no longer the simulated layer — scheduling now **captures the composition's rendered JPEG** (client renders the design, uploads it multipart) and **Approve publishes it to Instagram immediately** through the **same shared path as Studio/campaigns** (`publish_post`: preflight, duplicate guard, S3 hosting, real/stub connector). Chosen behaviour (no background worker): approve posts now; the scheduled time is a planning label. Only Instagram is connectable. Dropped the sim-connector publish + the publish-due-on-load scheduler stand-in; removed the "(simulated)" wording. Social tests rewritten onto the real/stub path; API types regenerated (`/social/schedule` is now multipart, `ScheduleRequest` gone). All prior ACs stay green. | user + Claude |
+| 2.63.0 | 2026-10-08 | **Simulated posts no longer block a real publish** (bug fix, refines **AC98**): the real-publish duplicate guard treated the Social page's **simulated** publishes (`sim-*` ids, never sent to Instagram) as if the composition were already live, so after sim-publishing on the Social page the genuine Studio/campaign publish 409'd ("This composition is already published to Instagram"). The guard now counts only a **real** prior publish (non-`sim-*`, non-null external id); a real second publish of the same composition still 409s. All prior ACs stay green. | user + Claude |
+| 2.62.0 | 2026-10-08 | **YouTube on Connected platforms** (user feedback, refines **AC101**): added **YouTube** to the org's Connected-platforms catalogue (6 platforms now; Instagram still the only one connected by default, YouTube offers **Connect** like FB/X/TikTok/Snapchat — still a front-end illusion, no OAuth). Shows YouTube's real brand tile (simple-icons glyph, `#FF0000`). All prior ACs stay green. | user + Claude |
+| 2.61.0 | 2026-10-07 | **Approve greenlights; posts on schedule** (user feedback, refines **AC99**): approving a social post no longer always publishes immediately — it **greenlights** the post, which then posts **at its scheduled time** (immediately if that time has passed or none is set, otherwise it waits in `approved` and the list publishes it when due — a PoC scheduler stand-in, no background worker). Renamed the buttons to just **"Approve"** (social + campaign). The Posts list is now **clickable** (inline detail) and shows **plain-word status** ("Posts in 2 days" / "Posted 3 hours ago" / "Awaiting approval · scheduled for …"), with a `chip-info` "Scheduled" state. Campaign (real-Instagram) posts still publish on the explicit Approve click — auto-firing real posts from a page load is deliberately out of scope for the PoC (needs a real scheduler). All prior ACs stay green. | user + Claude |
+| 2.60.0 | 2026-10-07 | **Campaign composer dropdowns** (user feedback): the campaign post composer's Project + Platform pickers now use the app's custom `Select` (matching Studio/catalog/social) instead of native system selects, and the composer `.card` gets `overflow-visible` so the menus aren't clipped. All prior ACs stay green. | user + Claude |
+| 2.59.0 | 2026-10-07 | **Social/Engagement polish** (user feedback, refines AC100/AC101): Connected-platform cards now show the real **brand logos** (accurate simple-icons glyphs on app-style tiles) instead of initials; fixed the Social composer **dropdowns clipping** (added `overflow-visible` to the `.card` form, same fix dev used for the catalog filter bar); and the Engagement **By platform / By campaign** roll-ups now render as **grouped bar charts** (reach + interactions, with the chart's built-in data-table toggle) instead of plain tables. All prior ACs stay green. | user + Claude |
+| 2.58.0 | 2026-10-07 | **Two-box caption/keywords composer** (user feedback, refines the campaign composer / AC96): the campaign post composer now has **separate Caption and Keywords/hashtags** textareas, each with its own Generate button; while a box generates it is **disabled/greyed with a spinner + status centred in the middle of that box**, leaving the other usable. On schedule the two are combined into one caption (`combineCopy` — keywords below the caption). Replaced the single-textarea `AiCaptionControls`. All prior ACs stay green. | user + Claude |
+| 2.57.0 | 2026-10-07 | **Social organization page** (user feedback): added **AC101** — the Social page is now an organization workspace with **Posts** and **Connected platforms** tabs. Connected platforms is a front-end illusion (no OAuth): Instagram starts Connected, FB/X/TikTok/Snapchat offer **Connect**, remembered per-browser keyed by the org (tenant). Rolled the app's custom `Select` dropdowns through the Social composer (replacing native selects). All prior ACs stay green. | user + Claude |
+| 2.56.0 | 2026-10-07 | **Social posts list: unified + pending-first** (user feedback, refines **AC99**): `GET /social/posts` already returns every post built from the agent's compositions, so **campaign-scheduled posts show on the Social page** alongside social-scheduled ones; the list now sorts **pending-approval first** (newest-first within each group) so the posts needing action lead. Also fixed the engagement chart's **duplicate React keys** + overlapping axis labels (two posts can share a project name). All prior ACs stay green. | user + Claude |
+| 2.55.0 | 2026-10-07 | **Merge `origin/dev` (v2.54.0) into the publishing-pipeline branch + renumber.** Integrated dev's studio-animation lineage (AC77–AC95 scene animation → template placeholders) and its renumbered campaign ACs (AC96–AC98). This branch's new work independently used AC80/AC81, colliding with dev's, so it is **renumbered: social approval gate → AC99, engagement performance views → AC100**; code comments, tests and the manifest updated to match. The branch's **AC34 amendment** (removed the `no_content` pre-send rule so an empty composition schedules straight to the approval gate — the human reviewer is the control for empty/unverified posts; other pre-send checks unchanged) is re-applied on top of dev's AC34. Seed reconciled: the social/engagement demo seed is kept but **Instagram-only** (unconnected FB/X/LinkedIn dropped — only connected platforms carry data), alongside dev's AC84 seeded collections. Regenerated the shared API types. All prior ACs stay green. | user + Claude |
 | 2.54.0 | 2026-10-07 | **Merge `origin/dev` into `feat/studio-animation-engine` + renumber campaigns.** Integrated dev's **Campaign scheduling & live Instagram publishing** feature. Both branches had independently used AC77–AC79, so dev's campaign ACs are **renumbered to AC96 (campaign management), AC97 (self-approval gate), AC98 (live Instagram publish)** — this branch keeps AC77–AC95 (scene animation → template placeholders). Resolved manifest duplicate keys accordingly; kept dev's decision to drop synthetic engagement seeding (dashboard shows real metrics) while retaining the AC84 seeded collections; regenerated the shared API types. Behaviour of all features unchanged. All prior ACs stay green. | user + Claude |
-| 2.31.0 | 2026-10-07 | **Merge `origin/dev` into the campaign/Instagram branch + renumber.** Integrated dev's AC64–76 (Auto-Catalog agent, Auto-Catalog v2, Structured-Workspace renumber to AC75, conversational assistant, Studio redesign). The campaign increment (originally AC65–67 on this branch) is **renumbered to AC77 (campaign management), AC78 (self-approval gate), AC79 (live Instagram publish)** to resolve the AC-number collision with dev's Auto-Catalog ACs; the manifest, tests and code comments were updated to match, and the generated API types regenerated. Behaviour unchanged: approve = publish (one action), preflight + duplicate-guard + S3 hosting + receipt, missing-capture → 409, Graph error 200/10 mapped. All prior ACs stay green. | user + Claude |
 | 1.0.0 | 2026-10-01 | Initial governing spec, promoted from charter v2 (confirmed). | user + Claude |
 | 2.0.0 | 2026-10-01 | **Design overhaul** at ⏸ G: reframed as a Walshe-branded ElevateTourism-class product; added Design & Experience acceptance items **AC19–AC23** (Walshe design system, landing page, app shell, dashboards, responsive) + a critic-gated visual-quality bar. Functional AC1–18 unchanged and must stay green. Anchor = walshegroup.com; UX reference = elevatetourism.com; features grounded in `docs/requirements/`. | user + Claude |
 | 2.1.0 | 2026-10-02 | **Account provisioning**: added **AC24** (hybrid registration) — public agent self-register, Super-Admin-provisioned providers with org/tenant + approval, role-escalation prevented. Enables creating the three roles through the product rather than only the seed. All prior ACs stay green. | user + Claude |

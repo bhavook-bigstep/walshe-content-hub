@@ -187,6 +187,12 @@
     background-color: rgb(var(--walshe-ink) / 0.08);
     color: rgb(var(--walshe-grey));
   }
+  /* Greenlit / scheduled — distinct from grey draft/pending, calmer than the verified green. */
+  .chip-info {
+    @apply inline-flex items-center gap-1.5 rounded-pill px-3 py-1 text-small font-semibold;
+    background-color: rgb(var(--walshe-teal) / 0.12);
+    color: rgb(var(--walshe-teal));
+  }
   .field,
   .field-area {
     @apply block w-full rounded-sm border px-4 text-body;
