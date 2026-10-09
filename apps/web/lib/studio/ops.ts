@@ -235,6 +235,10 @@ export interface GroupAnim {
   /** entrance duration in ms (default {@link DEFAULT_GROUP_ENTER_MS}); drives children's start offset */
   durationMs?: number;
   ease?: Easing;
+  /** the group's own arrival/appearance timestamp (ms): how long the whole group stays hidden before
+   * it appears, within its parent's timeline. Adds to every descendant's start offset (recompose).
+   * Works with or without an entrance preset (a group can simply appear late). Default 0. */
+  startMs?: number;
   /** emphasis/character loop applied to members */
   loop?: NodeAnimation["loop"];
 }
@@ -1268,6 +1272,12 @@ function groupEnterMs(g: SceneGroup | undefined): number {
   return g.anim.durationMs ?? DEFAULT_GROUP_ENTER_MS;
 }
 
+/** A group's own arrival delay (ms): when the group begins appearing within its parent's timeline.
+ * Independent of the entrance preset (a group can appear late with no animation). Default 0. */
+function groupArrivalMs(g: SceneGroup | undefined): number {
+  return Math.max(0, Math.round(g?.anim?.startMs ?? 0));
+}
+
 /** Whether an anim is a previously-baked "hold-hidden" guard (opacity-only keyframes, no entrance
  * intent). Such guards are fully recomputed each recompose, so recognising them keeps recompose
  * idempotent AND able to update a static child when an ancestor's entrance duration changes. */
@@ -1303,10 +1313,14 @@ export function recomposeSceneGroups(scene: Scene): Scene {
   let latestEnd = 0;
   const nodes = scene.nodes.map((n) => {
     if (!n.groupId || !reg.has(n.groupId) || chainMember.has(n.id)) return n;
-    // Ancestors strictly above the node's own innermost group: ancestry[0] is the innermost group.
-    const startDelay = groupAncestry(scene, n.groupId)
-      .slice(1)
-      .reduce((s, g) => s + groupEnterMs(g), 0);
+    // ancestry[0] is the node's own innermost group; the rest are its ancestors (parent → root).
+    // Strict parent-first start offset = each ancestor's own arrival + its entrance duration, PLUS
+    // the node's innermost group's own arrival (when THAT group appears). Arrivals default 0, so this
+    // is identical to the prior behaviour for any group without an explicit appearance timestamp.
+    const chain = groupAncestry(scene, n.groupId);
+    const startDelay =
+      groupArrivalMs(chain[0]) +
+      chain.slice(1).reduce((s, g) => s + groupArrivalMs(g) + groupEnterMs(g), 0);
     const en = n.anim?.enter;
     if (en) {
       const ownStart = Math.max(0, en.startMs ?? 0);
@@ -1430,21 +1444,24 @@ export function setGroupAnim(
   groupId: string,
   enter: EnterType | null,
   loop?: NodeAnimation["loop"],
-  opts?: { durationMs?: number; ease?: Easing },
+  opts?: { durationMs?: number; ease?: Easing; startMs?: number },
 ): DesignDoc {
   assertScene(design, sceneIndex);
   const next = cloneDesign(design);
   const scene = next.scenes[sceneIndex];
   const durationMs = Math.max(1, Math.round(opts?.durationMs ?? DEFAULT_GROUP_ENTER_MS));
   const ease: Easing = opts?.ease ?? "easeOut";
+  const startMs = Math.max(0, Math.round(opts?.startMs ?? 0)); // the group's arrival timestamp
   // Record the intent on the group registry so it round-trips (AC6) and nested timing can read the
-  // group's entrance duration to offset descendants (AC4).
+  // group's entrance duration + arrival timestamp to offset descendants (AC4). The arrival persists
+  // even with no entrance/loop (a group can simply appear late).
   const g = (scene.groups ?? []).find((x) => x.id === groupId);
   if (g) {
-    if (enter || loop) {
+    if (enter || loop || startMs > 0) {
       g.anim = {
         ...(enter ? { enter, durationMs, ease } : {}),
         ...(loop ? { loop } : {}),
+        ...(startMs > 0 ? { startMs } : {}),
       };
     } else {
       delete g.anim;

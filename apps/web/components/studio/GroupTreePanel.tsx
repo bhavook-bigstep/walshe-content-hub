@@ -129,6 +129,7 @@ export default function GroupTreePanel({
   const enter: EnterType | "none" = activeGroup?.anim?.enter ?? "none";
   const durationMs = activeGroup?.anim?.durationMs ?? DEFAULT_GROUP_ENTER_MS;
   const ease: Easing = activeGroup?.anim?.ease ?? "easeOut";
+  const arrivalMs = activeGroup?.anim?.startMs ?? 0; // when the whole group appears
   const loopType: GroupLoop =
     activeGroup?.anim?.loop?.type === "pulse" || activeGroup?.anim?.loop?.type === "bob"
       ? activeGroup.anim.loop.type
@@ -136,12 +137,13 @@ export default function GroupTreePanel({
   const color = firstMember?.color ?? "#111111";
   const opacity = Math.round((firstMember?.opacity ?? 1) * 100);
 
-  function emitAnim(next: Partial<{ enter: EnterType | "none"; loop: GroupLoop; durationMs: number; ease: Easing }>) {
+  function emitAnim(next: Partial<{ enter: EnterType | "none"; loop: GroupLoop; durationMs: number; ease: Easing; startMs: number }>) {
     if (!activeGroupId) return;
     const e = next.enter ?? enter;
     const l = next.loop ?? loopType;
     const dur = next.durationMs ?? durationMs;
     const es = next.ease ?? ease;
+    const sm = next.startMs ?? arrivalMs;
     onChange(
       setGroupAnim(
         design,
@@ -149,7 +151,7 @@ export default function GroupTreePanel({
         activeGroupId,
         e === "none" ? null : e,
         l === "none" ? undefined : { type: l, periodMs: 1200 },
-        { durationMs: dur, ease: es },
+        { durationMs: dur, ease: es, startMs: sm },
       ),
     );
   }
@@ -246,6 +248,22 @@ export default function GroupTreePanel({
                 </option>
               ))}
             </select>
+          </div>
+          <div className={row}>
+            <span className={label}>Appears at</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                max={15000}
+                step={100}
+                value={arrivalMs}
+                onChange={(e) => emitAnim({ startMs: Math.max(0, Number(e.target.value) || 0) })}
+                aria-label="Group appearance timestamp"
+                className={`${field} w-20`}
+              />
+              <span className="text-[11px] text-walshe-grey">ms</span>
+            </div>
           </div>
           <div className={row}>
             <span className={label}>Duration</span>

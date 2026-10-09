@@ -130,6 +130,36 @@ describe("nested group sequencing", () => {
     expect(nodeStateAt(ng, 1300).opacity).toBeGreaterThan(0); // after
   });
 
+  it("test_group_arrival_timestamp_offsets_members", () => {
+    // A group has its own arrival/appearance timestamp — WHEN the whole group appears. That delay
+    // adds to every descendant's baked start, on top of strict parent-first.
+    let { d, p, c, a, b } = nested3();
+    d = setGroupAnim(d, 0, p, "rise", undefined, { startMs: 500 }); // P appears at 500ms
+    d = setGroupAnim(d, 0, c, "rise", undefined); // C: default arrival 0
+    const grp = d.scenes[0].groups!.find((x) => x.id === p)!;
+    expect(grp.anim?.startMs).toBe(500);
+
+    const scene = d.scenes[0];
+    const firstT = (id: string) =>
+      Math.min(...scene.nodes.find((n) => n.id === id)!.anim!.keyframes.map((k) => k.t));
+    expect(firstT(a)).toBe(500); // in P → delayed by P's arrival
+    expect(firstT(b)).toBe(500 + DEFAULT_GROUP_ENTER_MS); // in C → P.arrival + P.entrance
+
+    // The arrival timestamp round-trips through persistence.
+    expect(roundTrip(d).scenes[0].groups!.find((x) => x.id === p)!.anim?.startMs).toBe(500);
+  });
+
+  it("test_group_appears_late_with_no_entrance", () => {
+    // Arrival-only: a group can simply appear late with no entrance preset — its members hold hidden
+    // until the timestamp, then show.
+    const { d, p, a } = nested3();
+    const x = setGroupAnim(d, 0, p, null, undefined, { startMs: 800 });
+    expect(x.scenes[0].groups!.find((g) => g.id === p)!.anim?.startMs).toBe(800);
+    const na = x.scenes[0].nodes.find((n) => n.id === a)!;
+    expect(nodeStateAt(na, 400).opacity).toBe(0); // hidden before it appears
+    expect(nodeStateAt(na, 900).opacity).toBeGreaterThan(0); // visible after
+  });
+
   it("test_static_child_holds_hidden_during_ancestor_entrance", () => {
     // AC4/D5 — a STATIC child (no own entrance) of an animated parent still stays hidden until the
     // parent's entrance finishes (baked hold-hidden guard).
