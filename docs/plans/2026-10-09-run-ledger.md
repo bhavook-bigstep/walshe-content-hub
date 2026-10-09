@@ -42,3 +42,5 @@ Content-free: status + decisions only, never secrets/PII.
 
 ## Blockers (if STUCK)
 - (none)
+
+| F (verify) | Independent acceptance verification, iteration 0/3. Re-ran `tsc --noEmit` (exit 0) and `vitest run` (35 files, 204/204 pass). Confirmed `GroupTreePanel` wired in `app/agent/studio/page.tsx:1425`, old GroupPanel absent. AC1-AC8 all met (unit + SSR render evidence; no live browser drive of the studio, panel verified via react-dom/server test). MP4 look left to human gate G. No code changes. | ALL MET |

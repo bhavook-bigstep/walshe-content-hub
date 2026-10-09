@@ -1,6 +1,6 @@
 # Requirements charter — Nested group editor with sequenced animation (Design Studio)
 
-**Version:** 1.0 · **Date:** 2026-10-09 · **Branch:** `feat/studio-nested-groups` (stacked on `feat/studio-group-panel`, which is off `dev`)
+**Version:** 1.1 (⏸G feedback: +AC9 group arrival timestamp) · **Date:** 2026-10-09 · **Branch:** `feat/studio-nested-groups` (stacked on `feat/studio-group-panel`, which is off `dev`)
 **Design doc:** `/Users/mac/.claude/plans/ethereal-nibbling-swing.md`
 
 Provenance tags: `[explicit]` user said it · `[A2]` confirmed in scope QA · `[requirement]` stated in the brief · `[inferred]` concluded from the codebase.
@@ -33,6 +33,7 @@ Provenance tags: `[explicit]` user said it · `[A2]` confirmed in scope QA · `[
 | AC6 | Round-trip: group + element animation/properties persist after closing/reopening the editor and after save→reload (`migrateDesign` carries `Scene.groups`). | yes |
 | AC7 | Unified panel folds in the group-level controls. | yes |
 | AC8 | All existing studio tests stay green; pending PDF + group-panel work not reverted. | yes |
+| AC9 | A group has its own arrival/appearance timestamp (`GroupAnim.startMs`) — when the whole group appears; it adds to every descendant's start offset (on top of parent-first), works with or without an entrance, and round-trips. Surfaced as an "Appears at (ms)" control. `[explicit – ⏸G feedback]` | yes |
 
 ## Non-goals
 Per-element scene transitions; drag-to-reorder in the tree; group-level custom keyframe dope-sheets (group animation = entrance preset + loop; elements keep their own dope-sheet).
