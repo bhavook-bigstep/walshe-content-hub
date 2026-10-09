@@ -14,10 +14,6 @@ const HEADER = 30;
 const LANE = 22;
 const FLOOR = 96;
 
-// A distinct colour per campaign (assigned by id order, stable across renders). Tailwind can't do
-// dynamic classes, so bars use inline styles: the hue at ~15% for the fill, full for the text.
-const PALETTE = ["#0E6B5E", "#B8893B", "#2B5C8A", "#7A4A6B", "#B5563C", "#4C7A3F", "#4A5568", "#9B4B5A"];
-
 /** A month overview of the agent's campaigns, styled like the campaign-detail calendar. Each
  *  campaign is drawn as ONE continuous bar spanning its date range within a week (not a chip
  *  repeated per day); clicking a bar opens that campaign. */
@@ -28,9 +24,6 @@ export default function CampaignsCalendar({ campaigns }: { campaigns: Campaign[]
   const cells = monthCells(year, month);
   const weeks: (Date | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-
-  const campaignIds = [...new Set(campaigns.map((c) => c.id))].sort((a, b) => a - b);
-  const colorFor = (id: number) => PALETTE[campaignIds.indexOf(id) % PALETTE.length];
 
   const label = new Date(year, month, 1).toLocaleDateString(undefined, {
     month: "long",
@@ -99,25 +92,17 @@ export default function CampaignsCalendar({ campaigns }: { campaigns: Campaign[]
                 className="pointer-events-none absolute inset-x-0 grid grid-cols-7 gap-x-1 gap-y-0.5 px-1"
                 style={{ top: HEADER, gridAutoRows: `${LANE - 2}px` }}
               >
-                {bars.map((b) => {
-                  const color = colorFor(b.id);
-                  return (
-                    <Link
-                      key={b.id}
-                      href={`/agent/campaigns/${b.id}`}
-                      title={b.name}
-                      className="pointer-events-auto truncate rounded-sm px-2 text-[11px] font-medium leading-[20px] transition-opacity hover:opacity-80"
-                      style={{
-                        gridColumn: `${b.startCol + 1} / span ${b.span}`,
-                        gridRowStart: b.lane + 1,
-                        backgroundColor: `${color}26`, // ~15% alpha fill
-                        color,
-                      }}
-                    >
-                      {b.name}
-                    </Link>
-                  );
-                })}
+                {bars.map((b) => (
+                  <Link
+                    key={b.id}
+                    href={`/agent/campaigns/${b.id}`}
+                    title={b.name}
+                    className="pointer-events-auto truncate rounded-sm bg-walshe-teal/15 px-2 text-[11px] font-medium leading-[20px] text-walshe-teal transition-colors hover:bg-walshe-teal/25"
+                    style={{ gridColumn: `${b.startCol + 1} / span ${b.span}`, gridRowStart: b.lane + 1 }}
+                  >
+                    {b.name}
+                  </Link>
+                ))}
               </div>
             </div>
           );

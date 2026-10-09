@@ -5,10 +5,7 @@ import EngagementChart, { type ChartPoint, type ChartSeries } from "../../../com
 import PageHeader from "../../../components/ui/PageHeader";
 import StatTile from "../../../components/ui/StatTile";
 import { ApiError, listEngagement, refreshEngagement, type Engagement } from "../../../lib/api";
-import {
-  byCampaign, byPlatform, latestByPost, metricsFor, metricValue, sumMetric,
-  type EngagementGroup,
-} from "../../../lib/engagement/metrics";
+import { latestByPost, metricsFor, metricValue, sumMetric } from "../../../lib/engagement/metrics";
 
 // Chart series: reach + interactions (non-colour-encoded via distinct markers).
 const CHART_SERIES: ChartSeries[] = [
@@ -52,15 +49,7 @@ export default function AgentEngagementPage() {
   const latest = latestByPost(data);
   const tiles = metricsFor("instagram").filter((m) => TILE_KEYS.includes(m.key));
   const igMetrics = metricsFor("instagram");
-  const platformGroups = byPlatform(data);
-  const campaignGroups = byCampaign(data);
-  const postLabel = (r: (typeof latest)[number]) =>
-    (r as { composition_name?: string | null }).composition_name || `Post #${r.post_id}`;
-  const points: ChartPoint[] = latest.map((r) => ({ id: r.post_id, label: postLabel(r), values: r.metrics ?? {} }));
-  // Roll-ups render as the same grouped bar chart (reach + interactions), one bar per platform /
-  // campaign — the chart's built-in "Show data table" toggle keeps the exact numbers one click away.
-  const groupsToPoints = (groups: EngagementGroup[]): ChartPoint[] =>
-    groups.map((g) => ({ id: g.label, label: g.label, values: g.metrics }));
+  const points: ChartPoint[] = latest.map((r) => ({ label: `Post #${r.post_id}`, values: r.metrics ?? {} }));
 
   return (
     <div>
@@ -109,21 +98,6 @@ export default function AgentEngagementPage() {
             points={points}
           />
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <EngagementChart
-              title="By platform"
-              summary="Reach & interactions per platform."
-              series={CHART_SERIES}
-              points={groupsToPoints(platformGroups)}
-            />
-            <EngagementChart
-              title="By campaign"
-              summary="Reach & interactions per campaign."
-              series={CHART_SERIES}
-              points={groupsToPoints(campaignGroups)}
-            />
-          </div>
-
           <section className="card p-5" aria-labelledby="eng-table-title">
             <h2 id="eng-table-title" className="mb-4 text-h3 font-bold text-walshe-ink">
               Per-post detail
@@ -132,7 +106,7 @@ export default function AgentEngagementPage() {
               <table className="w-full text-small" data-testid="engagement-table">
                 <thead>
                   <tr className="border-b border-walshe-line text-left text-walshe-grey">
-                    <th className="py-2 pr-4 font-medium">Project</th>
+                    <th className="py-2 pr-4 font-medium">Post</th>
                     {igMetrics.map((m) => (
                       <th key={m.key} className="py-2 pr-4 font-medium">
                         {m.label}
@@ -143,14 +117,7 @@ export default function AgentEngagementPage() {
                 <tbody>
                   {latest.map((r, i) => (
                     <tr key={r.post_id} data-testid="engagement-row" className={i % 2 === 1 ? "bg-walshe-stone/40" : undefined}>
-                      <td className="py-2 pr-4 text-walshe-ink">
-                        <div className="font-medium">{postLabel(r)}</div>
-                        <div className="text-walshe-grey capitalize">
-                          {(r as { campaign_name?: string | null }).campaign_name
-                            ? `${(r as { campaign_name?: string | null }).campaign_name} · ${r.platform}`
-                            : r.platform}
-                        </div>
-                      </td>
+                      <td className="py-2 pr-4 text-walshe-ink">Post #{r.post_id}</td>
                       {igMetrics.map((m) => (
                         <td key={m.key} className="py-2 pr-4 tabular-nums">
                           {metricValue(r, m.key).toLocaleString("en-US")}

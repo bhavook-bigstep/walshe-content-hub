@@ -7,15 +7,6 @@ export interface EngagementRow {
   platform: string;
   metrics: Record<string, number>;
   fetched_at: string; // ISO timestamp
-  composition_name?: string | null; // the project this post was built from
-  campaign_id?: number | null;
-  campaign_name?: string | null;
-}
-
-/** A performance roll-up: one group (a platform, a campaign, …) with its summed metrics. */
-export interface EngagementGroup {
-  label: string;
-  metrics: Record<string, number>;
 }
 
 /** Instagram metric keys + display labels, in order. (Other platforms would add their own list.) */
@@ -54,39 +45,4 @@ export function metricValue(row: EngagementRow, key: string): number {
 /** Sum a metric across the latest snapshot of each post. */
 export function sumMetric(rows: EngagementRow[], key: string): number {
   return latestByPost(rows).reduce((t, r) => t + metricValue(r, key), 0);
-}
-
-/** Sum every metric key seen across a set of rows (their union). */
-function sumMetrics(rows: EngagementRow[]): Record<string, number> {
-  const totals: Record<string, number> = {};
-  for (const r of rows) {
-    for (const [k, v] of Object.entries(r.metrics ?? {})) totals[k] = (totals[k] ?? 0) + (v ?? 0);
-  }
-  return totals;
-}
-
-/** Group the latest snapshot of each post by a label and sum metrics within each group — the
- *  performance roll-up behind the per-platform and per-campaign breakdowns. Groups are ordered by
- *  descending reach so the strongest performer leads. */
-export function groupBy(rows: EngagementRow[], labelOf: (r: EngagementRow) => string): EngagementGroup[] {
-  const groups = new Map<string, EngagementRow[]>();
-  for (const r of latestByPost(rows)) {
-    const label = labelOf(r);
-    const bucket = groups.get(label) ?? [];
-    bucket.push(r);
-    groups.set(label, bucket);
-  }
-  return [...groups.entries()]
-    .map(([label, rs]) => ({ label, metrics: sumMetrics(rs) }))
-    .sort((a, b) => (b.metrics.reach ?? 0) - (a.metrics.reach ?? 0));
-}
-
-/** Performance by platform (instagram / facebook / x / linkedin). */
-export function byPlatform(rows: EngagementRow[]): EngagementGroup[] {
-  return groupBy(rows, (r) => r.platform);
-}
-
-/** Performance by campaign (posts with no campaign fall under "No campaign"). */
-export function byCampaign(rows: EngagementRow[]): EngagementGroup[] {
-  return groupBy(rows, (r) => r.campaign_name || "No campaign");
 }
