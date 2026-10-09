@@ -68,13 +68,6 @@ import {
   editText,
   fillImageNode,
   isPlaceholder,
-  deleteGroup,
-  duplicateGroup,
-  groupNodes,
-  setGroupAnim,
-  ungroupNodes,
-  updateGroupStyle,
-  type EnterType,
   migrateDesign,
   moveNode,
   newDesign,
@@ -91,7 +84,8 @@ import {
   type NodeStyle,
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
-import GroupPanel, { type GroupState } from "../../../components/studio/GroupPanel";
+import GroupTreePanel from "../../../components/studio/GroupTreePanel";
+import GroupControls from "../../../components/studio/GroupControls";
 import BuilderDemoOverlay, { type DemoCursor } from "../../../components/studio/BuilderDemoOverlay";
 import SpriteChainPanel from "../../../components/studio/SpriteChainPanel";
 import {
@@ -187,6 +181,11 @@ function StudioEditor() {
   // The full selection (one id = single element; many = a group / multi-selection) + its scene.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedScene, setSelectedScene] = useState<number | null>(null);
+  // The structure/tree drawer on the Edit-element window's left edge (open by default).
+  const [treeOpen, setTreeOpen] = useState(true);
+  // The group row being edited (its controls take over the Edit-element window). null → edit the
+  // element. Ensures a group and an element are never edited at the same time.
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   // A photo placeholder awaiting a pick from the media drawer (set when one is clicked).
   const [fillTarget, setFillTarget] = useState<{ scene: number; nodeId: string } | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
@@ -719,6 +718,10 @@ function StudioEditor() {
   // The currently-selected node (resolved from the live design), for the Inspector.
   const selectedNode: DesignNode | null =
     (selected && design.scenes[selected.scene]?.nodes.find((n) => n.id === selected.nodeId)) || null;
+  // The Edit-element window edits the GROUP (not the element) when a valid group row is active.
+  const groupActive = Boolean(
+    activeGroupId && selected && design.scenes[selected.scene]?.groups?.some((g) => g.id === activeGroupId),
+  );
 
   function patchSelected(patch: Partial<NodeStyle>) {
     if (!selected) return;
@@ -775,59 +778,24 @@ function StudioEditor() {
   }
 
   // ── Grouping ──────────────────────────────────────────────────────────────────────────────────
-  // The group id shared by the whole selection (null when the selection isn't a single group).
-  const selectedGroupId: string | null = (() => {
-    if (selectedScene === null || selectedIds.length < 2) return null;
-    const nodes = design.scenes[selectedScene]?.nodes ?? [];
-    const gids = selectedIds.map((id) => nodes.find((n) => n.id === id)?.groupId);
-    return gids[0] && gids.every((g) => g === gids[0]) ? gids[0]! : null;
-  })();
-
-  function groupSelected() {
-    if (selectedScene === null || selectedIds.length < 2) return;
-    setDesign((d) => groupNodes(d, selectedScene, selectedIds));
-  }
-  function ungroupSelected() {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => ungroupNodes(d, selectedScene, selectedGroupId));
-  }
-  function groupAnim(enter: EnterType | null, loop: NodeAnimation["loop"]) {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => setGroupAnim(d, selectedScene, selectedGroupId, enter, loop));
-  }
-  function groupOpacity(opacity: number) {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { opacity }));
-  }
-  function groupColor(color: string) {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { color }));
-  }
-  function groupDuplicate() {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => duplicateGroup(d, selectedScene, selectedGroupId));
-  }
-  function groupDelete() {
-    if (selectedScene === null || !selectedGroupId) return;
-    setDesign((d) => deleteGroup(d, selectedScene, selectedGroupId));
+  // The unified GroupTreePanel (nested-group editor) owns all group ops directly against the design;
+  // the page only clears selection / re-selects a node when the tree asks (via the handlers below).
+  function clearSelection() {
     setSelected(null);
     setSelectedIds([]);
     setSelectedScene(null);
+    setActiveGroupId(null);
   }
-  // The group's current shared values, read back from its members so the Group panel's controls
-  // reflect the live design after it's closed and reopened (not stale local state).
-  const groupState: GroupState | null = (() => {
-    if (selectedScene === null || !selectedGroupId) return null;
-    const m = (design.scenes[selectedScene]?.nodes ?? []).find((n) => n.groupId === selectedGroupId);
-    if (!m) return null;
-    const loopType = m.anim?.loop?.type;
-    return {
-      enter: m.anim?.enter?.type ?? "none",
-      loop: loopType === "pulse" || loopType === "bob" ? loopType : "none",
-      opacity: Math.round((m.opacity ?? 1) * 100),
-      color: m.color ?? "#111111",
-    };
-  })();
+  function selectSingleNode(nodeId: string) {
+    if (selectedScene === null) return;
+    setSelectedIds([nodeId]);
+    setSelected({ scene: selectedScene, nodeId });
+    setActiveGroupId(null); // editing an element — not the group
+  }
+  // A tree group row → edit that group in the Edit-element window (the element Inspector steps aside).
+  function selectGroupRow(groupId: string) {
+    setActiveGroupId(groupId);
+  }
 
   // ── Animation preview transport (play/scrub the active scene's animation) ──────────────────────
   const sceneDurRef = useRef(DEFAULT_SCENE_DURATION_MS);
@@ -1291,7 +1259,16 @@ function StudioEditor() {
             if (nodeIds.length) setSceneSelected(true); // working in a scene re-selects it
             setSelectedScene(scene);
             setSelectedIds(nodeIds);
-            setSelected(scene !== null && nodeIds.length === 1 ? { scene, nodeId: nodeIds[0] } : null);
+            // Unified editor: ANY non-empty selection sets a representative element so the Edit-element
+            // window always appears; the tree drawer gives the group context (and group-row editing).
+            setSelected(scene !== null && nodeIds.length >= 1 ? { scene, nodeId: nodeIds[0] } : null);
+            // When the selection is a WHOLE group (2+ members sharing one group), edit the GROUP in the
+            // Edit-element window; otherwise edit the element. One target at a time.
+            const selScene = scene !== null ? design.scenes[scene] : undefined;
+            const selGids = selScene ? nodeIds.map((id) => selScene.nodes.find((n) => n.id === id)?.groupId) : [];
+            setActiveGroupId(
+              nodeIds.length > 1 && selGids[0] && selGids.every((g) => g === selGids[0]) ? selGids[0]! : null,
+            );
             // Clicking a photo placeholder opens the media drawer so the next pick fills it.
             const node = scene !== null && nodeIds.length === 1
               ? design.scenes[scene]?.nodes.find((n) => n.id === nodeIds[0])
@@ -1466,22 +1443,26 @@ function StudioEditor() {
         {/* Right tool rail: creation tools only (icons + hover names). */}
         <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />
 
-        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props).
-            Hidden while the AI Builder demo runs so its selections don't pop edit chrome. */}
-        {!demoRunning && selectedIds.length > 1 && selectedScene !== null && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
-            <GroupPanel
-              count={selectedIds.length}
-              isGroup={Boolean(selectedGroupId)}
-              groupId={selectedGroupId}
-              state={groupState}
-              onGroup={groupSelected}
-              onUngroup={ungroupSelected}
-              onAnim={groupAnim}
-              onOpacity={groupOpacity}
-              onColor={groupColor}
-              onDuplicate={groupDuplicate}
-              onDelete={groupDelete}
+        {/* Structure tree — a drawer on the Edit-element window's left edge (toggled by the handle on
+            the window). The SAME control for every object: an ungrouped element shows as the sole
+            entry; a grouped one shows its whole tree + the group-row controls. Hidden for a lone
+            sprite (its chain panel owns that slot) and during the demo. */}
+        {!demoRunning && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
+          <div
+            className={`absolute right-[23.5rem] top-24 z-20 flex h-[calc(100vh-13rem)] w-64 flex-col overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-3 shadow-xl backdrop-blur-md transition-[transform,opacity] duration-300 ease-out ${
+              treeOpen ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-[120%] opacity-0"
+            }`}
+            aria-hidden={!treeOpen}
+          >
+            <GroupTreePanel
+              design={design}
+              sceneIndex={selected.scene}
+              selectedIds={selectedIds}
+              selectedNodeId={selected.nodeId}
+              activeGroupId={activeGroupId}
+              onChange={setDesign}
+              onSelectNode={selectSingleNode}
+              onSelectGroup={selectGroupRow}
             />
           </div>
         )}
@@ -1504,10 +1485,10 @@ function StudioEditor() {
           />
         )}
 
-        {/* Inspector: appears when a single element is selected, styling controls for it.
-            Hidden while the AI Builder demo runs (the agent's own selections shouldn't open it). */}
-        {!demoRunning && selectedNode && selectedIds.length <= 1 && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+        {/* Edit-element window — the unified editor shown for ANY selection (a representative element
+            is always selected). The handle on its left edge opens the structure tree drawer above. */}
+        {!demoRunning && selectedNode && (
+          <div className="pointer-events-auto absolute right-20 top-24 z-30 h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
             <div className="mb-2 flex items-center justify-between">
               {(() => {
                 // When the selected element is part of a sprite chain, say which member this is —
@@ -1517,7 +1498,9 @@ function StudioEditor() {
                 const pos = selected ? chain.indexOf(selected.nodeId) : -1;
                 return (
                   <h2 className="text-small font-bold text-walshe-ink">
-                    {chain.length > 1 && pos >= 0 ? (
+                    {groupActive ? (
+                      "Edit group"
+                    ) : chain.length > 1 && pos >= 0 ? (
                       <>
                         Edit sprite{" "}
                         <span className="font-medium text-walshe-grey">· {pos + 1} of {chain.length} in chain</span>
@@ -1531,12 +1514,21 @@ function StudioEditor() {
               <button
                 type="button"
                 aria-label="Deselect"
-                onClick={() => setSelected(null)}
+                onClick={clearSelection}
                 className="grid h-7 w-7 place-items-center rounded-md text-walshe-grey transition-colors hover:bg-walshe-ink/10 hover:text-walshe-ink"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
+            {groupActive && selected && activeGroupId ? (
+              <GroupControls
+                design={design}
+                sceneIndex={selected.scene}
+                groupId={activeGroupId}
+                onChange={setDesign}
+                onDeleted={clearSelection}
+              />
+            ) : (
             <Inspector
               node={selectedNode}
               onChange={patchSelected}
@@ -1570,6 +1562,31 @@ function StudioEditor() {
                 };
               })()}
             />
+            )}
+          </div>
+        )}
+
+        {/* Structure-tree drawer handle — a sibling of the Edit-element window (not a child, so the
+            window's overflow doesn't clip it). The wrapper spans the window's full height so the
+            handle sits exactly at its vertical centre. */}
+        {!demoRunning && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
+          <div
+            className={`pointer-events-none absolute top-24 z-40 flex h-[calc(100vh-13rem)] items-center transition-[right] duration-300 ease-out ${
+              treeOpen ? "right-[39.5rem]" : "right-[23rem]"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setTreeOpen((o) => !o)}
+              aria-expanded={treeOpen}
+              aria-label={treeOpen ? "Hide structure" : "Show structure"}
+              title={treeOpen ? "Hide structure" : "Show structure"}
+              className="pointer-events-auto flex h-14 w-6 items-center justify-center rounded-l-lg border border-r-0 border-walshe-line/70 bg-chrome-bg/95 text-walshe-ink shadow-xl backdrop-blur-md transition-colors hover:bg-walshe-ink/5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`transition-transform ${treeOpen ? "rotate-180" : ""}`}>
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
           </div>
         )}
 
