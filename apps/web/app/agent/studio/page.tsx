@@ -1447,8 +1447,13 @@ function StudioEditor() {
             the window). The SAME control for every object: an ungrouped element shows as the sole
             entry; a grouped one shows its whole tree + the group-row controls. Hidden for a lone
             sprite (its chain panel owns that slot) and during the demo. */}
-        {!demoRunning && treeOpen && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
-          <div className="pointer-events-auto absolute right-[23.5rem] top-24 z-30 flex max-h-[calc(100vh-13rem)] w-64 flex-col overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-3 shadow-xl backdrop-blur-md">
+        {!demoRunning && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
+          <div
+            className={`absolute right-[23.5rem] top-24 z-20 flex max-h-[calc(100vh-13rem)] w-64 flex-col overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-3 shadow-xl backdrop-blur-md transition-[transform,opacity] duration-300 ease-out ${
+              treeOpen ? "pointer-events-auto translate-x-0 opacity-100" : "pointer-events-none translate-x-[120%] opacity-0"
+            }`}
+            aria-hidden={!treeOpen}
+          >
             <GroupTreePanel
               design={design}
               sceneIndex={selected.scene}
@@ -1494,7 +1499,7 @@ function StudioEditor() {
                 title={treeOpen ? "Hide structure" : "Show structure"}
                 className="absolute left-0 top-1/2 z-10 flex h-14 w-6 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l-lg border border-r-0 border-walshe-line/70 bg-chrome-bg/95 text-walshe-ink shadow-xl backdrop-blur-md transition-colors hover:bg-walshe-ink/5"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`transition-transform ${treeOpen ? "" : "rotate-180"}`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`transition-transform ${treeOpen ? "rotate-180" : ""}`}>
                   <path d="M15 6l-6 6 6 6" />
                 </svg>
               </button>
