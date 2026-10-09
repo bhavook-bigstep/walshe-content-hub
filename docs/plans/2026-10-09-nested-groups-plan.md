@@ -1,9 +1,16 @@
 # Implementation plan — Nested group editor with sequenced animation (Design Studio)
 
-**Version:** 1.0 · **Date:** 2026-10-09 · **Branch:** `feat/studio-nested-groups`
+**Version:** 1.1 (as-built reconciliation) · **Date:** 2026-10-09 · **Branch:** `feat/studio-nested-groups`
 **Charter:** `docs/plans/2026-10-09-requirements-charter.md` (AC1–AC8) ·
 **Brainstorm:** `docs/brainstorms/2026-10-09-nested-group-sequencing.md` (chose **Approach A** — bake
 start-offsets into keyframes; cited there) · **Run ledger:** `docs/plans/2026-10-09-run-ledger.md`
+
+> **v1.1 revision (phase E reconcile).** The feature is built and green (204/204 web tests). Two
+> deviations from the v1.0 plan are now baked in and reflected below: (1) the standalone `nestGroup`
+> op was **dropped** — it had no production caller; nesting is the `groupNodes` sub-selection path
+> (§4), and cycle-safety lives in `groupAncestry` (§2). (2) AC7's control contract is now verified by
+> a **real SSR render test** (`tests/group-tree-panel.test.tsx`), not the original tautological
+> constant check (§8). Test names in §8 match the committed suite.
 
 **Sourcing.** Everything below is grounded in this repo's own code/contracts (cited as `path:line`,
 exempt per `.claude/rules/citations.md`). The one novel, contestable claim — resolve parent-first
@@ -33,7 +40,7 @@ a non-obvious design choice with no external source, it carries the verbatim dis
 | page wiring: `selectedGroupId`, group handlers, `groupState`, panel render | `app/agent/studio/page.tsx:780-830, 1471-1487` | rework for tree + nesting |
 | sprite-chain vertical card panel (the tree-UX precedent, D1) | `components/studio/SpriteChainPanel.tsx` | structural model for the tree |
 | **existing green tests to preserve (AC8)** | `apps/web/tests/grouping.test.ts`, `studio-ops.test.ts`, `studio-export.test.ts`, `studio-entry-text.test.ts`, `studio-moderation.test.ts`, `studio-keys.test.ts` | must stay green |
-| verify gate | `Makefile:16` → `web-typecheck` + `web-test` (vitest, `pnpm exec vitest run`) | acceptance runner |
+| verify gate | `Makefile:16` `verify:` chains `lint api-test api-types-sync web-typecheck web-test e2e matrix sync compose-config`; web-only change runs the subset `web-typecheck` (`tsc --noEmit`, `Makefile:42`) + `web-test` (`pnpm exec vitest run`, `Makefile:45`) | acceptance runner |
 
 Confirmed absent: no `Scene.groups`, no `parentId`, no `recomposeSceneGroups` anywhere.
 
@@ -144,10 +151,12 @@ at the verify gate:** accept the 15s ceiling (PoC-appropriate, consistent with c
 
 - `groupNodes(design, sceneIndex, nodeIds)` → also append a `SceneGroup{id}` to `scene.groups`. If
   every selected node already shares one innermost group `P`, set the new group's `parentId = P`
-  (nesting a sub-selection, AC3). Call `recomposeGroups` before return.
-- **New** `nestGroup(design, sceneIndex, childGroupId, parentGroupId)` — set
-  `childGroup.parentId = parentGroupId` (reject cycles via `groupAncestry`); recompose. (Explicit
-  "group a sub-selection inside a group" path for the tree.)
+  (nesting a sub-selection, AC3). Call `recomposeGroups` before return. **This is the only nesting
+  path** — the tree's "nest … as sub-group" button routes a sub-selection through `groupNodes`.
+- **(v1.0 proposed a standalone `nestGroup(childGroupId, parentGroupId)` op — DROPPED in phase E:**
+  no production caller; nesting is the `groupNodes` sub-selection path above. Cycle-safety is not
+  needed on a dedicated op and instead lives defensively in `groupAncestry` (§2), bounded by
+  `groups.length`.)
 - `ungroupNodes(design, sceneIndex, groupId)` → **reparent**: children groups whose `parentId ===
   groupId` get `parentId = removed.parentId`; member nodes' `groupId` set to `removed.parentId`
   (or deleted if top-level); remove the `SceneGroup`; recompose. (AC3 reparent, arbitrary depth.)
@@ -238,22 +247,24 @@ Critical path: **§1 → §2 → §3** (everything else depends on recompose). �
 
 ## 8. Test matrix — one (or more) test per acceptance item
 
-Runner: **vitest** (`pnpm exec vitest run`, `Makefile:46`). Synthetic fixtures only; pure ops →
-deterministic/hermetic (Contract 4; `.claude/rules/testing.md`). New file
-`apps/web/tests/group-sequencing.test.ts` (+ additions to `grouping.test.ts`).
+Runner: **vitest** (`pnpm exec vitest run`, `Makefile:45`). Synthetic fixtures only; pure ops →
+deterministic/hermetic (Contract 4; `.claude/rules/testing.md`). As-built files:
+`apps/web/tests/group-sequencing.test.ts` (19 tests), `apps/web/tests/group-tree-panel.test.tsx`
+(2 tests, SSR render via `react-dom/server`, node env — no jsdom), plus the preserved
+`apps/web/tests/grouping.test.ts` (7 flat-group tests, AC8 regression gate).
 
 | AC | Test (file · name) | Asserts |
 |----|--------------------|---------|
-| **AC1** | `group-sequencing · tree_shape_depth` | `groupAncestry`/`groupDepth` on a 3-level fixture give innermost→outermost order + correct depths; `groupSubtreeIds` returns the full subtree. |
-| **AC2** | `group-sequencing · group_anim_writes_registry` + reuse `grouping · setGroupAnim` | `setGroupAnim` writes `SceneGroup.anim`; recompose stamps members; element path unchanged (Inspector uses existing `enterTrack`+`setNodeAnim`, already covered). |
-| **AC3** | `grouping · nest_subselection` / `ungroup_reparents` | grouping a sub-selection sets child `parentId`; `ungroupNodes` reparents descendant groups + member `groupId` to the removed group's parent; arbitrary depth; cycle rejected by `nestGroup`. |
-| **AC4** | `group-sequencing · strict_parent_first_offsets` | on nested fixture (parent enter 600, child enter 600), child's baked first-keyframe `t === 600`, grandchild `=== 1200`; child opacity via `nodeStateAt(child, t<600)===0` (hidden until parent done). |
-| **AC5** | `group-sequencing · bakes_into_keyframes_and_grows_scene` + `preview_equals_export` | baked keyframes present (engine unread of `groups`); `scene.durationMs` grew to cover latest child +300 (clamped ≤15000); `nodeStateAt` at sampled t matches what `renderSceneFrames`/`previewAt` would read (same fn) — assert the shared `nodeStateAt` output at frame times equals the baked expectation. |
-| **AC5-idem** | `group-sequencing · recompose_is_idempotent` | `recompose(recompose(d))` deep-equals `recompose(d)`; `enter.startMs` stays author-relative across runs (the §3a trade-off guard). |
-| **AC5-chain** | `group-sequencing · skips_chain_members` | a group member with `successorId` gets **no** extra baked delay (no double offset vs `chainSegments`). |
-| **AC6** | `group-sequencing · round_trips_registry` | `migrateDesign(scenesAsStored(d))` preserves `Scene.groups`, `parentId`, `anim`, and baked member keyframes; malformed group entry dropped; dangling `parentId` pruned to top-level. |
-| **AC7** | (component-level, light) `group-sequencing · unified_controls_contract` | pure assertion that the group-row control set = entrance+duration+easing+loop+colour+opacity+dup+delete+group/ungroup/nest (the folded contract), driven off a shared constant the panel imports — guards the "one panel" contract without a DOM runner. |
-| **AC8** | run full suite | `grouping.test.ts`, `studio-ops.test.ts` (incl. existing `migrateDesign` cases `255-293`), `studio-export.test.ts`, etc. all green; `Scene.groups` optional so pre-existing fixtures still typecheck; confirm PDF/group-panel commits untouched (`git log`). |
+| **AC1** | `group-sequencing · test_nested_group_sequencing_tree_shape_depth` | `groupAncestry`/`groupDepth` on a 3-level fixture give innermost→outermost order + correct depths; `groupSubtreeIds` returns the full subtree. |
+| **AC2** | `group-sequencing · test_group_anim_writes_registry` + `test_element_level_anim_untouched_by_recompose` | `setGroupAnim` writes `SceneGroup.anim`; recompose stamps members; the element-level anim track is left untouched by recompose (element path = existing Inspector `enterTrack`+`setNodeAnim`, already covered). |
+| **AC3** | `group-sequencing · test_nest_subselection_and_ungroup_reparents` | grouping a sub-selection sets child `parentId`; `ungroupNodes` reparents descendant groups + member `groupId` to the removed group's parent; arbitrary depth. Cycle-safety covered by `test_group_ancestry_bounded_under_cyclic_registry` (helper bound, no `nestGroup` op). |
+| **AC4** | `group-sequencing · test_strict_parent_first_offsets` + `test_static_child_holds_hidden_during_ancestor_entrance` | on nested fixture (parent enter 600, child enter 600), child's baked first-keyframe `t === 600`, grandchild `=== 1200`; a static child of an animated parent gets the hold-hidden guard so it stays hidden until ancestors finish. |
+| **AC5** | `group-sequencing · test_bakes_into_keyframes_and_grows_scene` + `test_grown_scene_clamps_at_ceiling` | baked keyframes present (engine unread of `groups`); `scene.durationMs` grew to cover the latest child +300; clamp holds at the 15000ms ceiling. Preview==export by construction (both consume the same baked `nodeStateAt`; samplers untouched). |
+| **AC5-idem** | `group-sequencing · test_recompose_is_idempotent` | `recompose(recompose(d))` deep-equals `recompose(d)`; `enter.startMs` stays author-relative across runs (the §3a trade-off guard). |
+| **AC5-chain** | `group-sequencing · test_skips_chain_members` | a group member with `successorId` gets **no** extra baked delay (no double offset vs `chainSegments`). |
+| **AC6** | `group-sequencing · test_round_trips_registry` + `test_migrate_drops_malformed_and_prunes_dangling_parent` | `migrateDesign` preserves `Scene.groups`, `parentId`, `anim`, and baked member keyframes; malformed group entry dropped; dangling `parentId` pruned to top-level. |
+| **AC7** | `group-tree-panel · test_panel_renders_every_contract_control` (+ `test_contract_matcher_covers_exactly_the_controls`) | the real `GroupTreePanel` is rendered to static markup (`react-dom/server`) and **every** `GROUP_ROW_CONTROLS` entry (`lib/studio/group-controls.ts`) is asserted present — a verified folded-contract check, not the dropped tautological constant compare. Opts (duration/easing + nested colour/opacity) covered by `test_set_group_anim_opts_duration_easing_and_min_guard`, `test_update_group_style_patches_nested_subtree`, `test_update_group_style_legacy_flat_fallback`. |
+| **AC8** | full suite + `group-sequencing · test_existing_flat_grouping_contract_preserved` | `grouping.test.ts` (7), `studio-ops.test.ts`, `studio-export.test.ts`, etc. all green (204/204); `Scene.groups` optional so pre-existing fixtures still typecheck; PDF/group-panel commits untouched (`git log`). |
 
 Headless smoke (D10): AC4+AC5 tests above *are* the "baked keyframe start-offset" assertion the
 charter asked for, at the pure-op layer (no browser needed; `frames.ts`/`previewAt` both consume the
