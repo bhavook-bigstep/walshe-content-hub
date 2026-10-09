@@ -85,6 +85,7 @@ import {
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
 import GroupTreePanel from "../../../components/studio/GroupTreePanel";
+import GroupControls from "../../../components/studio/GroupControls";
 import BuilderDemoOverlay, { type DemoCursor } from "../../../components/studio/BuilderDemoOverlay";
 import SpriteChainPanel from "../../../components/studio/SpriteChainPanel";
 import {
@@ -182,6 +183,9 @@ function StudioEditor() {
   const [selectedScene, setSelectedScene] = useState<number | null>(null);
   // The structure/tree drawer on the Edit-element window's left edge (open by default).
   const [treeOpen, setTreeOpen] = useState(true);
+  // The group row being edited (its controls take over the Edit-element window). null → edit the
+  // element. Ensures a group and an element are never edited at the same time.
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   // A photo placeholder awaiting a pick from the media drawer (set when one is clicked).
   const [fillTarget, setFillTarget] = useState<{ scene: number; nodeId: string } | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
@@ -714,6 +718,10 @@ function StudioEditor() {
   // The currently-selected node (resolved from the live design), for the Inspector.
   const selectedNode: DesignNode | null =
     (selected && design.scenes[selected.scene]?.nodes.find((n) => n.id === selected.nodeId)) || null;
+  // The Edit-element window edits the GROUP (not the element) when a valid group row is active.
+  const groupActive = Boolean(
+    activeGroupId && selected && design.scenes[selected.scene]?.groups?.some((g) => g.id === activeGroupId),
+  );
 
   function patchSelected(patch: Partial<NodeStyle>) {
     if (!selected) return;
@@ -776,11 +784,17 @@ function StudioEditor() {
     setSelected(null);
     setSelectedIds([]);
     setSelectedScene(null);
+    setActiveGroupId(null);
   }
   function selectSingleNode(nodeId: string) {
     if (selectedScene === null) return;
     setSelectedIds([nodeId]);
     setSelected({ scene: selectedScene, nodeId });
+    setActiveGroupId(null); // editing an element — not the group
+  }
+  // A tree group row → edit that group in the Edit-element window (the element Inspector steps aside).
+  function selectGroupRow(groupId: string) {
+    setActiveGroupId(groupId);
   }
 
   // ── Animation preview transport (play/scrub the active scene's animation) ──────────────────────
@@ -1248,6 +1262,13 @@ function StudioEditor() {
             // Unified editor: ANY non-empty selection sets a representative element so the Edit-element
             // window always appears; the tree drawer gives the group context (and group-row editing).
             setSelected(scene !== null && nodeIds.length >= 1 ? { scene, nodeId: nodeIds[0] } : null);
+            // When the selection is a WHOLE group (2+ members sharing one group), edit the GROUP in the
+            // Edit-element window; otherwise edit the element. One target at a time.
+            const selScene = scene !== null ? design.scenes[scene] : undefined;
+            const selGids = selScene ? nodeIds.map((id) => selScene.nodes.find((n) => n.id === id)?.groupId) : [];
+            setActiveGroupId(
+              nodeIds.length > 1 && selGids[0] && selGids.every((g) => g === selGids[0]) ? selGids[0]! : null,
+            );
             // Clicking a photo placeholder opens the media drawer so the next pick fills it.
             const node = scene !== null && nodeIds.length === 1
               ? design.scenes[scene]?.nodes.find((n) => n.id === nodeIds[0])
@@ -1433,9 +1454,10 @@ function StudioEditor() {
               sceneIndex={selected.scene}
               selectedIds={selectedIds}
               selectedNodeId={selected.nodeId}
+              activeGroupId={activeGroupId}
               onChange={setDesign}
               onSelectNode={selectSingleNode}
-              onClearSelection={clearSelection}
+              onSelectGroup={selectGroupRow}
             />
           </div>
         )}
@@ -1486,7 +1508,9 @@ function StudioEditor() {
                 const pos = selected ? chain.indexOf(selected.nodeId) : -1;
                 return (
                   <h2 className="text-small font-bold text-walshe-ink">
-                    {chain.length > 1 && pos >= 0 ? (
+                    {groupActive ? (
+                      "Edit group"
+                    ) : chain.length > 1 && pos >= 0 ? (
                       <>
                         Edit sprite{" "}
                         <span className="font-medium text-walshe-grey">· {pos + 1} of {chain.length} in chain</span>
@@ -1500,12 +1524,21 @@ function StudioEditor() {
               <button
                 type="button"
                 aria-label="Deselect"
-                onClick={() => setSelected(null)}
+                onClick={clearSelection}
                 className="grid h-7 w-7 place-items-center rounded-md text-walshe-grey transition-colors hover:bg-walshe-ink/10 hover:text-walshe-ink"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
+            {groupActive && selected && activeGroupId ? (
+              <GroupControls
+                design={design}
+                sceneIndex={selected.scene}
+                groupId={activeGroupId}
+                onChange={setDesign}
+                onDeleted={clearSelection}
+              />
+            ) : (
             <Inspector
               node={selectedNode}
               onChange={patchSelected}
@@ -1539,6 +1572,7 @@ function StudioEditor() {
                 };
               })()}
             />
+            )}
           </div>
         )}
 
