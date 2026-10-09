@@ -180,6 +180,8 @@ function StudioEditor() {
   // The full selection (one id = single element; many = a group / multi-selection) + its scene.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedScene, setSelectedScene] = useState<number | null>(null);
+  // The structure/tree drawer on the Edit-element window's left edge (open by default).
+  const [treeOpen, setTreeOpen] = useState(true);
   // A photo placeholder awaiting a pick from the media drawer (set when one is clicked).
   const [fillTarget, setFillTarget] = useState<{ scene: number; nodeId: string } | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
@@ -1243,7 +1245,9 @@ function StudioEditor() {
             if (nodeIds.length) setSceneSelected(true); // working in a scene re-selects it
             setSelectedScene(scene);
             setSelectedIds(nodeIds);
-            setSelected(scene !== null && nodeIds.length === 1 ? { scene, nodeId: nodeIds[0] } : null);
+            // Unified editor: ANY non-empty selection sets a representative element so the Edit-element
+            // window always appears; the tree drawer gives the group context (and group-row editing).
+            setSelected(scene !== null && nodeIds.length >= 1 ? { scene, nodeId: nodeIds[0] } : null);
             // Clicking a photo placeholder opens the media drawer so the next pick fills it.
             const node = scene !== null && nodeIds.length === 1
               ? design.scenes[scene]?.nodes.find((n) => n.id === nodeIds[0])
@@ -1418,14 +1422,17 @@ function StudioEditor() {
         {/* Right tool rail: creation tools only (icons + hover names). */}
         <StudioRightRail design={design} sceneIndex={sceneIndex} onChange={setDesign} />
 
-        {/* Group panel: appears when 2+ elements are selected (group / ungroup + shared props).
-            Hidden while the AI Builder demo runs so its selections don't pop edit chrome. */}
-        {!demoRunning && selectedIds.length > 1 && selectedScene !== null && (
-          <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+        {/* Structure tree — a drawer on the Edit-element window's left edge (toggled by the handle on
+            the window). The SAME control for every object: an ungrouped element shows as the sole
+            entry; a grouped one shows its whole tree + the group-row controls. Hidden for a lone
+            sprite (its chain panel owns that slot) and during the demo. */}
+        {!demoRunning && treeOpen && selected && selectedNode && !(selectedIds.length <= 1 && isSprite(selectedNode)) && (
+          <div className="pointer-events-auto absolute right-[23.5rem] top-24 z-30 flex max-h-[calc(100vh-13rem)] w-64 flex-col overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-3 shadow-xl backdrop-blur-md">
             <GroupTreePanel
               design={design}
-              sceneIndex={selectedScene}
+              sceneIndex={selected.scene}
               selectedIds={selectedIds}
+              selectedNodeId={selected.nodeId}
               onChange={setDesign}
               onSelectNode={selectSingleNode}
               onClearSelection={clearSelection}
@@ -1451,10 +1458,25 @@ function StudioEditor() {
           />
         )}
 
-        {/* Inspector: appears when a single element is selected, styling controls for it.
-            Hidden while the AI Builder demo runs (the agent's own selections shouldn't open it). */}
-        {!demoRunning && selectedNode && selectedIds.length <= 1 && (
+        {/* Edit-element window — the unified editor shown for ANY selection (a representative element
+            is always selected). The handle on its left edge opens the structure tree drawer above. */}
+        {!demoRunning && selectedNode && (
           <div className="pointer-events-auto absolute right-20 top-24 z-30 max-h-[calc(100vh-13rem)] w-72 overflow-y-auto no-scrollbar rounded-xl border border-walshe-line/70 bg-chrome-bg/95 p-4 shadow-xl backdrop-blur-md">
+            {/* Left-edge drawer handle → toggles the structure tree (hidden for a lone sprite). */}
+            {!(selectedIds.length <= 1 && isSprite(selectedNode)) && (
+              <button
+                type="button"
+                onClick={() => setTreeOpen((o) => !o)}
+                aria-expanded={treeOpen}
+                aria-label={treeOpen ? "Hide structure" : "Show structure"}
+                title={treeOpen ? "Hide structure" : "Show structure"}
+                className="absolute left-0 top-1/2 z-10 flex h-14 w-6 -translate-x-full -translate-y-1/2 items-center justify-center rounded-l-lg border border-r-0 border-walshe-line/70 bg-chrome-bg/95 text-walshe-ink shadow-xl backdrop-blur-md transition-colors hover:bg-walshe-ink/5"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className={`transition-transform ${treeOpen ? "" : "rotate-180"}`}>
+                  <path d="M15 6l-6 6 6 6" />
+                </svg>
+              </button>
+            )}
             <div className="mb-2 flex items-center justify-between">
               {(() => {
                 // When the selected element is part of a sprite chain, say which member this is —

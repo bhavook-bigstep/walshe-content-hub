@@ -69,6 +69,7 @@ export default function GroupTreePanel({
   design,
   sceneIndex,
   selectedIds,
+  selectedNodeId,
   onChange,
   onSelectNode,
   onClearSelection,
@@ -76,6 +77,9 @@ export default function GroupTreePanel({
   design: DesignDoc;
   sceneIndex: number;
   selectedIds: string[];
+  /** The single element currently being edited — so even an ungrouped object shows as the sole tree
+   * entry (and a grouped one roots the tree at its outermost ancestor). */
+  selectedNodeId?: string;
   onChange: (next: DesignDoc) => void;
   onSelectNode: (nodeId: string) => void;
   onClearSelection: () => void;
@@ -124,10 +128,14 @@ export default function GroupTreePanel({
   }
 
   // ── Tree view model (outermost ancestor → full subtree) ───────────────────────────────────────
+  // Root the tree at the active group, else at the edited element's own group. A truly ungrouped
+  // element has no group → it shows as the SOLE entry, so every object reads the same way.
+  const editedNode = selectedNodeId ? scene.nodes.find((n) => n.id === selectedNodeId) : undefined;
+  const contextGroupId = activeGroupId ?? editedNode?.groupId ?? null;
   type Row = { kind: "group"; group: SceneGroup; depth: number } | { kind: "node"; node: DesignNode; depth: number };
   const rows: Row[] = [];
-  if (activeGroupId && reg.has(activeGroupId)) {
-    const ancestry = groupAncestry(scene, activeGroupId);
+  if (contextGroupId && reg.has(contextGroupId)) {
+    const ancestry = groupAncestry(scene, contextGroupId);
     const rootId = ancestry[ancestry.length - 1].id; // outermost
     const visit = (gid: string) => {
       const g = reg.get(gid)!;
@@ -137,6 +145,8 @@ export default function GroupTreePanel({
       for (const child of reg.values()) if (child.parentId === gid) visit(child.id);
     };
     visit(rootId);
+  } else if (editedNode) {
+    rows.push({ kind: "node", node: editedNode, depth: 0 }); // sole, ungrouped entry
   }
 
   const activeGroup = activeGroupId ? reg.get(activeGroupId) : undefined;
@@ -178,7 +188,7 @@ export default function GroupTreePanel({
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between">
-        <p className={label}>{activeGroupId ? "Group editor" : `${selectedIds.length} selected`}</p>
+        <p className={label}>{activeGroupId ? "Group editor" : selectedIds.length > 1 ? `${selectedIds.length} selected` : "Structure"}</p>
         <button
           type="button"
           aria-label="Deselect"
@@ -231,7 +241,11 @@ export default function GroupTreePanel({
                 type="button"
                 onClick={() => onSelectNode(r.node.id)}
                 style={{ paddingLeft: 8 + r.depth * 12 }}
-                className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-small text-walshe-grey transition-colors hover:bg-walshe-ink/5 hover:text-walshe-ink"
+                className={`flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-small transition-colors ${
+                  r.node.id === selectedNodeId
+                    ? "bg-walshe-teal/15 font-semibold text-walshe-ink"
+                    : "text-walshe-grey hover:bg-walshe-ink/5 hover:text-walshe-ink"
+                }`}
               >
                 <span className="text-walshe-line">•</span>
                 <span className="truncate">{nodeLabel(r.node)}</span>
