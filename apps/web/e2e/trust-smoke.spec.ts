@@ -28,7 +28,9 @@ test("agent sees a preflight issue before sending", async ({ page }) => {
 
   await page.goto("/agent/social");
   // The seeded "Trade Showcase teaser" holds an expired item, so the check must fail.
-  await page.getByLabel("Composition").selectOption({ label: "Trade Showcase teaser" });
+  // The Composition picker is the app's custom <Select> (no longer a native <select>), so drive
+  // it via chooseOption rather than Playwright's selectOption.
+  await chooseOption(page, "Composition", "Trade Showcase teaser");
   await page.getByRole("button", { name: /run pre-send check/i }).click();
 
   const issues = page.getByTestId("preflight-issues");
