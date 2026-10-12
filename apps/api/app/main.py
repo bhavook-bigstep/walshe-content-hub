@@ -40,6 +40,7 @@ from app.routers import (
     provider,
     render,
     social,
+    studio,
 )
 from app.storage.minio_client import get_storage
 
@@ -137,6 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(me_sprites.router)
     app.include_router(render.router)
     app.include_router(builder.router)
+    app.include_router(studio.router)
     app.include_router(ai_copy.router)
     app.include_router(social.router)
     app.include_router(instagram.router)

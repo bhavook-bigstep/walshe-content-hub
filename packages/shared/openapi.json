@@ -3725,6 +3725,148 @@
         "title": "SendBackRequest",
         "type": "object"
       },
+      "StudioOpResultOut": {
+        "properties": {
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "status"
+        ],
+        "title": "StudioOpResultOut",
+        "type": "object"
+      },
+      "StudioOpSpecOut": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "op",
+          "description",
+          "params"
+        ],
+        "title": "StudioOpSpecOut",
+        "type": "object"
+      },
+      "StudioOpsApplyRequest": {
+        "description": "Apply a sequence of agent op calls to a design. `item_ids` are the catalog entries the agent\nmay reference; they are re-resolved through the visibility choke-point before the engine sees\nthem.",
+        "properties": {
+          "calls": {
+            "description": "the op sequence",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 200,
+            "minItems": 0,
+            "title": "Calls",
+            "type": "array"
+          },
+          "design": {
+            "additionalProperties": true,
+            "description": "the DesignDoc to edit (validated by the engine)",
+            "title": "Design",
+            "type": "object"
+          },
+          "item_ids": {
+            "description": "catalog items the agent may use",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "scene_index": {
+            "default": 0,
+            "description": "the scene the ops target",
+            "minimum": 0.0,
+            "title": "Scene Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "design",
+          "calls"
+        ],
+        "title": "StudioOpsApplyRequest",
+        "type": "object"
+      },
+      "StudioOpsApplyResponse": {
+        "properties": {
+          "design": {
+            "additionalProperties": true,
+            "title": "Design",
+            "type": "object"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/StudioOpResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "design",
+          "results",
+          "valid"
+        ],
+        "title": "StudioOpsApplyResponse",
+        "type": "object"
+      },
+      "StudioOpsSpecResponse": {
+        "properties": {
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/StudioOpSpecOut"
+            },
+            "title": "Ops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ops"
+        ],
+        "title": "StudioOpsSpecResponse",
+        "type": "object"
+      },
       "SuggestionsOut": {
         "properties": {
           "items": {
@@ -9152,6 +9294,80 @@
         "summary": "Schedule",
         "tags": [
           "social"
+        ]
+      }
+    },
+    "/studio/ops/apply": {
+      "post": {
+        "description": "Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).",
+        "operationId": "studio_ops_apply_studio_ops_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioOpsApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioOpsApplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Apply",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/studio/ops/spec": {
+      "get": {
+        "description": "The studio-ops tool catalog: op + description + params, for a host to build its tool list.",
+        "operationId": "studio_ops_spec_studio_ops_spec_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioOpsSpecResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Spec",
+        "tags": [
+          "studio"
         ]
       }
     },

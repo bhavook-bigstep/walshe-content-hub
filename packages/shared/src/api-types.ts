@@ -1715,6 +1715,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/studio/ops/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Ops Apply
+         * @description Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).
+         */
+        post: operations["studio_ops_apply_studio_ops_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/studio/ops/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Studio Ops Spec
+         * @description The studio-ops tool catalog: op + description + params, for a host to build its tool list.
+         */
+        get: operations["studio_ops_spec_studio_ops_spec_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/traces": {
         parameters: {
             query?: never;
@@ -3228,6 +3268,75 @@ export interface components {
         SendBackRequest: {
             /** Reason */
             reason: string;
+        };
+        /** StudioOpResultOut */
+        StudioOpResultOut: {
+            /** Op */
+            op: string;
+            /** Reason */
+            reason?: string | null;
+            /** Status */
+            status: string;
+        };
+        /** StudioOpSpecOut */
+        StudioOpSpecOut: {
+            /** Description */
+            description: string;
+            /** Op */
+            op: string;
+            /** Params */
+            params: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * StudioOpsApplyRequest
+         * @description Apply a sequence of agent op calls to a design. `item_ids` are the catalog entries the agent
+         *     may reference; they are re-resolved through the visibility choke-point before the engine sees
+         *     them.
+         */
+        StudioOpsApplyRequest: {
+            /**
+             * Calls
+             * @description the op sequence
+             */
+            calls: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Design
+             * @description the DesignDoc to edit (validated by the engine)
+             */
+            design: {
+                [key: string]: unknown;
+            };
+            /**
+             * Item Ids
+             * @description catalog items the agent may use
+             */
+            item_ids?: number[];
+            /**
+             * Scene Index
+             * @description the scene the ops target
+             * @default 0
+             */
+            scene_index: number;
+        };
+        /** StudioOpsApplyResponse */
+        StudioOpsApplyResponse: {
+            /** Design */
+            design: {
+                [key: string]: unknown;
+            };
+            /** Results */
+            results: components["schemas"]["StudioOpResultOut"][];
+            /** Valid */
+            valid: boolean;
+        };
+        /** StudioOpsSpecResponse */
+        StudioOpsSpecResponse: {
+            /** Ops */
+            ops: components["schemas"]["StudioOpSpecOut"][];
         };
         /** SuggestionsOut */
         SuggestionsOut: {
@@ -6681,6 +6790,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_ops_apply_studio_ops_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioOpsApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioOpsApplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_ops_spec_studio_ops_spec_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioOpsSpecResponse"];
                 };
             };
         };
