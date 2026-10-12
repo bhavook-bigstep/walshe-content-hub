@@ -87,7 +87,7 @@ for anything that references a catalog item. Known gaps, grouped:
 | Node editing | ✅ DONE (2026-10-12): `edit-text`, `move-node`, `resize-node`, `style-node`, `delete-node`, `duplicate-node`, `reorder-node` — target existing nodes by the id `observe` exposes |
 | Animation | ✅ DONE (2026-10-12): `animate-node` (entrance + emphasis loop), `clear-animation`. Remaining: raw per-node keyframe dope-sheet |
 | Groups & nesting | ✅ DONE (2026-10-12): `group-nodes`, `ungroup`, `set-group-anim` (parent-first). Remaining: `updateGroupStyle`, `deleteGroup`, `duplicateGroup` |
-| Sprites | `addGraphic` + sprite chains (`addSuccessorSprite`, `setChainDuration`, `removeSuccessor`) |
+| Sprites | ✅ DONE (2026-10-12): `add-sprite` (built-in by id, frames embedded), `chain-sprite`, `set-chain-duration`, `remove-sprite` |
 | Curves | `addCurve`, `setCurvePoints`, `insertCurveAnchor`, `translateCurve`, `moveCurvePoint` |
 | Scenes | `removeScene`, `reorderScene`, `setSceneTransition`, `renameScene`, `setSceneNarration` |
 | Images | `addPlaceholder`, `fillImageNode` (grounded) |

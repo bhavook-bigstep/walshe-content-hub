@@ -10,20 +10,25 @@
 // design (and it can be unit-tested, driven by the in-app Builder, or exposed via an MCP adapter).
 import {
   addCatalogImage,
+  addGraphic,
   addScene,
   addShape,
+  addSuccessorSprite,
   addText,
   deleteNode,
   duplicateNode,
   editText,
   enterTrack,
   groupNodes,
+  isSprite,
   moveNode,
   recomposeGroups,
+  removeSuccessor,
   reorderNode,
   resizeNode,
   scenesAsPages,
   setBackground,
+  setChainDuration,
   setGroupAnim,
   setNodeAnim,
   setSceneDuration,
@@ -43,6 +48,7 @@ import {
   type NodeStyle,
   type ShapeKind,
 } from "./ops";
+import { SPRITE_ANIMATIONS, type SpriteDef } from "./graphics";
 
 /** Everything an op may need beyond its params, supplied by the host (not the model). */
 export interface StudioOpContext {
@@ -118,6 +124,14 @@ const LAYER_MOVES: ReadonlySet<string> = new Set<LayerMove>(["forward", "backwar
 const ENTERS: ReadonlySet<string> = new Set<EnterType>(ENTER_TYPES);
 const LOOPS: ReadonlySet<string> = new Set<LoopType>(LOOP_TYPES);
 const EASES: ReadonlySet<string> = new Set<Easing>(EASINGS);
+// Built-in frame-by-frame sprites the agent can place by id (frames are embedded at op time so the
+// node is self-contained — no later resolve pass needed for preview/export).
+const SPRITE_BY_ID = new Map<string, SpriteDef>(SPRITE_ANIMATIONS.map((s) => [s.id, s]));
+function spriteDef(id: string): SpriteDef {
+  const def = SPRITE_BY_ID.get(id);
+  if (!def) reject(`unknown sprite "${id}" — choose one of: ${[...SPRITE_BY_ID.keys()].join(", ")}`);
+  return def;
+}
 // Style keys an agent may patch, split by value type so each is validated with str()/num().
 const STR_STYLE = ["color", "fontFamily", "fontWeight", "fontStyle", "textAlign", "stroke"] as const;
 const NUM_STYLE = ["fontSize", "lineHeight", "opacity", "angle", "radius", "strokeWidth"] as const;
@@ -134,10 +148,11 @@ function findNode(design: DesignDoc, sceneIndex: number, nodeId: string): Design
 // pure op layer in ./ops.ts exposes ~50+ operations; keep extending so the AI Builder/MCP can drive
 // everything a human can. Covered so far: add ops (write-copy/place/add-shape/set-background), scene
 // ops, node editing (edit/move/resize/style/delete/duplicate/reorder), animation (animate-node +
-// clear-animation), grouping (group-nodes/ungroup/set-group-anim). Remaining gaps:
-//   • Sprites + chains (addGraphic, addSuccessorSprite, setChainDuration, removeSuccessor).
+// clear-animation), grouping (group-nodes/ungroup/set-group-anim), sprites + chains (add-sprite,
+// chain-sprite, set-chain-duration, remove-sprite). Remaining gaps:
 //   • Curves (addCurve + anchor/point editing); image fill (addPlaceholder, fillImageNode).
 //   • Raw keyframe dope-sheet editing (per-node AnimKeyframe tracks beyond the entrance preset).
+//   • Group style/delete/duplicate; extra scene ops (reorder/transition/narration).
 //   • Groups & nesting: groupNodes, ungroupNodes, renameGroup, setGroupAnim, updateGroupStyle,
 //     deleteGroup, duplicateGroup (recompose stays automatic).
 //   • Sprites: addGraphic + sprite chains (addSuccessorSprite, setChainDuration, removeSuccessor).
@@ -429,6 +444,67 @@ const OPS: Record<string, OpDef> = {
       if (ease) opts.ease = ease;
       if (call.start_ms != null) opts.startMs = num(call.start_ms, "start_ms");
       return setGroupAnim(design, ctx.sceneIndex, groupId, enter, loop, opts);
+    },
+  },
+
+  // ── Sprites + chains (frame-by-frame animated characters; join head → successor → …) ──
+  "add-sprite": {
+    description: "Add a built-in animated sprite (a frame-by-frame character) to the current scene.",
+    params: {
+      sprite: "built-in sprite id, e.g. walking-panda, flapping-bird, bobbing-boat, hot-air-balloon",
+      x: "optional", y: "optional", width: "optional", height: "optional",
+    },
+    apply(design, call, ctx) {
+      const def = spriteDef(str(call.sprite, "sprite"));
+      const p = placement(call);
+      return addGraphic(
+        design,
+        ctx.sceneIndex,
+        { frames: def.frames, fps: def.fps, width: def.width, height: def.height, sprite: def.id },
+        { x: p.x, y: p.y, width: p.width, height: p.height },
+      );
+    },
+  },
+
+  "chain-sprite": {
+    description: "Add a sprite that plays AFTER an existing sprite, continuing from where it ends (joins them into one motion).",
+    params: {
+      parent_id: "the existing sprite's node id (from observe)",
+      sprite: "built-in sprite id for the next sprite in the chain",
+    },
+    apply(design, call, ctx) {
+      const parentId = str(call.parent_id, "parent_id");
+      const parent = findNode(design, ctx.sceneIndex, parentId);
+      if (!isSprite(parent)) reject(`node ${parentId} is not a sprite to chain from`);
+      const def = spriteDef(str(call.sprite, "sprite"));
+      const next = addSuccessorSprite(design, ctx.sceneIndex, parentId, {
+        frames: def.frames, fps: def.fps, width: def.width, height: def.height, spriteRef: def.id,
+      });
+      if (next === design) reject("could not chain the sprite");
+      return next;
+    },
+  },
+
+  "set-chain-duration": {
+    description: "Set how long a chained sprite holds the stage (ms) before its successor starts (200..10000; the scene grows to fit).",
+    params: { node_id: "the sprite's node id (from observe)", duration_ms: "200..10000" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      const node = findNode(design, ctx.sceneIndex, nodeId);
+      if (!isSprite(node)) reject(`node ${nodeId} is not a sprite`);
+      return setChainDuration(design, ctx.sceneIndex, nodeId, num(call.duration_ms, "duration_ms"));
+    },
+  },
+
+  "remove-sprite": {
+    description: "Remove a sprite and unlink it from its chain (its predecessor re-links to its successor).",
+    params: { node_id: "the sprite's node id (from observe)" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      const next = removeSuccessor(design, ctx.sceneIndex, nodeId);
+      if (next === design) reject("could not remove the sprite");
+      return next;
     },
   },
 };

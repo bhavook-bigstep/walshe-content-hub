@@ -256,4 +256,63 @@ describe("studio-ops tool core", () => {
     expect(results[0].status).toBe("rejected");
     expect(results[0].reason).toMatch(/not found on the current scene/i);
   });
+
+  // ── Sprites + chains ──
+  it("test_add_sprite_embeds_frames_from_the_registry", () => {
+    const { design, results } = applyStudioOps(
+      newDesign("social"),
+      [{ op: "add-sprite", sprite: "walking-panda" }],
+      ctx(),
+    );
+    expect(results[0].status).toBe("applied");
+    const node = design.scenes[0].nodes[0];
+    expect(node.sprite).toBe("walking-panda");
+    expect((node.frames?.length ?? 0)).toBeGreaterThan(1); // self-contained filmstrip
+    expect(node.src).toBeTruthy();
+  });
+
+  it("test_add_sprite_rejects_an_unknown_id_with_the_choices", () => {
+    const { results } = applyStudioOps(newDesign("social"), [{ op: "add-sprite", sprite: "dragon" }], ctx());
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/unknown sprite .* choose one of: .*walking-panda/i);
+  });
+
+  it("test_chain_sprite_links_a_successor_and_grows_the_scene", () => {
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "add-sprite", sprite: "bobbing-boat" }], ctx()).design;
+    const headId = seeded.scenes[0].nodes[0].id;
+    const d0 = seeded.scenes[0].durationMs;
+    const chained = applyStudioOps(
+      seeded,
+      [{ op: "chain-sprite", parent_id: headId, sprite: "swimming-fish" }],
+      ctx(),
+    );
+    expect(chained.results[0].status).toBe("applied");
+    expect(chained.design.scenes[0].nodes).toHaveLength(2);
+    const head = chained.design.scenes[0].nodes.find((n) => n.id === headId)!;
+    expect(head.successorId).toBe(chained.design.scenes[0].nodes[1].id); // linked head → successor
+    expect(chained.design.scenes[0].durationMs).toBeGreaterThanOrEqual(d0); // scene grew to fit
+  });
+
+  it("test_chain_sprite_rejects_a_non_sprite_parent", () => {
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "write-copy", text: "Hi" }], ctx()).design;
+    const textId = seeded.scenes[0].nodes[0].id;
+    const { results } = applyStudioOps(
+      seeded,
+      [{ op: "chain-sprite", parent_id: textId, sprite: "walking-panda" }],
+      ctx(),
+    );
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/not a sprite/i);
+  });
+
+  it("test_set_chain_duration_and_remove_sprite", () => {
+    let d = applyStudioOps(newDesign("social"), [{ op: "add-sprite", sprite: "driving-car" }], ctx()).design;
+    const id = d.scenes[0].nodes[0].id;
+    const dur = applyStudioOps(d, [{ op: "set-chain-duration", node_id: id, duration_ms: 3000 }], ctx());
+    expect(dur.results[0].status).toBe("applied");
+    expect(dur.design.scenes[0].nodes[0].chainDurMs).toBe(3000);
+    const removed = applyStudioOps(dur.design, [{ op: "remove-sprite", node_id: id }], ctx());
+    expect(removed.results[0].status).toBe("applied");
+    expect(removed.design.scenes[0].nodes.find((n) => n.id === id)).toBeUndefined();
+  });
 });
