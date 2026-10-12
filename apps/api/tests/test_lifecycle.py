@@ -151,7 +151,7 @@ def test_expired_shown_greyed_but_not_usable(client, provider_headers, agent_hea
     # But NOT usable: the build path drops the expired item (404 when nothing visible remains).
     assert (
         client.post(
-            "/builder/design",
+            "/ai-agent/builder/design",
             headers=agent_headers,
             json={"prompt": "promote it", "item_ids": [entry_id]},
         ).status_code
@@ -189,7 +189,7 @@ def test_expired_dropped_from_projects_and_schedule(client, provider_headers, ag
     assert r.json()["dropped_item_ids"] == []
     assert (
         client.post(
-            "/builder/design",
+            "/ai-agent/builder/design",
             headers=agent_headers,
             json={"prompt": "promote it", "item_ids": [entry_id]},
         ).status_code
@@ -204,7 +204,7 @@ def test_expired_dropped_from_projects_and_schedule(client, provider_headers, ag
     assert r.json()["dropped_item_ids"] == [entry_id]
     assert (
         client.post(
-            "/builder/design",
+            "/ai-agent/builder/design",
             headers=agent_headers,
             json={"prompt": "promote it", "item_ids": [entry_id]},
         ).status_code

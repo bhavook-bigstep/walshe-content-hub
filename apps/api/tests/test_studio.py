@@ -69,9 +69,9 @@ def stub_node(monkeypatch):
 def test_studio_ops_spec_is_agent_only(app, stub_node):
     with TestClient(app) as c:
         provider = auth_header(c, Role.content_provider)
-        assert c.get("/studio/ops/spec").status_code == 401
-        assert c.get("/studio/ops/spec", headers=provider).status_code == 403
-        r = c.get("/studio/ops/spec", headers=auth_header(c, Role.tourism_agent))
+        assert c.get("/ai-agent/studio/ops/spec").status_code == 401
+        assert c.get("/ai-agent/studio/ops/spec", headers=provider).status_code == 403
+        r = c.get("/ai-agent/studio/ops/spec", headers=auth_header(c, Role.tourism_agent))
         assert r.status_code == 200
         assert any(o["op"] == "place" for o in r.json()["ops"])
 
@@ -81,9 +81,9 @@ def test_studio_ops_apply_is_agent_only(app, stub_node):
     with TestClient(app) as c:
         provider = auth_header(c, Role.content_provider)
         agent = auth_header(c, Role.tourism_agent)
-        assert c.post("/studio/ops/apply", json=body).status_code == 401
-        assert c.post("/studio/ops/apply", json=body, headers=provider).status_code == 403
-        assert c.post("/studio/ops/apply", json=body, headers=agent).status_code == 200
+        assert c.post("/ai-agent/studio/ops/apply", json=body).status_code == 401
+        assert c.post("/ai-agent/studio/ops/apply", json=body, headers=provider).status_code == 403
+        assert c.post("/ai-agent/studio/ops/apply", json=body, headers=agent).status_code == 200
 
 
 def test_studio_ops_apply_grounds_item_ids_through_visibility(app, stub_node):
@@ -94,7 +94,7 @@ def test_studio_ops_apply_grounds_item_ids_through_visibility(app, stub_node):
     with TestClient(app) as c:
         agent = auth_header(c, Role.tourism_agent)
         r = c.post(
-            "/studio/ops/apply",
+            "/ai-agent/studio/ops/apply",
             headers=agent,
             json={
                 "design": _DESIGN,
@@ -121,7 +121,7 @@ def test_studio_ops_apply_omits_image_ref_when_no_cover(app, stub_node):
     with TestClient(app) as c:
         agent = auth_header(c, Role.tourism_agent)
         c.post(
-            "/studio/ops/apply",
+            "/ai-agent/studio/ops/apply",
             headers=agent,
             json={"design": _DESIGN, "calls": [], "item_ids": [noimg]},
         )

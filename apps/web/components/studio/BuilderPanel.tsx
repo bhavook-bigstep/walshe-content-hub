@@ -13,7 +13,7 @@ export interface BuilderCatalogItem {
   imageSrc?: string;
 }
 
-/** Op shapes returned by POST /builder/design (apps/api/app/ai/builder.py). */
+/** Op shapes returned by POST /ai-agent/builder/design (apps/api/app/ai/builder.py). */
 type BuilderOp =
   | { op: "place"; item_id: number }
   | { op: "write-copy"; item_id: number | null; text: string };

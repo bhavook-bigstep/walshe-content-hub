@@ -24,7 +24,8 @@ from app.deps import get_db, require_role
 from app.models.user import Role, User
 from app.services.visibility import agent_visible_entries_by_ids
 
-router = APIRouter(prefix="/studio", tags=["studio"])
+# Mounted under /ai-agent (see routers/ai_agent.py); tag inherited from that group.
+router = APIRouter(prefix="/studio")
 
 _agent_only = require_role(Role.tourism_agent)
 

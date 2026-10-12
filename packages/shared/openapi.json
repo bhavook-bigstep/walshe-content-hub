@@ -4565,6 +4565,175 @@
         ]
       }
     },
+    "/ai-agent/builder/design": {
+      "post": {
+        "operationId": "design_ai_agent_builder_design_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Design Ai Agent Builder Design Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Design",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/builder/plan": {
+      "post": {
+        "description": "Build a grounded Creative Plan IR from selected items (AC41/AC42).\n\nItems are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped\n(Contract 1). The plan's claims are validated against the approved source fields.",
+        "operationId": "plan_ai_agent_builder_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Plan",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/ops/apply": {
+      "post": {
+        "description": "Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).",
+        "operationId": "studio_ops_apply_ai_agent_studio_ops_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioOpsApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioOpsApplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Apply",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/ops/spec": {
+      "get": {
+        "description": "The studio-ops tool catalog: op + description + params, for a host to build its tool list.",
+        "operationId": "studio_ops_spec_ai_agent_studio_ops_spec_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioOpsSpecResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Spec",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
     "/ai/caption": {
       "post": {
         "operationId": "caption_ai_caption_post",
@@ -5154,101 +5323,6 @@
         "summary": "Remove Term",
         "tags": [
           "blocklist"
-        ]
-      }
-    },
-    "/builder/design": {
-      "post": {
-        "operationId": "design_builder_design_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Design Builder Design Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Design",
-        "tags": [
-          "builder"
-        ]
-      }
-    },
-    "/builder/plan": {
-      "post": {
-        "description": "Build a grounded Creative Plan IR from selected items (AC41/AC42).\n\nItems are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped\n(Contract 1). The plan's claims are validated against the approved source fields.",
-        "operationId": "plan_builder_plan_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlanRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreativePlanOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Plan",
-        "tags": [
-          "builder"
         ]
       }
     },
@@ -9294,80 +9368,6 @@
         "summary": "Schedule",
         "tags": [
           "social"
-        ]
-      }
-    },
-    "/studio/ops/apply": {
-      "post": {
-        "description": "Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).",
-        "operationId": "studio_ops_apply_studio_ops_apply_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StudioOpsApplyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StudioOpsApplyResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Studio Ops Apply",
-        "tags": [
-          "studio"
-        ]
-      }
-    },
-    "/studio/ops/spec": {
-      "get": {
-        "description": "The studio-ops tool catalog: op + description + params, for a host to build its tool list.",
-        "operationId": "studio_ops_spec_studio_ops_spec_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StudioOpsSpecResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Studio Ops Spec",
-        "tags": [
-          "studio"
         ]
       }
     },

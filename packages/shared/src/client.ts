@@ -525,7 +525,7 @@ export async function buildCreativePlan(
   opts: { objective?: string; format?: string; audience?: string } = {},
 ): Promise<CreativePlan> {
   const body = { item_ids: itemIds, ...opts };
-  return (await (await send("/builder/plan", json(body))).json()) as CreativePlan;
+  return (await (await send("/ai-agent/builder/plan", json(body))).json()) as CreativePlan;
 }
 
 // --- Assistant & discovery (AC38-40) ---
@@ -625,7 +625,7 @@ export async function renderEmailHtml(design: Record<string, unknown>): Promise<
 
 /** AI/builder-generated design (opaque serialisable design model). */
 export async function builderDesign(body: DesignRequest): Promise<Record<string, unknown>> {
-  return (await (await send("/builder/design", json(body))).json()) as Record<string, unknown>;
+  return (await (await send("/ai-agent/builder/design", json(body))).json()) as Record<string, unknown>;
 }
 
 /** AI: generate an Instagram caption for one of the agent's saved compositions. Deterministic

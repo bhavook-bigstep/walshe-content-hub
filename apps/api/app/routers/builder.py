@@ -20,7 +20,8 @@ from app.observability import record_run, trace_span
 from app.observability.tracing import elapsed_ms, monotonic_ms
 from app.services.visibility import active_blocked_terms, agent_visible_entries_by_ids
 
-router = APIRouter(prefix="/builder", tags=["builder"])
+# Mounted under /ai-agent (see routers/ai_agent.py); tag inherited from that group.
+router = APIRouter(prefix="/builder")
 
 _agent_only = require_role(Role.tourism_agent)
 

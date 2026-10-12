@@ -51,7 +51,7 @@ def test_blocked_term_hides_entry_from_agent_catalog_and_search(
     assert client.get(f"/catalog/{entry_id}", headers=agent_headers).status_code == 404
     assert (
         client.post(
-            "/builder/design",
+            "/ai-agent/builder/design",
             headers=agent_headers,
             json={"prompt": "promote it", "item_ids": [entry_id]},
         ).status_code
