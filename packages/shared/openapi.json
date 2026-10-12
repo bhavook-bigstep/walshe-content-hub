@@ -2850,6 +2850,48 @@
         "title": "MediaItem",
         "type": "object"
       },
+      "NarrationAudioRequest": {
+        "description": "Scenes (durations + cues) for the preview timeline — audio only, no frames.",
+        "properties": {
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/NarrationAudioScene"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Scenes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenes"
+        ],
+        "title": "NarrationAudioRequest",
+        "type": "object"
+      },
+      "NarrationAudioScene": {
+        "properties": {
+          "duration_ms": {
+            "maximum": 60000.0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "narration": {
+            "items": {
+              "$ref": "#/components/schemas/NarrationCue"
+            },
+            "maxItems": 20,
+            "title": "Narration",
+            "type": "array"
+          }
+        },
+        "required": [
+          "duration_ms"
+        ],
+        "title": "NarrationAudioScene",
+        "type": "object"
+      },
       "NarrationCue": {
         "properties": {
           "at_ms": {
@@ -9256,6 +9298,51 @@
           }
         ],
         "summary": "Render Email Html",
+        "tags": [
+          "render"
+        ]
+      }
+    },
+    "/render/narration": {
+      "post": {
+        "description": "Render just the narration audio for a preview timeline (a WAV spanning the scenes), for\nsynced in-studio playback. 204 when there's no narration or no TTS (the client plays silently).",
+        "operationId": "render_narration_render_narration_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationAudioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Render Narration",
         "tags": [
           "render"
         ]

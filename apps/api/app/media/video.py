@@ -451,6 +451,55 @@ def _cued_audio(
     return out
 
 
+def render_narration_track(
+    scenes: list[tuple[int, list[dict[str, Any]]]],
+    work: Path,
+    *,
+    which: Callable[[str], str | None] = shutil.which,
+    runner: Callable[..., Any] = subprocess.run,
+    synth: Callable[[str], bytes | None] = lambda _t: None,
+) -> str | None:
+    """Build ONE audio track for a preview timeline (no video): every cue is laid over a silence bed
+    the length of the timeline, at its GLOBAL offset = (sum of prior scene durations) + its at_ms. A
+    WAV, so its length matches the timeline exactly (clean loop + seek against the preview clock).
+
+    Returns the WAV path, or None when there are no speakable cues or no TTS tool is available —
+    the caller then plays the preview silently.
+    """
+    if which("ffmpeg") is None:
+        raise RuntimeError("ffmpeg is not installed")
+    clips: list[tuple[int, str]] = []
+    total_ms = 0
+    k = 0
+    for duration_ms, cues in scenes:
+        for c in cues:
+            text = str(c.get("text", "")).strip()
+            if not text:
+                continue
+            path = _synth_cue(text, work / f"ncue{k}", synth, which, runner)
+            if not path:
+                return None  # no TTS available
+            clips.append((total_ms + max(0, int(c.get("at_ms", 0))), path))
+            k += 1
+        total_ms += max(0, int(duration_ms))
+    if not clips:
+        return None
+    out = str(work / "narration.wav")
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
+    cmd += ["-f", "lavfi", "-t", f"{total_ms / 1000.0}", "-i", "anullsrc=r=44100:cl=stereo"]
+    for _, path in clips:
+        cmd += ["-i", path]
+    parts, labels = [], ["0:a"]  # [0] = the silence bed (fixes the output length)
+    for idx, (delay, _) in enumerate(clips, start=1):
+        parts.append(f"[{idx}:a]adelay={delay}|{delay}[d{idx}]")
+        labels.append(f"d{idx}")
+    fc = ";".join(parts) + ";" + "".join(f"[{x}]" for x in labels)
+    fc += f"amix=inputs={len(labels)}:normalize=0:duration=first[out]"
+    cmd += ["-filter_complex", fc, "-map", "[out]", out]
+    runner(cmd, check=True, capture_output=True)
+    return out
+
+
 def render_video_frames(
     scenes: Scenes,
     frame_dirs: Sequence[str],

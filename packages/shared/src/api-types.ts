@@ -1636,6 +1636,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/render/narration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render Narration
+         * @description Render just the narration audio for a preview timeline (a WAV spanning the scenes), for
+         *     synced in-studio playback. 204 when there's no narration or no TTS (the client plays silently).
+         */
+        post: operations["render_narration_render_narration_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/render/pdf": {
         parameters: {
             query?: never;
@@ -3000,6 +3021,21 @@ export interface components {
             entry_title: string;
             /** Object Key */
             object_key: string;
+        };
+        /**
+         * NarrationAudioRequest
+         * @description Scenes (durations + cues) for the preview timeline — audio only, no frames.
+         */
+        NarrationAudioRequest: {
+            /** Scenes */
+            scenes: components["schemas"]["NarrationAudioScene"][];
+        };
+        /** NarrationAudioScene */
+        NarrationAudioScene: {
+            /** Duration Ms */
+            duration_ms: number;
+            /** Narration */
+            narration?: components["schemas"]["NarrationCue"][];
         };
         /** NarrationCue */
         NarrationCue: {
@@ -6817,6 +6853,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    render_narration_render_narration_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NarrationAudioRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

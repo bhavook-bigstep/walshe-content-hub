@@ -34,6 +34,7 @@ import {
   listMySprites,
   listDesignTemplates,
   renderVideoFrames,
+  renderNarrationAudio,
   resolveCollection,
   saveWorkspace,
   updateProject,
@@ -811,9 +812,48 @@ function StudioEditor() {
   const rafRef = useRef<number | null>(null);
   const playStartRef = useRef<{ wall: number; base: number }>({ wall: 0, base: 0 });
 
+  // Synced narration voiceover: one <audio> plays the active scene's TTS alongside the preview. The
+  // generated track is cached by a hash of the narration (duration + cues), so it only regenerates
+  // when the narration actually changes. A small spinner shows on the narration column while it's
+  // being generated (see `narrationLoading`).
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const narrationCacheRef = useRef<{ hash: string; url: string } | null>(null);
+  const [narrationLoading, setNarrationLoading] = useState(false);
+
   const stopRaf = useCallback(() => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
+  }, []);
+
+  /** Ensure the active scene's narration audio is ready (generating it with a spinner on first use
+   *  or when the narration changed) and return the <audio> element, or null when there's none. */
+  const ensureNarrationAudio = useCallback(async (scene: DesignDoc["scenes"][number]) => {
+    const cues = speakableCues(scene);
+    if (cues.length === 0) return null;
+    const hash = `${scene.durationMs}:${JSON.stringify(cues)}`;
+    if (narrationCacheRef.current?.hash === hash && audioRef.current) return audioRef.current;
+    setNarrationLoading(true);
+    try {
+      const blob = await renderNarrationAudio({
+        scenes: [
+          {
+            duration_ms: scene.durationMs,
+            narration: cues.map((c) => ({ at_ms: c.atMs, text: c.text.slice(0, 300) })),
+          },
+        ],
+      });
+      if (!blob) return null; // no TTS available → play silently
+      if (narrationCacheRef.current) URL.revokeObjectURL(narrationCacheRef.current.url);
+      const url = URL.createObjectURL(blob);
+      narrationCacheRef.current = { hash, url };
+      if (!audioRef.current) audioRef.current = new Audio();
+      audioRef.current.src = url;
+      return audioRef.current;
+    } catch {
+      return null; // preview audio is optional
+    } finally {
+      setNarrationLoading(false);
+    }
   }, []);
 
   const playLoop = useCallback(() => {
@@ -826,6 +866,7 @@ function StudioEditor() {
       if (t >= dur) {
         playStartRef.current = { wall: ts, base: 0 };
         t = 0;
+        if (audioRef.current) audioRef.current.currentTime = 0; // re-sync narration to the loop
       }
       setPlayhead(t);
       controlsRef.current?.previewAt(t, { playing: true });
@@ -833,10 +874,11 @@ function StudioEditor() {
     });
   }, [stopRaf]);
 
-  function togglePlay() {
+  async function togglePlay() {
     if (playing) {
       setPlaying(false);
       stopRaf();
+      audioRef.current?.pause();
       return;
     }
     if (playingAllRef.current) {
@@ -844,9 +886,16 @@ function StudioEditor() {
       stopRaf();
     }
     const start = playhead >= sceneDurRef.current ? 0 : playhead;
+    // Prepare the narration first (spinner shows on the narration column), then start video + audio
+    // together so they're in sync — the user asked for the voiceover to be ready before playback.
+    const audio = await ensureNarrationAudio(design.scenes[sceneIndex]);
     playStartRef.current = { wall: performance.now(), base: start };
     setPlayhead(start);
     setPlaying(true);
+    if (audio) {
+      audio.currentTime = start / 1000;
+      void audio.play().catch(() => {});
+    }
     playLoop();
   }
 
@@ -855,6 +904,8 @@ function StudioEditor() {
       setPlaying(false);
       stopRaf();
     }
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = Math.max(0, t) / 1000;
     setPlayhead(t);
     controlsRef.current?.previewAt(t > 0 ? t : null);
   }
@@ -865,9 +916,18 @@ function StudioEditor() {
     if (playingAllRef.current) return;
     setPlaying(false);
     stopRaf();
+    audioRef.current?.pause();
     setPlayhead(0);
     controlsRef.current?.previewAt(null);
   }, [sceneIndex, stopRaf]);
+
+  // Release the cached narration blob URL on unmount.
+  useEffect(
+    () => () => {
+      if (narrationCacheRef.current) URL.revokeObjectURL(narrationCacheRef.current.url);
+    },
+    [],
+  );
 
   // Cancel any running animation frame on unmount.
   useEffect(() => stopRaf, [stopRaf]);
@@ -1446,6 +1506,7 @@ function StudioEditor() {
           onScrub={scrub}
           narrate={narrate}
           onToggleNarrate={() => setNarrate((n) => !n)}
+          narrationLoading={narrationLoading}
         />
 
         {/* Right tool rail: creation tools only (icons + hover names). */}

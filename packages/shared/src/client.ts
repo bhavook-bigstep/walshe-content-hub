@@ -666,6 +666,14 @@ export async function renderVideo(body: VideoRequest): Promise<Blob> {
 }
 
 /** WYSIWYG frame-capture video: the client posts pre-rendered animation frames; server encodes. */
+/** The narration-only audio track for a preview timeline (scenes + cues), for synced playback. */
+export type NarrationAudioRequest = Schemas["NarrationAudioRequest"];
+export async function renderNarrationAudio(body: NarrationAudioRequest): Promise<Blob | null> {
+  const res = await send("/render/narration", json(body));
+  if (res.status === 204) return null; // no narration / no TTS → play silently
+  return res.blob();
+}
+
 export async function renderVideoFrames(body: FramesVideoRequest): Promise<Blob> {
   return (await send("/render/video-frames", json(body))).blob();
 }
