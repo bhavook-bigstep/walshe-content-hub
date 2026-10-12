@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   addShape,
   addText,
+  deleteGroup,
+  duplicateGroup,
   groupMemberIds,
   groupNodes,
   newDesign,
@@ -100,5 +102,41 @@ describe("studio grouping ops", () => {
     expect(released.scenes[0].nodes.every((n) => n.groupId === undefined)).toBe(true);
     // Styling survives ungrouping — only the tag is removed.
     expect(released.scenes[0].nodes.find((n) => n.id === a)!.opacity).toBe(0.4);
+  });
+
+  it("duplicates every member as a new group with fresh ids, offset above the originals", () => {
+    const d = scene3();
+    const [a, , c] = d.scenes[0].nodes.map((n) => n.id);
+    const grouped = groupNodes(d, 0, [a, c]);
+    const gid = grouped.scenes[0].nodes.find((n) => n.id === a)!.groupId!;
+
+    const dup = duplicateGroup(grouped, 0, gid);
+    // Two new nodes added (one per member); originals untouched.
+    expect(dup.scenes[0].nodes).toHaveLength(grouped.scenes[0].nodes.length + 2);
+    const copies = dup.scenes[0].nodes.filter((n) => n.groupId && n.groupId !== gid);
+    expect(copies).toHaveLength(2);
+    // The copies share ONE fresh group id, distinct from the source group, with unique ids.
+    const newGid = copies[0].groupId!;
+    expect(newGid).toMatch(/^group-\d+$/);
+    expect(newGid).not.toBe(gid);
+    expect(copies.every((n) => n.groupId === newGid)).toBe(true);
+    expect(new Set(dup.scenes[0].nodes.map((n) => n.id)).size).toBe(dup.scenes[0].nodes.length);
+    // Each copy is offset from a source member by (24, 24).
+    const srcA = grouped.scenes[0].nodes.find((n) => n.id === a)!;
+    expect(copies.some((n) => n.x === srcA.x + 24 && n.y === srcA.y + 24)).toBe(true);
+    // Pure: the original design is unchanged.
+    expect(grouped.scenes[0].nodes).toHaveLength(3);
+  });
+
+  it("deletes every member of a group, leaving non-members", () => {
+    const d = scene3();
+    const [a, b, c] = d.scenes[0].nodes.map((n) => n.id);
+    const grouped = groupNodes(d, 0, [a, c]);
+    const gid = grouped.scenes[0].nodes.find((n) => n.id === a)!.groupId!;
+
+    const pruned = deleteGroup(grouped, 0, gid);
+    expect(pruned.scenes[0].nodes.map((n) => n.id)).toEqual([b]);
+    // Pure: the original still has all three.
+    expect(grouped.scenes[0].nodes).toHaveLength(3);
   });
 });

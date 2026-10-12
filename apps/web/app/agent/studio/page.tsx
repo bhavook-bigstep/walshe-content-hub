@@ -68,6 +68,8 @@ import {
   editText,
   fillImageNode,
   isPlaceholder,
+  deleteGroup,
+  duplicateGroup,
   groupNodes,
   setGroupAnim,
   ungroupNodes,
@@ -89,7 +91,7 @@ import {
   type NodeStyle,
 } from "../../../lib/studio/ops";
 import Inspector from "../../../components/studio/Inspector";
-import GroupPanel from "../../../components/studio/GroupPanel";
+import GroupPanel, { type GroupState } from "../../../components/studio/GroupPanel";
 import BuilderDemoOverlay, { type DemoCursor } from "../../../components/studio/BuilderDemoOverlay";
 import SpriteChainPanel from "../../../components/studio/SpriteChainPanel";
 import {
@@ -797,6 +799,35 @@ function StudioEditor() {
     if (selectedScene === null || !selectedGroupId) return;
     setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { opacity }));
   }
+  function groupColor(color: string) {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => updateGroupStyle(d, selectedScene, selectedGroupId, { color }));
+  }
+  function groupDuplicate() {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => duplicateGroup(d, selectedScene, selectedGroupId));
+  }
+  function groupDelete() {
+    if (selectedScene === null || !selectedGroupId) return;
+    setDesign((d) => deleteGroup(d, selectedScene, selectedGroupId));
+    setSelected(null);
+    setSelectedIds([]);
+    setSelectedScene(null);
+  }
+  // The group's current shared values, read back from its members so the Group panel's controls
+  // reflect the live design after it's closed and reopened (not stale local state).
+  const groupState: GroupState | null = (() => {
+    if (selectedScene === null || !selectedGroupId) return null;
+    const m = (design.scenes[selectedScene]?.nodes ?? []).find((n) => n.groupId === selectedGroupId);
+    if (!m) return null;
+    const loopType = m.anim?.loop?.type;
+    return {
+      enter: m.anim?.enter?.type ?? "none",
+      loop: loopType === "pulse" || loopType === "bob" ? loopType : "none",
+      opacity: Math.round((m.opacity ?? 1) * 100),
+      color: m.color ?? "#111111",
+    };
+  })();
 
   // ── Animation preview transport (play/scrub the active scene's animation) ──────────────────────
   const sceneDurRef = useRef(DEFAULT_SCENE_DURATION_MS);
@@ -1443,10 +1474,14 @@ function StudioEditor() {
               count={selectedIds.length}
               isGroup={Boolean(selectedGroupId)}
               groupId={selectedGroupId}
+              state={groupState}
               onGroup={groupSelected}
               onUngroup={ungroupSelected}
               onAnim={groupAnim}
               onOpacity={groupOpacity}
+              onColor={groupColor}
+              onDuplicate={groupDuplicate}
+              onDelete={groupDelete}
             />
           </div>
         )}
