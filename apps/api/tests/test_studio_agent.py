@@ -172,7 +172,7 @@ def test_generate_sprite_action_returns_a_ref_the_model_can_place():
     _, apply_fn = _apply_fn_factory()
     provider = _FakeProvider(
         [
-            '{"action":"generate-sprite","concept":"a walking fox","cols":6}',
+            '{"action":"generate-sprite","concept":"a walking fox","frames":6}',
             '{"action":"finish","note":"made a sprite"}',
         ]
     )
@@ -181,7 +181,7 @@ def test_generate_sprite_action_returns_a_ref_the_model_can_place():
         apply_fn=apply_fn, observe_fn=_noop_observe, generate_sprite_fn=generate_sprite_fn,
     )
     assert [s["action"] for s in result.steps] == ["generate-sprite", "finish"]
-    assert seen == [("a walking fox", {"cols": 6})]
+    assert seen == [("a walking fox", {"frames": 6})]
     # The ref was fed back so the model can add-sprite with it.
     _, second_messages = provider.calls[1]
     assert "user:7" in second_messages[-1].text
@@ -312,7 +312,7 @@ def test_generate_sprite_endpoint_persists_an_owner_sprite(app):
         data = r.json()
         assert data["ref"] == f"user:{data['sprite']['id']}"
         assert data["provider"] == "stub"
-        assert len(data["sprite"]["frame_keys"]) >= 1  # at least one sliced frame, stored
+        assert len(data["sprite"]["frame_keys"]) == 4  # one image per motion frame (default N=4)
         # The generated sprite now appears in the caller's sprite library.
         listed = c.get("/me/sprites", headers=agent).json()
         assert any(s["id"] == data["sprite"]["id"] for s in listed)

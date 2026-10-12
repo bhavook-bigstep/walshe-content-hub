@@ -1,51 +1,92 @@
-"""Agentic sprite generation: a text concept → an LLM image sprite sheet → sliced frames → a
-persisted ``UserSprite`` the studio can place.
+"""Agentic sprite generation: a concept → N generated frame images → a persisted ``UserSprite``.
 
-It reuses the SAME slicer (``media.sprites.import_sprites``) and storage (``services.sprite_store``)
-as the manual upload route, so a generated sprite is an ordinary owner sprite (``user:<id>``) the
-studio already resolves. The image provider has a deterministic stub (no key), so the whole path is
-hermetic in tests (Contract 4) — the stub yields a single-frame solid sprite rather than an
-animation. The image-gen key comes from env only and is never logged (Contract 2).
+Image models reliably render ONE clean subject per call but do NOT produce an evenly-gridded sprite
+sheet, so instead of slicing a sheet we generate N separate frames — one per phase of the motion —
+and assemble them into the filmstrip. Each frame is normalised to a common size so they swap clean.
+It reuses the SAME storage (``services.sprite_store``) as the manual upload route, so a generated
+sprite is an ordinary owner sprite (``user:<id>``) the studio already resolves.
 
-NOTE: generated sprites are UNMODERATED decorative content — they are not catalog entries and carry
-no brand-safety guarantee; they are stored owner-scoped behind the owner-only asset gate.
+Determinism (Contract 4): the image provider has a deterministic stub (no key) — each frame prompt
+differs, so the stub yields N distinct solid frames (a visibly cycling sprite) with no network. The
+image-gen key comes from env only and is never logged (Contract 2).
+
+Cross-frame consistency is imperfect (separate diffusion calls drift), so N is capped and the per-
+frame prompt pins the subject and varies only the pose. NOTE: generated sprites are UNMODERATED
+decorative content — not catalog entries, stored owner-scoped behind the owner-only asset gate.
 """
 
 from __future__ import annotations
 
 import base64
+import io
 from dataclasses import dataclass
 
+from PIL import Image, ImageChops
 from sqlalchemy.orm import Session
 
 from app.ai.images import generate_image
 from app.config import Settings
-from app.media.sprites import import_sprites
+from app.media.sprites import ImportedSprite
 from app.models.agent_features import UserSprite
 from app.services.sprite_store import store_sprites
 from app.storage.minio_client import Storage
 
+# Keep N small: more frames = more image calls + more character drift between them.
+MIN_FRAMES = 2
+MAX_FRAMES = 8
+_FRAME_SIZE = 256  # frames are letterboxed onto a transparent square so the filmstrip is uniform
 
-def sprite_sheet_prompt(concept: str, cols: int | None, rows: int | None) -> str:
-    """Turn a sprite concept into an image prompt for a clean, sliceable filmstrip."""
-    frames = max(2, (cols or 6) * (rows or 1))
-    layout = (
-        f"a single horizontal strip of {frames} equal square frames"
-        if not rows or rows == 1
-        else f"a {cols or 1}x{rows} grid of equal square frames"
-    )
+
+def frame_prompt(concept: str, index: int, total: int) -> str:
+    """The prompt for ONE motion frame: same subject, only the pose advances through the cycle."""
+    phase = round(100 * index / max(1, total - 1)) if total > 1 else 0
     return (
-        f"A sprite sheet for 2D frame-by-frame animation of: {concept.strip()}. "
-        f"{layout} showing the motion cycle in order, evenly spaced with consistent size and "
-        "centering, flat art on a fully transparent background, no text, labels, or grid lines."
+        f"A single frame of a 2D frame-by-frame animation of {concept.strip()}. "
+        f"Frame {index + 1} of {total} — the pose at {phase}% through the motion cycle. "
+        "The SAME character throughout: identical design, colours, proportions, size and facing; "
+        "only the pose/motion changes between frames. One subject, centred, fully in view, flat "
+        "art on a plain solid pure-white background (#FFFFFF, no gradient or shadow) so the "
+        "background can be removed. No text, no borders, no grid, no duplicate copies."
     )
+
+
+# Image models won't emit clean transparency, but they DO honour a solid white background — which we
+# key out locally (pure Pillow, no external service) so the frame drops onto the canvas cleanly.
+_WHITE_THRESHOLD = 240
+
+
+def remove_white_bg(img: Image.Image, threshold: int = _WHITE_THRESHOLD) -> Image.Image:
+    """Make a near-white background transparent: pixels with every channel ≥ ``threshold`` get
+    alpha 0. Vectorised via Pillow band ops (no numpy), so it's fast enough to run per frame."""
+    img = img.convert("RGBA")
+    r, g, b, a = img.split()
+
+    def at_least(band: Image.Image) -> Image.Image:
+        return band.point(lambda p: 255 if p >= threshold else 0)
+
+    white = ImageChops.multiply(ImageChops.multiply(at_least(r), at_least(g)), at_least(b))
+    keep = white.point(lambda p: 0 if p >= 255 else 255)  # 0 where white, 255 elsewhere
+    img.putalpha(ImageChops.multiply(a, keep))  # zero the alpha on the white background
+    return img
+
+
+def _normalize_frame(png_bytes: bytes, size: int = _FRAME_SIZE) -> bytes:
+    """Key out the white background, then letterbox onto a transparent ``size × size`` canvas so all
+    frames share one box."""
+    img = remove_white_bg(Image.open(io.BytesIO(png_bytes)))
+    img.thumbnail((size, size), Image.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.paste(img, ((size - img.width) // 2, (size - img.height) // 2), img)
+    buf = io.BytesIO()
+    canvas.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 @dataclass(frozen=True)
 class GeneratedSprite:
     sprite: UserSprite
-    """The sliced frames as data: URLs — for immediate placement without a fetch (the node also
-    carries ``sprite:"user:<id>"`` so it re-resolves from storage on reload)."""
+    """The frames as data: URLs — for immediate placement without a fetch (the node also carries
+    ``sprite:"user:<id>"`` so it re-resolves from storage on reload)."""
     frames_data_urls: list[str]
     provider: str
 
@@ -57,29 +98,32 @@ def generate_sprite(
     owner_id: int,
     concept: str,
     *,
-    cols: int | None = None,
-    rows: int | None = None,
+    frames: int = 4,
     fps: int = 10,
 ) -> GeneratedSprite:
-    """Generate a sprite sheet from ``concept``, slice it, and persist it as the owner's sprite.
+    """Generate ``frames`` motion frames for ``concept`` and persist them as the owner's sprite.
 
-    Raises ``ValueError`` when the generated image yields no frames, so the caller can report it
-    without a 500. Deterministic under the image stub (no key): same concept → same sprite.
+    Raises ``ValueError`` if no frame renders. Deterministic under the image stub (no key).
     """
-    picture = generate_image(settings, sprite_sheet_prompt(concept, cols, rows))
-    imported = import_sprites(
-        picture.data,
-        content_type=picture.content_type or "image/png",
-        filename="generated.png",
-        cols=cols,
-        rows=rows,
+    n = max(MIN_FRAMES, min(MAX_FRAMES, frames))
+    provider = "stub"
+    rendered: list[bytes] = []
+    for i in range(n):
+        picture = generate_image(settings, frame_prompt(concept, i, n))
+        provider = picture.provider
+        try:
+            rendered.append(_normalize_frame(picture.data))
+        except Exception:  # noqa: BLE001 - a bad frame is skipped, not fatal (unless none render)
+            continue
+    if not rendered:
+        raise ValueError("no sprite frames could be generated")
+
+    name = concept.strip()[:60] or "Sprite"
+    imported = ImportedSprite(
+        name=name, frames=rendered, frame_width=_FRAME_SIZE, frame_height=_FRAME_SIZE
     )
-    if not imported:
-        raise ValueError("the generated image yielded no sprite frames")
-    # One sprite from the sheet (the first/only strip); store it like an upload.
-    saved = store_sprites(db, storage, owner_id, imported[:1], fps)
+    saved = store_sprites(db, storage, owner_id, [imported], fps)
     data_urls = [
-        "data:image/png;base64," + base64.b64encode(frame).decode("ascii")
-        for frame in imported[0].frames
+        "data:image/png;base64," + base64.b64encode(frame).decode("ascii") for frame in rendered
     ]
-    return GeneratedSprite(sprite=saved[0], frames_data_urls=data_urls, provider=picture.provider)
+    return GeneratedSprite(sprite=saved[0], frames_data_urls=data_urls, provider=provider)

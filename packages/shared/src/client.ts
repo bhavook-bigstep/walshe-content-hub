@@ -488,12 +488,12 @@ export interface GeneratedSprite {
   sprite: UserSprite;
 }
 
-/** Generate an animated sprite from a text concept via the image API; the server slices + stores it
- * as one of the caller's sprites (so it then appears in `listMySprites`). `cols`/`rows` hint the
- * frame grid; `fps` sets the speed. Agent-scoped (the studio's role). */
+/** Generate an animated sprite from a text concept: the server renders `frames` motion images (2–8,
+ * one per phase) and stores them as one of the caller's sprites (so it then appears in
+ * `listMySprites`). `fps` sets the speed. Agent-scoped (the studio's role). */
 export async function generateSprite(
   concept: string,
-  opts: { cols?: number; rows?: number; fps?: number } = {},
+  opts: { frames?: number; fps?: number } = {},
 ): Promise<GeneratedSprite> {
   const body = { concept, ...opts };
   return (await (await send("/ai-agent/studio/sprites/generate", json(body))).json()) as GeneratedSprite;

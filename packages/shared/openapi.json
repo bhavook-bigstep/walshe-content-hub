@@ -3814,20 +3814,6 @@
       "StudioGenerateSpriteRequest": {
         "description": "Generate an animated sprite from a concept via the image API; store it as an owner sprite.",
         "properties": {
-          "cols": {
-            "anyOf": [
-              {
-                "maximum": 16.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "frames across (grid override)",
-            "title": "Cols"
-          },
           "concept": {
             "description": "what the sprite shows + motion",
             "maxLength": 500,
@@ -3843,19 +3829,13 @@
             "title": "Fps",
             "type": "integer"
           },
-          "rows": {
-            "anyOf": [
-              {
-                "maximum": 16.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "rows (grid override)",
-            "title": "Rows"
+          "frames": {
+            "default": 4,
+            "description": "how many motion frames to generate",
+            "maximum": 8.0,
+            "minimum": 2.0,
+            "title": "Frames",
+            "type": "integer"
           }
         },
         "required": [

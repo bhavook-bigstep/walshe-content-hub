@@ -173,8 +173,7 @@ class StudioGenerateSpriteRequest(BaseModel):
     """Generate an animated sprite from a concept via the image API; store it as an owner sprite."""
 
     concept: str = Field(min_length=1, max_length=500, description="what the sprite shows + motion")
-    cols: int | None = Field(default=None, ge=1, le=16, description="frames across (grid override)")
-    rows: int | None = Field(default=None, ge=1, le=16, description="rows (grid override)")
+    frames: int = Field(default=4, ge=2, le=8, description="how many motion frames to generate")
     fps: int = Field(default=10, ge=1, le=30, description="playback speed")
 
 
@@ -192,7 +191,7 @@ def studio_generate_sprite(
     try:
         gen = generate_sprite(
             settings, db, storage, agent.id, body.concept,
-            cols=body.cols, rows=body.rows, fps=body.fps,
+            frames=body.frames, fps=body.fps,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -270,7 +269,7 @@ def studio_agent(
     def generate_sprite_fn(concept: str, opts: dict[str, Any]) -> dict[str, Any]:
         gen = generate_sprite(
             settings, db, storage, agent.id, concept,
-            cols=opts.get("cols"), rows=opts.get("rows"), fps=int(opts.get("fps", 10) or 10),
+            frames=int(opts.get("frames", 4) or 4), fps=int(opts.get("fps", 10) or 10),
         )
         ref = f"user:{gen.sprite.id}"
         generated_sprites[ref] = {

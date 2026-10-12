@@ -3393,11 +3393,6 @@ export interface components {
          */
         StudioGenerateSpriteRequest: {
             /**
-             * Cols
-             * @description frames across (grid override)
-             */
-            cols?: number | null;
-            /**
              * Concept
              * @description what the sprite shows + motion
              */
@@ -3409,10 +3404,11 @@ export interface components {
              */
             fps: number;
             /**
-             * Rows
-             * @description rows (grid override)
+             * Frames
+             * @description how many motion frames to generate
+             * @default 4
              */
-            rows?: number | null;
+            frames: number;
         };
         /**
          * StudioObserveRequest

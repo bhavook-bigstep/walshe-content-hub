@@ -83,9 +83,9 @@ def build_system_prompt(prompt: str, spec: list[dict[str, Any]], items: list[Age
         "Protocol — each reply is one of these json objects:\n"
         '  {"action":"observe","scene":0} (or "scene":"all") '
         "— I reply with an accurate word description of the scene(s) as they are now.\n"
-        '  {"action":"generate-sprite","concept":"a walking fox","cols":6} '
-        "— I generate an animated sprite from the concept and reply with its ref; then add-sprite "
-        'with {"op":"add-sprite","sprite":"<that ref>"}.\n'
+        '  {"action":"generate-sprite","concept":"a walking fox","frames":4} '
+        "— I generate an animated sprite (frames motion images, 2-8) and reply with its ref; then "
+        'add-sprite with {"op":"add-sprite","sprite":"<that ref>"}.\n'
         '  {"action":"describe_ops","ops":["place","write-copy"]} '
         "— I reply with those ops' parameters.\n"
         '  {"action":"apply","calls":[{"op":"...","...":"..."}]} '
@@ -261,7 +261,7 @@ def run_studio_agent(
                 messages.append(ChatMessage("user", "Sprite-generation budget reached."))
                 result.steps.append({"action": "generate-sprite", "skipped": "budget"})
                 continue
-            opts = {k: action[k] for k in ("cols", "rows", "fps") if k in action}
+            opts = {k: action[k] for k in ("frames", "fps") if k in action}
             try:
                 handle = generate_sprite_fn(concept, opts)
             except Exception:  # noqa: BLE001 - a generation failure must not kill the loop
