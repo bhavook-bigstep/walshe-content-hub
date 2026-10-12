@@ -3725,6 +3725,130 @@
         "title": "SendBackRequest",
         "type": "object"
       },
+      "StudioAgentRequest": {
+        "description": "Run the inbuilt Builder agent: edit `design` to satisfy `prompt`, grounded in `item_ids`.",
+        "properties": {
+          "design": {
+            "additionalProperties": true,
+            "description": "the DesignDoc to edit",
+            "title": "Design",
+            "type": "object"
+          },
+          "item_ids": {
+            "description": "catalog items the agent may use",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "max_rounds": {
+            "default": 6,
+            "description": "tool-loop budget",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Max Rounds",
+            "type": "integer"
+          },
+          "prompt": {
+            "description": "the creative brief",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "scene_index": {
+            "default": 0,
+            "description": "the scene the agent edits",
+            "minimum": 0.0,
+            "title": "Scene Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "design",
+          "prompt"
+        ],
+        "title": "StudioAgentRequest",
+        "type": "object"
+      },
+      "StudioAgentResponse": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "integer"
+          },
+          "design": {
+            "additionalProperties": true,
+            "title": "Design",
+            "type": "object"
+          },
+          "finished": {
+            "title": "Finished",
+            "type": "boolean"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "design",
+          "steps",
+          "applied",
+          "finished",
+          "provider"
+        ],
+        "title": "StudioAgentResponse",
+        "type": "object"
+      },
+      "StudioObserveRequest": {
+        "description": "Observe a design in words — an accurate per-scene description derived from its state.",
+        "properties": {
+          "design": {
+            "additionalProperties": true,
+            "description": "the DesignDoc to observe",
+            "title": "Design",
+            "type": "object"
+          },
+          "item_ids": {
+            "description": "catalog items, to label images by title",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "scene_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "one scene (omit = all scenes)",
+            "title": "Scene Index"
+          }
+        },
+        "required": [
+          "design"
+        ],
+        "title": "StudioObserveRequest",
+        "type": "object"
+      },
       "StudioOpResultOut": {
         "properties": {
           "op": {
@@ -4660,6 +4784,53 @@
         ]
       }
     },
+    "/ai-agent/studio/agent": {
+      "post": {
+        "description": "Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.\n\nThe op param schemas live in the engine spec and reach the model only via the loop's\n`describe_ops` step — the system prompt carries just the op index, to spare the context window.",
+        "operationId": "studio_agent_ai_agent_studio_agent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioAgentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
     "/ai-agent/studio/ops/apply": {
       "post": {
         "description": "Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).",
@@ -4702,6 +4873,55 @@
           }
         ],
         "summary": "Studio Ops Apply",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/ops/observe": {
+      "post": {
+        "description": "Derive the natural-language description of each scene (read-only) so a host can OBSERVE the\nworkspace in words instead of analysing a render. Images are labelled by their catalog title.",
+        "operationId": "studio_ops_observe_ai_agent_studio_ops_observe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioObserveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Ops Observe Ai Agent Studio Ops Observe Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Observe",
         "tags": [
           "Agent Tools"
         ]

@@ -20,7 +20,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import clock
-from app.deps import get_db, require_role
+from app.ai.factory import get_provider
+from app.ai.studio_agent import AgentItem, run_studio_agent
+from app.config import Settings
+from app.deps import get_db, get_settings, require_role
 from app.models.user import Role, User
 from app.services.visibility import agent_visible_entries_by_ids
 
@@ -46,6 +49,19 @@ def _node_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         resp = client.post(f"{_STUDIO_OPS_BASE}{path}", json=payload)
         resp.raise_for_status()
         return resp.json()
+
+
+def _resolve_grounding(rows: list[Any]) -> tuple[list[str], dict[str, str]]:
+    """The agent's VISIBLE ids + their real image refs — resolved here, never trusted from a client
+    (Contract 1). An approved item with no image yields an allowed id but no src, so `place` can't
+    fabricate one."""
+    allowed = [str(r.id) for r in rows]
+    image_src_by_id: dict[str, str] = {}
+    for r in rows:
+        ref = r.cover_object_key or (r.asset_keys[0] if r.asset_keys else "")
+        if ref:
+            image_src_by_id[str(r.id)] = ref
+    return allowed, image_src_by_id
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────────────────────────
@@ -102,14 +118,8 @@ def studio_ops_apply(
     now: datetime = Depends(clock.now),
 ) -> dict[str, Any]:
     """Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1)."""
-    # Resolve the allowed items + their real image references here — never trust the client's list.
     rows = agent_visible_entries_by_ids(db, agent, body.item_ids, now=now)
-    allowed = [str(r.id) for r in rows]
-    image_src_by_id: dict[str, str] = {}
-    for r in rows:
-        ref = r.cover_object_key or (r.asset_keys[0] if r.asset_keys else "")
-        if ref:
-            image_src_by_id[str(r.id)] = ref
+    allowed, image_src_by_id = _resolve_grounding(rows)
     payload = {
         "design": body.design,
         "sceneIndex": body.scene_index,
@@ -121,3 +131,121 @@ def studio_ops_apply(
         return _node_post("/api/studio-ops/apply", payload)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
+
+
+class StudioObserveRequest(BaseModel):
+    """Observe a design in words — an accurate per-scene description derived from its state."""
+
+    design: dict[str, Any] = Field(description="the DesignDoc to observe")
+    scene_index: int | None = Field(default=None, ge=0, description="one scene (omit = all scenes)")
+    item_ids: list[int] = Field(
+        default_factory=list, max_length=50, description="catalog items, to label images by title"
+    )
+
+
+@router.post("/ops/observe")
+def studio_ops_observe(
+    body: StudioObserveRequest,
+    agent: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    now: datetime = Depends(clock.now),
+) -> dict[str, Any]:
+    """Derive the natural-language description of each scene (read-only) so a host can OBSERVE the
+    workspace in words instead of analysing a render. Images are labelled by their catalog title."""
+    rows = agent_visible_entries_by_ids(db, agent, body.item_ids, now=now)
+    labels = {str(r.id): r.title for r in rows}
+    payload: dict[str, Any] = {"design": body.design, "labelsById": labels}
+    if body.scene_index is not None:
+        payload["sceneIndex"] = body.scene_index
+    try:
+        return _node_post("/api/studio-ops/observe", payload)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
+
+
+# ── Inbuilt agent loop ────────────────────────────────────────────────────────────────────────────
+class StudioAgentRequest(BaseModel):
+    """Run the inbuilt Builder agent: edit `design` to satisfy `prompt`, grounded in `item_ids`."""
+
+    design: dict[str, Any] = Field(description="the DesignDoc to edit")
+    prompt: str = Field(min_length=1, max_length=2000, description="the creative brief")
+    item_ids: list[int] = Field(
+        default_factory=list, max_length=50, description="catalog items the agent may use"
+    )
+    scene_index: int = Field(default=0, ge=0, description="the scene the agent edits")
+    max_rounds: int = Field(default=6, ge=1, le=12, description="tool-loop budget")
+
+
+class StudioAgentResponse(BaseModel):
+    design: dict[str, Any]
+    steps: list[dict[str, Any]]  # the loop transcript (describe_ops / apply / finish)
+    applied: int
+    finished: bool
+    provider: str
+
+
+@router.post("/agent", response_model=StudioAgentResponse)
+def studio_agent(
+    body: StudioAgentRequest,
+    agent: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    now: datetime = Depends(clock.now),
+) -> dict[str, Any]:
+    """Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.
+
+    The op param schemas live in the engine spec and reach the model only via the loop's
+    `describe_ops` step — the system prompt carries just the op index, to spare the context window.
+    """
+    rows = agent_visible_entries_by_ids(db, agent, body.item_ids, now=now)
+    allowed, image_src_by_id = _resolve_grounding(rows)
+    items = [AgentItem(id=r.id, title=r.title, destination=r.destination or "") for r in rows]
+    labels = {str(r.id): r.title for r in rows}
+
+    def apply_fn(
+        design: dict[str, Any], calls: list[dict[str, Any]], scene_index: int
+    ) -> dict[str, Any]:
+        payload = {
+            "design": design,
+            "sceneIndex": scene_index,
+            "calls": calls,
+            "allowedCatalogIds": allowed,
+            "imageSrcById": image_src_by_id,
+        }
+        try:
+            return _node_post("/api/studio-ops/apply", payload)
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
+
+    def observe_fn(design: dict[str, Any], scene_index: int | None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"design": design, "labelsById": labels}
+        if scene_index is not None:
+            payload["sceneIndex"] = scene_index
+        try:
+            return _node_post("/api/studio-ops/observe", payload)
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
+
+    try:
+        spec = _node_get("/api/studio-ops/spec").get("ops", [])
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
+
+    result = run_studio_agent(
+        design=body.design,
+        prompt=body.prompt,
+        items=items,
+        spec=spec,
+        provider=get_provider(settings),
+        apply_fn=apply_fn,
+        observe_fn=observe_fn,
+        scene_index=body.scene_index,
+        max_rounds=body.max_rounds,
+    )
+    return {
+        "design": result.design,
+        "steps": result.steps,
+        "applied": result.applied,
+        "finished": result.finished,
+        "provider": result.provider,
+    }

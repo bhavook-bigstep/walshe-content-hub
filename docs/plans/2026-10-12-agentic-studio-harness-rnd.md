@@ -96,3 +96,37 @@ Anchored in code at `apps/web/lib/studio/studio-ops.ts` (the `const OPS` catalog
 slices (e.g. node-editing first, then animation, then groups), each slice landing with its own
 tests + a spec round-trip, so `GET /ai-agent/studio/ops/spec` stays the single source of truth for
 host tool lists.
+
+---
+
+## 9. Agent architecture — one loop: act + observe, sub-agents later (2026-10-12)
+
+The AI Builder is **one loop** with tools to **act on** and **observe** the workspace. Shipped as
+`apps/api/app/ai/studio_agent.py` + `POST /ai-agent/studio/agent` (the *inbuilt* host; an MCP host
+runs its own loop over `/ai-agent/studio/ops/*`). The protocol is an **open set of action kinds** —
+extend the loop by adding a kind, never a parallel endpoint.
+
+| Capability | Action kind | Status |
+| --- | --- | --- |
+| Disclose op params on demand (context-cheap) | `describe_ops` | ✅ done |
+| Act on the workspace (grounded, validated) | `apply` | ✅ done |
+| Stop when the brief is met | `finish` | ✅ done |
+| Observe — **passive** summary pushed after each apply | (feedback) | ✅ done |
+| Observe — **active** pull: word description of each scene (no render) | `observe` | ✅ done |
+| Sub-agents as tool-calls (critic, legibility check → small JSON verdict) | `call_subagent` | ⏳ later, "when the need calls for it" |
+
+**Observability by description, not by pixels (2026-10-12).** Rather than render a scene and analyse
+the image, each scene carries a DERIVED natural-language description (`apps/web/lib/studio/describe.ts`,
+`describeScene`): a pure projection of scene state (text + position + size, images named by catalog
+title, shapes, background, entrances/loops/sprite-chains with timing, group nesting). It is never
+hand-patched — it is RECOMPUTED from the scene whenever the scene changes, which guarantees accuracy.
+Refreshed on web autosave (manual edits) and recomputed on demand by the `observe` tool
+(`POST /api/studio-ops/observe` → facade `POST /ai-agent/studio/ops/observe`); stored on
+`scene.description` and round-tripped via migrate/clone. No server-side rasterizer and no provider
+multimodal support were needed (both confirmed absent today) — the structured model makes words more
+accurate and far cheaper than vision.
+
+**Principles carried forward:** progressive disclosure (ask for the slice you need), never echo the
+full `DesignDoc` into model context, every acting op stays grounded (Contract 1), and every new
+capability lands with hermetic tests via a scripted fake provider + fake act/observe fns. Sub-agents
+reuse the reference repo's fan-out pattern (§1–§5): one unit per call, one message, small-JSON return.

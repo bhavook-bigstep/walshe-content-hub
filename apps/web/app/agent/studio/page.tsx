@@ -53,6 +53,7 @@ import { resolveUserSprites } from "../../../lib/studio/resolve-sprites";
 import { resolveSprites } from "../../../lib/studio/graphics";
 import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
 import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/studio/formats";
+import { refreshDescriptions } from "../../../lib/studio/describe";
 import {
   DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
@@ -120,6 +121,13 @@ async function toPanelItem(e: Entry): Promise<BuilderCatalogItem> {
 function toWorkspaceIn(ws: WorkspaceResolved, design: DesignDoc): WorkspaceIn {
   const fmt = isFormatName(design.format) ? design.format : "social";
   const dims = getFormatPreset(fmt);
+  // Refresh each scene's derived description from current state so a manual edit (move, add a sprite,
+  // pull in an animation) keeps the stored description accurate. Label images by their catalog title.
+  const labels: Record<string, string> = {};
+  for (const c of ws.reference_content.collections ?? []) {
+    for (const e of c.entries ?? []) labels[String(e.id)] = e.title;
+  }
+  design = refreshDescriptions(design, labels);
   return {
     metadata: { ...ws.metadata, format: fmt, width: dims.width, height: dims.height },
     reference_content: {

@@ -271,6 +271,10 @@ export interface Scene extends DesignPage {
   /** nested-group registry (AC1/AC3): group ids + parent links + group-level animation intent.
    * Optional so pre-existing scenes (and tests) that omit it stay valid (AC8). */
   groups?: SceneGroup[];
+  /** a maintained natural-language description of what the scene looks like — DERIVED from the scene
+   * state (lib/studio/describe.ts), refreshed on every change, never hand-edited. It lets an agent
+   * "observe" the workspace in words instead of analysing a render. Optional; recomputed on demand. */
+  description?: string;
 }
 
 /** Normalise a scene's narration to cues (handles the legacy single-string form). Keeps blank-text
@@ -388,6 +392,7 @@ export function cloneDesign(design: DesignDoc): DesignDoc {
       background: s.background,
       nodes: s.nodes.map((n) => ({ ...n })),
       groups: s.groups ? s.groups.map((g) => ({ ...g, ...(g.anim ? { anim: { ...g.anim } } : {}) })) : undefined,
+      description: s.description,
     })),
   };
 }
@@ -1741,6 +1746,7 @@ export function migrateDesign(raw: unknown): DesignDoc | null {
       background: typeof page.background === "string" ? page.background : undefined,
       nodes,
       groups: groups.length ? groups : undefined,
+      description: typeof page.description === "string" ? page.description : undefined,
     };
   });
   return { format, width, height, scenes };

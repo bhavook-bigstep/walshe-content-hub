@@ -84,6 +84,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-agent/studio/agent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent
+         * @description Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.
+         *
+         *     The op param schemas live in the engine spec and reach the model only via the loop's
+         *     `describe_ops` step — the system prompt carries just the op index, to spare the context window.
+         */
+        post: operations["studio_agent_ai_agent_studio_agent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-agent/studio/ops/apply": {
         parameters: {
             query?: never;
@@ -98,6 +121,27 @@ export interface paths {
          * @description Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).
          */
         post: operations["studio_ops_apply_ai_agent_studio_ops_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/ops/observe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Ops Observe
+         * @description Derive the natural-language description of each scene (read-only) so a host can OBSERVE the
+         *     workspace in words instead of analysing a render. Images are labelled by their catalog title.
+         */
+        post: operations["studio_ops_observe_ai_agent_studio_ops_observe_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3269,6 +3313,81 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * StudioAgentRequest
+         * @description Run the inbuilt Builder agent: edit `design` to satisfy `prompt`, grounded in `item_ids`.
+         */
+        StudioAgentRequest: {
+            /**
+             * Design
+             * @description the DesignDoc to edit
+             */
+            design: {
+                [key: string]: unknown;
+            };
+            /**
+             * Item Ids
+             * @description catalog items the agent may use
+             */
+            item_ids?: number[];
+            /**
+             * Max Rounds
+             * @description tool-loop budget
+             * @default 6
+             */
+            max_rounds: number;
+            /**
+             * Prompt
+             * @description the creative brief
+             */
+            prompt: string;
+            /**
+             * Scene Index
+             * @description the scene the agent edits
+             * @default 0
+             */
+            scene_index: number;
+        };
+        /** StudioAgentResponse */
+        StudioAgentResponse: {
+            /** Applied */
+            applied: number;
+            /** Design */
+            design: {
+                [key: string]: unknown;
+            };
+            /** Finished */
+            finished: boolean;
+            /** Provider */
+            provider: string;
+            /** Steps */
+            steps: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * StudioObserveRequest
+         * @description Observe a design in words — an accurate per-scene description derived from its state.
+         */
+        StudioObserveRequest: {
+            /**
+             * Design
+             * @description the DesignDoc to observe
+             */
+            design: {
+                [key: string]: unknown;
+            };
+            /**
+             * Item Ids
+             * @description catalog items, to label images by title
+             */
+            item_ids?: number[];
+            /**
+             * Scene Index
+             * @description one scene (omit = all scenes)
+             */
+            scene_index?: number | null;
+        };
         /** StudioOpResultOut */
         StudioOpResultOut: {
             /** Op */
@@ -3758,6 +3877,39 @@ export interface operations {
             };
         };
     };
+    studio_agent_ai_agent_studio_agent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioAgentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     studio_ops_apply_ai_agent_studio_ops_apply_post: {
         parameters: {
             query?: never;
@@ -3778,6 +3930,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudioOpsApplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_ops_observe_ai_agent_studio_ops_observe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioObserveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
