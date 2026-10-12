@@ -80,9 +80,15 @@ def build_system_prompt(prompt: str, spec: list[dict[str, Any]], items: list[Age
         f"{_index(spec)}\n\n"
         "Approved catalog item ids you may reference (use ONLY these ids):\n"
         f"{_catalog_lines(items)}\n\n"
+        "On EVERY action include a short \"note\" (a 3–8 word phrase) saying what you're doing, "
+        'e.g. "note":"Placing the hero photo and headline" — it is shown to the user as live '
+        "progress.\n\n"
         "Protocol — each reply is one of these json objects:\n"
         '  {"action":"observe","scene":0} (or "scene":"all") '
         "— I reply with an accurate word description of the scene(s) as they are now.\n"
+        '  {"action":"select-scene","scene":1} '
+        "— switch the scene you edit. For a multi-scene reel: add-scene to append a blank scene, "
+        "then select-scene to build into it.\n"
         '  {"action":"generate-sprite","concept":"a walking fox","frames":4} '
         "— I generate an animated sprite (frames motion images, 2-8) and reply with its ref; then "
         'add-sprite with {"op":"add-sprite","sprite":"<that ref>"}.\n'
@@ -94,9 +100,10 @@ def build_system_prompt(prompt: str, spec: list[dict[str, Any]], items: list[Age
         "Rules: you have only a few turns, so be EFFICIENT — describe the ops you need once, then "
         "build the whole design in ONE apply with many calls (don't do one op per turn). A good "
         "social post sets a background colour, a bold headline (write-copy), PLACES every approved "
-        "item (place) with a short grounded caption, and a tasteful accent; then finish. Reference "
-        "only approved ids; never invent facts. Reply with one json object only — no prose, no "
-        "markdown.\n\n"
+        "item (place) with a short grounded caption, and a tasteful accent; then finish. For a "
+        "reel or story, build this scene, then add-scene + select-scene to build each next one. "
+        "Reference only approved ids; never invent facts. Reply with one json object only — no "
+        "prose, no markdown.\n\n"
         f"BRIEF: {prompt.strip()}"
     )
 
@@ -156,6 +163,7 @@ def _deterministic_compose(
     items: list[AgentItem],
     scene_index: int,
     apply_fn: ApplyFn,
+    on_step: "Callable[[dict[str, Any]], None] | None" = None,
 ) -> StudioAgentResult:
     """Contract 4 fallback (stub / provider failure): one fixed, grounded compose, then done.
 
@@ -170,15 +178,15 @@ def _deterministic_compose(
         calls.append({"op": "place", "item_id": it.id})
         calls.append({"op": "write-copy", "text": it.title, "item_id": it.id})
     res = apply_fn(design, calls, scene_index)
+    steps = [
+        {"action": "apply", "results": res.get("results", []), "note": "Composing the layout"},
+        {"action": "finish", "note": "deterministic compose"},
+    ]
+    if on_step is not None:
+        for s in steps:
+            on_step(s)
     return StudioAgentResult(
-        design=res["design"],
-        steps=[
-            {"action": "apply", "results": res.get("results", [])},
-            {"action": "finish", "note": "deterministic compose"},
-        ],
-        applied=1,
-        finished=True,
-        provider="stub",
+        design=res["design"], steps=steps, applied=1, finished=True, provider="stub"
     )
 
 
@@ -196,21 +204,32 @@ def run_studio_agent(
     max_rounds: int = 10,
     max_applies: int = 6,
     max_generates: int = 3,
+    on_step: "Callable[[dict[str, Any]], None] | None" = None,
 ) -> StudioAgentResult:
     """Run the progressive-disclosure tool loop and return the edited design + the step transcript.
 
     ``apply_fn`` already grounds every call (Contract 1); ``spec`` is the full op catalog held
-    server-side and disclosed to the model only via ``describe_ops``.
+    server-side and disclosed to the model only via ``describe_ops``. ``on_step`` (optional) is
+    called with each step as it happens, so a host can stream live progress (the agent's notes).
     """
+    result = StudioAgentResult(design=design, provider=provider.name)
+
+    def emit(step: dict[str, Any], note: Any = "") -> None:
+        if note:
+            step.setdefault("note", str(note))
+        result.steps.append(step)
+        if on_step is not None:
+            on_step(step)
+
     if provider.name == "stub":
-        return _deterministic_compose(design, prompt, items, scene_index, apply_fn)
+        return _deterministic_compose(design, prompt, items, scene_index, apply_fn, on_step)
 
     spec_by_op = {o["op"]: o for o in spec if o.get("op")}
     system = build_system_prompt(prompt, spec, items)
     messages: list[ChatMessage] = [
         ChatMessage("user", "Begin. Edit the design to satisfy the BRIEF.")
     ]
-    result = StudioAgentResult(design=design, provider=provider.name)
+    current_scene = scene_index
     generated = 0
 
     for _ in range(max_rounds):
@@ -219,7 +238,9 @@ def run_studio_agent(
         except Exception:  # noqa: BLE001 - a flaky provider degrades to the deterministic path
             logger.info("studio-agent provider call failed; falling back to deterministic compose")
             if result.applied == 0:
-                return _deterministic_compose(design, prompt, items, scene_index, apply_fn)
+                return _deterministic_compose(
+                    design, prompt, items, scene_index, apply_fn, on_step
+                )
             result.finished = True
             return result
 
@@ -232,25 +253,46 @@ def run_studio_agent(
                     'Reply with exactly one json object: describe_ops, apply, or finish.',
                 )
             )
-            result.steps.append({"action": "invalid"})
+            emit({"action": "invalid"})
             continue
 
         kind = action.get("action")
+        note = action.get("note", "")
         if kind == "finish":
-            result.steps.append({"action": "finish", "note": str(action.get("note", ""))})
+            emit({"action": "finish", "note": str(note)})
             result.finished = True
             break
 
         if kind == "observe":
-            target = action.get("scene", scene_index)
+            target = action.get("scene", current_scene)
             if target == "all":
                 scene_arg = None
             else:
-                scene_arg = target if isinstance(target, int) else scene_index
+                scene_arg = target if isinstance(target, int) else current_scene
             observation = observe_fn(result.design, scene_arg)
-            result.steps.append({"action": "observe", "scene": target})
+            emit({"action": "observe", "scene": target}, note)
             messages.append(ChatMessage("assistant", json.dumps(action)))
             messages.append(ChatMessage("user", json.dumps(observation)))
+            continue
+
+        if kind == "select-scene":
+            scenes = result.design.get("scenes") or []
+            target = action.get("scene")
+            if isinstance(target, int) and 0 <= target < len(scenes):
+                current_scene = target
+                emit({"action": "select-scene", "scene": current_scene}, note)
+                messages.append(ChatMessage("assistant", json.dumps(action)))
+                messages.append(
+                    ChatMessage("user", json.dumps({"editing_scene": current_scene}))
+                )
+            else:
+                emit({"action": "select-scene", "error": "out of range"})
+                messages.append(
+                    ChatMessage(
+                        "user",
+                        f"scene must be 0..{len(scenes) - 1}; add-scene first if you need more.",
+                    )
+                )
             continue
 
         if kind == "generate-sprite":
@@ -262,7 +304,7 @@ def run_studio_agent(
                 continue
             if generated >= max_generates:
                 messages.append(ChatMessage("user", "Sprite-generation budget reached."))
-                result.steps.append({"action": "generate-sprite", "skipped": "budget"})
+                emit({"action": "generate-sprite", "skipped": "budget"})
                 continue
             opts = {k: action[k] for k in ("frames", "fps") if k in action}
             try:
@@ -270,17 +312,17 @@ def run_studio_agent(
             except Exception:  # noqa: BLE001 - a generation failure must not kill the loop
                 logger.info("studio-agent sprite generation failed")
                 messages.append(ChatMessage("user", "Sprite generation failed; try another way."))
-                result.steps.append({"action": "generate-sprite", "error": "generation failed"})
+                emit({"action": "generate-sprite", "error": "generation failed"})
                 continue
             generated += 1
-            result.steps.append({"action": "generate-sprite", "ref": handle.get("ref")})
+            emit({"action": "generate-sprite", "ref": handle.get("ref")}, note)
             messages.append(ChatMessage("assistant", json.dumps(action)))
             messages.append(ChatMessage("user", json.dumps({"sprite": handle})))
             continue
 
         if kind == "describe_ops":
             payload = _params_for(spec_by_op, action.get("ops", []))
-            result.steps.append({"action": "describe_ops", "ops": list(payload)})
+            emit({"action": "describe_ops", "ops": list(payload)}, note)
             messages.append(ChatMessage("assistant", json.dumps(action)))
             messages.append(ChatMessage("user", json.dumps({"params": payload})))
             continue
@@ -288,18 +330,21 @@ def run_studio_agent(
         if kind == "apply":
             if result.applied >= max_applies:
                 messages.append(ChatMessage("user", "Apply budget reached — finish now."))
-                result.steps.append({"action": "apply", "skipped": "budget"})
+                emit({"action": "apply", "skipped": "budget"})
                 continue
             calls = action.get("calls")
             calls = calls if isinstance(calls, list) else []
-            res = apply_fn(result.design, calls, scene_index)
+            res = apply_fn(result.design, calls, current_scene)
             result.design = res["design"]
             result.applied += 1
-            result.steps.append({"action": "apply", "results": res.get("results", [])})
+            emit(
+                {"action": "apply", "scene": current_scene, "results": res.get("results", [])},
+                note,
+            )
             feedback = {
                 "results": res.get("results", []),
                 "valid": res.get("valid"),
-                "design": _summarize(result.design, scene_index),
+                "design": _summarize(result.design, current_scene),
             }
             messages.append(ChatMessage("assistant", json.dumps(action)))
             messages.append(ChatMessage("user", json.dumps(feedback)))
@@ -309,6 +354,6 @@ def run_studio_agent(
         messages.append(
             ChatMessage("user", "Unknown action. Use describe_ops, apply, or finish.")
         )
-        result.steps.append({"action": "unknown"})
+        emit({"action": "unknown"})
 
     return result
