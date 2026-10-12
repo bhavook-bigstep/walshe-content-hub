@@ -833,6 +833,7 @@ function StudioEditor() {
     const hash = `${scene.durationMs}:${JSON.stringify(cues)}`;
     if (narrationCacheRef.current?.hash === hash && audioRef.current) return audioRef.current;
     setNarrationLoading(true);
+    const startedAt = performance.now();
     try {
       const blob = await renderNarrationAudio({
         scenes: [
@@ -852,6 +853,10 @@ function StudioEditor() {
     } catch {
       return null; // preview audio is optional
     } finally {
+      // Keep the spinner visible for a perceptible minimum, so a fast (local) TTS still reads as
+      // "generating" rather than flashing by.
+      const remain = 600 - (performance.now() - startedAt);
+      if (remain > 0) await new Promise((r) => setTimeout(r, remain));
       setNarrationLoading(false);
     }
   }, []);

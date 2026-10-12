@@ -230,19 +230,22 @@ export default function SceneEdgeControls({
             <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">
               Narration
               {narrationLoading && (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  className="animate-spin text-walshe-teal"
-                  aria-label="Generating voiceover"
-                >
-                  <path d="M12 3a9 9 0 1 0 9 9" />
-                </svg>
+                <span className="flex items-center gap-1 normal-case text-walshe-teal" role="status">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    className="animate-spin"
+                    aria-hidden
+                  >
+                    <path d="M12 3a9 9 0 1 0 9 9" />
+                  </svg>
+                  <span className="text-[10px] font-medium tracking-normal">generating voiceover…</span>
+                </span>
               )}
             </span>
             <div className="flex items-center gap-2.5">
