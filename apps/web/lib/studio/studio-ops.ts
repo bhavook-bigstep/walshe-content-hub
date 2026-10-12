@@ -16,18 +16,30 @@ import {
   deleteNode,
   duplicateNode,
   editText,
+  enterTrack,
+  groupNodes,
   moveNode,
   recomposeGroups,
   reorderNode,
   resizeNode,
   scenesAsPages,
   setBackground,
+  setGroupAnim,
+  setNodeAnim,
   setSceneDuration,
+  ungroupNodes,
   updateNode,
   migrateDesign,
+  EASINGS,
+  ENTER_TYPES,
+  LOOP_TYPES,
   type DesignDoc,
   type DesignNode,
+  type Easing,
+  type EnterType,
   type LayerMove,
+  type LoopType,
+  type NodeAnimation,
   type NodeStyle,
   type ShapeKind,
 } from "./ops";
@@ -103,6 +115,9 @@ interface OpDef {
 
 const SHAPES: ReadonlySet<string> = new Set<ShapeKind>(["rect", "ellipse", "line"]);
 const LAYER_MOVES: ReadonlySet<string> = new Set<LayerMove>(["forward", "backward", "front", "back"]);
+const ENTERS: ReadonlySet<string> = new Set<EnterType>(ENTER_TYPES);
+const LOOPS: ReadonlySet<string> = new Set<LoopType>(LOOP_TYPES);
+const EASES: ReadonlySet<string> = new Set<Easing>(EASINGS);
 // Style keys an agent may patch, split by value type so each is validated with str()/num().
 const STR_STYLE = ["color", "fontFamily", "fontWeight", "fontStyle", "textAlign", "stroke"] as const;
 const NUM_STYLE = ["fontSize", "lineHeight", "opacity", "angle", "radius", "strokeWidth"] as const;
@@ -117,9 +132,12 @@ function findNode(design: DesignDoc, sceneIndex: number, nodeId: string): Design
 
 // TODO(agent-ops coverage): this catalog is a GROWING subset en route to full Studio parity. The
 // pure op layer in ./ops.ts exposes ~50+ operations; keep extending so the AI Builder/MCP can drive
-// everything a human can. Covered so far: add ops (write-copy/place/add-shape/set-background) + scene
-// ops + node editing (edit/move/resize/style/delete/duplicate/reorder). Remaining gaps:
-//   • Animation: setNodeAnim / enterTrack (entrance + emphasis loop), per-node keyframes.
+// everything a human can. Covered so far: add ops (write-copy/place/add-shape/set-background), scene
+// ops, node editing (edit/move/resize/style/delete/duplicate/reorder), animation (animate-node +
+// clear-animation), grouping (group-nodes/ungroup/set-group-anim). Remaining gaps:
+//   • Sprites + chains (addGraphic, addSuccessorSprite, setChainDuration, removeSuccessor).
+//   • Curves (addCurve + anchor/point editing); image fill (addPlaceholder, fillImageNode).
+//   • Raw keyframe dope-sheet editing (per-node AnimKeyframe tracks beyond the entrance preset).
 //   • Groups & nesting: groupNodes, ungroupNodes, renameGroup, setGroupAnim, updateGroupStyle,
 //     deleteGroup, duplicateGroup (recompose stays automatic).
 //   • Sprites: addGraphic + sprite chains (addSuccessorSprite, setChainDuration, removeSuccessor).
@@ -286,6 +304,131 @@ const OPS: Record<string, OpDef> = {
       const move = str(call.move, "move");
       if (!LAYER_MOVES.has(move)) reject("move must be one of front, back, forward, backward");
       return reorderNode(design, ctx.sceneIndex, nodeId, move as LayerMove);
+    },
+  },
+
+  // ── Animation (entrance + emphasis loop on an existing node) ──
+  "animate-node": {
+    description: "Give an existing node an entrance animation and/or an emphasis loop. At least one of enter or loop is required.",
+    params: {
+      node_id: "the node's id (from observe)",
+      enter: "optional entrance: fade | rise | slide-left | slide-right | scale",
+      start_ms: "optional entrance start (ms, default 0)",
+      duration_ms: "optional entrance duration (ms, default 600)",
+      ease: "optional: linear | easeIn | easeOut | easeInOut | back | bounce",
+      loop: "optional emphasis loop: pulse|bob|sway|waddle|float|spin|twinkle|drift|rock",
+      loop_period_ms: "optional loop period (ms, default 1200)",
+    },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      const node = findNode(design, ctx.sceneIndex, nodeId);
+      let enter: EnterType | undefined;
+      if (call.enter != null) {
+        const e = str(call.enter, "enter");
+        if (!ENTERS.has(e)) reject(`enter must be one of ${ENTER_TYPES.join(", ")}`);
+        enter = e as EnterType;
+      }
+      let loopType: LoopType | undefined;
+      if (call.loop != null) {
+        const l = str(call.loop, "loop");
+        if (!LOOPS.has(l)) reject(`loop must be one of ${LOOP_TYPES.join(", ")}`);
+        loopType = l as LoopType;
+      }
+      if (!enter && !loopType) reject("animate-node needs an entrance (enter) or an emphasis loop");
+      let ease: Easing | undefined;
+      if (call.ease != null) {
+        const es = str(call.ease, "ease");
+        if (!EASES.has(es)) reject(`ease must be one of ${EASINGS.join(", ")}`);
+        ease = es as Easing;
+      }
+      const startMs = Math.max(0, num(call.start_ms, "start_ms", 0));
+      const durationMs = Math.max(1, num(call.duration_ms, "duration_ms", 600));
+      const keyframes = enter ? enterTrack(node, enter, startMs, durationMs, ease).keyframes : [];
+      const anim: NodeAnimation = {
+        keyframes,
+        ...(enter ? { enter: { type: enter, startMs, durationMs, ...(ease ? { ease } : {}) } } : {}),
+        ...(loopType ? { loop: { type: loopType, periodMs: num(call.loop_period_ms, "loop_period_ms", 1200) } } : {}),
+      };
+      return setNodeAnim(design, ctx.sceneIndex, nodeId, anim);
+    },
+  },
+
+  "clear-animation": {
+    description: "Remove all animation (entrance + loop + keyframes) from an existing node.",
+    params: { node_id: "the node's id (from observe)" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      return setNodeAnim(design, ctx.sceneIndex, nodeId, undefined);
+    },
+  },
+
+  // ── Grouping (nest elements; sequence a group's entrance before its children) ──
+  "group-nodes": {
+    description: "Group 2+ existing nodes so they move and animate together. Returns the design; read the new group's id from a follow-up observe.",
+    params: { node_ids: "array of 2+ node ids to group (from observe)" },
+    apply(design, call, ctx) {
+      if (!Array.isArray(call.node_ids)) reject("node_ids must be an array of node ids");
+      const ids = (call.node_ids as unknown[]).map(String);
+      if (ids.length < 2) reject("group-nodes needs at least 2 node ids");
+      for (const id of ids) findNode(design, ctx.sceneIndex, id);
+      const next = groupNodes(design, ctx.sceneIndex, ids);
+      if (next === design) reject("those nodes could not be grouped (need 2+ distinct units)");
+      return next;
+    },
+  },
+
+  ungroup: {
+    description: "Ungroup a group: release its members (and lift any nested sub-groups one level up).",
+    params: { group_id: "the group's id (from observe)" },
+    apply(design, call, ctx) {
+      const groupId = str(call.group_id, "group_id");
+      if (!(design.scenes[ctx.sceneIndex]?.groups ?? []).some((g) => g.id === groupId)) {
+        reject(`group_id ${groupId} not found on the current scene`);
+      }
+      return ungroupNodes(design, ctx.sceneIndex, groupId);
+    },
+  },
+
+  "set-group-anim": {
+    description: "Set a group's entrance and/or emphasis loop. The group animates FIRST, then its children play (strict parent-first).",
+    params: {
+      group_id: "the group's id (from observe)",
+      enter: "optional entrance: fade | rise | slide-left | slide-right | scale (omit + no loop/start to clear)",
+      duration_ms: "optional entrance duration (ms)",
+      ease: "optional easing",
+      start_ms: "optional: how long the whole group stays hidden before it appears (ms)",
+      loop: "optional emphasis loop applied to members",
+      loop_period_ms: "optional loop period (ms, default 1200)",
+    },
+    apply(design, call, ctx) {
+      const groupId = str(call.group_id, "group_id");
+      if (!(design.scenes[ctx.sceneIndex]?.groups ?? []).some((g) => g.id === groupId)) {
+        reject(`group_id ${groupId} not found on the current scene`);
+      }
+      let enter: EnterType | null = null;
+      if (call.enter != null) {
+        const e = str(call.enter, "enter");
+        if (!ENTERS.has(e)) reject(`enter must be one of ${ENTER_TYPES.join(", ")}`);
+        enter = e as EnterType;
+      }
+      let loop: NodeAnimation["loop"] | undefined;
+      if (call.loop != null) {
+        const l = str(call.loop, "loop");
+        if (!LOOPS.has(l)) reject(`loop must be one of ${LOOP_TYPES.join(", ")}`);
+        loop = { type: l as LoopType, periodMs: num(call.loop_period_ms, "loop_period_ms", 1200) };
+      }
+      let ease: Easing | undefined;
+      if (call.ease != null) {
+        const es = str(call.ease, "ease");
+        if (!EASES.has(es)) reject(`ease must be one of ${EASINGS.join(", ")}`);
+        ease = es as Easing;
+      }
+      const opts: { durationMs?: number; ease?: Easing; startMs?: number } = {};
+      if (call.duration_ms != null) opts.durationMs = num(call.duration_ms, "duration_ms");
+      if (ease) opts.ease = ease;
+      if (call.start_ms != null) opts.startMs = num(call.start_ms, "start_ms");
+      return setGroupAnim(design, ctx.sceneIndex, groupId, enter, loop, opts);
     },
   },
 };

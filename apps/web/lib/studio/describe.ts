@@ -28,6 +28,15 @@ export interface NodeHandle {
   brief: string;
 }
 
+/** A targetable handle for one group: its id + tree position, so the agent can ungroup/animate it. */
+export interface GroupHandle {
+  id: string;
+  name?: string;
+  parentId?: string;
+  memberCount: number;
+  enter?: string;
+}
+
 export interface SceneObservation {
   index: number;
   name: string;
@@ -40,6 +49,8 @@ export interface SceneObservation {
   elements: Record<string, number>;
   /** per-node handles (id + brief) so the agent can target existing nodes with editing ops. */
   nodes: NodeHandle[];
+  /** per-group handles (id + tree position) so the agent can target groups (ungroup / animate). */
+  groups: GroupHandle[];
   groupCount: number;
 }
 
@@ -189,6 +200,13 @@ export function observeDesign(design: DesignDoc, labels?: Record<string, string>
       nodeCount: scene.nodes.length,
       elements: elementCounts(scene),
       nodes: scene.nodes.map((n) => ({ id: n.id, type: n.type, brief: describeNode(n, opts) })),
+      groups: (scene.groups ?? []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        parentId: g.parentId,
+        memberCount: scene.nodes.filter((n) => n.groupId === g.id).length,
+        enter: g.anim?.enter,
+      })),
       groupCount: scene.groups?.length ?? 0,
     })),
   };

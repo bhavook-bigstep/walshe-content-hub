@@ -3,6 +3,7 @@ import {
   addCatalogImage,
   addShape,
   addText,
+  groupNodes,
   newDesign,
   setBackground,
   setNodeAnim,
@@ -98,5 +99,15 @@ describe("refreshDescriptions + observeDesign", () => {
     expect(handle.id).toBe(d.scenes[0].nodes[0].id);
     expect(handle.type).toBe("text");
     expect(handle.brief).toContain('"Edit me"');
+  });
+
+  it("exposes group handles (id + member count) so the agent can target groups", () => {
+    let d = addText(single(), 0, "A", {});
+    d = addText(d, 0, "B", {});
+    const ids = d.scenes[0].nodes.map((n) => n.id);
+    d = groupNodes(d, 0, ids);
+    const group = observeDesign(d).scenes[0].groups[0];
+    expect(group.id).toBe(d.scenes[0].groups![0].id);
+    expect(group.memberCount).toBe(2);
   });
 });

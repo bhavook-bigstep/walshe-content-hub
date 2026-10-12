@@ -85,8 +85,8 @@ for anything that references a catalog item. Known gaps, grouped:
 | Area | Missing ops (from `ops.ts`) |
 | --- | --- |
 | Node editing | ✅ DONE (2026-10-12): `edit-text`, `move-node`, `resize-node`, `style-node`, `delete-node`, `duplicate-node`, `reorder-node` — target existing nodes by the id `observe` exposes |
-| Animation | `setNodeAnim` / `enterTrack` (entrance + emphasis loop), per-node keyframes |
-| Groups & nesting | `groupNodes`, `ungroupNodes`, `renameGroup`, `setGroupAnim`, `updateGroupStyle`, `deleteGroup`, `duplicateGroup` (recompose stays automatic) |
+| Animation | ✅ DONE (2026-10-12): `animate-node` (entrance + emphasis loop), `clear-animation`. Remaining: raw per-node keyframe dope-sheet |
+| Groups & nesting | ✅ DONE (2026-10-12): `group-nodes`, `ungroup`, `set-group-anim` (parent-first). Remaining: `updateGroupStyle`, `deleteGroup`, `duplicateGroup` |
 | Sprites | `addGraphic` + sprite chains (`addSuccessorSprite`, `setChainDuration`, `removeSuccessor`) |
 | Curves | `addCurve`, `setCurvePoints`, `insertCurveAnchor`, `translateCurve`, `moveCurvePoint` |
 | Scenes | `removeScene`, `reorderScene`, `setSceneTransition`, `renameScene`, `setSceneNarration` |

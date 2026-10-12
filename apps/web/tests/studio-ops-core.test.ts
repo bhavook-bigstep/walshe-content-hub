@@ -183,4 +183,77 @@ describe("studio-ops tool core", () => {
     expect(results[0].status).toBe("rejected");
     expect(results[0].reason).toMatch(/not editable text/i);
   });
+
+  // ── Animation ──
+  it("test_animate_node_sets_entrance_and_loop", () => {
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "write-copy", text: "Hi" }], ctx()).design;
+    const id = seeded.scenes[0].nodes[0].id;
+    const r = applyStudioOps(
+      seeded,
+      [{ op: "animate-node", node_id: id, enter: "rise", start_ms: 200, duration_ms: 500, loop: "float" }],
+      ctx(),
+    );
+    expect(r.results[0].status).toBe("applied");
+    const anim = r.design.scenes[0].nodes.find((n) => n.id === id)!.anim!;
+    expect(anim.enter).toMatchObject({ type: "rise", startMs: 200, durationMs: 500 });
+    expect(anim.loop).toMatchObject({ type: "float" });
+    expect(anim.keyframes.length).toBeGreaterThan(1);
+  });
+
+  it("test_animate_node_validates_enter_and_requires_one_effect", () => {
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "write-copy", text: "Hi" }], ctx()).design;
+    const id = seeded.scenes[0].nodes[0].id;
+    const bad = applyStudioOps(seeded, [{ op: "animate-node", node_id: id, enter: "zoom" }], ctx());
+    expect(bad.results[0]).toMatchObject({ status: "rejected" });
+    const none = applyStudioOps(seeded, [{ op: "animate-node", node_id: id }], ctx());
+    expect(none.results[0].reason).toMatch(/entrance .* or an emphasis loop/i);
+  });
+
+  it("test_clear_animation_removes_the_track", () => {
+    let d = applyStudioOps(newDesign("social"), [{ op: "write-copy", text: "Hi" }], ctx()).design;
+    const id = d.scenes[0].nodes[0].id;
+    d = applyStudioOps(d, [{ op: "animate-node", node_id: id, enter: "fade" }], ctx()).design;
+    d = applyStudioOps(d, [{ op: "clear-animation", node_id: id }], ctx()).design;
+    expect(d.scenes[0].nodes.find((n) => n.id === id)!.anim).toBeUndefined();
+  });
+
+  // ── Grouping ──
+  it("test_group_nodes_then_set_group_anim", () => {
+    const seeded = applyStudioOps(
+      newDesign("social"),
+      [{ op: "write-copy", text: "A" }, { op: "write-copy", text: "B" }],
+      ctx(),
+    ).design;
+    const ids = seeded.scenes[0].nodes.map((n) => n.id);
+    const grouped = applyStudioOps(seeded, [{ op: "group-nodes", node_ids: ids }], ctx());
+    expect(grouped.results[0].status).toBe("applied");
+    const group = grouped.design.scenes[0].groups![0];
+    expect(seeded.scenes[0].nodes.every((n) => !n.groupId)).toBe(true); // original untouched
+    expect(grouped.design.scenes[0].nodes.every((n) => n.groupId === group.id)).toBe(true);
+    // Now animate the group (parent-first).
+    const anim = applyStudioOps(
+      grouped.design,
+      [{ op: "set-group-anim", group_id: group.id, enter: "rise", duration_ms: 400 }],
+      ctx(),
+    );
+    expect(anim.results[0].status).toBe("applied");
+    expect(anim.design.scenes[0].groups![0].anim).toMatchObject({ enter: "rise", durationMs: 400 });
+  });
+
+  it("test_group_nodes_rejects_fewer_than_two", () => {
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "write-copy", text: "A" }], ctx()).design;
+    const { results } = applyStudioOps(
+      seeded,
+      [{ op: "group-nodes", node_ids: [seeded.scenes[0].nodes[0].id] }],
+      ctx(),
+    );
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/at least 2/i);
+  });
+
+  it("test_ungroup_rejects_unknown_group", () => {
+    const { results } = applyStudioOps(newDesign("social"), [{ op: "ungroup", group_id: "group-9" }], ctx());
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/not found on the current scene/i);
+  });
 });
