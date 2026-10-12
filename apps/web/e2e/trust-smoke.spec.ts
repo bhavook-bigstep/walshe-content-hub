@@ -27,8 +27,10 @@ test("agent sees a preflight issue before sending", async ({ page }) => {
   await loginAs(page, "agent@example.test", /\/agent$/);
 
   await page.goto("/agent/social");
-  // The seeded "Trade Showcase teaser" holds an expired item, so the check must fail.
-  await page.getByLabel("Composition").selectOption({ label: "Trade Showcase teaser" });
+  // The seeded "Trade Showcase teaser" holds an expired item, so the check must fail. The
+  // Composition field is a custom <Select> (a button, not a native <select>), so drive it with the
+  // chooseOption helper — `.selectOption` only works on native selects.
+  await chooseOption(page, "Composition", "Trade Showcase teaser");
   await page.getByRole("button", { name: /run pre-send check/i }).click();
 
   const issues = page.getByTestId("preflight-issues");
