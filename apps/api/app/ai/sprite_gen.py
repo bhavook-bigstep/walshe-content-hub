@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import io
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from PIL import Image, ImageChops
@@ -106,15 +107,23 @@ def generate_sprite(
     Raises ``ValueError`` if no frame renders. Deterministic under the image stub (no key).
     """
     n = max(MIN_FRAMES, min(MAX_FRAMES, frames))
+
+    def render(index: int) -> tuple[str, bytes] | None:
+        # The N frames are independent image calls — run them concurrently so total latency is ~one
+        # call, not N (N sequential Gemini calls otherwise blow past the request timeout).
+        try:
+            picture = generate_image(settings, frame_prompt(concept, index, n))
+            return picture.provider, _normalize_frame(picture.data)
+        except Exception:  # noqa: BLE001 - a bad frame is dropped, not fatal (unless none render)
+            return None
+
     provider = "stub"
     rendered: list[bytes] = []
-    for i in range(n):
-        picture = generate_image(settings, frame_prompt(concept, i, n))
-        provider = picture.provider
-        try:
-            rendered.append(_normalize_frame(picture.data))
-        except Exception:  # noqa: BLE001 - a bad frame is skipped, not fatal (unless none render)
-            continue
+    with ThreadPoolExecutor(max_workers=min(n, 6)) as pool:
+        for result in pool.map(render, range(n)):  # map preserves frame order
+            if result is not None:
+                provider, frame = result
+                rendered.append(frame)
     if not rendered:
         raise ValueError("no sprite frames could be generated")
 

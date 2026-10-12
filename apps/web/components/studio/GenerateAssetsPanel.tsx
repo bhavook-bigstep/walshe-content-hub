@@ -66,7 +66,7 @@ export default function GenerateAssetsPanel({
       setSpriteMsg("Saved to your Sprites — add it from the Sprites panel.");
       void loadThumb(key);
     } catch {
-      setSpriteMsg("Could not generate a sprite. Try a simpler description.");
+      setSpriteMsg("Sprite generation failed (the image service may be slow or unavailable). Try again.");
     } finally {
       setSpriteBusy(false);
     }
