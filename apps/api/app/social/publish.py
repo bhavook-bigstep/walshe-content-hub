@@ -66,8 +66,9 @@ def publish_post(
 
     # Idempotency: a different post for this composition already live on Instagram is a 409, not a
     # second (unrecoverable) post. Excludes this post so a retry of the same row is not blocked.
-    # Only a *real* publish counts — the Social page's simulated connector marks posts published with
-    # a ``sim-*`` id (never sent to Instagram), so those must not block a genuine publish here.
+    # Only a *real* publish counts — the Social page's simulated connector marks posts
+    # published with a ``sim-*`` id (never sent to Instagram), so those must not block a
+    # genuine publish here.
     already = db.scalars(
         select(Post).where(
             Post.composition_id == composition.id,
