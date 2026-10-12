@@ -67,3 +67,32 @@ Build the **`studio-ops` tool core + validator + one critic + an eval** over the
 
 ---
 *Open decision for the user: which host target leads — (A) in-app AI Builder agent, (B) external-host MCP server, or (C) a Claude-Code dev/demo plugin — recognising all three sit on the same `studio-ops` core.*
+
+---
+
+## 8. Follow-up — op catalog coverage (opened 2026-10-12)
+
+**Status:** the shipped `studio-ops` catalog is a deliberate starter subset — **6 ops**
+(`write-copy`, `place`, `add-shape`, `set-background`, `add-scene`, `set-scene-duration`). The
+pure op layer (`apps/web/lib/studio/ops.ts`) already exposes **~50+** Studio operations the agent
+cannot yet reach, so the AI Builder/MCP can currently do only a fraction of what a human can in the
+Studio.
+
+**Action:** extend the catalog toward **full Studio parity** in future iterations. Each new op
+stays host-agnostic (workspace-JSON in/out, a pure op from `ops.ts`) and keeps Contract 1 grounding
+for anything that references a catalog item. Known gaps, grouped:
+
+| Area | Missing ops (from `ops.ts`) |
+| --- | --- |
+| Node editing | `editText`, `moveNode`, `resizeNode`, `updateNode` (rotate/opacity/style), `deleteNode`, `duplicateNode`, `reorderNode` (z-order) |
+| Animation | `setNodeAnim` / `enterTrack` (entrance + emphasis loop), per-node keyframes |
+| Groups & nesting | `groupNodes`, `ungroupNodes`, `renameGroup`, `setGroupAnim`, `updateGroupStyle`, `deleteGroup`, `duplicateGroup` (recompose stays automatic) |
+| Sprites | `addGraphic` + sprite chains (`addSuccessorSprite`, `setChainDuration`, `removeSuccessor`) |
+| Curves | `addCurve`, `setCurvePoints`, `insertCurveAnchor`, `translateCurve`, `moveCurvePoint` |
+| Scenes | `removeScene`, `reorderScene`, `setSceneTransition`, `renameScene`, `setSceneNarration` |
+| Images | `addPlaceholder`, `fillImageNode` (grounded) |
+
+Anchored in code at `apps/web/lib/studio/studio-ops.ts` (the `const OPS` catalog TODO). Grow it in
+slices (e.g. node-editing first, then animation, then groups), each slice landing with its own
+tests + a spec round-trip, so `GET /ai-agent/studio/ops/spec` stays the single source of truth for
+host tool lists.

@@ -93,6 +93,20 @@ interface OpDef {
 
 const SHAPES: ReadonlySet<string> = new Set<ShapeKind>(["rect", "ellipse", "line"]);
 
+// TODO(agent-ops coverage): this catalog is a DELIBERATE starter subset (6 ops). The pure op layer
+// in ./ops.ts already exposes ~50+ Studio operations the agent cannot yet reach. Extend this catalog
+// toward full Studio parity so the AI Builder/MCP can drive everything a human can. Known gaps:
+//   • Node editing: editText, moveNode, resizeNode, updateNode (rotate/opacity/style), deleteNode,
+//     duplicateNode, reorderNode (z-order).
+//   • Animation: setNodeAnim / enterTrack (entrance + emphasis loop), per-node keyframes.
+//   • Groups & nesting: groupNodes, ungroupNodes, renameGroup, setGroupAnim, updateGroupStyle,
+//     deleteGroup, duplicateGroup (recompose stays automatic).
+//   • Sprites: addGraphic + sprite chains (addSuccessorSprite, setChainDuration, removeSuccessor).
+//   • Curves: addCurve, setCurvePoints, insertCurveAnchor, translate/moveCurvePoint.
+//   • Scenes: removeScene, reorderScene, setSceneTransition, renameScene, setSceneNarration.
+//   • Images: addPlaceholder, fillImageNode (grounded).
+// Each stays host-agnostic (workspace-JSON in/out, pure op) and keeps Contract 1 grounding for any op
+// that references a catalog item. See docs/plans/2026-10-12-agentic-studio-harness-rnd.md.
 /** The op catalog. Add an entry here to expose another pure op as an agent tool. */
 const OPS: Record<string, OpDef> = {
   "write-copy": {
