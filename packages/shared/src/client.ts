@@ -646,6 +646,14 @@ export async function builderDesign(body: DesignRequest): Promise<Record<string,
   return (await (await send("/ai-agent/builder/design", json(body))).json()) as Record<string, unknown>;
 }
 
+/** The agentic Studio Builder: a real tool loop (observe → act → finish) that edits `design` to
+ *  satisfy `prompt`, grounded in `item_ids`. Returns the edited design + the step transcript. */
+export type StudioAgentRequest = Schemas["StudioAgentRequest"];
+export type StudioAgentResponse = Schemas["StudioAgentResponse"];
+export async function studioAgent(body: StudioAgentRequest): Promise<StudioAgentResponse> {
+  return (await (await send("/ai-agent/studio/agent", json(body))).json()) as StudioAgentResponse;
+}
+
 /** AI: generate an Instagram caption for one of the agent's saved compositions. Deterministic
  *  under the stub provider (no key); grounded in the composition's catalog content. */
 export async function generateCaption(compositionId: number): Promise<{ caption: string }> {

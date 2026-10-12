@@ -1648,7 +1648,7 @@ export interface paths {
         /**
          * Render Narration
          * @description Render just the narration audio for a preview timeline (a WAV spanning the scenes), for
-         *     synced in-studio playback. 204 when there's no narration or no TTS (the client plays silently).
+         *     synced in-studio playback. 204 when there's no narration or no TTS (the client stays silent).
          */
         post: operations["render_narration_render_narration_post"];
         delete?: never;
@@ -3391,7 +3391,7 @@ export interface components {
             /**
              * Max Rounds
              * @description tool-loop budget
-             * @default 6
+             * @default 10
              */
             max_rounds: number;
             /**

@@ -105,10 +105,13 @@ export default function BuilderPanel({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // In demo mode the prompt + items are optional (the script falls back to sample content); otherwise
-  // a brief and at least one catalog item are required.
+  // The agentic builder needs a brief; catalog items are optional (it can build from the brief alone,
+  // but open a collection for grounded imagery). The legacy ops path still requires an item.
   const canRun =
-    !loading && !demoRunning && (onDemoBuild ? true : prompt.trim().length > 0 && items.length > 0);
+    !loading &&
+    !demoRunning &&
+    prompt.trim().length > 0 &&
+    (onDemoBuild ? true : items.length > 0);
 
   async function run() {
     // Demo mode: hand off to the scripted builder (the page owns the running UI + overlay).
@@ -145,7 +148,7 @@ export default function BuilderPanel({
     <section className="flex flex-col gap-3" aria-label="Builder" aria-busy={loading}>
       <p className="text-small text-walshe-grey">
         {onDemoBuild
-          ? "Describe what you want, then watch the AI Builder compose an animated reel from your collection — live on the canvas."
+          ? "Describe what you want and the AI Builder composes it on the canvas — grounded in your open collection's items."
           : "Describe what you want and the AI Builder drafts it from your selected catalog items."}
       </p>
       <label className="block">
@@ -163,7 +166,7 @@ export default function BuilderPanel({
       {items.length === 0 ? (
         <p className="text-small text-walshe-grey">
           {onDemoBuild
-            ? "No collection open — the Builder will use sample destinations. Open a project from a collection for your own imagery."
+            ? "No collection open — the Builder will work from your brief alone. Open a project from a collection to ground it in your imagery."
             : "Select at least one catalog item for the Builder to use."}
         </p>
       ) : (

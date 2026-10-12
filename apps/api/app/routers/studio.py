@@ -217,7 +217,7 @@ class StudioAgentRequest(BaseModel):
         default_factory=list, max_length=50, description="catalog items the agent may use"
     )
     scene_index: int = Field(default=0, ge=0, description="the scene the agent edits")
-    max_rounds: int = Field(default=6, ge=1, le=12, description="tool-loop budget")
+    max_rounds: int = Field(default=10, ge=1, le=16, description="tool-loop budget")
 
 
 class StudioAgentResponse(BaseModel):

@@ -3786,9 +3786,9 @@
             "type": "array"
           },
           "max_rounds": {
-            "default": 6,
+            "default": 10,
             "description": "tool-loop budget",
-            "maximum": 12.0,
+            "maximum": 16.0,
             "minimum": 1.0,
             "title": "Max Rounds",
             "type": "integer"
@@ -9305,7 +9305,7 @@
     },
     "/render/narration": {
       "post": {
-        "description": "Render just the narration audio for a preview timeline (a WAV spanning the scenes), for\nsynced in-studio playback. 204 when there's no narration or no TTS (the client plays silently).",
+        "description": "Render just the narration audio for a preview timeline (a WAV spanning the scenes), for\nsynced in-studio playback. 204 when there's no narration or no TTS (the client stays silent).",
         "operationId": "render_narration_render_narration_post",
         "requestBody": {
           "content": {

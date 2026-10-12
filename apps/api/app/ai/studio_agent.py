@@ -88,12 +88,15 @@ def build_system_prompt(prompt: str, spec: list[dict[str, Any]], items: list[Age
         'add-sprite with {"op":"add-sprite","sprite":"<that ref>"}.\n'
         '  {"action":"describe_ops","ops":["place","write-copy"]} '
         "— I reply with those ops' parameters.\n"
-        '  {"action":"apply","calls":[{"op":"...","...":"..."}]} '
-        "— I apply the calls and reply with per-call results + a short summary.\n"
+        '  {"action":"apply","calls":[{"op":"...","...":"..."}, {"op":"...","...":"..."}]} '
+        "— I apply ALL the calls (put MANY ops in one apply) and reply with results + a summary.\n"
         '  {"action":"finish","note":"..."} — stop once the brief is satisfied.\n'
-        "Rules: OBSERVE the scene to see its current state in words (don't guess the layout); "
-        "describe an op before using it; reference only approved ids; iterate until the brief is "
-        "met, then finish. Reply with one json object only — no prose, no markdown.\n\n"
+        "Rules: you have only a few turns, so be EFFICIENT — describe the ops you need once, then "
+        "build the whole design in ONE apply with many calls (don't do one op per turn). A good "
+        "social post sets a background colour, a bold headline (write-copy), PLACES every approved "
+        "item (place) with a short grounded caption, and a tasteful accent; then finish. Reference "
+        "only approved ids; never invent facts. Reply with one json object only — no prose, no "
+        "markdown.\n\n"
         f"BRIEF: {prompt.strip()}"
     )
 
@@ -190,8 +193,8 @@ def run_studio_agent(
     observe_fn: ObserveFn,
     generate_sprite_fn: GenerateSpriteFn,
     scene_index: int = 0,
-    max_rounds: int = 6,
-    max_applies: int = 4,
+    max_rounds: int = 10,
+    max_applies: int = 6,
     max_generates: int = 3,
 ) -> StudioAgentResult:
     """Run the progressive-disclosure tool loop and return the edited design + the step transcript.
