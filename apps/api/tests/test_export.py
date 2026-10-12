@@ -7,7 +7,13 @@ import io
 import re
 
 from app.media.html_export import design_to_email_html
-from app.media.pdf import _decode_data_url, _is_transparent, design_to_pdf
+from app.media.pdf import (
+    _decode_data_url,
+    _is_transparent,
+    _sample_curve,
+    _wrap_lines,
+    design_to_pdf,
+)
 
 
 def _png_data_url() -> str:
@@ -249,3 +255,75 @@ def test_pdf_image_without_inline_source_falls_back_to_frame():
     pdf = design_to_pdf(design)
     assert pdf.startswith(b"%PDF")
     assert b"/Subtype /Image" not in pdf
+
+
+def test_sample_curve_matches_catmull_rom_smoothing():
+    # 0–2 anchors pass through unchanged (a point / a straight line).
+    assert _sample_curve([{"x": 0, "y": 0}]) == [(0.0, 0.0)]
+    assert _sample_curve([{"x": 0, "y": 0}, {"x": 10, "y": 4}]) == [(0.0, 0.0), (10.0, 4.0)]
+
+    # 3+ anchors are densified into a smooth polyline (per_segment=18 → (n-1)*18 + 1 points) that
+    # actually bends: the sampled midpoint deviates from the straight chord between the endpoints.
+    points = [{"x": 0, "y": 0}, {"x": 50, "y": 100}, {"x": 100, "y": 0}]
+    sampled = _sample_curve(points)
+    assert len(sampled) == (len(points) - 1) * 18 + 1
+    assert sampled[0] == (0.0, 0.0) and sampled[-1] == (100.0, 0.0)
+    # Chord midpoint is y=0; the curve rises above it, so it is NOT flattened to a straight line.
+    mid = sampled[len(sampled) // 2]
+    assert mid[1] > 10
+
+
+def test_pdf_strokes_curve_through_anchors_not_a_straight_line():
+    # A curve node (shape:"line" carrying `points`) must render as the smoothed polyline, not the
+    # straight bounding-box diagonal the plain "line" branch would draw.
+    curve = {
+        "type": "shape",
+        "shape": "line",
+        "points": [{"x": 100, "y": 300}, {"x": 300, "y": 100}, {"x": 500, "y": 300}],
+        "x": 100,
+        "y": 100,
+        "width": 400,
+        "height": 200,
+        "stroke": "#111111",
+        "strokeWidth": 6,
+    }
+    design = {"width": 600, "height": 400, "pages": [{"nodes": [curve]}]}
+    pdf = design_to_pdf(design)
+    assert pdf.startswith(b"%PDF")
+    # A straight 2-point line emits a single path segment; the smoothed curve emits many more, so
+    # the curve's content stream is materially larger than the same node drawn as a plain line.
+    straight = dict(curve)
+    straight.pop("points")
+    line_pdf = design_to_pdf({"width": 600, "height": 400, "pages": [{"nodes": [straight]}]})
+    assert len(pdf) > len(line_pdf)
+
+
+def test_pdf_applies_node_rotation():
+    # A rotated node must be drawn rotated (a transform), not upright. Same node with/without an
+    # angle produces different content, and 0°/360° is a no-op (identical bytes to unrotated).
+    base = {
+        "type": "shape",
+        "shape": "rect",
+        "x": 100,
+        "y": 100,
+        "width": 300,
+        "height": 120,
+        "color": "#f59e0b",
+    }
+    page = {"width": 600, "height": 400, "pages": [{"nodes": [base]}]}
+    upright = design_to_pdf(page)
+    rotated = design_to_pdf({**page, "pages": [{"nodes": [{**base, "angle": 30}]}]})
+    noop = design_to_pdf({**page, "pages": [{"nodes": [{**base, "angle": 360}]}]})
+    assert upright.startswith(b"%PDF") and rotated.startswith(b"%PDF")
+    assert rotated != upright  # the 30° node is transformed
+    assert len(noop) == len(upright)  # 360° is a no-op
+
+
+def test_wrap_lines_wraps_to_width_and_keeps_hard_breaks():
+    long = "the quick brown fox jumps over the lazy dog again and again and again"
+    # A narrow box wraps the long paragraph onto several lines...
+    narrow = _wrap_lines(long, "Helvetica", 48, 300)
+    assert len(narrow) > 1
+    # ...a zero width disables wrapping (one line), and explicit newlines stay hard breaks.
+    assert _wrap_lines(long, "Helvetica", 48, 0) == [long]
+    assert _wrap_lines("a\nb", "Helvetica", 48, 0) == ["a", "b"]

@@ -16,7 +16,7 @@ import io
 from typing import Any
 
 from reportlab.lib.colors import Color, HexColor
-from reportlab.lib.utils import ImageReader
+from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
 
 _DEFAULT_W = 1080
@@ -58,6 +58,17 @@ def _font(node: dict[str, Any]) -> str:
     return base
 
 
+def _wrap_lines(text: str, font: str, size: float, width: float) -> list[str]:
+    """Wrap `text` to `width` like the canvas textbox: each explicit newline is a hard break, and
+    each resulting paragraph is word-wrapped to the box width. A zero/negative width disables
+    wrapping (one line per paragraph). Blank paragraphs are kept so spacing matches the canvas."""
+    lines: list[str] = []
+    for para in text.split("\n"):
+        wrapped = simpleSplit(para, font, size, width) if width > 0 else [para]
+        lines.extend(wrapped or [""])
+    return lines
+
+
 def _draw_text(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None:
     text = str(node.get("text", ""))
     if not text or _is_transparent(node.get("color")):
@@ -68,12 +79,16 @@ def _draw_text(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None:
     x = float(node.get("x", 0))
     w = float(node.get("width", 0))
     top = float(node.get("y", 0))
-    pdf.setFont(_font(node), size)
+    font = _font(node)
+    pdf.setFont(font, size)
     pdf.setFillColor(_color(node.get("color")))
     pdf.setFillAlpha(float(node.get("opacity", 1) or 1))
+    # Wrap each paragraph to the node's box width, like the canvas textbox — otherwise a long line
+    # runs the full page width instead of wrapping inside the block.
+    lines = _wrap_lines(text, font, size, w)
     # First baseline roughly one cap-height below the node top.
     baseline = page_h - top - size
-    for i, line in enumerate(text.split("\n")):
+    for i, line in enumerate(lines):
         ly = baseline - i * line_h
         if align == "center":
             pdf.drawCentredString(x + w / 2, ly, line)
@@ -84,7 +99,74 @@ def _draw_text(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None:
     pdf.setFillAlpha(1)
 
 
+def _catmull_rom(
+    p0: dict[str, Any], p1: dict[str, Any], p2: dict[str, Any], p3: dict[str, Any], t: float
+) -> tuple[float, float]:
+    """One point on the Catmull-Rom spline p1→p2 at 0≤t≤1 — mirrors the studio's `catmullRom`."""
+    t2 = t * t
+    t3 = t2 * t
+
+    def f(a: float, b: float, c: float, d: float) -> float:
+        return 0.5 * (
+            2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3
+        )
+
+    return (
+        f(float(p0["x"]), float(p1["x"]), float(p2["x"]), float(p3["x"])),
+        f(float(p0["y"]), float(p1["y"]), float(p2["y"]), float(p3["y"])),
+    )
+
+
+def _sample_curve(points: list[dict[str, Any]], per_segment: int = 18) -> list[tuple[float, float]]:
+    """Sample the smooth curve through `points` into a dense polyline — the Catmull-Rom sampling the
+    studio uses (`sampleCurve`), so the PDF curve matches the canvas. 0–2 anchors pass through."""
+    pts = [(float(p["x"]), float(p["y"])) for p in points]
+    if len(points) <= 2:
+        return pts
+    out: list[tuple[float, float]] = []
+    for i in range(len(points) - 1):
+        p0 = points[i - 1] if i - 1 >= 0 else points[i]
+        p1 = points[i]
+        p2 = points[i + 1]
+        p3 = points[i + 2] if i + 2 < len(points) else points[i + 1]
+        for s in range(per_segment):
+            out.append(_catmull_rom(p0, p1, p2, p3, s / per_segment))
+    out.append(pts[-1])
+    return out
+
+
+def _draw_curve(
+    pdf: canvas.Canvas, node: dict[str, Any], points: list[dict[str, Any]], page_h: float
+) -> None:
+    """Stroke an editable curve (a `shape` node carrying ordered `points`) as the smoothed polyline
+    through its anchors — not a straight line between the bounding-box corners."""
+    sampled = _sample_curve(points)
+    if len(sampled) < 2:
+        return
+    stroke = node.get("stroke") or node.get("color")
+    if _is_transparent(stroke):
+        return
+    pdf.saveState()
+    pdf.setStrokeColor(_color(stroke, "#111111"))
+    pdf.setLineWidth(float(node.get("strokeWidth", 0) or 4))
+    pdf.setStrokeAlpha(float(node.get("opacity", 1) or 1))
+    pdf.setLineCap(1)  # round caps/joins so the curve reads smooth, matching the canvas
+    pdf.setLineJoin(1)
+    path = pdf.beginPath()
+    path.moveTo(sampled[0][0], page_h - sampled[0][1])
+    for px, py in sampled[1:]:
+        path.lineTo(px, page_h - py)
+    pdf.drawPath(path, stroke=1, fill=0)
+    pdf.restoreState()
+
+
 def _draw_shape(pdf: canvas.Canvas, node: dict[str, Any], page_h: float) -> None:
+    # An editable curve is a shape node carrying `points`; stroke it through its anchors (else it
+    # falls into the "line" branch below and flattens to a straight diagonal across its box).
+    points = node.get("points")
+    if isinstance(points, list) and len(points) >= 2:
+        _draw_curve(pdf, node, points, page_h)
+        return
     x = float(node.get("x", 0))
     y = float(node.get("y", 0))
     w = float(node.get("width", 0))
@@ -222,12 +304,27 @@ def design_to_pdf(design: dict[str, Any]) -> bytes:
             pdf.rect(0, 0, width, height, stroke=0, fill=1)
         for node in page.get("nodes", []):
             t = node.get("type")
+            if t not in ("text", "shape", "image"):
+                continue
+            # Honour a node's rotation: Fabric rotates about the object's top-left origin, so rotate
+            # the page about that same corner — otherwise a rotated element draws upright.
+            angle = float(node.get("angle", 0) or 0)
+            rotated = angle % 360 != 0
+            if rotated:
+                px = float(node.get("x", 0))
+                py = height - float(node.get("y", 0))
+                pdf.saveState()
+                pdf.translate(px, py)
+                pdf.rotate(-angle)  # Fabric angle is clockwise; PDF rotate() is counter-clockwise
+                pdf.translate(-px, -py)
             if t == "text":
                 _draw_text(pdf, node, height)
             elif t == "shape":
                 _draw_shape(pdf, node, height)
             elif t == "image":
                 _draw_image(pdf, node, height)
+            if rotated:
+                pdf.restoreState()
         pdf.showPage()
 
     pdf.save()
