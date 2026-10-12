@@ -168,6 +168,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-agent/studio/sprites/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Generate Sprite
+         * @description Generate a sprite sheet (LLM image), slice it via the shared pipeline, and persist it as the
+         *     caller's sprite. Returns the owner sprite + its `user:<id>` ref to place with `add-sprite`.
+         *     Generated sprites are unmoderated decorative content.
+         */
+        post: operations["studio_generate_sprite_ai_agent_studio_sprites_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/caption": {
         parameters: {
             query?: never;
@@ -3366,6 +3388,33 @@ export interface components {
             }[];
         };
         /**
+         * StudioGenerateSpriteRequest
+         * @description Generate an animated sprite from a concept via the image API; store it as an owner sprite.
+         */
+        StudioGenerateSpriteRequest: {
+            /**
+             * Cols
+             * @description frames across (grid override)
+             */
+            cols?: number | null;
+            /**
+             * Concept
+             * @description what the sprite shows + motion
+             */
+            concept: string;
+            /**
+             * Fps
+             * @description playback speed
+             * @default 10
+             */
+            fps: number;
+            /**
+             * Rows
+             * @description rows (grid override)
+             */
+            rows?: number | null;
+        };
+        /**
          * StudioObserveRequest
          * @description Observe a design in words — an accurate per-scene description derived from its state.
          */
@@ -3994,6 +4043,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudioOpsSpecResponse"];
+                };
+            };
+        };
+    };
+    studio_generate_sprite_ai_agent_studio_sprites_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioGenerateSpriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

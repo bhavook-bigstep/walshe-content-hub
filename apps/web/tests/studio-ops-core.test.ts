@@ -274,7 +274,7 @@ describe("studio-ops tool core", () => {
   it("test_add_sprite_rejects_an_unknown_id_with_the_choices", () => {
     const { results } = applyStudioOps(newDesign("social"), [{ op: "add-sprite", sprite: "dragon" }], ctx());
     expect(results[0].status).toBe("rejected");
-    expect(results[0].reason).toMatch(/unknown sprite .* choose one of: .*walking-panda/i);
+    expect(results[0].reason).toMatch(/unknown sprite .*walking-panda/i);
   });
 
   it("test_chain_sprite_links_a_successor_and_grows_the_scene", () => {
@@ -303,6 +303,25 @@ describe("studio-ops tool core", () => {
     );
     expect(results[0].status).toBe("rejected");
     expect(results[0].reason).toMatch(/not a sprite/i);
+  });
+
+  it("test_add_sprite_places_a_generated_sprite_via_the_resolver", () => {
+    // A generated/user sprite is not built-in; its frames come from the host-supplied resolver.
+    const generated = ctx({
+      spriteFramesFor: (ref) =>
+        ref === "user:5" ? { frames: ["data:image/png;base64,AAA", "data:image/png;base64,BBB"], fps: 8, width: 48, height: 48 } : undefined,
+    });
+    const r = applyStudioOps(newDesign("social"), [{ op: "add-sprite", sprite: "user:5" }], generated);
+    expect(r.results[0].status).toBe("applied");
+    const node = r.design.scenes[0].nodes[0];
+    expect(node.sprite).toBe("user:5"); // ref carried for reload re-resolution
+    expect(node.frames).toHaveLength(2); // frames embedded from the resolver
+  });
+
+  it("test_add_sprite_rejects_a_generated_ref_the_host_cannot_resolve", () => {
+    const { results } = applyStudioOps(newDesign("social"), [{ op: "add-sprite", sprite: "user:99" }], ctx());
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/unknown sprite/i);
   });
 
   it("test_set_chain_duration_and_remove_sprite", () => {

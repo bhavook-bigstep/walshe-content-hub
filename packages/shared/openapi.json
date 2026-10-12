@@ -3811,6 +3811,59 @@
         "title": "StudioAgentResponse",
         "type": "object"
       },
+      "StudioGenerateSpriteRequest": {
+        "description": "Generate an animated sprite from a concept via the image API; store it as an owner sprite.",
+        "properties": {
+          "cols": {
+            "anyOf": [
+              {
+                "maximum": 16.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "frames across (grid override)",
+            "title": "Cols"
+          },
+          "concept": {
+            "description": "what the sprite shows + motion",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Concept",
+            "type": "string"
+          },
+          "fps": {
+            "default": 10,
+            "description": "playback speed",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "maximum": 16.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "rows (grid override)",
+            "title": "Rows"
+          }
+        },
+        "required": [
+          "concept"
+        ],
+        "title": "StudioGenerateSpriteRequest",
+        "type": "object"
+      },
       "StudioObserveRequest": {
         "description": "Observe a design in words — an accurate per-scene description derived from its state.",
         "properties": {
@@ -4949,6 +5002,55 @@
           }
         ],
         "summary": "Studio Ops Spec",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/sprites/generate": {
+      "post": {
+        "description": "Generate a sprite sheet (LLM image), slice it via the shared pipeline, and persist it as the\ncaller's sprite. Returns the owner sprite + its `user:<id>` ref to place with `add-sprite`.\nGenerated sprites are unmoderated decorative content.",
+        "operationId": "studio_generate_sprite_ai_agent_studio_sprites_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioGenerateSpriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Generate Sprite Ai Agent Studio Sprites Generate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Generate Sprite",
         "tags": [
           "Agent Tools"
         ]

@@ -79,6 +79,11 @@ def _noop_observe(design, scene_index):
     return {"scenes": [{"index": scene_index or 0, "description": "stub observation"}]}
 
 
+def _noop_generate(concept, opts):
+    """A fake generate_sprite_fn: returns a sprite handle without calling the image API."""
+    return {"ref": "user:1", "frame_count": 4, "fps": 10, "width": 32, "height": 32}
+
+
 # ── Progressive disclosure ────────────────────────────────────────────────────────────────────────
 def test_system_prompt_carries_index_only_not_schemas():
     items = [AgentItem(id=7, title="Cliffs of Moher", destination="Galway")]
@@ -104,6 +109,7 @@ def test_describe_ops_discloses_params_on_demand_only():
     result = run_studio_agent(
         design=_DESIGN, prompt="brief", items=[AgentItem(7, "Cliffs")], spec=_SPEC,
         provider=provider, apply_fn=apply_fn, observe_fn=_noop_observe,
+        generate_sprite_fn=_noop_generate,
     )
     assert [s["action"] for s in result.steps] == ["describe_ops", "finish"]
     # The SECOND provider call must have been fed the params for `place` only — not for other ops.
@@ -126,6 +132,7 @@ def test_loop_describe_apply_finish():
     result = run_studio_agent(
         design=_DESIGN, prompt="brief", items=[AgentItem(7, "Cliffs")], spec=_SPEC,
         provider=provider, apply_fn=apply_fn, observe_fn=_noop_observe,
+        generate_sprite_fn=_noop_generate,
     )
     assert [s["action"] for s in result.steps] == ["describe_ops", "apply", "finish"]
     assert result.applied == 1 and result.finished is True and result.provider == "fake"
@@ -146,7 +153,7 @@ def test_observe_action_feeds_scene_description_back():
     )
     result = run_studio_agent(
         design=_DESIGN, prompt="b", items=[], spec=_SPEC, provider=provider,
-        apply_fn=apply_fn, observe_fn=observe_fn,
+        apply_fn=apply_fn, observe_fn=observe_fn, generate_sprite_fn=_noop_generate,
     )
     assert [s["action"] for s in result.steps] == ["observe", "finish"]
     assert seen_obs == [0]  # observe_fn was called for scene 0
@@ -155,13 +162,39 @@ def test_observe_action_feeds_scene_description_back():
     assert "Empty canvas" in second_messages[-1].text
 
 
+def test_generate_sprite_action_returns_a_ref_the_model_can_place():
+    seen: list = []
+
+    def generate_sprite_fn(concept, opts):
+        seen.append((concept, opts))
+        return {"ref": "user:7", "frame_count": 6, "fps": 10, "width": 48, "height": 48}
+
+    _, apply_fn = _apply_fn_factory()
+    provider = _FakeProvider(
+        [
+            '{"action":"generate-sprite","concept":"a walking fox","cols":6}',
+            '{"action":"finish","note":"made a sprite"}',
+        ]
+    )
+    result = run_studio_agent(
+        design=_DESIGN, prompt="b", items=[], spec=_SPEC, provider=provider,
+        apply_fn=apply_fn, observe_fn=_noop_observe, generate_sprite_fn=generate_sprite_fn,
+    )
+    assert [s["action"] for s in result.steps] == ["generate-sprite", "finish"]
+    assert seen == [("a walking fox", {"cols": 6})]
+    # The ref was fed back so the model can add-sprite with it.
+    _, second_messages = provider.calls[1]
+    assert "user:7" in second_messages[-1].text
+
+
 def test_apply_budget_caps_applies():
     _, apply_fn = _apply_fn_factory()
     apply_reply = '{"action":"apply","calls":[{"op":"write-copy","text":"x"}]}'
     provider = _FakeProvider([apply_reply, apply_reply, apply_reply])  # 3 applies, budget = 2
     result = run_studio_agent(
         design=_DESIGN, prompt="b", items=[], spec=_SPEC, provider=provider,
-        apply_fn=apply_fn, observe_fn=_noop_observe, max_rounds=5, max_applies=2,
+        apply_fn=apply_fn, observe_fn=_noop_observe,
+        generate_sprite_fn=_noop_generate, max_rounds=5, max_applies=2,
     )
     assert result.applied == 2
     assert any(s.get("skipped") == "budget" for s in result.steps)
@@ -173,6 +206,7 @@ def test_unparseable_reply_does_not_abort_loop():
     result = run_studio_agent(
         design=_DESIGN, prompt="b", items=[], spec=_SPEC, provider=provider,
         apply_fn=apply_fn, observe_fn=_noop_observe,
+        generate_sprite_fn=_noop_generate,
     )
     assert result.steps[0]["action"] == "invalid"
     assert result.finished is True
@@ -193,6 +227,7 @@ def test_provider_failure_falls_back_to_deterministic_compose():
     result = run_studio_agent(
         design=_DESIGN, prompt="brief", items=[AgentItem(7, "Cliffs")], spec=_SPEC,
         provider=_Boom("boom-1"), apply_fn=apply_fn, observe_fn=_noop_observe,
+        generate_sprite_fn=_noop_generate,
     )
     assert result.finished is True and result.applied == 1
     assert result.steps[-1]["action"] == "finish"
@@ -261,6 +296,26 @@ def test_observe_endpoint_labels_images_by_catalog_title(app, stub_node):
         # The engine was handed id→title labels (so images read by name, not "catalog item N").
         payload = stub_node["/api/studio-ops/observe"]
         assert payload["labelsById"] == {str(ok): "Visible Tour"}
+
+
+def test_generate_sprite_endpoint_persists_an_owner_sprite(app):
+    # No image key in tests → the deterministic stub yields a single-frame solid sprite (hermetic).
+    url = "/ai-agent/studio/sprites/generate"
+    body = {"concept": "a walking fox"}
+    with TestClient(app) as c:
+        assert c.post(url, json=body).status_code == 401
+        provider = auth_header(c, Role.content_provider)
+        assert c.post(url, json=body, headers=provider).status_code == 403
+        agent = auth_header(c, Role.tourism_agent)
+        r = c.post(url, json=body, headers=agent)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["ref"] == f"user:{data['sprite']['id']}"
+        assert data["provider"] == "stub"
+        assert len(data["sprite"]["frame_keys"]) >= 1  # at least one sliced frame, stored
+        # The generated sprite now appears in the caller's sprite library.
+        listed = c.get("/me/sprites", headers=agent).json()
+        assert any(s["id"] == data["sprite"]["id"] for s in listed)
 
 
 def test_agent_endpoint_stub_is_deterministic_and_grounded(app, stub_node):

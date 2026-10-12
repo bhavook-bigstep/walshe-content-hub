@@ -60,6 +60,10 @@ export interface StudioOpContext {
   /** Resolve a catalog id → its served image src. The studio NEVER fabricates an image source, so a
    *  `place` whose id doesn't resolve here is rejected. */
   imageSrcFor?: (catalogItemId: string) => string | undefined;
+  /** Resolve a non-built-in sprite ref (e.g. an agent-generated `user:<id>`) → its frames + size.
+   *  Built-in sprite ids resolve from the local registry; everything else must resolve here (the op
+   *  core never fabricates frames), so the host (FastAPI) threads generated sprites through this. */
+  spriteFramesFor?: (ref: string) => { frames: string[]; fps?: number; width: number; height: number } | undefined;
 }
 
 /** A single op call from the agent: an op name + its params. */
@@ -127,10 +131,19 @@ const EASES: ReadonlySet<string> = new Set<Easing>(EASINGS);
 // Built-in frame-by-frame sprites the agent can place by id (frames are embedded at op time so the
 // node is self-contained — no later resolve pass needed for preview/export).
 const SPRITE_BY_ID = new Map<string, SpriteDef>(SPRITE_ANIMATIONS.map((s) => [s.id, s]));
-function spriteDef(id: string): SpriteDef {
-  const def = SPRITE_BY_ID.get(id);
-  if (!def) reject(`unknown sprite "${id}" — choose one of: ${[...SPRITE_BY_ID.keys()].join(", ")}`);
-  return def;
+
+/** A resolved sprite's frames + size + a ref to carry on the node. Built-in sprites resolve from the
+ *  bundled registry; any other id (e.g. a generated `user:<id>`) resolves via `ctx.spriteFramesFor`.
+ *  Rejects when neither knows the id, so the op core never fabricates frames. */
+function resolveSprite(
+  id: string,
+  ctx: StudioOpContext,
+): { frames: string[]; fps?: number; width: number; height: number; ref: string } {
+  const builtin = SPRITE_BY_ID.get(id);
+  if (builtin) return { frames: builtin.frames, fps: builtin.fps, width: builtin.width, height: builtin.height, ref: id };
+  const generated = ctx.spriteFramesFor?.(id);
+  if (generated && generated.frames.length) return { ...generated, ref: id };
+  reject(`unknown sprite "${id}" — use a built-in id (${[...SPRITE_BY_ID.keys()].slice(0, 4).join(", ")}, …) or a generated sprite ref`);
 }
 // Style keys an agent may patch, split by value type so each is validated with str()/num().
 const STR_STYLE = ["color", "fontFamily", "fontWeight", "fontStyle", "textAlign", "stroke"] as const;
@@ -455,12 +468,12 @@ const OPS: Record<string, OpDef> = {
       x: "optional", y: "optional", width: "optional", height: "optional",
     },
     apply(design, call, ctx) {
-      const def = spriteDef(str(call.sprite, "sprite"));
+      const def = resolveSprite(str(call.sprite, "sprite"), ctx);
       const p = placement(call);
       return addGraphic(
         design,
         ctx.sceneIndex,
-        { frames: def.frames, fps: def.fps, width: def.width, height: def.height, sprite: def.id },
+        { frames: def.frames, fps: def.fps, width: def.width, height: def.height, sprite: def.ref },
         { x: p.x, y: p.y, width: p.width, height: p.height },
       );
     },
@@ -470,15 +483,15 @@ const OPS: Record<string, OpDef> = {
     description: "Add a sprite that plays AFTER an existing sprite, continuing from where it ends (joins them into one motion).",
     params: {
       parent_id: "the existing sprite's node id (from observe)",
-      sprite: "built-in sprite id for the next sprite in the chain",
+      sprite: "a built-in sprite id, or a generated sprite ref, for the next sprite in the chain",
     },
     apply(design, call, ctx) {
       const parentId = str(call.parent_id, "parent_id");
       const parent = findNode(design, ctx.sceneIndex, parentId);
       if (!isSprite(parent)) reject(`node ${parentId} is not a sprite to chain from`);
-      const def = spriteDef(str(call.sprite, "sprite"));
+      const def = resolveSprite(str(call.sprite, "sprite"), ctx);
       const next = addSuccessorSprite(design, ctx.sceneIndex, parentId, {
-        frames: def.frames, fps: def.fps, width: def.width, height: def.height, spriteRef: def.id,
+        frames: def.frames, fps: def.fps, width: def.width, height: def.height, spriteRef: def.ref,
       });
       if (next === design) reject("could not chain the sprite");
       return next;

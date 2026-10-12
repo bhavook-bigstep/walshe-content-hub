@@ -33,6 +33,9 @@ logger = logging.getLogger("app.ai.studio_agent")
 ApplyFn = Callable[[dict[str, Any], list[dict[str, Any]], int], dict[str, Any]]
 # (design, scene index or None for all) -> the structured scene observation (descriptions + counts).
 ObserveFn = Callable[[dict[str, Any], "int | None"], dict[str, Any]]
+# (concept, opts) -> a sprite handle {ref, frame_count, fps, width, height}. The fn also remembers
+# the generated frames host-side so a later `add-sprite <ref>` can place them (Contract 1 pattern).
+GenerateSpriteFn = Callable[[str, dict[str, Any]], dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -80,6 +83,9 @@ def build_system_prompt(prompt: str, spec: list[dict[str, Any]], items: list[Age
         "Protocol — each reply is one of these json objects:\n"
         '  {"action":"observe","scene":0} (or "scene":"all") '
         "— I reply with an accurate word description of the scene(s) as they are now.\n"
+        '  {"action":"generate-sprite","concept":"a walking fox","cols":6} '
+        "— I generate an animated sprite from the concept and reply with its ref; then add-sprite "
+        'with {"op":"add-sprite","sprite":"<that ref>"}.\n'
         '  {"action":"describe_ops","ops":["place","write-copy"]} '
         "— I reply with those ops' parameters.\n"
         '  {"action":"apply","calls":[{"op":"...","...":"..."}]} '
@@ -182,9 +188,11 @@ def run_studio_agent(
     provider: AIProvider,
     apply_fn: ApplyFn,
     observe_fn: ObserveFn,
+    generate_sprite_fn: GenerateSpriteFn,
     scene_index: int = 0,
     max_rounds: int = 6,
     max_applies: int = 4,
+    max_generates: int = 3,
 ) -> StudioAgentResult:
     """Run the progressive-disclosure tool loop and return the edited design + the step transcript.
 
@@ -200,6 +208,7 @@ def run_studio_agent(
         ChatMessage("user", "Begin. Edit the design to satisfy the BRIEF.")
     ]
     result = StudioAgentResult(design=design, provider=provider.name)
+    generated = 0
 
     for _ in range(max_rounds):
         try:
@@ -239,6 +248,31 @@ def run_studio_agent(
             result.steps.append({"action": "observe", "scene": target})
             messages.append(ChatMessage("assistant", json.dumps(action)))
             messages.append(ChatMessage("user", json.dumps(observation)))
+            continue
+
+        if kind == "generate-sprite":
+            concept = action.get("concept")
+            if not isinstance(concept, str) or not concept.strip():
+                messages.append(ChatMessage("assistant", json.dumps(action)))
+                messages.append(ChatMessage("user", "generate-sprite needs a non-empty concept."))
+                result.steps.append({"action": "generate-sprite", "error": "missing concept"})
+                continue
+            if generated >= max_generates:
+                messages.append(ChatMessage("user", "Sprite-generation budget reached."))
+                result.steps.append({"action": "generate-sprite", "skipped": "budget"})
+                continue
+            opts = {k: action[k] for k in ("cols", "rows", "fps") if k in action}
+            try:
+                handle = generate_sprite_fn(concept, opts)
+            except Exception:  # noqa: BLE001 - a generation failure must not kill the loop
+                logger.info("studio-agent sprite generation failed")
+                messages.append(ChatMessage("user", "Sprite generation failed; try another way."))
+                result.steps.append({"action": "generate-sprite", "error": "generation failed"})
+                continue
+            generated += 1
+            result.steps.append({"action": "generate-sprite", "ref": handle.get("ref")})
+            messages.append(ChatMessage("assistant", json.dumps(action)))
+            messages.append(ChatMessage("user", json.dumps({"sprite": handle})))
             continue
 
         if kind == "describe_ops":

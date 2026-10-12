@@ -15,17 +15,23 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import clock
 from app.ai.factory import get_provider
+from app.ai.sprite_gen import generate_sprite
 from app.ai.studio_agent import AgentItem, run_studio_agent
 from app.config import Settings
 from app.deps import get_db, get_settings, require_role
 from app.models.user import Role, User
 from app.services.visibility import agent_visible_entries_by_ids
+from app.storage.minio_client import Storage
+
+
+def _get_storage(request: Request) -> Storage:
+    return request.app.state.storage
 
 # Mounted under /ai-agent (see routers/ai_agent.py); tag inherited from that group.
 router = APIRouter(prefix="/studio")
@@ -163,6 +169,45 @@ def studio_ops_observe(
         raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
 
 
+class StudioGenerateSpriteRequest(BaseModel):
+    """Generate an animated sprite from a concept via the image API; store it as an owner sprite."""
+
+    concept: str = Field(min_length=1, max_length=500, description="what the sprite shows + motion")
+    cols: int | None = Field(default=None, ge=1, le=16, description="frames across (grid override)")
+    rows: int | None = Field(default=None, ge=1, le=16, description="rows (grid override)")
+    fps: int = Field(default=10, ge=1, le=30, description="playback speed")
+
+
+@router.post("/sprites/generate")
+def studio_generate_sprite(
+    body: StudioGenerateSpriteRequest,
+    agent: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(_get_storage),
+) -> dict[str, Any]:
+    """Generate a sprite sheet (LLM image), slice it via the shared pipeline, and persist it as the
+    caller's sprite. Returns the owner sprite + its `user:<id>` ref to place with `add-sprite`.
+    Generated sprites are unmoderated decorative content."""
+    try:
+        gen = generate_sprite(
+            settings, db, storage, agent.id, body.concept,
+            cols=body.cols, rows=body.rows, fps=body.fps,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    s = gen.sprite
+    return {
+        "ref": f"user:{s.id}",
+        "provider": gen.provider,
+        "sprite": {
+            "id": s.id, "name": s.name, "fps": s.fps,
+            "frame_width": s.frame_width, "frame_height": s.frame_height,
+            "frame_keys": s.frame_keys,
+        },
+    }
+
+
 # ── Inbuilt agent loop ────────────────────────────────────────────────────────────────────────────
 class StudioAgentRequest(BaseModel):
     """Run the inbuilt Builder agent: edit `design` to satisfy `prompt`, grounded in `item_ids`."""
@@ -190,6 +235,7 @@ def studio_agent(
     agent: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(_get_storage),
     now: datetime = Depends(clock.now),
 ) -> dict[str, Any]:
     """Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.
@@ -201,6 +247,9 @@ def studio_agent(
     allowed, image_src_by_id = _resolve_grounding(rows)
     items = [AgentItem(id=r.id, title=r.title, destination=r.destination or "") for r in rows]
     labels = {str(r.id): r.title for r in rows}
+    # Sprites the agent generates this run, by ref → frames+size. Threaded into every apply so a
+    # later `add-sprite <ref>` can place them (the op core never fabricates frames).
+    generated_sprites: dict[str, dict[str, Any]] = {}
 
     def apply_fn(
         design: dict[str, Any], calls: list[dict[str, Any]], scene_index: int
@@ -211,11 +260,32 @@ def studio_agent(
             "calls": calls,
             "allowedCatalogIds": allowed,
             "imageSrcById": image_src_by_id,
+            "spriteFramesById": generated_sprites,
         }
         try:
             return _node_post("/api/studio-ops/apply", payload)
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
+
+    def generate_sprite_fn(concept: str, opts: dict[str, Any]) -> dict[str, Any]:
+        gen = generate_sprite(
+            settings, db, storage, agent.id, concept,
+            cols=opts.get("cols"), rows=opts.get("rows"), fps=int(opts.get("fps", 10) or 10),
+        )
+        ref = f"user:{gen.sprite.id}"
+        generated_sprites[ref] = {
+            "frames": gen.frames_data_urls,
+            "fps": gen.sprite.fps,
+            "width": gen.sprite.frame_width,
+            "height": gen.sprite.frame_height,
+        }
+        return {
+            "ref": ref,
+            "frame_count": len(gen.frames_data_urls),
+            "fps": gen.sprite.fps,
+            "width": gen.sprite.frame_width,
+            "height": gen.sprite.frame_height,
+        }
 
     def observe_fn(design: dict[str, Any], scene_index: int | None) -> dict[str, Any]:
         payload: dict[str, Any] = {"design": design, "labelsById": labels}
@@ -239,6 +309,7 @@ def studio_agent(
         provider=get_provider(settings),
         apply_fn=apply_fn,
         observe_fn=observe_fn,
+        generate_sprite_fn=generate_sprite_fn,
         scene_index=body.scene_index,
         max_rounds=body.max_rounds,
     )

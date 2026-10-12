@@ -9,6 +9,7 @@
 //   calls: StudioOpCall[],       the op sequence
 //   allowedCatalogIds?: string[],   Contract 1: the only ids the caller may reference (omit = no gate)
 //   imageSrcById?: { [id]: src }    resolved served image srcs (the studio never fabricates one)
+//   spriteFramesById?: { [ref]: { frames, fps?, width, height } }  agent-generated sprites, by ref
 // }
 // → { design, results, valid }. The CALLER is responsible for resolving allowedCatalogIds +
 // imageSrcById from the authed agent's visible catalog (the FastAPI visibility choke-point) before
@@ -45,11 +46,16 @@ export async function POST(req: Request): Promise<Response> {
     body.imageSrcById && typeof body.imageSrcById === "object"
       ? (body.imageSrcById as Record<string, string>)
       : undefined;
+  const spriteMap =
+    body.spriteFramesById && typeof body.spriteFramesById === "object"
+      ? (body.spriteFramesById as Record<string, { frames: string[]; fps?: number; width: number; height: number }>)
+      : undefined;
 
   const result = applyStudioOps(design, calls, {
     sceneIndex: Math.max(0, Math.min(sceneIndex, design.scenes.length - 1)),
     allowedCatalogIds: allowed,
     imageSrcFor: srcMap ? (id) => srcMap[id] : undefined,
+    spriteFramesFor: spriteMap ? (ref) => spriteMap[ref] : undefined,
   });
   return json(result);
 }
