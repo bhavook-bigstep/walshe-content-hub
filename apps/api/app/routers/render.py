@@ -13,7 +13,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import clock
-from app.deps import get_db, require_role
+from app.ai.tts import synthesize_speech
+from app.config import Settings
+from app.deps import get_db, get_settings, require_role
 from app.media.html_export import design_to_email_html
 from app.media.pdf import design_to_pdf
 from app.media.video import build_scene_script
@@ -96,6 +98,7 @@ def render_video(
     agent: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     storage: Storage = Depends(get_storage),
+    settings: Settings = Depends(get_settings),
     now: datetime = Depends(clock.now),
 ) -> Response:
     """Render scenes to a rudimentary MP4. Images come only from visible catalog entries
@@ -114,7 +117,10 @@ def render_video(
                     for s in body.scenes
                 ]
             )
-            path = encode_video(scenes, images, tts=body.narrate)
+            path = encode_video(
+                scenes, images, tts=body.narrate,
+                synth=lambda text: synthesize_speech(settings, text),
+            )
             with open(path, "rb") as fh:
                 data = fh.read()
     except (RuntimeError, OSError, ValueError) as exc:
@@ -163,7 +169,11 @@ class FramesVideoRequest(BaseModel):
 
 
 @router.post("/video-frames")
-def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)) -> Response:
+def render_video_frames(
+    body: FramesVideoRequest,
+    _: User = Depends(_agent_only),
+    settings: Settings = Depends(get_settings),
+) -> Response:
     """Encode pre-rendered WYSIWYG animation frames into an MP4 (preview == export)."""
     total = sum(len(s.frames) for s in body.scenes)
     if total > _MAX_TOTAL_FRAMES:
@@ -193,7 +203,10 @@ def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)
                 ]
             )
             cues = [[{"at_ms": c.at_ms, "text": c.text} for c in s.narration] for s in body.scenes]
-            path = encode_frames(scenes, frame_dirs, fps=body.fps, tts=body.narrate, cues=cues)
+            path = encode_frames(
+                scenes, frame_dirs, fps=body.fps, tts=body.narrate, cues=cues,
+                synth=lambda text: synthesize_speech(settings, text),
+            )
             with open(path, "rb") as fh:
                 data = fh.read()
     except (RuntimeError, OSError, ValueError) as exc:

@@ -251,7 +251,7 @@ def test_escape_drawtext():
 
 
 def test_video_route_agent_only(client, agent_headers, provider_headers, monkeypatch):
-    monkeypatch.setattr(render_mod, "encode_video", lambda scenes, imgs, tts=False: _fake(scenes))
+    monkeypatch.setattr(render_mod, "encode_video", lambda scenes, imgs, tts=False, **kw: _fake(scenes))
     body = {
         "scenes": [
             {"item_id": None, "title": t["title"], "caption": t["description"]} for t in ITEMS
@@ -296,7 +296,7 @@ def test_video_route_renders_catalog_image(app, client, agent_headers, monkeypat
 
     captured: dict = {}
 
-    def fake_encode(scenes, images, tts=False):
+    def fake_encode(scenes, images, tts=False, **kw):
         captured["scenes"] = scenes
         captured["images"] = [Path(i).read_bytes() if i else None for i in images]
         captured["tts"] = tts
@@ -323,7 +323,7 @@ def test_video_route_renders_catalog_image(app, client, agent_headers, monkeypat
 def test_video_route_passes_duration_and_transition(client, agent_headers, monkeypatch):
     captured: dict = {}
 
-    def fake_encode(scenes, images, tts=False):
+    def fake_encode(scenes, images, tts=False, **kw):
         captured["scenes"] = scenes
         return _fake(scenes)
 
@@ -500,7 +500,7 @@ def test_render_video_frames_sequences_and_stitches(tmp_path):
 
 
 def test_video_frames_route(client, agent_headers, provider_headers, monkeypatch):
-    def _fake_frames(scenes, dirs, fps=20, tts=False, cues=None):
+    def _fake_frames(scenes, dirs, fps=20, tts=False, cues=None, **kw):
         return _fake(scenes)
 
     monkeypatch.setattr(render_mod, "encode_frames", _fake_frames)

@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     ai_image_provider: str = "gemini"
     ai_image_model: str = "gemini-2.5-flash-image"
 
+    # Text-to-speech for video narration — Gemini TTS when a key is set, else the local say/espeak
+    # fallback (see app.ai.tts.synthesize_speech + app.media.video).
+    ai_tts_provider: str = "gemini"
+    ai_tts_model: str = "gemini-2.5-flash-preview-tts"
+    ai_tts_voice: str = "Kore"
+
     # Observability (AC45). LangSmith tracing is OFF by default — no key, no egress, hermetic tests.
     # Set LANGSMITH_API_KEY (+ optional LANGSMITH_PROJECT) to export the agent loop + creative plan
     # + provider calls to LangSmith. The in-app trace store always records a content-free run row.

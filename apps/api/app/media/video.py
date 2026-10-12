@@ -296,6 +296,7 @@ def render_video(
     xfade: bool = True,
     runner: Callable[..., Any] = subprocess.run,
     which: Callable[[str], str | None] = shutil.which,
+    synth: Callable[[str], bytes | None] = lambda _t: None,
 ) -> str:
     """Encode ``scenes`` to ``<out_dir>/video.mp4`` and return that path."""
     if not scenes:
@@ -319,11 +320,9 @@ def render_video(
         clip = str(work / f"scene{scene.index:02d}.mp4")
         audio = None
         if tts:
-            audio_path = str(work / f"scene{scene.index:02d}.aiff")
-            tcmd = _tts_cmd(which, scene.narration, audio_path)
-            if tcmd:
-                runner(tcmd, check=True, capture_output=True)
-                audio = audio_path
+            audio = _synth_cue(
+                scene.narration, work / f"scene{scene.index:02d}", synth, which, runner
+            )
         image = images[scene.index] if scene.index < len(images) else None
         runner(
             build_scene_cmd(scene, image, clip, audio, with_text=with_text),
@@ -392,6 +391,28 @@ def build_frames_clip_cmd(pattern: str, fps: int, out: str, audio: str | None = 
     return cmd
 
 
+def _synth_cue(
+    text: str,
+    base: Path,
+    synth: Callable[[str], bytes | None],
+    which: Callable[[str], str | None],
+    runner: Callable[..., Any],
+) -> str | None:
+    """Produce one spoken clip for ``text``: Gemini TTS (``synth``) when it returns audio, else the
+    local ``say``/``espeak`` tool. Returns the written path, or None when no TTS is available."""
+    audio = synth(text)
+    if audio is not None:
+        path = str(base.with_suffix(".wav"))
+        Path(path).write_bytes(audio)
+        return path
+    path = str(base.with_suffix(".aiff"))
+    tcmd = _tts_cmd(which, text, path)
+    if not tcmd:
+        return None
+    runner(tcmd, check=True, capture_output=True)
+    return path
+
+
 def _cued_audio(
     cues: list[dict[str, Any]],
     duration: float,
@@ -399,6 +420,7 @@ def _cued_audio(
     idx: int,
     which: Callable[[str], str | None],
     runner: Callable[..., Any],
+    synth: Callable[[str], bytes | None],
 ) -> str | None:
     """Build one scene's narration track: each cue's TTS placed at its ``at_ms`` offset over a bed
     of scene-length silence (adelay + amix). Returns None when there is no TTS tool or no cue."""
@@ -407,11 +429,9 @@ def _cued_audio(
         text = str(c.get("text", "")).strip()
         if not text:
             continue
-        path = str(work / f"cue{idx}_{j}.aiff")
-        tcmd = _tts_cmd(which, text, path)
-        if not tcmd:
-            return None  # no TTS tool available
-        runner(tcmd, check=True, capture_output=True)
+        path = _synth_cue(text, work / f"cue{idx}_{j}", synth, which, runner)
+        if not path:
+            return None  # no TTS available
         clips.append((max(0, int(c.get("at_ms", 0))), path))
     if not clips:
         return None
@@ -442,6 +462,7 @@ def render_video_frames(
     xfade: bool = True,
     runner: Callable[..., Any] = subprocess.run,
     which: Callable[[str], str | None] = shutil.which,
+    synth: Callable[[str], bytes | None] = lambda _t: None,
 ) -> str:
     """Encode pre-rendered WYSIWYG frame sequences (one dir per scene, ``frame%05d.jpg``) into an
     MP4 — the animation is already baked into the frames, so this just sequences + stitches them
@@ -465,14 +486,14 @@ def render_video_frames(
             scene_cues = list(cues[scene.index]) if cues and scene.index < len(cues) else []
             if scene_cues:
                 # Time-cued narration: each line spoken at its own offset within the scene.
-                audio = _cued_audio(scene_cues, scene.duration, work, scene.index, which, runner)
+                audio = _cued_audio(
+                    scene_cues, scene.duration, work, scene.index, which, runner, synth
+                )
             else:
                 # Fallback: one clip from the scene's title/caption narration.
-                audio_path = str(work / f"scene{scene.index:02d}.aiff")
-                tcmd = _tts_cmd(which, scene.narration, audio_path)
-                if tcmd:
-                    runner(tcmd, check=True, capture_output=True)
-                    audio = audio_path
+                audio = _synth_cue(
+                    scene.narration, work / f"scene{scene.index:02d}", synth, which, runner
+                )
         runner(build_frames_clip_cmd(pattern, fps, clip, audio), check=True, capture_output=True)
         clips.append(clip)
         srt.append(
