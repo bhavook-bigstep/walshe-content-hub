@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import {
   deleteSprite,
   fetchAssetObjectUrl,
-  generateSprite,
   importSprites,
   listMySprites,
   type UserSprite,
@@ -31,8 +30,6 @@ export default function SpriteImportPanel({
   const [keep, setKeep] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [concept, setConcept] = useState(""); // AI sprite-generation prompt
-  const [genBusy, setGenBusy] = useState(false);
   const thumbs = useRef<Map<number, string>>(new Map()); // sprite id → first-frame blob URL
   const [, force] = useState(0); // re-render as thumbnails resolve
 
@@ -85,23 +82,6 @@ export default function SpriteImportPanel({
       setMsg("Could not process that file.");
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function onGenerate() {
-    const prompt = concept.trim();
-    if (!prompt || genBusy) return;
-    setGenBusy(true);
-    setMsg(null);
-    try {
-      const res = await generateSprite(prompt);
-      await refresh(); // the generated sprite now appears in "Your sprites"
-      setConcept("");
-      setMsg(`Generated “${res.sprite.name}” — tap it below to add it to the scene.`);
-    } catch {
-      setMsg("Could not generate a sprite. Try a simpler description.");
-    } finally {
-      setGenBusy(false);
     }
   }
 
@@ -202,31 +182,6 @@ export default function SpriteImportPanel({
             }}
           />
         </label>
-      </div>
-      {/* Generate a sprite with AI: describe it, the server renders a sprite sheet + slices it into
-          an animation that lands in the grid below (same pipeline as an upload). */}
-      <div className="flex items-center gap-1.5">
-        <input
-          type="text"
-          value={concept}
-          onChange={(e) => setConcept(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void onGenerate();
-          }}
-          placeholder="Generate a sprite with AI, e.g. a walking fox…"
-          disabled={genBusy}
-          aria-label="Describe a sprite to generate with AI"
-          className="h-8 flex-1 rounded-md border border-walshe-line bg-walshe-stone/40 px-2 text-[12px] text-walshe-ink placeholder:text-walshe-grey focus:border-walshe-teal focus:outline-none disabled:opacity-60"
-        />
-        <button
-          type="button"
-          onClick={() => void onGenerate()}
-          disabled={genBusy || !concept.trim()}
-          title="Generate an animated sprite from your description"
-          className="btn-primary h-8 shrink-0 px-2.5 text-[12px] disabled:opacity-60"
-        >
-          {genBusy ? "Generating…" : "Generate"}
-        </button>
       </div>
       {msg && <p className="text-[11px] leading-snug text-walshe-grey">{msg}</p>}
 

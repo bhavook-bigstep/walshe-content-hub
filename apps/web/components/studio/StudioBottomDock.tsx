@@ -3,11 +3,13 @@
 import { useMemo, useState } from "react";
 import BuilderPanel, { type BuilderCatalogItem } from "./BuilderPanel";
 import CreativePlanPanel from "./CreativePlanPanel";
+import GenerateAssetsPanel from "./GenerateAssetsPanel";
 import ModerationPanel from "./ModerationPanel";
 import type { DesignDoc } from "../../lib/studio/ops";
+import type { UserAsset } from "../../lib/api";
 import { moderateWorkspace, type ModeratableEntry } from "../../lib/studio/moderation";
 
-type Tab = "builder" | "planner" | "moderation";
+type Tab = "builder" | "planner" | "assets" | "moderation";
 
 interface Props {
   design: DesignDoc;
@@ -22,6 +24,8 @@ interface Props {
   onDemoBuild?: (prompt: string) => void | Promise<void>;
   /** Whether the scripted demo is currently running (disables the Generate button). */
   demoRunning?: boolean;
+  /** Record AI-generated images on the workspace (so they appear in the media drawer). */
+  onImageGenerated?: (assets: UserAsset[]) => void;
 }
 
 /**
@@ -37,6 +41,7 @@ export default function StudioBottomDock({
   onSelectNode,
   onDemoBuild,
   demoRunning,
+  onImageGenerated,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("builder");
@@ -98,6 +103,7 @@ export default function StudioBottomDock({
           <div className="flex flex-none items-center gap-2 border-b border-walshe-line px-4 py-2.5">
             {tabBtn("builder", "AI Builder")}
             {tabBtn("planner", "Planner")}
+            {tabBtn("assets", "Generate Assets")}
             {tabBtn("moderation", "Moderation", flags.length)}
             <button
               type="button"
@@ -118,6 +124,8 @@ export default function StudioBottomDock({
                 hasEntries={moderationEntries.length > 0}
                 onSelect={onSelectNode}
               />
+            ) : tab === "assets" ? (
+              <GenerateAssetsPanel onImageGenerated={onImageGenerated} />
             ) : tab === "builder" ? (
               // In demo mode the Builder is always available (it falls back to sample content when no
               // collection is open); otherwise it needs approved catalog items to draft from.

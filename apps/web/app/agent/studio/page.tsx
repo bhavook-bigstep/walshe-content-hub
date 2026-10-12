@@ -1615,6 +1615,7 @@ function StudioEditor() {
           onSelectNode={selectNode}
           onDemoBuild={runBuilderDemoFlow}
           demoRunning={demoRunning}
+          onImageGenerated={(assets) => void onMediaAdded(assets, "generated")}
         />
 
         {/* Scripted AI-Builder demo overlay: the AI cursor + streamed "thinking". */}
