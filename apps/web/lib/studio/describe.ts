@@ -21,6 +21,13 @@ export interface DescribeOptions {
   labels?: Record<string, string>;
 }
 
+/** A targetable handle for one node: its id (so the agent can edit/move/delete it) + a brief. */
+export interface NodeHandle {
+  id: string;
+  type: string;
+  brief: string;
+}
+
 export interface SceneObservation {
   index: number;
   name: string;
@@ -31,6 +38,8 @@ export interface SceneObservation {
   nodeCount: number;
   /** element counts by node type (text/image/shape/background). */
   elements: Record<string, number>;
+  /** per-node handles (id + brief) so the agent can target existing nodes with editing ops. */
+  nodes: NodeHandle[];
   groupCount: number;
 }
 
@@ -179,6 +188,7 @@ export function observeDesign(design: DesignDoc, labels?: Record<string, string>
       background: scene.background,
       nodeCount: scene.nodes.length,
       elements: elementCounts(scene),
+      nodes: scene.nodes.map((n) => ({ id: n.id, type: n.type, brief: describeNode(n, opts) })),
       groupCount: scene.groups?.length ?? 0,
     })),
   };

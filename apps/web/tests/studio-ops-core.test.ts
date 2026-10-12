@@ -127,4 +127,60 @@ describe("studio-ops tool core", () => {
   it("test_validate_design_accepts_a_fresh_design", () => {
     expect(validateDesign(newDesign("social"))).toBe(true);
   });
+
+  // ── Node editing (target existing nodes by id) ──
+  it("test_node_editing_ops_edit_move_resize_style_reorder", () => {
+    // Seed two text nodes, then edit the first via each op (ids come from the design, like observe).
+    let d = applyStudioOps(
+      newDesign("social"),
+      [{ op: "write-copy", text: "One" }, { op: "write-copy", text: "Two" }],
+      ctx(),
+    ).design;
+    const id = d.scenes[0].nodes[0].id;
+    const r = applyStudioOps(
+      d,
+      [
+        { op: "edit-text", node_id: id, text: "Renamed" },
+        { op: "move-node", node_id: id, x: 200, y: 300 },
+        { op: "resize-node", node_id: id, width: 150, height: 60 },
+        { op: "style-node", node_id: id, color: "#ff0000", opacity: 0.5 },
+        { op: "reorder-node", node_id: id, move: "front" },
+      ],
+      ctx(),
+    );
+    expect(r.results.every((x) => x.status === "applied")).toBe(true);
+    d = r.design;
+    const node = d.scenes[0].nodes.find((n) => n.id === id)!;
+    expect(node).toMatchObject({ text: "Renamed", x: 200, y: 300, width: 150, height: 60, color: "#ff0000", opacity: 0.5 });
+    expect(d.scenes[0].nodes[d.scenes[0].nodes.length - 1].id).toBe(id); // moved to front (top of z-stack)
+  });
+
+  it("test_delete_and_duplicate_node", () => {
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "write-copy", text: "A" }], ctx()).design;
+    const id = seeded.scenes[0].nodes[0].id;
+    const dup = applyStudioOps(seeded, [{ op: "duplicate-node", node_id: id }], ctx());
+    expect(dup.results[0].status).toBe("applied");
+    expect(dup.design.scenes[0].nodes).toHaveLength(2);
+    const del = applyStudioOps(dup.design, [{ op: "delete-node", node_id: id }], ctx());
+    expect(del.design.scenes[0].nodes.find((n) => n.id === id)).toBeUndefined();
+  });
+
+  it("test_editing_a_missing_node_is_rejected_with_a_clear_reason", () => {
+    const { results, design } = applyStudioOps(
+      newDesign("social"),
+      [{ op: "move-node", node_id: "nope", x: 1, y: 1 }],
+      ctx(),
+    );
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/not found on the current scene/i);
+    expect(design.scenes[0].nodes).toHaveLength(0); // unchanged
+  });
+
+  it("test_edit_text_rejects_a_non_text_node", () => {
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "place", item_id: 7 }], ctx()).design;
+    const imgId = seeded.scenes[0].nodes[0].id;
+    const { results } = applyStudioOps(seeded, [{ op: "edit-text", node_id: imgId, text: "x" }], ctx());
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/not editable text/i);
+  });
 });

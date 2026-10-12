@@ -13,12 +13,22 @@ import {
   addScene,
   addShape,
   addText,
+  deleteNode,
+  duplicateNode,
+  editText,
+  moveNode,
   recomposeGroups,
+  reorderNode,
+  resizeNode,
   scenesAsPages,
   setBackground,
   setSceneDuration,
+  updateNode,
   migrateDesign,
   type DesignDoc,
+  type DesignNode,
+  type LayerMove,
+  type NodeStyle,
   type ShapeKind,
 } from "./ops";
 
@@ -92,12 +102,23 @@ interface OpDef {
 }
 
 const SHAPES: ReadonlySet<string> = new Set<ShapeKind>(["rect", "ellipse", "line"]);
+const LAYER_MOVES: ReadonlySet<string> = new Set<LayerMove>(["forward", "backward", "front", "back"]);
+// Style keys an agent may patch, split by value type so each is validated with str()/num().
+const STR_STYLE = ["color", "fontFamily", "fontWeight", "fontStyle", "textAlign", "stroke"] as const;
+const NUM_STYLE = ["fontSize", "lineHeight", "opacity", "angle", "radius", "strokeWidth"] as const;
 
-// TODO(agent-ops coverage): this catalog is a DELIBERATE starter subset (6 ops). The pure op layer
-// in ./ops.ts already exposes ~50+ Studio operations the agent cannot yet reach. Extend this catalog
-// toward full Studio parity so the AI Builder/MCP can drive everything a human can. Known gaps:
-//   • Node editing: editText, moveNode, resizeNode, updateNode (rotate/opacity/style), deleteNode,
-//     duplicateNode, reorderNode (z-order).
+/** Resolve a node on the target scene, or reject with a clear reason the agent can act on. The
+ *  editing ops target EXISTING nodes by the id the agent reads from `observe`. */
+function findNode(design: DesignDoc, sceneIndex: number, nodeId: string): DesignNode {
+  const node = design.scenes[sceneIndex]?.nodes.find((n) => n.id === nodeId);
+  if (!node) reject(`node_id ${nodeId} not found on the current scene`);
+  return node;
+}
+
+// TODO(agent-ops coverage): this catalog is a GROWING subset en route to full Studio parity. The
+// pure op layer in ./ops.ts exposes ~50+ operations; keep extending so the AI Builder/MCP can drive
+// everything a human can. Covered so far: add ops (write-copy/place/add-shape/set-background) + scene
+// ops + node editing (edit/move/resize/style/delete/duplicate/reorder). Remaining gaps:
 //   • Animation: setNodeAnim / enterTrack (entrance + emphasis loop), per-node keyframes.
 //   • Groups & nesting: groupNodes, ungroupNodes, renameGroup, setGroupAnim, updateGroupStyle,
 //     deleteGroup, duplicateGroup (recompose stays automatic).
@@ -180,6 +201,91 @@ const OPS: Record<string, OpDef> = {
       const sceneId = str(call.scene_id, "scene_id");
       if (!design.scenes.some((s) => s.id === sceneId)) reject(`unknown scene_id ${sceneId}`);
       return setSceneDuration(design, sceneId, num(call.duration_ms, "duration_ms"));
+    },
+  },
+
+  // ── Node editing (target EXISTING nodes by the id read from `observe`) ──
+  "edit-text": {
+    description: "Replace the copy of an existing text node. Only words grounded in the brief or a referenced catalog item.",
+    params: { node_id: "the text node's id (from observe)", text: "the new copy" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      const node = findNode(design, ctx.sceneIndex, nodeId);
+      if (node.type !== "text") reject(`node ${nodeId} is a ${node.type} node, not editable text`);
+      return editText(design, ctx.sceneIndex, nodeId, str(call.text, "text"));
+    },
+  },
+
+  "move-node": {
+    description: "Move an existing node to a new x,y on the current scene.",
+    params: { node_id: "the node's id (from observe)", x: "new x", y: "new y" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      return moveNode(design, ctx.sceneIndex, nodeId, num(call.x, "x"), num(call.y, "y"));
+    },
+  },
+
+  "resize-node": {
+    description: "Resize an existing node (width/height in canvas units; both must be positive).",
+    params: { node_id: "the node's id", width: "new width (>0)", height: "new height (>0)" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      const w = num(call.width, "width");
+      const h = num(call.height, "height");
+      if (w <= 0 || h <= 0) reject("width and height must be positive");
+      return resizeNode(design, ctx.sceneIndex, nodeId, w, h);
+    },
+  },
+
+  "style-node": {
+    description: "Patch style on an existing node (colour, font, stroke, radius, opacity, rotation). Only the keys you pass change.",
+    params: {
+      node_id: "the node's id",
+      color: "optional hex", fontSize: "optional px", fontWeight: "optional normal|bold",
+      textAlign: "optional left|center|right", opacity: "optional 0..1", angle: "optional degrees",
+    },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      const patch: Record<string, unknown> = {};
+      for (const k of STR_STYLE) if (call[k] !== undefined) patch[k] = str(call[k], k);
+      for (const k of NUM_STYLE) if (call[k] !== undefined) patch[k] = num(call[k], k);
+      if (Object.keys(patch).length === 0) reject("style-node needs at least one style key to patch");
+      return updateNode(design, ctx.sceneIndex, nodeId, patch as Partial<NodeStyle>);
+    },
+  },
+
+  "delete-node": {
+    description: "Delete an existing node from the current scene.",
+    params: { node_id: "the node's id (from observe)" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      return deleteNode(design, ctx.sceneIndex, nodeId);
+    },
+  },
+
+  "duplicate-node": {
+    description: "Duplicate an existing node on the same scene (the copy is offset and gets a fresh id).",
+    params: { node_id: "the node's id to copy" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      return duplicateNode(design, ctx.sceneIndex, nodeId);
+    },
+  },
+
+  "reorder-node": {
+    description: "Change a node's z-order (paint order) within the current scene.",
+    params: { node_id: "the node's id", move: "front | back | forward | backward" },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      findNode(design, ctx.sceneIndex, nodeId);
+      const move = str(call.move, "move");
+      if (!LAYER_MOVES.has(move)) reject("move must be one of front, back, forward, backward");
+      return reorderNode(design, ctx.sceneIndex, nodeId, move as LayerMove);
     },
   },
 };

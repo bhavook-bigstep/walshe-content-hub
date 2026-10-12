@@ -91,4 +91,12 @@ describe("refreshDescriptions + observeDesign", () => {
     expect(obs.scenes[0].elements).toEqual({ text: 1, shape: 1 });
     expect(obs.scenes[0].description).toContain("2 elements");
   });
+
+  it("exposes per-node handles (id + type + brief) so the agent can target nodes to edit", () => {
+    const d = addText(single(), 0, "Edit me", {});
+    const handle = observeDesign(d).scenes[0].nodes[0];
+    expect(handle.id).toBe(d.scenes[0].nodes[0].id);
+    expect(handle.type).toBe("text");
+    expect(handle.brief).toContain('"Edit me"');
+  });
 });
