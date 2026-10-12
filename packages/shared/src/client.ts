@@ -481,6 +481,24 @@ export async function listMySprites(): Promise<UserSprite[]> {
   return (await (await send("/me/sprites")).json()) as UserSprite[];
 }
 
+/** The result of generating a sprite from a text concept (an owner sprite + its placement ref). */
+export interface GeneratedSprite {
+  ref: string;
+  provider: string;
+  sprite: UserSprite;
+}
+
+/** Generate an animated sprite from a text concept via the image API; the server slices + stores it
+ * as one of the caller's sprites (so it then appears in `listMySprites`). `cols`/`rows` hint the
+ * frame grid; `fps` sets the speed. Agent-scoped (the studio's role). */
+export async function generateSprite(
+  concept: string,
+  opts: { cols?: number; rows?: number; fps?: number } = {},
+): Promise<GeneratedSprite> {
+  const body = { concept, ...opts };
+  return (await (await send("/ai-agent/studio/sprites/generate", json(body))).json()) as GeneratedSprite;
+}
+
 /** Delete one of the caller's imported sprites (used to discard the ones not kept after an import). */
 export async function deleteSprite(spriteId: number): Promise<void> {
   await send(`/me/sprites/${spriteId}`, { method: "DELETE" });
