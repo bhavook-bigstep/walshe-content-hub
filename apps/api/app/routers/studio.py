@@ -27,7 +27,8 @@ from app import clock
 from app.ai.content_plan import generate_content_plan
 from app.ai.factory import get_provider
 from app.ai.sprite_gen import generate_sprite
-from app.ai.studio_agent import AgentItem, run_studio_agent
+from app.ai.studio_agent import AgentItem
+from app.ai.studio_graph import run_studio_graph
 from app.config import Settings
 from app.deps import get_db, get_settings, require_role
 from app.models.user import Role, User
@@ -359,12 +360,12 @@ def studio_agent(
     `describe_ops` step — the system prompt carries just the op index, to spare the context window.
     """
     runtime = _build_agent_runtime(agent, db, settings, storage, body.item_ids, now)
-    result = run_studio_agent(
+    result = run_studio_graph(
+        settings=settings,
         design=body.design,
         prompt=body.prompt,
         items=runtime["items"],
         spec=runtime["spec"],
-        provider=get_provider(settings),
         apply_fn=runtime["apply_fn"],
         observe_fn=runtime["observe_fn"],
         generate_sprite_fn=runtime["generate_sprite_fn"],
@@ -398,16 +399,15 @@ def studio_agent_stream(
     runtime = _build_agent_runtime(
         agent, db, settings, storage, body.item_ids, now, sprite_session=sprite_session
     )
-    provider = get_provider(settings)
     events: queue.Queue = queue.Queue()
     _DONE = object()
     holder: dict[str, Any] = {}
 
     def run() -> None:
         try:
-            holder["result"] = run_studio_agent(
-                design=body.design, prompt=body.prompt, items=runtime["items"],
-                spec=runtime["spec"], provider=provider, apply_fn=runtime["apply_fn"],
+            holder["result"] = run_studio_graph(
+                settings=settings, design=body.design, prompt=body.prompt,
+                items=runtime["items"], spec=runtime["spec"], apply_fn=runtime["apply_fn"],
                 observe_fn=runtime["observe_fn"], generate_sprite_fn=runtime["generate_sprite_fn"],
                 scene_index=body.scene_index, max_rounds=body.max_rounds,
                 on_step=events.put,
