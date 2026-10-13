@@ -1031,6 +1031,16 @@ function StudioEditor() {
             }[step.action ?? ""] ??
               "Working…");
           setDemoThinking(label);
+          // Live render: when a step carries a design snapshot (after each apply), paint it on the
+          // canvas so the build is visible in real time. Image blob URLs re-resolve at the end.
+          if (step.design) {
+            const snap = migrateDesign(step.design);
+            if (snap) {
+              const withSprites = resolveSprites(snap);
+              designRef.current = withSprites;
+              setDesign(withSprites);
+            }
+          }
         });
       } catch (streamErr) {
         console.warn("[AI Builder] stream failed; falling back to non-streaming build", streamErr);

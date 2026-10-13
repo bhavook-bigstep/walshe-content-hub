@@ -191,8 +191,8 @@ def _deterministic_compose(
         {"action": "finish", "note": "deterministic compose"},
     ]
     if on_step is not None:
-        for s in steps:
-            on_step(s)
+        on_step({**steps[0], "design": res["design"]})  # stream the composed design for live render
+        on_step(steps[1])
     return StudioAgentResult(
         design=res["design"], steps=steps, applied=1, finished=True, provider="stub"
     )
@@ -223,12 +223,13 @@ def run_studio_agent(
     """
     result = StudioAgentResult(design=design, provider=provider.name)
 
-    def emit(step: dict[str, Any], note: Any = "") -> None:
+    def emit(step: dict[str, Any], note: Any = "", *, design: dict[str, Any] | None = None) -> None:
         if note:
             step.setdefault("note", str(note))
-        result.steps.append(step)
+        result.steps.append(step)  # kept lean (no design) so the non-stream response stays small
         if on_step is not None:
-            on_step(step)
+            # Stream a design SNAPSHOT with the step so the host can render the build live.
+            on_step({**step, "design": design} if design is not None else step)
 
     if provider.name == "stub":
         return _deterministic_compose(design, prompt, items, scene_index, apply_fn, on_step)
@@ -349,6 +350,7 @@ def run_studio_agent(
             emit(
                 {"action": "apply", "scene": current_scene, "results": res.get("results", [])},
                 note,
+                design=result.design,  # snapshot so the UI renders the build live
             )
             feedback = {
                 "results": res.get("results", []),
