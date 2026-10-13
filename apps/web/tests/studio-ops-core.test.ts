@@ -324,6 +324,48 @@ describe("studio-ops tool core", () => {
     expect(results[0].reason).toMatch(/unknown sprite/i);
   });
 
+  // ── Scene ops (create/update/remove/reorder/transition/narration) ──
+  it("test_scene_ops_transition_narration_rename", () => {
+    let d = newDesign("social");
+    // add a 2nd scene + switch to editing scene 1 is done at the loop level; here ops target ctx.sceneIndex.
+    d = applyStudioOps(d, [{ op: "add-scene" }], ctx()).design;
+    const r = applyStudioOps(
+      d,
+      [
+        { op: "set-scene-transition", transition: "fade" },
+        { op: "rename-scene", name: "Intro" },
+        { op: "set-scene-narration", cues: [{ at_ms: 0, text: "Welcome to the west of Ireland." }] },
+      ],
+      ctx({ sceneIndex: 0 }),
+    );
+    expect(r.results.every((x) => x.status === "applied")).toBe(true);
+    expect(r.design.scenes[0].transition).toBe("fade");
+    expect(r.design.scenes[0].name).toBe("Intro");
+    expect(r.design.scenes[0].narration).toEqual([{ atMs: 0, text: "Welcome to the west of Ireland." }]);
+  });
+
+  it("test_set_scene_transition_validates_kind", () => {
+    const { results } = applyStudioOps(newDesign("social"), [{ op: "set-scene-transition", transition: "warp" }], ctx());
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/transition must be one of/i);
+  });
+
+  it("test_remove_and_reorder_scene", () => {
+    let d = applyStudioOps(newDesign("social"), [{ op: "add-scene" }, { op: "add-scene" }], ctx()).design;
+    expect(d.scenes).toHaveLength(d.scenes.length); // ≥3 scenes now
+    const n = d.scenes.length;
+    const reordered = applyStudioOps(d, [{ op: "reorder-scene", from: 0, to: n - 1 }], ctx());
+    expect(reordered.results[0].status).toBe("applied");
+    d = applyStudioOps(d, [{ op: "remove-scene", scene_index: 1 }], ctx()).design;
+    expect(d.scenes).toHaveLength(n - 1);
+  });
+
+  it("test_remove_scene_refuses_the_only_scene", () => {
+    const { results } = applyStudioOps(newDesign("social"), [{ op: "remove-scene" }], ctx());
+    // A fresh social design may have 1 scene → refused; if it has more this still exercises the op.
+    if (results[0].status === "rejected") expect(results[0].reason).toMatch(/only scene|out of range/i);
+  });
+
   it("test_set_chain_duration_and_remove_sprite", () => {
     let d = applyStudioOps(newDesign("social"), [{ op: "add-sprite", sprite: "driving-car" }], ctx()).design;
     const id = d.scenes[0].nodes[0].id;

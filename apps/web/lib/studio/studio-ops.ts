@@ -23,8 +23,11 @@ import {
   isSprite,
   moveNode,
   recomposeGroups,
+  removeScene,
   removeSuccessor,
+  renameScene,
   reorderNode,
+  reorderScene,
   resizeNode,
   scenesAsPages,
   setBackground,
@@ -32,12 +35,15 @@ import {
   setGroupAnim,
   setNodeAnim,
   setSceneDuration,
+  setSceneNarration,
+  setSceneTransition,
   ungroupNodes,
   updateNode,
   migrateDesign,
   EASINGS,
   ENTER_TYPES,
   LOOP_TYPES,
+  TRANSITION_KINDS,
   type DesignDoc,
   type DesignNode,
   type Easing,
@@ -47,6 +53,7 @@ import {
   type NodeAnimation,
   type NodeStyle,
   type ShapeKind,
+  type TransitionKind,
 } from "./ops";
 import { SPRITE_ANIMATIONS, type SpriteDef } from "./graphics";
 
@@ -125,6 +132,7 @@ interface OpDef {
 
 const SHAPES: ReadonlySet<string> = new Set<ShapeKind>(["rect", "ellipse", "line"]);
 const LAYER_MOVES: ReadonlySet<string> = new Set<LayerMove>(["forward", "backward", "front", "back"]);
+const TRANSITIONS: ReadonlySet<string> = new Set<TransitionKind>(TRANSITION_KINDS);
 const ENTERS: ReadonlySet<string> = new Set<EnterType>(ENTER_TYPES);
 const LOOPS: ReadonlySet<string> = new Set<LoopType>(LOOP_TYPES);
 const EASES: ReadonlySet<string> = new Set<Easing>(EASINGS);
@@ -157,15 +165,23 @@ function findNode(design: DesignDoc, sceneIndex: number, nodeId: string): Design
   return node;
 }
 
+/** The id of the scene the agent is currently editing (ctx.sceneIndex), or reject. */
+function currentSceneId(design: DesignDoc, ctx: StudioOpContext): string {
+  const scene = design.scenes[ctx.sceneIndex];
+  if (!scene) reject(`no scene at index ${ctx.sceneIndex}`);
+  return scene.id;
+}
+
 // TODO(agent-ops coverage): this catalog is a GROWING subset en route to full Studio parity. The
 // pure op layer in ./ops.ts exposes ~50+ operations; keep extending so the AI Builder/MCP can drive
 // everything a human can. Covered so far: add ops (write-copy/place/add-shape/set-background), scene
-// ops, node editing (edit/move/resize/style/delete/duplicate/reorder), animation (animate-node +
-// clear-animation), grouping (group-nodes/ungroup/set-group-anim), sprites + chains (add-sprite,
-// chain-sprite, set-chain-duration, remove-sprite). Remaining gaps:
+// ops (add-scene/set-scene-duration/transition/narration/rename/remove/reorder), node editing
+// (edit/move/resize/style/delete/duplicate/reorder), animation (animate-node + clear-animation),
+// grouping (group-nodes/ungroup/set-group-anim), sprites + chains (add-sprite, chain-sprite,
+// set-chain-duration, remove-sprite). Remaining gaps:
 //   • Curves (addCurve + anchor/point editing); image fill (addPlaceholder, fillImageNode).
 //   • Raw keyframe dope-sheet editing (per-node AnimKeyframe tracks beyond the entrance preset).
-//   • Group style/delete/duplicate; extra scene ops (reorder/transition/narration).
+//   • Group style/delete/duplicate.
 //   • Groups & nesting: groupNodes, ungroupNodes, renameGroup, setGroupAnim, updateGroupStyle,
 //     deleteGroup, duplicateGroup (recompose stays automatic).
 //   • Sprites: addGraphic + sprite chains (addSuccessorSprite, setChainDuration, removeSuccessor).
@@ -247,6 +263,60 @@ const OPS: Record<string, OpDef> = {
       const sceneId = str(call.scene_id, "scene_id");
       if (!design.scenes.some((s) => s.id === sceneId)) reject(`unknown scene_id ${sceneId}`);
       return setSceneDuration(design, sceneId, num(call.duration_ms, "duration_ms"));
+    },
+  },
+
+  "set-scene-transition": {
+    description: "Set the CURRENT scene's transition into the next scene.",
+    params: { transition: "none | fade | slide-left | zoom" },
+    apply(design, call, ctx) {
+      const t = str(call.transition, "transition");
+      if (!TRANSITIONS.has(t)) reject(`transition must be one of ${[...TRANSITIONS].join(", ")}`);
+      return setSceneTransition(design, currentSceneId(design, ctx), t as TransitionKind);
+    },
+  },
+
+  "set-scene-narration": {
+    description: "Set the CURRENT scene's voiceover narration — lines spoken over the scene in the video, each at its time cue. Grounded copy only.",
+    params: { cues: "array of {at_ms, text} voiceover lines (at_ms = ms into the scene)" },
+    apply(design, call, ctx) {
+      if (!Array.isArray(call.cues)) reject("cues must be an array of {at_ms, text}");
+      const cues = (call.cues as unknown[]).map((c, i) => {
+        const o = (c ?? {}) as Record<string, unknown>;
+        return { atMs: typeof o.at_ms === "number" ? Math.max(0, o.at_ms) : 0, text: str(o.text, `cues[${i}].text`) };
+      });
+      return setSceneNarration(design, currentSceneId(design, ctx), cues);
+    },
+  },
+
+  "rename-scene": {
+    description: "Rename the current scene (its label in the storyboard).",
+    params: { name: "the new scene name" },
+    apply(design, call, ctx) {
+      return renameScene(design, currentSceneId(design, ctx), str(call.name, "name"));
+    },
+  },
+
+  "remove-scene": {
+    description: "Delete a scene by index (cannot remove the only remaining scene).",
+    params: { scene_index: "the scene index to remove (default: the current scene)" },
+    apply(design, call, ctx) {
+      const idx = call.scene_index != null ? num(call.scene_index, "scene_index") : ctx.sceneIndex;
+      if (idx < 0 || idx >= design.scenes.length) reject(`scene_index ${idx} out of range`);
+      if (design.scenes.length <= 1) reject("cannot remove the only scene");
+      return removeScene(design, idx);
+    },
+  },
+
+  "reorder-scene": {
+    description: "Move a scene to a new position in the reel (the auto-sequential order).",
+    params: { from: "current scene index", to: "new index" },
+    apply(design, call) {
+      const from = num(call.from, "from");
+      const to = num(call.to, "to");
+      const n = design.scenes.length;
+      if (from < 0 || from >= n || to < 0 || to >= n) reject("from/to out of range");
+      return reorderScene(design, from, to);
     },
   },
 
