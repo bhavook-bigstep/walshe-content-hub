@@ -9,6 +9,7 @@ hold, bad replies don't abort, and the stub path is deterministic + grounded (Co
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 import pytest
@@ -352,3 +353,22 @@ def test_plan_endpoint_returns_a_scene_plan(app):
         assert data["provider"] == "stub"
         assert "## Scene 1" in data["plan"]
         assert "vibrant Galway day trip" in data["plan"]
+
+
+def test_agent_stream_emits_sse_steps_then_done(app, stub_node):
+    body = {"design": _DESIGN, "prompt": "Promote the west of Ireland", "item_ids": []}
+    with TestClient(app) as c:
+        assert c.post("/ai-agent/studio/agent/stream", json=body).status_code == 401
+        agent = auth_header(c, Role.tourism_agent)
+        r = c.post("/ai-agent/studio/agent/stream", headers=agent, json=body)
+        assert r.status_code == 200
+        assert "text/event-stream" in r.headers["content-type"]
+        events = [
+            json.loads(frame[5:].strip())
+            for frame in r.text.split("\n\n")
+            if frame.startswith("data:")
+        ]
+        kinds = [e.get("t") for e in events]
+        assert "step" in kinds and kinds[-1] == "done"  # streamed steps, then a final result
+        done = events[-1]
+        assert done["finished"] is True and done["provider"] == "stub" and "design" in done

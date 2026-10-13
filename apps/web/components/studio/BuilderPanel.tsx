@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { builderDesign, type DesignRequest } from "../../lib/api";
-import { addCatalogImage, addText, type DesignDoc } from "../../lib/studio/ops";
 
 /** A selected catalog item the Builder may reference. `imageSrc` is the served asset URL (if any). */
 export interface BuilderCatalogItem {
@@ -13,94 +11,24 @@ export interface BuilderCatalogItem {
   imageSrc?: string;
 }
 
-/** Op shapes returned by POST /ai-agent/builder/design (apps/api/app/ai/builder.py). */
-type BuilderOp =
-  | { op: "place"; item_id: number }
-  | { op: "write-copy"; item_id: number | null; text: string };
-
-const MARGIN = 48;
-const ROW_H = 120;
-const IMAGE_SIZE = 360;
-
-/** Defensively pull a typed op list out of the opaque response; unknown/malformed entries are dropped. */
-export function parseBuilderOps(response: Record<string, unknown>): BuilderOp[] {
-  const raw = response.ops;
-  if (!Array.isArray(raw)) return [];
-  const ops: BuilderOp[] = [];
-  for (const e of raw as Record<string, unknown>[]) {
-    if (!e || typeof e !== "object") continue;
-    const id = e.item_id;
-    if (e.op === "place" && typeof id === "number") {
-      ops.push({ op: "place", item_id: id });
-    } else if (
-      e.op === "write-copy" &&
-      (id === null || typeof id === "number") &&
-      typeof e.text === "string" &&
-      e.text.trim()
-    ) {
-      ops.push({ op: "write-copy", item_id: id, text: e.text });
-    }
-  }
-  return ops;
-}
-
 /**
- * Apply Builder ops onto the canvas design using the pure studio ops (source of truth). Deterministic
- * and non-mutating. Copy ops become text nodes stacked down the page; `place` ops add the item's
- * approved catalog image (skipped when the item has no image or is not among the selected items —
- * the studio never fabricates image sources).
+ * AI Builder: describe a brief and the real agent (POST /ai-agent/studio/agent, run by the page via
+ * `onBuild`) composes it on the canvas. The prompt is controllable so the Planner can hand its plan
+ * to the Builder; it falls back to local state otherwise.
  */
-export function applyBuilderOps(
-  design: DesignDoc,
-  sceneIndex: number,
-  ops: BuilderOp[],
-  items: BuilderCatalogItem[],
-): DesignDoc {
-  const byId = new Map(items.map((i) => [i.id, i]));
-  const width = Math.max(design.width - 2 * MARGIN, 1);
-  let next = design;
-  let y = MARGIN;
-  for (const op of ops) {
-    if (op.op === "write-copy") {
-      if (op.item_id !== null && !byId.has(op.item_id)) continue;
-      next = addText(next, sceneIndex, op.text, { x: MARGIN, y, width });
-      y += ROW_H;
-    } else {
-      const item = byId.get(op.item_id);
-      if (!item?.imageSrc) continue;
-      const size = Math.min(IMAGE_SIZE, width);
-      next = addCatalogImage(
-        next,
-        sceneIndex,
-        { src: item.imageSrc, catalogItemId: String(item.id) },
-        { x: MARGIN, y, width: size, height: size },
-      );
-      y += size + MARGIN / 2;
-    }
-  }
-  return next;
-}
-
 export default function BuilderPanel({
-  design,
-  sceneIndex,
   items,
-  onChange,
-  generate = builderDesign,
-  onDemoBuild,
-  demoRunning = false,
+  onBuild,
+  building = false,
   prompt: controlledPrompt,
   onPromptChange,
 }: {
-  design: DesignDoc;
-  sceneIndex: number;
-  /** Catalog items selected for this design. */
+  /** Catalog items available to the design ( grounds the agent + shown as a chip). */
   items: BuilderCatalogItem[];
-  onChange: (next: DesignDoc) => void;
-  generate?: (body: DesignRequest) => Promise<Record<string, unknown>>;
-  /** When set, "Generate design" runs the real agent build (via the page). */
-  onDemoBuild?: (prompt: string) => void | Promise<void>;
-  demoRunning?: boolean;
+  /** Run the agent build with this brief (the page owns the loop + progress overlay). */
+  onBuild: (prompt: string) => void | Promise<void>;
+  /** True while a build is running (disables the button, shows "Building…"). */
+  building?: boolean;
   /** Controlled brief — lets the Planner hand its plan to the Builder. Falls back to local state. */
   prompt?: string;
   onPromptChange?: (value: string) => void;
@@ -108,84 +36,44 @@ export default function BuilderPanel({
   const [localPrompt, setLocalPrompt] = useState("");
   const prompt = controlledPrompt ?? localPrompt;
   const setPrompt = onPromptChange ?? setLocalPrompt;
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  // The agentic builder needs a brief; catalog items are optional (it can build from the brief alone,
-  // but open a collection for grounded imagery). The legacy ops path still requires an item.
-  const canRun =
-    !loading &&
-    !demoRunning &&
-    prompt.trim().length > 0 &&
-    (onDemoBuild ? true : items.length > 0);
-
-  async function run() {
-    // Demo mode: hand off to the scripted builder (the page owns the running UI + overlay).
-    if (onDemoBuild) {
-      setError(null);
-      setNotice(null);
-      await onDemoBuild(prompt.trim());
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await generate({
-        prompt: prompt.trim(),
-        item_ids: items.map((i) => i.id),
-      });
-      const ops = parseBuilderOps(res);
-      const next = applyBuilderOps(design, sceneIndex, ops, items);
-      if (next === design) {
-        setNotice("The Builder returned nothing to place. Try a more specific prompt.");
-        return;
-      }
-      onChange(next);
-      setNotice("Design generated. You can now refine it manually.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Builder request failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const canRun = !building && prompt.trim().length > 0;
 
   return (
-    <section className="flex flex-col gap-3" aria-label="Builder" aria-busy={loading}>
+    <section className="flex flex-col gap-3" aria-label="Builder">
       <p className="text-small text-walshe-grey">
-        {onDemoBuild
-          ? "Describe what you want and the AI Builder composes it on the canvas — grounded in your open collection's items."
-          : "Describe what you want and the AI Builder drafts it from your selected catalog items."}
+        Describe what you want and the AI Builder composes it on the canvas — grounded in your open
+        collection&apos;s items.
       </p>
       <label className="block">
         <span className="label">Design brief</span>
         <textarea
           className="field-area text-small"
-          placeholder="Describe the design you want"
+          placeholder="Describe the design you want (or send a plan from the Planner)"
           aria-label="Builder prompt"
           value={prompt}
-          maxLength={2000}
+          maxLength={6000}
           rows={3}
           onChange={(e) => setPrompt(e.target.value)}
         />
       </label>
       {items.length === 0 ? (
         <p className="text-small text-walshe-grey">
-          {onDemoBuild
-            ? "No collection open — the Builder will work from your brief alone. Open a project from a collection to ground it in your imagery."
-            : "Select at least one catalog item for the Builder to use."}
+          No collection open — the Builder will work from your brief. Open a project from a
+          collection to ground it in your imagery.
         </p>
       ) : (
         <p className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-walshe-teal px-3 py-1 text-small font-semibold text-white">
-          {items.length} catalog item{items.length === 1 ? "" : "s"} selected
+          {items.length} catalog item{items.length === 1 ? "" : "s"} available
         </p>
       )}
-      <button type="button" className="btn-primary self-start" disabled={!canRun} onClick={() => void run()}>
-        {demoRunning ? "Building…" : loading ? "Generating…" : "Generate design"}
+      <button
+        type="button"
+        className="btn-primary self-start disabled:opacity-60"
+        disabled={!canRun}
+        onClick={() => void onBuild(prompt.trim())}
+      >
+        {building ? "Building…" : "Generate design"}
       </button>
-      {notice && <p role="status" className="text-small text-walshe-mint">{notice}</p>}
-      {error && <p role="alert" className="text-small text-walshe-danger">{error}</p>}
     </section>
   );
 }

@@ -35,7 +35,7 @@ import {
   listDesignTemplates,
   renderVideoFrames,
   renderNarrationAudio,
-  studioAgent,
+  studioAgentStream,
   resolveCollection,
   saveWorkspace,
   updateProject,
@@ -1005,13 +1005,31 @@ function StudioEditor() {
     try {
       const itemIds = (panelItemsRef.current ?? []).map((i) => i.id);
       setDemoThinking("Designing your composition…");
-      const res = await studioAgent({
-        design: designRef.current as unknown as Record<string, unknown>,
-        prompt,
-        item_ids: itemIds,
-        scene_index: sceneIndex,
-        max_rounds: 12,
-      });
+      // Stream the agent's steps so its live "thinking" (each action's note) shows in the overlay.
+      const res = await studioAgentStream(
+        {
+          design: designRef.current as unknown as Record<string, unknown>,
+          prompt,
+          item_ids: itemIds,
+          scene_index: sceneIndex,
+          max_rounds: 12,
+        },
+        (step) => {
+          if (demoCancelRef.current) return;
+          const label =
+            step.note ||
+            ({
+              observe: "Looking at the canvas…",
+              "select-scene": "Switching scene…",
+              describe_ops: "Choosing tools…",
+              "generate-sprite": "Generating a sprite…",
+              apply: "Placing elements…",
+              finish: "Finishing up…",
+            }[step.action ?? ""] ??
+              "Working…");
+          setDemoThinking(label);
+        },
+      );
       if (demoCancelRef.current) return;
       const base = migrateDesign(res.design);
       if (!base) {
@@ -1481,15 +1499,13 @@ function StudioEditor() {
           <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
         </div>
 
-        {/* Bottom AI dock: AI Builder / Planner tabs. Starting the Builder plays the scripted demo. */}
+        {/* Bottom AI dock: AI Builder (real agent) / Planner / Generate Assets / Moderation tabs. */}
         <StudioBottomDock
           design={design}
-          sceneIndex={sceneIndex}
-          onChange={setDesign}
           items={panelItems}
           moderationEntries={moderationEntries}
           onSelectNode={selectNode}
-          onDemoBuild={runAgentBuild}
+          onBuild={runAgentBuild}
           demoRunning={demoRunning}
           onImageGenerated={(assets) => void onMediaAdded(assets, "generated")}
         />

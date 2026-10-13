@@ -10,12 +10,16 @@ or a fabricated image source past it. FastAPI auto-documents these at ``/docs``.
 
 from __future__ import annotations
 
+import json
 import os
+import queue
+import threading
 from datetime import datetime
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -262,27 +266,28 @@ class StudioAgentResponse(BaseModel):
     provider: str
 
 
-@router.post("/agent", response_model=StudioAgentResponse)
-def studio_agent(
-    body: StudioAgentRequest,
-    agent: User = Depends(_agent_only),
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
-    storage: Storage = Depends(_get_storage),
-    now: datetime = Depends(clock.now),
+def _build_agent_runtime(
+    agent: User,
+    db: Session,
+    settings: Settings,
+    storage: Storage,
+    item_ids: list[int],
+    now: datetime,
+    *,
+    sprite_session: Session | None = None,
 ) -> dict[str, Any]:
-    """Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.
+    """Resolve grounding + build the apply/observe/generate fns the agent loop needs.
 
-    The op param schemas live in the engine spec and reach the model only via the loop's
-    `describe_ops` step — the system prompt carries just the op index, to spare the context window.
+    ``sprite_session`` (a fresh session) is used for sprite generation when the loop runs off the
+    request thread (SQLAlchemy sessions aren't shared across threads).
     """
-    rows = agent_visible_entries_by_ids(db, agent, body.item_ids, now=now)
+    rows = agent_visible_entries_by_ids(db, agent, item_ids, now=now)
     allowed, image_src_by_id = _resolve_grounding(rows)
     items = [AgentItem(id=r.id, title=r.title, destination=r.destination or "") for r in rows]
     labels = {str(r.id): r.title for r in rows}
-    # Sprites the agent generates this run, by ref → frames+size. Threaded into every apply so a
-    # later `add-sprite <ref>` can place them (the op core never fabricates frames).
+    # Sprites the agent generates this run, by ref → frames+size; threaded into every apply.
     generated_sprites: dict[str, dict[str, Any]] = {}
+    sprite_db = sprite_session or db
 
     def apply_fn(
         design: dict[str, Any], calls: list[dict[str, Any]], scene_index: int
@@ -300,26 +305,6 @@ def studio_agent(
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
 
-    def generate_sprite_fn(concept: str, opts: dict[str, Any]) -> dict[str, Any]:
-        gen = generate_sprite(
-            settings, db, storage, agent.id, concept,
-            frames=int(opts.get("frames", 4) or 4), fps=int(opts.get("fps", 10) or 10),
-        )
-        ref = f"user:{gen.sprite.id}"
-        generated_sprites[ref] = {
-            "frames": gen.frames_data_urls,
-            "fps": gen.sprite.fps,
-            "width": gen.sprite.frame_width,
-            "height": gen.sprite.frame_height,
-        }
-        return {
-            "ref": ref,
-            "frame_count": len(gen.frames_data_urls),
-            "fps": gen.sprite.fps,
-            "width": gen.sprite.frame_width,
-            "height": gen.sprite.frame_height,
-        }
-
     def observe_fn(design: dict[str, Any], scene_index: int | None) -> dict[str, Any]:
         payload: dict[str, Any] = {"design": design, "labelsById": labels}
         if scene_index is not None:
@@ -329,20 +314,56 @@ def studio_agent(
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
 
+    def generate_sprite_fn(concept: str, opts: dict[str, Any]) -> dict[str, Any]:
+        gen = generate_sprite(
+            settings, sprite_db, storage, agent.id, concept,
+            frames=int(opts.get("frames", 4) or 4), fps=int(opts.get("fps", 10) or 10),
+        )
+        ref = f"user:{gen.sprite.id}"
+        generated_sprites[ref] = {
+            "frames": gen.frames_data_urls, "fps": gen.sprite.fps,
+            "width": gen.sprite.frame_width, "height": gen.sprite.frame_height,
+        }
+        return {
+            "ref": ref, "frame_count": len(gen.frames_data_urls), "fps": gen.sprite.fps,
+            "width": gen.sprite.frame_width, "height": gen.sprite.frame_height,
+        }
+
     try:
         spec = _node_get("/api/studio-ops/spec").get("ops", [])
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
 
+    return {
+        "items": items, "spec": spec, "apply_fn": apply_fn,
+        "observe_fn": observe_fn, "generate_sprite_fn": generate_sprite_fn,
+    }
+
+
+@router.post("/agent", response_model=StudioAgentResponse)
+def studio_agent(
+    body: StudioAgentRequest,
+    agent: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(_get_storage),
+    now: datetime = Depends(clock.now),
+) -> dict[str, Any]:
+    """Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.
+
+    The op param schemas live in the engine spec and reach the model only via the loop's
+    `describe_ops` step — the system prompt carries just the op index, to spare the context window.
+    """
+    runtime = _build_agent_runtime(agent, db, settings, storage, body.item_ids, now)
     result = run_studio_agent(
         design=body.design,
         prompt=body.prompt,
-        items=items,
-        spec=spec,
+        items=runtime["items"],
+        spec=runtime["spec"],
         provider=get_provider(settings),
-        apply_fn=apply_fn,
-        observe_fn=observe_fn,
-        generate_sprite_fn=generate_sprite_fn,
+        apply_fn=runtime["apply_fn"],
+        observe_fn=runtime["observe_fn"],
+        generate_sprite_fn=runtime["generate_sprite_fn"],
         scene_index=body.scene_index,
         max_rounds=body.max_rounds,
     )
@@ -353,3 +374,64 @@ def studio_agent(
         "finished": result.finished,
         "provider": result.provider,
     }
+
+
+@router.post("/agent/stream")
+def studio_agent_stream(
+    request: Request,
+    body: StudioAgentRequest,
+    agent: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(_get_storage),
+    now: datetime = Depends(clock.now),
+) -> StreamingResponse:
+    """The agent build, streamed as SSE so the UI can show the agent's live "thinking". Emits one
+    `{"t":"step", ...}` event per action (with its note) and a final `{"t":"done", design, ...}`."""
+    # Grounding is resolved on THIS (request) session now; the loop runs in a worker thread, so its
+    # sprite generation gets a fresh session (SQLAlchemy sessions aren't shared across threads).
+    sprite_session = request.app.state.sessionmaker()
+    runtime = _build_agent_runtime(
+        agent, db, settings, storage, body.item_ids, now, sprite_session=sprite_session
+    )
+    provider = get_provider(settings)
+    events: queue.Queue = queue.Queue()
+    _DONE = object()
+    holder: dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            holder["result"] = run_studio_agent(
+                design=body.design, prompt=body.prompt, items=runtime["items"],
+                spec=runtime["spec"], provider=provider, apply_fn=runtime["apply_fn"],
+                observe_fn=runtime["observe_fn"], generate_sprite_fn=runtime["generate_sprite_fn"],
+                scene_index=body.scene_index, max_rounds=body.max_rounds,
+                on_step=events.put,
+            )
+        except Exception as exc:  # noqa: BLE001 — surfaced to the client as an error event
+            holder["error"] = exc
+        finally:
+            events.put(_DONE)
+
+    def sse() -> Any:
+        worker = threading.Thread(target=run, daemon=True)
+        worker.start()
+        try:
+            while True:
+                item = events.get()
+                if item is _DONE:
+                    break
+                yield f"data: {json.dumps({'t': 'step', **item})}\n\n"
+            worker.join()
+            res = holder.get("result")
+            if res is None:
+                yield f"data: {json.dumps({'t': 'error'})}\n\n"
+            else:
+                yield "data: " + json.dumps({
+                    "t": "done", "design": res.design, "applied": res.applied,
+                    "finished": res.finished, "provider": res.provider,
+                }) + "\n\n"
+        finally:
+            sprite_session.close()
+
+    return StreamingResponse(sse(), media_type="text/event-stream")

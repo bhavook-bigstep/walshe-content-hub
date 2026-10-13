@@ -107,6 +107,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-agent/studio/agent/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent Stream
+         * @description The agent build, streamed as SSE so the UI can show the agent's live "thinking". Emits one
+         *     `{"t":"step", ...}` event per action (with its note) and a final `{"t":"done", design, ...}`.
+         */
+        post: operations["studio_agent_stream_ai_agent_studio_agent_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-agent/studio/ops/apply": {
         parameters: {
             query?: never;
@@ -4022,6 +4043,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudioAgentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_stream_ai_agent_studio_agent_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

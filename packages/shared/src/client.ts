@@ -47,7 +47,6 @@ export type AgentRunTrace = Schemas["AgentRunOut"];
 export type AssistantReply = Schemas["AssistantOut"];
 export type AssistantItem = Schemas["ItemCardOut"];
 export type AssistantTurn = Schemas["HistoryTurn"];
-export type CreativePlan = Schemas["CreativePlanOut"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
 export type RegisterProviderInput = Schemas["RegisterProviderRequest"];
@@ -537,15 +536,6 @@ export async function removeBlocklistTerm(id: number): Promise<void> {
   await send(`/blocklist/${id}`, { method: "DELETE" });
 }
 
-// --- Creative Plan IR (AC41/42) ---
-export async function buildCreativePlan(
-  itemIds: number[],
-  opts: { objective?: string; format?: string; audience?: string } = {},
-): Promise<CreativePlan> {
-  const body = { item_ids: itemIds, ...opts };
-  return (await (await send("/ai-agent/builder/plan", json(body))).json()) as CreativePlan;
-}
-
 // --- Assistant & discovery (AC38-40) ---
 export async function askAssistant(
   message: string,
@@ -660,6 +650,72 @@ export type StudioAgentRequest = Schemas["StudioAgentRequest"];
 export type StudioAgentResponse = Schemas["StudioAgentResponse"];
 export async function studioAgent(body: StudioAgentRequest): Promise<StudioAgentResponse> {
   return (await (await send("/ai-agent/studio/agent", json(body))).json()) as StudioAgentResponse;
+}
+
+/** One streamed step event from the agent build (its live "thinking"). */
+export interface StudioAgentStep {
+  action?: string;
+  note?: string;
+  [k: string]: unknown;
+}
+
+/** Run the agent build and STREAM its steps (SSE), calling `onStep` with each action + note as it
+ *  happens (for a live "thinking" UI), then resolving to the final design + transcript. Falls back
+ *  to a buffered parse if the response isn't a readable stream (e.g. a proxy buffered it). */
+export async function studioAgentStream(
+  body: StudioAgentRequest,
+  onStep: (step: StudioAgentStep) => void,
+): Promise<StudioAgentResponse> {
+  const res = await send("/ai-agent/studio/agent/stream", json(body));
+  const steps: StudioAgentStep[] = [];
+  let done: StudioAgentResponse | null = null;
+
+  const handleFrame = (frame: string) => {
+    const line = frame.split("\n").find((l) => l.startsWith("data:"));
+    if (!line) return;
+    const data = JSON.parse(line.slice(5).trim()) as { t?: string } & Record<string, unknown>;
+    if (data.t === "step") {
+      steps.push(data as StudioAgentStep);
+      onStep(data as StudioAgentStep);
+    } else if (data.t === "done") {
+      done = {
+        design: data.design as Record<string, unknown>,
+        steps,
+        applied: data.applied as number,
+        finished: data.finished as boolean,
+        provider: data.provider as string,
+      };
+    } else if (data.t === "error") {
+      throw new ApiError(502, "The builder failed mid-run.");
+    }
+  };
+
+  const drain = (text: string, carry: string): string => {
+    let buf = carry + text;
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      handleFrame(buf.slice(0, idx));
+      buf = buf.slice(idx + 2);
+    }
+    return buf;
+  };
+
+  if (res.body?.getReader) {
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let carry = "";
+    for (;;) {
+      const { value, done: streamDone } = await reader.read();
+      if (streamDone) break;
+      carry = drain(dec.decode(value, { stream: true }), carry);
+    }
+    drain("\n\n", carry); // flush any trailing frame
+  } else {
+    drain((await res.text()) + "\n\n", "");
+  }
+
+  if (!done) throw new ApiError(502, "The builder stream ended without a result.");
+  return done;
 }
 
 /** AI: generate an Instagram caption for one of the agent's saved compositions. Deterministic

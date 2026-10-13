@@ -13,16 +13,14 @@ type Tab = "builder" | "planner" | "assets" | "moderation";
 
 interface Props {
   design: DesignDoc;
-  sceneIndex: number;
-  onChange: (next: DesignDoc) => void;
   items: BuilderCatalogItem[] | null;
   /** The attached collections' entries (flattened to facts) — the moderation ground truth. */
   moderationEntries: ModeratableEntry[];
   /** Jump to a flagged element on the canvas. */
   onSelectNode?: (sceneIndex: number, nodeId: string) => void;
-  /** When set, starting the Builder runs this scripted demo instead of calling the API. */
-  onDemoBuild?: (prompt: string) => void | Promise<void>;
-  /** Whether the scripted demo is currently running (disables the Generate button). */
+  /** Run the real agent build for a brief (the page owns the loop + progress overlay). */
+  onBuild?: (prompt: string) => void | Promise<void>;
+  /** Whether a build is currently running (disables the Generate button, shows "Building…"). */
   demoRunning?: boolean;
   /** Record AI-generated images on the workspace (so they appear in the media drawer). */
   onImageGenerated?: (assets: UserAsset[]) => void;
@@ -34,12 +32,10 @@ interface Props {
  */
 export default function StudioBottomDock({
   design,
-  sceneIndex,
-  onChange,
   items,
   moderationEntries,
   onSelectNode,
-  onDemoBuild,
+  onBuild,
   demoRunning,
   onImageGenerated,
 }: Props) {
@@ -129,33 +125,22 @@ export default function StudioBottomDock({
             ) : tab === "assets" ? (
               <GenerateAssetsPanel onImageGenerated={onImageGenerated} />
             ) : tab === "builder" ? (
-              // In demo mode the Builder is always available (it falls back to sample content when no
-              // collection is open); otherwise it needs approved catalog items to draft from.
-              !onDemoBuild && items === null ? (
+              items === null ? (
                 <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
-              ) : !onDemoBuild && items !== null && items.length === 0 ? (
-                <p role="status" className="text-small text-walshe-grey">
-                  No approved catalog items available for the AI Builder.
-                </p>
-              ) : (
+              ) : onBuild ? (
                 <BuilderPanel
-                  design={design}
-                  sceneIndex={sceneIndex}
-                  items={items ?? []}
-                  onChange={onChange}
-                  demoRunning={demoRunning}
+                  items={items}
+                  building={demoRunning}
                   prompt={builderPrompt}
                   onPromptChange={setBuilderPrompt}
                   // Starting the build slides the dock down so the agent's work is fully visible.
-                  onDemoBuild={
-                    onDemoBuild
-                      ? (prompt) => {
-                          setOpen(false);
-                          return onDemoBuild(prompt);
-                        }
-                      : undefined
-                  }
+                  onBuild={(prompt) => {
+                    setOpen(false);
+                    return onBuild(prompt);
+                  }}
                 />
+              ) : (
+                <p role="status" className="text-small text-walshe-grey">AI Builder unavailable.</p>
               )
             ) : (
               <ContentPlanPanel

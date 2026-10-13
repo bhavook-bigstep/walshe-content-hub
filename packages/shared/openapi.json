@@ -4950,6 +4950,51 @@
         ]
       }
     },
+    "/ai-agent/studio/agent/stream": {
+      "post": {
+        "description": "The agent build, streamed as SSE so the UI can show the agent's live \"thinking\". Emits one\n`{\"t\":\"step\", ...}` event per action (with its note) and a final `{\"t\":\"done\", design, ...}`.",
+        "operationId": "studio_agent_stream_ai_agent_studio_agent_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Stream",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
     "/ai-agent/studio/ops/apply": {
       "post": {
         "description": "Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).",
