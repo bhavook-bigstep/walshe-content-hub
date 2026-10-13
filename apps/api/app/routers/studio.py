@@ -250,7 +250,7 @@ class StudioAgentRequest(BaseModel):
     """Run the inbuilt Builder agent: edit `design` to satisfy `prompt`, grounded in `item_ids`."""
 
     design: dict[str, Any] = Field(description="the DesignDoc to edit")
-    prompt: str = Field(min_length=1, max_length=2000, description="the creative brief")
+    prompt: str = Field(min_length=1, max_length=8000, description="the creative brief (or a plan)")
     item_ids: list[int] = Field(
         default_factory=list, max_length=50, description="catalog items the agent may use"
     )

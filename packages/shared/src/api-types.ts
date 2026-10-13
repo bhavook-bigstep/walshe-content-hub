@@ -3438,7 +3438,7 @@ export interface components {
             max_rounds: number;
             /**
              * Prompt
-             * @description the creative brief
+             * @description the creative brief (or a plan)
              */
             prompt: string;
             /**

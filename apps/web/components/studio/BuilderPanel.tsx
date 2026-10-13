@@ -51,7 +51,7 @@ export default function BuilderPanel({
           placeholder="Describe the design you want (or send a plan from the Planner)"
           aria-label="Builder prompt"
           value={prompt}
-          maxLength={6000}
+          maxLength={8000}
           rows={3}
           onChange={(e) => setPrompt(e.target.value)}
         />

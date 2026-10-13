@@ -356,4 +356,8 @@ def run_studio_agent(
         )
         emit({"action": "unknown"})
 
+    # Safety net: if the model ran out of turns WITHOUT finishing and never applied anything (it
+    # flailed), fall back to a deterministic grounded compose so a build always yields something.
+    if not result.finished and result.applied == 0:
+        return _deterministic_compose(design, prompt, items, scene_index, apply_fn, on_step)
     return result

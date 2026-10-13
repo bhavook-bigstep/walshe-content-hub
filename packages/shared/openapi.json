@@ -3794,8 +3794,8 @@
             "type": "integer"
           },
           "prompt": {
-            "description": "the creative brief",
-            "maxLength": 2000,
+            "description": "the creative brief (or a plan)",
+            "maxLength": 8000,
             "minLength": 1,
             "title": "Prompt",
             "type": "string"
