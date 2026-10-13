@@ -31,6 +31,7 @@ from app.ai.studio_agent import AgentItem, run_studio_agent
 from app.config import Settings
 from app.deps import get_db, get_settings, require_role
 from app.models.user import Role, User
+from app.observability.tracing import traced
 from app.services.visibility import agent_visible_entries_by_ids
 from app.storage.minio_client import Storage
 
@@ -289,6 +290,7 @@ def _build_agent_runtime(
     generated_sprites: dict[str, dict[str, Any]] = {}
     sprite_db = sprite_session or db
 
+    @traced("studio-ops.apply", "tool")
     def apply_fn(
         design: dict[str, Any], calls: list[dict[str, Any]], scene_index: int
     ) -> dict[str, Any]:
@@ -305,6 +307,7 @@ def _build_agent_runtime(
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
 
+    @traced("studio-ops.observe", "tool")
     def observe_fn(design: dict[str, Any], scene_index: int | None) -> dict[str, Any]:
         payload: dict[str, Any] = {"design": design, "labelsById": labels}
         if scene_index is not None:
@@ -314,6 +317,7 @@ def _build_agent_runtime(
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
 
+    @traced("studio-ops.generate-sprite", "tool")
     def generate_sprite_fn(concept: str, opts: dict[str, Any]) -> dict[str, Any]:
         gen = generate_sprite(
             settings, sprite_db, storage, agent.id, concept,
