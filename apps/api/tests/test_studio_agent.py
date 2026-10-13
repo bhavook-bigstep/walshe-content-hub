@@ -335,3 +335,20 @@ def test_agent_endpoint_stub_is_deterministic_and_grounded(app, stub_node):
         _, payload = stub_node["post"]
         assert payload["allowedCatalogIds"] == [str(ok)]
         assert payload["imageSrcById"] == {str(ok): "assets/ok.png"}
+
+
+def test_plan_endpoint_returns_a_scene_plan(app):
+    # No key in tests → the deterministic stub plan (markdown, scene sections), hermetic.
+    url = "/ai-agent/studio/plan"
+    body = {"prompt": "a vibrant Galway day trip", "item_ids": []}
+    with TestClient(app) as c:
+        assert c.post(url, json=body).status_code == 401
+        provider = auth_header(c, Role.content_provider)
+        assert c.post(url, json=body, headers=provider).status_code == 403
+        agent = auth_header(c, Role.tourism_agent)
+        r = c.post(url, json=body, headers=agent)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["provider"] == "stub"
+        assert "## Scene 1" in data["plan"]
+        assert "vibrant Galway day trip" in data["plan"]

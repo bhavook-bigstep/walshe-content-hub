@@ -646,6 +646,14 @@ export async function builderDesign(body: DesignRequest): Promise<Record<string,
   return (await (await send("/ai-agent/builder/design", json(body))).json()) as Record<string, unknown>;
 }
 
+/** Content planner: a vague brief → a scene-by-scene markdown plan the user edits, then runs as the
+ *  Builder's brief (plan → build). Grounded in the agent's visible catalog items. */
+export type StudioPlanRequest = Schemas["StudioPlanRequest"];
+export type StudioPlanResponse = Schemas["StudioPlanResponse"];
+export async function generateContentPlan(body: StudioPlanRequest): Promise<StudioPlanResponse> {
+  return (await (await send("/ai-agent/studio/plan", json(body))).json()) as StudioPlanResponse;
+}
+
 /** The agentic Studio Builder: a real tool loop (observe → act → finish) that edits `design` to
  *  satisfy `prompt`, grounded in `item_ids`. Returns the edited design + the step transcript. */
 export type StudioAgentRequest = Schemas["StudioAgentRequest"];

@@ -168,6 +168,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-agent/studio/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Plan
+         * @description Turn a vague brief into a concrete, scene-by-scene markdown content plan, grounded in the
+         *     agent's visible catalog. The user edits it, then runs it as the Builder's prompt.
+         */
+        post: operations["studio_plan_ai_agent_studio_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-agent/studio/sprites/generate": {
         parameters: {
             query?: never;
@@ -3538,6 +3559,29 @@ export interface components {
             /** Ops */
             ops: components["schemas"]["StudioOpSpecOut"][];
         };
+        /**
+         * StudioPlanRequest
+         * @description A vague brief → a scene-by-scene content plan the user edits, then runs as a brief.
+         */
+        StudioPlanRequest: {
+            /**
+             * Item Ids
+             * @description catalog items to ground the plan in
+             */
+            item_ids?: number[];
+            /**
+             * Prompt
+             * @description the vague creative brief
+             */
+            prompt: string;
+        };
+        /** StudioPlanResponse */
+        StudioPlanResponse: {
+            /** Plan */
+            plan: string;
+            /** Provider */
+            provider: string;
+        };
         /** SuggestionsOut */
         SuggestionsOut: {
             /** Items */
@@ -4075,6 +4119,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudioOpsSpecResponse"];
+                };
+            };
+        };
+    };
+    studio_plan_ai_agent_studio_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

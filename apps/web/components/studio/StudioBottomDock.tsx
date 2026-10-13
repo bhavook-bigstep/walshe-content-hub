@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import BuilderPanel, { type BuilderCatalogItem } from "./BuilderPanel";
-import CreativePlanPanel from "./CreativePlanPanel";
+import ContentPlanPanel from "./ContentPlanPanel";
 import GenerateAssetsPanel from "./GenerateAssetsPanel";
 import ModerationPanel from "./ModerationPanel";
 import type { DesignDoc } from "../../lib/studio/ops";
@@ -45,6 +45,8 @@ export default function StudioBottomDock({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("builder");
+  // The Builder's brief, lifted here so the Planner can hand its finished plan to the Builder.
+  const [builderPrompt, setBuilderPrompt] = useState("");
 
   // Re-checked on every design/collection change, so the Moderation tab constantly reflects the
   // current workspace (and its tab badge updates live even while the panel is closed).
@@ -142,7 +144,9 @@ export default function StudioBottomDock({
                   items={items ?? []}
                   onChange={onChange}
                   demoRunning={demoRunning}
-                  // Starting the demo slides the dock down so the agent's build is fully visible.
+                  prompt={builderPrompt}
+                  onPromptChange={setBuilderPrompt}
+                  // Starting the build slides the dock down so the agent's work is fully visible.
                   onDemoBuild={
                     onDemoBuild
                       ? (prompt) => {
@@ -154,7 +158,13 @@ export default function StudioBottomDock({
                 />
               )
             ) : (
-              <CreativePlanPanel itemIds={(items ?? []).map((i) => Number(i.id))} />
+              <ContentPlanPanel
+                itemIds={(items ?? []).map((i) => Number(i.id))}
+                onUsePlan={(plan) => {
+                  setBuilderPrompt(plan);
+                  setTab("builder");
+                }}
+              />
             )}
           </div>
         </div>

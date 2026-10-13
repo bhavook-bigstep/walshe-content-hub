@@ -89,6 +89,8 @@ export default function BuilderPanel({
   generate = builderDesign,
   onDemoBuild,
   demoRunning = false,
+  prompt: controlledPrompt,
+  onPromptChange,
 }: {
   design: DesignDoc;
   sceneIndex: number;
@@ -96,11 +98,16 @@ export default function BuilderPanel({
   items: BuilderCatalogItem[];
   onChange: (next: DesignDoc) => void;
   generate?: (body: DesignRequest) => Promise<Record<string, unknown>>;
-  /** Demo mode: when set, "Generate design" runs this scripted build (the prompt is optional). */
+  /** When set, "Generate design" runs the real agent build (via the page). */
   onDemoBuild?: (prompt: string) => void | Promise<void>;
   demoRunning?: boolean;
+  /** Controlled brief — lets the Planner hand its plan to the Builder. Falls back to local state. */
+  prompt?: string;
+  onPromptChange?: (value: string) => void;
 }) {
-  const [prompt, setPrompt] = useState("");
+  const [localPrompt, setLocalPrompt] = useState("");
+  const prompt = controlledPrompt ?? localPrompt;
+  const setPrompt = onPromptChange ?? setLocalPrompt;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

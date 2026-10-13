@@ -4066,6 +4066,50 @@
         "title": "StudioOpsSpecResponse",
         "type": "object"
       },
+      "StudioPlanRequest": {
+        "description": "A vague brief → a scene-by-scene content plan the user edits, then runs as a brief.",
+        "properties": {
+          "item_ids": {
+            "description": "catalog items to ground the plan in",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "prompt": {
+            "description": "the vague creative brief",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "StudioPlanRequest",
+        "type": "object"
+      },
+      "StudioPlanResponse": {
+        "properties": {
+          "plan": {
+            "title": "Plan",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan",
+          "provider"
+        ],
+        "title": "StudioPlanResponse",
+        "type": "object"
+      },
       "SuggestionsOut": {
         "properties": {
           "items": {
@@ -5024,6 +5068,53 @@
           }
         ],
         "summary": "Studio Ops Spec",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/plan": {
+      "post": {
+        "description": "Turn a vague brief into a concrete, scene-by-scene markdown content plan, grounded in the\nagent's visible catalog. The user edits it, then runs it as the Builder's prompt.",
+        "operationId": "studio_plan_ai_agent_studio_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioPlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Plan",
         "tags": [
           "Agent Tools"
         ]

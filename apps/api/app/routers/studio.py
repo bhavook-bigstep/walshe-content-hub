@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import clock
+from app.ai.content_plan import generate_content_plan
 from app.ai.factory import get_provider
 from app.ai.sprite_gen import generate_sprite
 from app.ai.studio_agent import AgentItem, run_studio_agent
@@ -205,6 +206,39 @@ def studio_generate_sprite(
             "frame_keys": s.frame_keys,
         },
     }
+
+
+class StudioPlanRequest(BaseModel):
+    """A vague brief → a scene-by-scene content plan the user edits, then runs as a brief."""
+
+    prompt: str = Field(min_length=1, max_length=2000, description="the vague creative brief")
+    item_ids: list[int] = Field(
+        default_factory=list, max_length=50, description="catalog items to ground the plan in"
+    )
+
+
+class StudioPlanResponse(BaseModel):
+    plan: str
+    provider: str
+
+
+@router.post("/plan", response_model=StudioPlanResponse)
+def studio_plan(
+    body: StudioPlanRequest,
+    agent: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    now: datetime = Depends(clock.now),
+) -> dict[str, Any]:
+    """Turn a vague brief into a concrete, scene-by-scene markdown content plan, grounded in the
+    agent's visible catalog. The user edits it, then runs it as the Builder's prompt."""
+    rows = agent_visible_entries_by_ids(db, agent, body.item_ids, now=now)
+    items = [
+        AgentItem(id=r.id, title=r.title, destination=r.destination or "") for r in rows
+    ]
+    provider = get_provider(settings)
+    plan = generate_content_plan(provider, body.prompt, items)
+    return {"plan": plan, "provider": provider.name}
 
 
 # ── Inbuilt agent loop ────────────────────────────────────────────────────────────────────────────
