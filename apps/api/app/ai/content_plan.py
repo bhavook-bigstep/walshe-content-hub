@@ -13,6 +13,7 @@ import logging
 
 from app.ai.base import AIProvider
 from app.ai.studio_agent import AgentItem
+from app.observability.tracing import traced
 
 logger = logging.getLogger("app.ai.content_plan")
 
@@ -68,6 +69,7 @@ def _stub_plan(brief: str, items: list[AgentItem]) -> str:
     return "\n".join(lines)
 
 
+@traced("content-plan", "chain")
 def generate_content_plan(provider: AIProvider, brief: str, items: list[AgentItem]) -> str:
     """Generate the scene-by-scene markdown plan for ``brief``, grounded in ``items``.
 

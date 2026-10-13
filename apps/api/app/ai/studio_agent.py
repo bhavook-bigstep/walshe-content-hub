@@ -26,8 +26,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.base import AIProvider, ChatMessage
+from app.observability.tracing import traced
 
 logger = logging.getLogger("app.ai.studio_agent")
+
+
+@traced("studio-agent.turn", "llm")
+def _llm_turn(provider: AIProvider, system: str, messages: list[ChatMessage]) -> str:
+    """One model turn — traced to LangSmith (system + messages → reply) for debugging."""
+    return "".join(provider.stream_chat(system, messages, max_tokens=800))
 
 # (design, op calls, scene index) -> {"design", "results", "valid"} from the studio-ops engine.
 ApplyFn = Callable[[dict[str, Any], list[dict[str, Any]], int], dict[str, Any]]
@@ -190,6 +197,7 @@ def _deterministic_compose(
     )
 
 
+@traced("studio-agent.build", "chain")
 def run_studio_agent(
     *,
     design: dict[str, Any],
@@ -234,7 +242,7 @@ def run_studio_agent(
 
     for _ in range(max_rounds):
         try:
-            text = "".join(provider.stream_chat(system, messages, max_tokens=800))
+            text = _llm_turn(provider, system, messages)
         except Exception:  # noqa: BLE001 - a flaky provider degrades to the deterministic path
             logger.info("studio-agent provider call failed; falling back to deterministic compose")
             if result.applied == 0:

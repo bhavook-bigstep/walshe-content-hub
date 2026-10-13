@@ -20,6 +20,7 @@ import wave
 import httpx
 
 from app.config import Settings
+from app.observability.tracing import traced
 
 logger = logging.getLogger("app.ai.tts")
 
@@ -76,6 +77,7 @@ def _gemini_tts(api_key: str, model: str, text: str, voice: str) -> bytes:
     raise ValueError("Gemini TTS response contained no inline audio data")
 
 
+@traced("tts", "llm")
 def synthesize_speech(settings: Settings, text: str, *, voice: str | None = None) -> bytes | None:
     """Return WAV audio for ``text`` via Gemini TTS, or ``None`` to defer to the local fallback.
 

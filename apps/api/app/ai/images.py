@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.config import Settings
+from app.observability.tracing import traced
 
 logger = logging.getLogger("app.ai")
 
@@ -78,6 +79,7 @@ def _gemini_image(api_key: str, model: str, prompt: str) -> GeneratedImage:
     raise ValueError("Gemini response contained no inline image data")
 
 
+@traced("image-gen", "llm")
 def generate_image(settings: Settings, prompt: str) -> GeneratedImage:
     """Generate an image for ``prompt`` using the configured provider, or a deterministic stub.
 

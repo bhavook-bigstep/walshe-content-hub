@@ -35,6 +35,7 @@ import {
   listDesignTemplates,
   renderVideoFrames,
   renderNarrationAudio,
+  studioAgent,
   studioAgentStream,
   resolveCollection,
   saveWorkspace,
@@ -1005,16 +1006,18 @@ function StudioEditor() {
     try {
       const itemIds = (panelItemsRef.current ?? []).map((i) => i.id);
       setDemoThinking("Designing your composition…");
-      // Stream the agent's steps so its live "thinking" (each action's note) shows in the overlay.
-      const res = await studioAgentStream(
-        {
-          design: designRef.current as unknown as Record<string, unknown>,
-          prompt,
-          item_ids: itemIds,
-          scene_index: sceneIndex,
-          max_rounds: 12,
-        },
-        (step) => {
+      const body = {
+        design: designRef.current as unknown as Record<string, unknown>,
+        prompt,
+        item_ids: itemIds,
+        scene_index: sceneIndex,
+        max_rounds: 12,
+      };
+      // Stream the agent's steps so its live "thinking" shows in the overlay. If the stream fails
+      // (SSE/proxy hiccup), fall back to the plain JSON build so the design still lands on the canvas.
+      let res;
+      try {
+        res = await studioAgentStream(body, (step) => {
           if (demoCancelRef.current) return;
           const label =
             step.note ||
@@ -1028,8 +1031,11 @@ function StudioEditor() {
             }[step.action ?? ""] ??
               "Working…");
           setDemoThinking(label);
-        },
-      );
+        });
+      } catch (streamErr) {
+        console.warn("[AI Builder] stream failed; falling back to non-streaming build", streamErr);
+        res = await studioAgent(body);
+      }
       if (demoCancelRef.current) return;
       const base = migrateDesign(res.design);
       if (!base) {
@@ -1045,7 +1051,8 @@ function StudioEditor() {
       if (demoCancelRef.current) return;
       designRef.current = resolved;
       setDesign(resolved);
-    } catch {
+    } catch (err) {
+      console.error("[AI Builder] build failed", err);
       setDemoThinking("Build failed — please try again.");
       await demoWait(1600);
     } finally {
