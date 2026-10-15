@@ -1,5 +1,5 @@
 // Server-side render path: a lazy singleton headless Chromium (one per Next.js process) that loads the
-// headless-only page /studio/%5Frender and rasterises scene stills through the SAME frames.ts
+// headless-only page /studio/render and rasterises scene stills through the SAME frames.ts
 // renderer the editor uses. Guarantees:
 //   - hard per-request timeout; a crashed/disconnected browser is dropped and relaunched next call
 //   - readiness gate (fonts + image decode) lives in the page; viewport / DPR / locale / timezone fixed
@@ -36,7 +36,7 @@ export interface RenderResult {
 export const RENDER_TIMEOUT_MS = 30_000;
 export const MAX_STILLS_PER_REQUEST = 12;
 export const MAX_CONCURRENT_RENDERS = 2;
-export const RENDER_PAGE_PATH = "/studio/%5Frender";
+export const RENDER_PAGE_PATH = "/studio/render";
 
 // Minimal structural types over playwright so the boundary is mockable and typing stays local.
 export interface RenderRequestLike {

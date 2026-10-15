@@ -4,7 +4,7 @@
 // the SAME frames.ts renderer the editor and exporter use. The animation clock is SEEKED (each
 // still is posed at an explicit atMs) — nothing free-runs, so output is deterministic.
 //
-// NOTE: Next.js treats `_`-prefixed folders as private; this page is served at /studio/%5Frender.
+// NOTE: Next.js treats `_`-prefixed folders as private; this page is therefore a plain routable segment, served at /studio/render (not `_render`).
 import { useEffect } from "react";
 import { migrateDesign } from "../../../lib/studio/ops";
 import { renderSceneStill } from "../../../lib/studio/frames";

@@ -297,3 +297,48 @@ def test_critique_frames_maps_issues_and_verifies_prior_findings(settings):
 def test_data_url_bytes_decodes_and_tolerates_garbage():
     assert studio_router._data_url_bytes(_PNG_URL) == _PNG
     assert studio_router._data_url_bytes("data:image/png;base64,@@@") == b""
+
+
+def test_generate_image_fn_persists_every_asset_under_concurrency(app, settings, monkeypatch):
+    # Regression (.claude/rules/critical-patterns.md): in the /agent/stream path ONE sprite_session
+    # is shared by every worker thread, and LangGraph's ToolNode runs a turn's generate_image calls
+    # CONCURRENTLY. The Session read-modify-write must be serialised so no write is lost and the
+    # Session is never corrupted — N parallel calls must yield N persisted, distinct-ref assets.
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.models.catalog import UserAsset
+    from app.models.user import User
+
+    monkeypatch.setattr(studio_router, "_node_get", lambda p: {"ops": []})
+    # Deterministic fake image gen + storage — no provider, no MinIO (hermetic).
+    monkeypatch.setattr(
+        studio_router, "_generate_image",
+        lambda s, concept: SimpleNamespace(data=b"not-a-real-png", content_type="image/png"),
+    )
+    puts: list[str] = []
+    storage = SimpleNamespace(put_object=lambda key, data, ct: puts.append(key))
+
+    SessionLocal = app.state.sessionmaker
+    grounding_db = SessionLocal()
+    sprite_session = SessionLocal()  # ONE session shared across worker threads — the exact hazard
+    try:
+        agent = grounding_db.query(User).filter_by(email="agent@test.local").one()
+        runtime = studio_router._build_agent_runtime(
+            agent, grounding_db, settings, storage, [], datetime.now(UTC),
+            sprite_session=sprite_session,
+        )
+        gen = runtime["generate_image_fn"]
+        n = 24
+        with ThreadPoolExecutor(max_workers=12) as ex:
+            handles = list(ex.map(lambda i: gen(f"concept {i}", {}), range(n)))
+    finally:
+        sprite_session.close()
+        grounding_db.close()
+
+    # Every parallel call returned a distinct ref and persisted its own asset — none lost/clobbered.
+    assert len({h["ref"] for h in handles}) == n
+    assert len(puts) == n
+    with SessionLocal() as verify:
+        assert verify.query(UserAsset).filter_by(owner_id=agent.id).count() == n

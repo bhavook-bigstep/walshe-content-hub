@@ -347,6 +347,13 @@ def _build_agent_runtime(
     # sprites — it produced incoherent frames; it makes one still and animates it with keyframes.)
     generated_images: dict[str, dict[str, Any]] = {}
     worker_db = sprite_session or db  # off-thread session for generated-asset persistence
+    # A SQLAlchemy Session is NOT thread-safe, and in the /agent/stream path `worker_db` is ONE
+    # session shared by every worker thread. LangGraph's ToolNode runs a turn's tool calls (incl.
+    # generate_image) CONCURRENTLY, so parallel generate_image calls would hit the same Session at
+    # once — the shared-state-under-concurrency incident `.claude/rules/critical-patterns.md`
+    # documents, reintroduced in the DB layer. Serialise all Session work behind this lock (the slow
+    # image gen + storage put stay OUTSIDE it) so writes can't be lost or the Session corrupted.
+    worker_db_lock = threading.Lock()
 
     @traced("studio-ops.apply", "tool")
     def apply_fn(
@@ -406,23 +413,27 @@ def _build_agent_runtime(
         # One still image from the configured model (deterministic stub when no key — Contract 4),
         # persisted as the agent's OWN asset so the placed node re-resolves on reload (its src is a
         # real owned object, never a fabricated catalog src — Contract 1).
-        picture = _generate_image(settings, concept)
+        picture = _generate_image(settings, concept)  # slow network gen — outside the lock
         key = f"users/{agent.id}/{uuid.uuid4().hex}"
-        storage.put_object(key, picture.data, picture.content_type)
+        storage.put_object(key, picture.data, picture.content_type)  # slow I/O — outside the lock
         asset = UserAsset(
             owner_id=agent.id, source=UserAssetSource.agent, kind=ItemKind.image,
             title=concept.strip()[:120] or "Generated image",
             object_key=key, content_type=picture.content_type,
         )
-        worker_db.add(asset)
-        worker_db.commit()
-        worker_db.refresh(asset)
+        # Only the Session read-modify-write is serialised; `asset.id` is read under the lock too so
+        # no post-commit lazy load races another thread's Session use.
+        with worker_db_lock:
+            worker_db.add(asset)
+            worker_db.commit()
+            worker_db.refresh(asset)
+            asset_id = asset.id
         try:
             with Image.open(io.BytesIO(picture.data)) as im:
                 width, height = im.size
         except Exception:  # noqa: BLE001 - dims are a hint; the op defaults if absent
             width = height = None
-        ref = f"gen:{asset.id}"
+        ref = f"gen:{asset_id}"
         src = "data:" + picture.content_type + ";base64," + base64.b64encode(picture.data).decode()
         size = {"width": width, "height": height} if width and height else {}
         generated_images[ref] = {"src": src, "objectKey": key, **size}

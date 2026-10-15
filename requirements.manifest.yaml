@@ -644,6 +644,8 @@ acceptance:
       - "apps/web/tests/studio-render.test.ts::test_rejects_foreign_origin_src_before_launching_browser"
       - "apps/web/tests/studio-render.test.ts::test_crash_maps_to_browser_crash_and_next_request_relaunches"
       - "apps/web/tests/studio-render.test.ts::test_hung_render_hits_hard_timeout"
+    e2e:
+      - "apps/web/e2e/studio-render-smoke.spec.ts::render page serves 200, becomes ready, and renders a valid non-blank PNG"
   AC103:
     tier: P2
     api:
