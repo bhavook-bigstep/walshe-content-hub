@@ -276,7 +276,8 @@ class _BuilderSession:
         try:
             rendered = self._render(snapshot, target, times)
             critique = self._critique(
-                list(rendered.get("pngs") or []), mode, list(rendered.get("broken_images") or [])
+                list(rendered.get("pngs") or []), mode, list(rendered.get("broken_images") or []),
+                (snapshot.get("scenes") or [])[target],  # scene JSON keys the deterministic stub
             )
         except VisualObserveError as e:
             logger.info("studio-graph visual observe failed: %s", e.kind)

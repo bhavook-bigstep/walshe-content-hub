@@ -198,9 +198,15 @@ export async function renderStills(job: RenderJob, opts: RenderOptions): Promise
     );
   } catch (e) {
     const err = classify(e);
-    if (err.code === "browser_crash" || err.code === "timeout") {
+    // A timeout is NOT a reason to drop the shared singleton: only THIS request's context is bad,
+    // and it is closed in `finally`. The browser is a lazy singleton and MAX_CONCURRENT_RENDERS>1,
+    // so LangGraph's ToolNode can run a turn's observe_visual renders in parallel on it; closing it
+    // here on a timeout would clobber a concurrent render's context and fail it with a spurious
+    // browser_crash — the shared-state-under-concurrency hazard critical-patterns.md documents, now
+    // in the render layer. Drop + relaunch the singleton ONLY on a genuine disconnect/crash.
+    if (err.code === "browser_crash") {
       browserPromise = null; // force relaunch on the next request
-      await (used as RenderBrowserLike | null)?.close().catch(() => undefined); // don't leak the old one
+      await (used as RenderBrowserLike | null)?.close().catch(() => undefined); // don't leak the dead one
     }
     throw err;
   } finally {

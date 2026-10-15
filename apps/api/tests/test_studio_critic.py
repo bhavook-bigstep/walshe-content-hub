@@ -29,9 +29,9 @@ class Harness:
     def render(self, design, scene, times):
         return {"pngs": [b"png"], "broken_images": []}
 
-    def critique(self, pngs, mode, extra):
+    def critique(self, pngs, mode, extra, scene=None):
         i = len(self.critique_calls)
-        self.critique_calls.append((pngs, mode, extra))
+        self.critique_calls.append((pngs, mode, extra, scene))
         return self.script[min(i, len(self.script) - 1)]
 
     def run(self):
@@ -79,9 +79,10 @@ def test_missing_or_invalid_verification_defaults_to_not():
 def test_critic_is_independent_of_build_history():
     h = Harness([{"findings": [_f("a", "P1")]}])
     h.run()
-    pngs, mode, extra = h.critique_calls[0]
+    pngs, mode, extra, scene = h.critique_calls[0]
     assert mode == "image" and pngs == [b"png"]
     assert extra[0] == {"kind": "checklist", "items": list(CHECKLIST)}
+    assert scene == {}  # the scene JSON keys the stub; it carries no brief/build history
     assert "SECRET BRIEF" not in repr(h.critique_calls)
     assert any(e.get("kind") == "verify" for e in h.critique_calls[1][2])
 

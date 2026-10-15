@@ -101,14 +101,17 @@ def critique_design(
     """Render each scene and critique it blind. Returns (findings, verifications of ``prior``)."""
     findings: list[dict[str, Any]] = []
     verifs: dict[str, dict[str, Any]] = {}
-    for scene in range(len(design.get("scenes") or [None])):
+    scenes = design.get("scenes") or [None]
+    for scene in range(len(scenes)):
         rendered = render_fn(design, scene, None)
         extra: list[Any] = [{"kind": "checklist", "items": list(CHECKLIST)}]
         scene_prior = [p for p in (prior or []) if p["scene"] == scene]
         if scene_prior:
             extra.append({"kind": "verify", "findings": scene_prior})
         extra.extend(rendered.get("broken_images") or [])
-        resp = critique_fn(list(rendered.get("pngs") or []), "image", extra)
+        # The critic's judgment stays blind (images + checklist only); the scene JSON is passed
+        # solely to key the deterministic no-key stub reproducibly (Contract 4), never the brief.
+        resp = critique_fn(list(rendered.get("pngs") or []), "image", extra, scenes[scene])
         findings.extend(_normalise_findings(resp, scene))
         for v in (resp or {}).get("verifications") or []:
             if isinstance(v, dict) and v.get("id") is not None:

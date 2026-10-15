@@ -132,10 +132,10 @@ def test_studio_ops_apply_omits_image_ref_when_no_cover(app, stub_node):
 
 # ── Visual observe + critic loop wiring (AC102/AC103) ─────────────────────────────────────────────
 import base64  # noqa: E402
-import hashlib  # noqa: E402
 
 import httpx  # noqa: E402
 
+from app.ai import vision  # noqa: E402
 from app.ai.studio_agent import StudioAgentResult  # noqa: E402
 from app.ai.studio_graph import _BuilderSession  # noqa: E402
 
@@ -194,6 +194,8 @@ def test_agent_runs_observe_visual_and_critic_loop_grounded(
 
     def fake_critique(settings, pngs, checklist, mode, scene=None):
         calls["n"] += 1
+        # The scene JSON (stable across envs) reaches the stub — not a PNG hash/bytes.
+        assert isinstance(scene, dict) and scene.get("id") == "s1"
         assert list(pngs) == [_PNG]  # the data URL was decoded to bytes for the vision model
         issues = [{"category": "contrast", "severity": "fail", "note": "low contrast"}]
         return {"ok": False, "issues": issues if calls["n"] <= 2 else [], "summary": "s"}
@@ -255,23 +257,37 @@ def test_agent_render_engine_http_error_is_503(app, settings, monkeypatch):
     assert r.status_code == 503 and r.json()["detail"] == "studio-ops engine unavailable"
 
 
+def test_critique_frames_keys_stub_on_scene_json_not_pixels(settings):
+    # Contract 4 / AC102b: the no-key stub must be keyed on the SCENE JSON, never the rendered
+    # pixels — headless-Chromium PNG bytes drift across Chromium builds/fonts/platforms, so a
+    # pixel key would not be cross-environment reproducible.
+    scene = {"id": "s0", "nodes": [{"id": "n"}]}
+    checklist = [{"kind": "checklist", "items": ["contrast"]}]
+    out = studio_router._critique_frames(settings, [_PNG], "image", checklist, scene)
+    assert out["scene_hash"] == vision._scene_hash(scene)
+    # Same scene + DIFFERENT pixels -> identical verdict (the stub ignores pixels).
+    other_pixels = studio_router._critique_frames(
+        settings, [_PNG + b"\x00"], "image", checklist, scene
+    )
+    assert other_pixels["scene_hash"] == out["scene_hash"] and other_pixels == out
+    # Different scene -> a different stub key.
+    other_scene = studio_router._critique_frames(settings, [_PNG], "image", checklist, {"id": "s1"})
+    assert other_scene["scene_hash"] != out["scene_hash"]
+
+
 def test_critique_frames_maps_issues_and_verifies_prior_findings(settings):
     # Stub vision (no key) is deterministic; severities map fail->P1, warn->P2, info->P3.
+    scene = {"id": "s0", "nodes": []}
     out = studio_router._critique_frames(
         settings, [_PNG], "image",
-        [{"kind": "checklist", "items": ["contrast"]}, "broken-node-id"],
+        [{"kind": "checklist", "items": ["contrast"]}, "broken-node-id"], scene,
     )
     again = studio_router._critique_frames(
-        settings, [_PNG], "image", [{"kind": "checklist", "items": ["contrast"]}]
+        settings, [_PNG], "image", [{"kind": "checklist", "items": ["contrast"]}], scene
     )
     assert out == again
-    assert out["scene_hash"] == hashlib.sha256(
-        __import__("json").dumps(
-            [hashlib.sha256(_PNG).hexdigest()], sort_keys=True, separators=(",", ":")
-        ).encode()
-    ).hexdigest()
     verify = {"kind": "verify", "findings": [{"id": "v-contrast"}, {"id": "gone"}]}
-    res = studio_router._critique_frames(settings, [_PNG], "image", [verify])
+    res = studio_router._critique_frames(settings, [_PNG], "image", [verify], scene)
     status = {v["id"]: v["status"] for v in res["verifications"]}
     assert status["gone"] == "fixed"
     assert status["v-contrast"] == ("not" if any(f["id"] == "v-contrast" for f in res["findings"])

@@ -247,8 +247,8 @@ def _vsession(scenes: list[dict[str, Any]], render=None, critique=None, **kw: An
         calls["render"].append((scene, times))
         return {"pngs": [b"png"], "width": 10, "height": 10, "broken_images": []}
 
-    def default_critique(pngs, mode, broken):
-        calls["critique"].append(mode)
+    def default_critique(pngs, mode, broken, scene=None):
+        calls["critique"].append((mode, scene))
         return {"score": 7, "mode": mode}
 
     sess = _BuilderSession(
@@ -272,7 +272,8 @@ def test_observe_visual_selects_image_vs_video_mode():
     assert still["mode"] == "image" and calls["render"][0] == (0, None)  # single still
     video = sess.observe_visual(1)
     assert video["mode"] == "video" and calls["render"][1][1] == [0, 1000, 1999]  # sampled frames
-    assert calls["critique"] == ["image", "video"]
+    # mode + the scene JSON that keys the deterministic stub (the scene, not pixels) are passed.
+    assert calls["critique"] == [("image", _STATIC), ("video", _ANIMATED)]
 
 
 def test_observe_visual_no_animation_fallback_for_explicit_video():
@@ -312,7 +313,7 @@ def test_observe_visual_failures_return_actionable_strings():
 
 
 def test_observe_visual_critique_failure_and_missing_capability():
-    def bad_critique(pngs, mode, broken):
+    def bad_critique(pngs, mode, broken, scene=None):
         raise VisualObserveError("timeout")
 
     sess, _ = _vsession([_STATIC], critique=bad_critique)

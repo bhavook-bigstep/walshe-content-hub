@@ -34,8 +34,11 @@ GenerateImageFn = Callable[[str, dict[str, Any]], dict[str, Any]]
 # (design, scene index, sample times in ms | None for a single still) -> {"pngs": [bytes...],
 # "width", "height", "broken_images": [...]}. Renders the REAL scene (headless browser) host-side.
 RenderFn = Callable[[dict[str, Any], int, "list[int] | None"], dict[str, Any]]
-# (pngs, mode "image"|"video", broken_images) -> a structured visual critique (vision model).
-CritiqueFn = Callable[[list[bytes], str, list[Any]], dict[str, Any]]
+# (pngs, mode "image"|"video", broken_images, scene_json) -> a structured visual critique (vision
+# model). ``scene_json`` keys the deterministic no-key STUB only (Contract 4 reproducibility — PNG
+# bytes drift across Chromium builds/fonts/platforms, scene JSON does not); the real vision model
+# never receives it, so the independent critic (AC103a) stays blind to the design.
+CritiqueFn = Callable[[list[bytes], str, list[Any], Any], dict[str, Any]]
 
 
 class VisualObserveError(Exception):

@@ -281,6 +281,28 @@ describe("POST /api/studio-ops/render", () => {
     ).rejects.toMatchObject({ code: "timeout" });
   });
 
+  it("test_timeout_keeps_the_shared_singleton_for_concurrent_renders", async () => {
+    // One render hangs (scene 0) and hits the hard timeout; a concurrent render (scene 1) must NOT
+    // be killed by it — the timeout branch must leave the shared singleton browser up. Regression
+    // for the critical-patterns.md shared-state-under-concurrency hazard in the render layer.
+    const fake = newFake();
+    const behave: Behave = (job) =>
+      (job.sceneIndex as number) === 0 ? new Promise(() => undefined) : okResult(job);
+    __setBrowserLauncherForTests(fakeLauncher(fake, behave));
+    const hang = renderStills(
+      { design: newDesign("social"), sceneIndex: 0, times: [0] },
+      { origin: "http://localhost:3000", timeoutMs: 20 },
+    );
+    await expect(hang).rejects.toMatchObject({ code: "timeout" });
+    // The sibling render reuses the SAME singleton (no relaunch) and still succeeds.
+    const res = await renderStills(
+      { design: newDesign("social"), sceneIndex: 1, times: [0] },
+      { origin: "http://localhost:3000", timeoutMs: 5000 },
+    );
+    expect(res.pngs).toHaveLength(1);
+    expect(fake.launches).toBe(1); // timeout did NOT close/relaunch the shared browser
+  });
+
   it("test_same_input_gives_identical_output", async () => {
     __setBrowserLauncherForTests(fakeLauncher(newFake(), okResult));
     const a = await (await post({ design: newDesign("social"), times: [0, 100] })).text();

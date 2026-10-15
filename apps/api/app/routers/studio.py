@@ -11,7 +11,6 @@ or a fabricated image source past it. FastAPI auto-documents these at ``/docs``.
 from __future__ import annotations
 
 import base64
-import hashlib
 import io
 import json
 import os
@@ -86,13 +85,17 @@ def _data_url_bytes(url: str) -> bytes:
 
 
 def _critique_frames(
-    settings: Settings, pngs: list[bytes], mode: str, extra: list[Any]
+    settings: Settings, pngs: list[bytes], mode: str, extra: list[Any], scene: Any = None
 ) -> dict[str, Any]:
     """Vision critique of rendered frames, shaped for both consumers: the raw vision result
     (observe_visual) plus ``findings`` / ``verifications`` (the critic loop, AC103).
 
     The critic sees only the images + its checklist (``extra`` dicts tagged by kind) — never the
-    brief or design. The stub is keyed on the frames' hash, so it is deterministic (Contract 4).
+    brief or design. ``scene`` is the scene JSON, passed to ``critique_scene`` ONLY to key the
+    deterministic no-key stub: scene JSON is stable across environments, whereas headless-Chromium
+    PNG bytes drift by Chromium build/font/platform, so keying the stub on pixels would break the
+    cross-env reproducibility the stub exists to guarantee (Contract 4 / AC102b). The real vision
+    model never receives ``scene``.
     """
     checklist: list[str] = []
     prior_ids: list[str] = []
@@ -101,8 +104,7 @@ def _critique_frames(
             checklist = [str(i) for i in e.get("items") or []]
         elif isinstance(e, dict) and e.get("kind") == "verify":
             prior_ids += [str(f.get("id")) for f in e.get("findings") or [] if isinstance(f, dict)]
-    key = [hashlib.sha256(p).hexdigest() for p in pngs]
-    res = critique_scene(settings, pngs, checklist or None, mode, scene=key)
+    res = critique_scene(settings, pngs, checklist or None, mode, scene=scene)
     findings = [
         {
             "id": f"v-{i['category']}", "severity": _SEVERITY_MAP.get(i["severity"], "P2"),
@@ -394,8 +396,10 @@ def _build_agent_runtime(
         return {**res, "pngs": [_data_url_bytes(p) for p in res.get("pngs") or []]}
 
     @traced("studio-ops.critique", "tool")
-    def critique_fn(pngs: list[bytes], mode: str, extra: list[Any]) -> dict[str, Any]:
-        return _critique_frames(settings, pngs, mode, extra)
+    def critique_fn(
+        pngs: list[bytes], mode: str, extra: list[Any], scene: Any = None
+    ) -> dict[str, Any]:
+        return _critique_frames(settings, pngs, mode, extra, scene)
 
     @traced("studio-ops.generate-image", "tool")
     def generate_image_fn(concept: str, _opts: dict[str, Any]) -> dict[str, Any]:
