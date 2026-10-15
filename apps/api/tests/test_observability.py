@@ -86,7 +86,9 @@ def test_assistant_call_is_traced(client, provider_headers, agent_headers, admin
 def test_plan_call_is_traced(client, provider_headers, agent_headers, admin_headers):
     eid = _approved(client, provider_headers)
     assert (
-        client.post("/ai-agent/builder/plan", headers=agent_headers, json={"item_ids": [eid]}).status_code
+        client.post(
+            "/ai-agent/builder/plan", headers=agent_headers, json={"item_ids": [eid]}
+        ).status_code
         == 200
     )
     rows = client.get("/traces", headers=admin_headers).json()

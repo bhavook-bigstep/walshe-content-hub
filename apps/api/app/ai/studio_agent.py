@@ -3,7 +3,8 @@
 The live agent loop now lives in ``app.ai.studio_graph`` (a LangGraph ReAct agent over native
 tool calls). This module holds what that loop reuses:
 
-- the injected-capability type aliases (``ApplyFn`` / ``ObserveFn`` / ``GenerateSpriteFn``) and the
+- the injected-capability type aliases (``ApplyFn`` / ``ObserveFn`` / ``GenerateImageFn`` /
+  ``RenderFn`` / ``CritiqueFn``) and the
   value types (``AgentItem`` / ``StudioAgentResult``);
 - ``_catalog_lines`` — the approved-item index rendered into the system prompt (grounding, AC6);
 - ``_summarize`` — the short, context-cheap design view fed back after each op;
@@ -24,9 +25,26 @@ from typing import Any
 ApplyFn = Callable[[dict[str, Any], list[dict[str, Any]], int], dict[str, Any]]
 # (design, scene index or None for all) -> the structured scene observation (descriptions + counts).
 ObserveFn = Callable[[dict[str, Any], "int | None"], dict[str, Any]]
-# (concept, opts) -> a sprite handle {ref, frame_count, fps, width, height}. The fn also remembers
-# the generated frames host-side so a later `add-sprite <ref>` can place them (Contract 1 pattern).
-GenerateSpriteFn = Callable[[str, dict[str, Any]], dict[str, Any]]
+# (concept, opts) -> a generated-image handle {ref, object_key, width, height}. The fn remembers the
+# image host-side (src + object key) so a later `add-image <ref>` places it, and persists it as the
+# agent's own asset so the node re-resolves on reload (Contract 1: a real owned src, never a
+# fabricated catalog one). The agent generates STATIC images only; motion comes from animate-node
+# keyframes — it cannot generate coherent frame-by-frame sprites, so that tool was removed.
+GenerateImageFn = Callable[[str, dict[str, Any]], dict[str, Any]]
+# (design, scene index, sample times in ms | None for a single still) -> {"pngs": [bytes...],
+# "width", "height", "broken_images": [...]}. Renders the REAL scene (headless browser) host-side.
+RenderFn = Callable[[dict[str, Any], int, "list[int] | None"], dict[str, Any]]
+# (pngs, mode "image"|"video", broken_images) -> a structured visual critique (vision model).
+CritiqueFn = Callable[[list[bytes], str, list[Any]], dict[str, Any]]
+
+
+class VisualObserveError(Exception):
+    """Typed failure a RenderFn/CritiqueFn may raise; ``kind`` is one of timeout | browser_crash |
+    bad_workspace (the session also adds budget_exhausted | no_animation itself)."""
+
+    def __init__(self, kind: str, message: str = "") -> None:
+        super().__init__(message or kind)
+        self.kind = kind
 
 
 @dataclass(frozen=True)

@@ -125,7 +125,7 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC11 | P2 | met | 1/1 |
 | AC12 | P1 | met | 1/1 |
 | AC13 | P2 | met | 2/2 |
-| AC14 | P3 | met | 1/1 |
+| AC14 | P3 | met | 2/2 |
 | AC15 | P3 | met | 1/1 |
 | AC16 | P1 | met | 1/1 |
 | AC17 | P1 | met | 1/1 |
@@ -145,7 +145,7 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC31 | P2 | met | 2/2 |
 | AC32 | P2 | met | 3/3 |
 | AC33 | P2 | met | 2/2 |
-| AC34 | P2 | met | 4/4 |
+| AC34 | P2 | met | 5/5 |
 | AC35 | P2 | met | 3/3 |
 | AC36 | P2 | met | 3/3 |
 | AC37 | P2 | met | 3/3 |
@@ -198,7 +198,7 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC84 | P2 | met | 1/1 |
 | AC85 | P2 | met | 3/3 |
 | AC86 | P2 | met | 3/3 |
-| AC87 | P2 | met | 3/3 |
+| AC87 | P2 | met | 5/5 |
 | AC88 | P2 | met | 2/2 |
 | AC89 | P2 | met | 1/1 |
 | AC90 | P2 | met | 1/1 |
@@ -207,7 +207,15 @@ findings, so the **Acceptance phase never ran**. Verified state established manu
 | AC93 | P2 | met | 1/1 |
 | AC94 | P2 | met | 2/2 |
 | AC95 | P2 | met | 1/1 |
+| AC96 | P2 | met | 2/2 |
+| AC97 | P2 | met | 4/4 |
+| AC98 | P2 | met | 5/5 |
+| AC99 | P2 | met | 8/8 |
+| AC100 | P3 | met | 2/2 |
+| AC101 | P3 | met | 3/3 |
+| AC102 | P2 | met | 18/18 |
+| AC103 | P2 | met | 6/6 |
 
-**Totals:** 95 met · 0 partial · 0 missing · 95 total.
+**Totals:** 103 met · 0 partial · 0 missing · 103 total.
 
 <!-- END GENERATED ACCEPTANCE MATRIX -->

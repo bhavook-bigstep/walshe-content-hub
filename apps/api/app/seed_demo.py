@@ -18,8 +18,17 @@ from sqlalchemy.orm import Session
 
 from app.clock import now as clock_now
 from app.models.agent_features import BrandKit, Collection
+from app.models.blocklist import BlocklistTerm
 from app.models.campaign import Campaign, CampaignStatus
-from app.models.catalog import CatalogEntry, CatalogType, EntryStatus, Season
+from app.models.catalog import (
+    Catalog,
+    CatalogEntry,
+    CatalogType,
+    CatalogVisibility,
+    EntryStatus,
+    EntryVisibility,
+    Season,
+)
 from app.models.composition import Composition
 from app.models.engagement import Engagement
 from app.models.post import Post, PostStatus
@@ -325,6 +334,43 @@ def seed_demo(db: Session) -> dict[str, int]:
     entries = [_entry(db, provider.id, spec, now) for spec in _ENTRIES]
     by_title = {e.title: e.id for e in entries}
 
+    # Link every seeded entry to the provider's single catalog (AC49) and set its distribution
+    # visibility. The single-catalog provider view groups entries by per-entry visibility
+    # (public / private / draft); without this the seeded catalog never renders on the provider UI.
+    catalog = (
+        db.execute(select(Catalog).where(Catalog.provider_id == provider.id).order_by(Catalog.id))
+        .scalars()
+        .first()
+    )
+    if catalog is None:
+        catalog = Catalog(
+            provider_id=provider.id,
+            name=f"{provider.display_name or 'My'} catalog",
+            category="",
+            visibility=CatalogVisibility.private,
+            shared_agent_ids=[],
+        )
+        db.add(catalog)
+        db.flush()
+    _PRIVATE_TITLES = {"Titanic Quarter", "Trade Showcase"}  # approved, shared with chosen agents
+    for e in entries:
+        e.catalog_id = catalog.id
+        if e.status != EntryStatus.approved or not e.brand_safe:
+            e.visibility = EntryVisibility.draft  # unapproved -> hidden from agents
+        elif e.title in _PRIVATE_TITLES:
+            e.visibility = EntryVisibility.private
+        else:
+            e.visibility = EntryVisibility.public
+
+    # A few realistic off-limits terms (AC36) so the blocklist page isn't empty. Chosen so none
+    # matches a seeded tourism entry — nothing is hidden by them.
+    for _term in ("casino", "gambling", "stag party", "nightclub crawl"):
+        t = " ".join(_term.split()).lower()
+        exists = db.execute(select(BlocklistTerm).where(BlocklistTerm.term == t)).scalars().first()
+        if exists is None:
+            db.add(BlocklistTerm(term=t, created_by=provider.id))
+    db.flush()
+
     # Agent 1 (Alex): west-coast focus, a brand kit, a saved project + a live post.
     _brand_kit(
         db,
@@ -365,11 +411,17 @@ def seed_demo(db: Session) -> dict[str, int]:
     comp_dublin = _composition(db, agent1.id, "Dublin city lights", [by_title["Dublin Lights"]])
     # Several live campaigns + Instagram posts + engagement so Campaigns / Social /
     # Engagement (per-campaign + per-post) are populated for the demo (not empty).
-    _seed_social(db, agent1.id, {
-        "Galway launch post": comp1.id,
-        "Cliffs of Moher feature": comp_cliffs.id,
-        "Dublin city lights": comp_dublin.id,
-    }, now)
+    # Isolated in a SAVEPOINT: on a dev DB with a pre-metrics `engagement` schema the insert can
+    # fail, but that must not roll back the catalog the rest of the demo depends on.
+    try:
+        with db.begin_nested():
+            _seed_social(db, agent1.id, {
+                "Galway launch post": comp1.id,
+                "Cliffs of Moher feature": comp_cliffs.id,
+                "Dublin city lights": comp_dublin.id,
+            }, now)
+    except Exception as exc:  # noqa: BLE001 - keep the rest of the seed on a legacy engagement schema
+        print(f"[seed-demo] skipped social/engagement (schema mismatch): {exc!r}")
 
     # Agent 2 (Sam): city-breaks focus, a brand kit, a collection + a draft project.
     _brand_kit(

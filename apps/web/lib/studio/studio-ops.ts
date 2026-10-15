@@ -10,6 +10,7 @@
 // design (and it can be unit-tested, driven by the in-app Builder, or exposed via an MCP adapter).
 import {
   addCatalogImage,
+  addGeneratedImage,
   addGraphic,
   addScene,
   addShape,
@@ -67,10 +68,14 @@ export interface StudioOpContext {
   /** Resolve a catalog id → its served image src. The studio NEVER fabricates an image source, so a
    *  `place` whose id doesn't resolve here is rejected. */
   imageSrcFor?: (catalogItemId: string) => string | undefined;
-  /** Resolve a non-built-in sprite ref (e.g. an agent-generated `user:<id>`) → its frames + size.
-   *  Built-in sprite ids resolve from the local registry; everything else must resolve here (the op
-   *  core never fabricates frames), so the host (FastAPI) threads generated sprites through this. */
+  /** Resolve a non-built-in sprite ref (e.g. an imported `user:<id>`) → its frames + size. Built-in
+   *  sprite ids resolve from the local registry; everything else must resolve here (the op core never
+   *  fabricates frames), so the host threads sprites through this. */
   spriteFramesFor?: (ref: string) => { frames: string[]; fps?: number; width: number; height: number } | undefined;
+  /** Resolve an agent-generated image ref (`gen:<id>`, from the generate_image tool) → its served
+   *  src + stable storage key. The op core never fabricates an image src, so an `add-image` whose ref
+   *  doesn't resolve here is rejected; the host (FastAPI) threads the generated images through this. */
+  generatedImageFor?: (ref: string) => { src: string; objectKey?: string; width?: number; height?: number } | undefined;
 }
 
 /** A single op call from the agent: an op name + its params. */
@@ -226,6 +231,32 @@ const OPS: Record<string, OpDef> = {
         ctx.sceneIndex,
         { src, catalogItemId: id },
         { x: p.x, y: p.y, width: p.width ?? 480, height: p.height ?? 480 },
+      );
+    },
+  },
+
+  "add-image": {
+    description:
+      "Place an AI-generated static image (the ref returned by generate_image) on the current scene. It does NOT move on its own — give it motion with animate-node. For an approved catalog photo use `place` instead; this op is only for a generate_image ref.",
+    params: {
+      ref: "the generated image ref from generate_image (e.g. gen:12)",
+      x: "optional",
+      y: "optional",
+      width: "optional",
+      height: "optional",
+    },
+    apply(design, call, ctx) {
+      const ref = str(call.ref, "ref");
+      const img = ctx.generatedImageFor?.(ref);
+      if (!img) {
+        reject(`no generated image for ref ${ref} — call generate_image first (the studio never fabricates image sources)`);
+      }
+      const p = placement(call);
+      return addGeneratedImage(
+        design,
+        ctx.sceneIndex,
+        { src: img.src, objectKey: img.objectKey },
+        { x: p.x, y: p.y, width: p.width ?? img.width ?? 480, height: p.height ?? img.height ?? 480 },
       );
     },
   },
@@ -553,7 +584,7 @@ const OPS: Record<string, OpDef> = {
     description: "Add a sprite that plays AFTER an existing sprite, continuing from where it ends (joins them into one motion).",
     params: {
       parent_id: "the existing sprite's node id (from observe)",
-      sprite: "a built-in sprite id, or a generated sprite ref, for the next sprite in the chain",
+      sprite: "a built-in sprite id for the next sprite in the chain",
     },
     apply(design, call, ctx) {
       const parentId = str(call.parent_id, "parent_id");

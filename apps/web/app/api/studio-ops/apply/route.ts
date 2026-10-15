@@ -9,7 +9,8 @@
 //   calls: StudioOpCall[],       the op sequence
 //   allowedCatalogIds?: string[],   Contract 1: the only ids the caller may reference (omit = no gate)
 //   imageSrcById?: { [id]: src }    resolved served image srcs (the studio never fabricates one)
-//   spriteFramesById?: { [ref]: { frames, fps?, width, height } }  agent-generated sprites, by ref
+//   spriteFramesById?: { [ref]: { frames, fps?, width, height } }  imported sprites, by ref
+//   generatedImagesById?: { [ref]: { src, objectKey?, width?, height? } }  agent-generated stills
 // }
 // → { design, results, valid }. The CALLER is responsible for resolving allowedCatalogIds +
 // imageSrcById from the authed agent's visible catalog (the FastAPI visibility choke-point) before
@@ -50,12 +51,17 @@ export async function POST(req: Request): Promise<Response> {
     body.spriteFramesById && typeof body.spriteFramesById === "object"
       ? (body.spriteFramesById as Record<string, { frames: string[]; fps?: number; width: number; height: number }>)
       : undefined;
+  const genImageMap =
+    body.generatedImagesById && typeof body.generatedImagesById === "object"
+      ? (body.generatedImagesById as Record<string, { src: string; objectKey?: string; width?: number; height?: number }>)
+      : undefined;
 
   const result = applyStudioOps(design, calls, {
     sceneIndex: Math.max(0, Math.min(sceneIndex, design.scenes.length - 1)),
     allowedCatalogIds: allowed,
     imageSrcFor: srcMap ? (id) => srcMap[id] : undefined,
     spriteFramesFor: spriteMap ? (ref) => spriteMap[ref] : undefined,
+    generatedImageFor: genImageMap ? (ref) => genImageMap[ref] : undefined,
   });
   return json(result);
 }

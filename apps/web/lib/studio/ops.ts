@@ -643,6 +643,33 @@ export function addCatalogImage(
   return next;
 }
 
+/** Add an AI-generated static image node. Unlike {@link addCatalogImage} it carries NO
+ * `catalogItemId` (it is the agent's own generated asset, not an approved catalog item — Contract 1
+ * keeps those distinct), but it keeps the stable `objectKey` so its src re-resolves on reload. It is
+ * a plain still; motion comes from a keyframe animation applied separately (animate-node). */
+export function addGeneratedImage(
+  design: DesignDoc,
+  sceneIndex: number,
+  image: { src: string; objectKey?: string },
+  placement: NodePlacement = {},
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  scene.nodes.push({
+    id: nextId("image", scene),
+    type: "image",
+    x: placement.x ?? DEFAULT_PLACEMENT.x,
+    y: placement.y ?? DEFAULT_PLACEMENT.y,
+    width: placement.width ?? 480,
+    height: placement.height ?? 480,
+    src: image.src,
+    ...(image.objectKey ? { objectKey: image.objectKey } : {}),
+    ...stylePlacement(placement),
+  });
+  return next;
+}
+
 /** Add a built-in decorative graphic/sticker/sprite (an image node from an SVG data URL). A sprite
  * also carries an entrance/loop intent, resolved into a keyframe track anchored at its placement, or
  * a `frames` filmstrip for classic frame-by-frame sprite animation (src defaults to frame 0). */

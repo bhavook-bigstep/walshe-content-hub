@@ -19,6 +19,7 @@ export interface BuilderCatalogItem {
 export default function BuilderPanel({
   items,
   onBuild,
+  onRunDemo,
   building = false,
   prompt: controlledPrompt,
   onPromptChange,
@@ -27,6 +28,8 @@ export default function BuilderPanel({
   items: BuilderCatalogItem[];
   /** Run the agent build with this brief (the page owns the loop + progress overlay). */
   onBuild: (prompt: string) => void | Promise<void>;
+  /** Optional scripted-demo trigger — renders a secondary "Run demo" button next to Generate. */
+  onRunDemo?: () => void | Promise<void>;
   /** True while a build is running (disables the button, shows "Building…"). */
   building?: boolean;
   /** Controlled brief — lets the Planner hand its plan to the Builder. Falls back to local state. */
@@ -66,14 +69,27 @@ export default function BuilderPanel({
           {items.length} catalog item{items.length === 1 ? "" : "s"} available
         </p>
       )}
-      <button
-        type="button"
-        className="btn-primary self-start disabled:opacity-60"
-        disabled={!canRun}
-        onClick={() => void onBuild(prompt.trim())}
-      >
-        {building ? "Building…" : "Generate design"}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="btn-primary disabled:opacity-60"
+          disabled={!canRun}
+          onClick={() => void onBuild(prompt.trim())}
+        >
+          {building ? "Building…" : "Generate design"}
+        </button>
+        {onRunDemo && (
+          <button
+            type="button"
+            className="btn-secondary disabled:opacity-60"
+            disabled={building}
+            onClick={() => void onRunDemo()}
+            title="Play a scripted, guaranteed-good itinerary build"
+          >
+            Run demo
+          </button>
+        )}
+      </div>
     </section>
   );
 }

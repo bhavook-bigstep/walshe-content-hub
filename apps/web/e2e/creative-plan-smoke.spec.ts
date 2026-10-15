@@ -23,16 +23,18 @@ test("agent generates a grounded creative plan in the studio", async ({ page }) 
   await page.getByRole("dialog", { name }).getByRole("button", { name: /open in design studio/i }).click();
   await expect(page).toHaveURL(/\/agent\/studio\?project=\d+/);
 
-  // Open the AI dock and wait until the project's collection item has loaded into the Builder,
+  // Open the AI dock and wait until the project's collection item has loaded into the dock,
   // so the Planner grounds on it (avoids racing the async media load).
   await page.getByRole("button", { name: "Open the AI studio" }).click();
-  await expect(page.getByText(/catalog item.* selected/i)).toBeVisible();
+  await expect(page.getByText(/catalog item.* available/i)).toBeVisible();
   await page.getByRole("button", { name: "Planner" }).click();
-  await page.getByRole("button", { name: /generate creative plan/i }).click();
 
-  const plan = page.getByTestId("creative-plan");
+  // The Planner turns a brief into a scene-by-scene plan grounded in the open collection's items.
+  await page.getByLabel("Planner brief").fill("a cosy autumn weekend in the west of Ireland");
+  await page.getByRole("button", { name: /^generate plan$/i }).click();
+
+  // The generated plan is grounded in approved content and names the real seeded item in its copy.
+  const plan = page.getByLabel("Editable content plan");
   await expect(plan).toBeVisible();
-  // The plan is grounded in approved content and names a real seeded item in its copy.
-  await expect(page.getByTestId("plan-status")).toContainText(/grounded/i);
-  await expect(plan).toContainText("Harbour Festival");
+  await expect(plan).toHaveValue(/Harbour Festival/);
 });

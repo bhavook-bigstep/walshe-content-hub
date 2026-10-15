@@ -71,7 +71,9 @@ def test_plan_built_from_visible_items_and_serialises(client, provider_headers, 
         highlights=["Family friendly", "On the waterfront"],
     )
     r = client.post(
-        "/ai-agent/builder/plan", headers=agent_headers, json={"item_ids": [eid], "format": "social"}
+        "/ai-agent/builder/plan",
+        headers=agent_headers,
+        json={"item_ids": [eid], "format": "social"},
     )
     assert r.status_code == 200, r.text
     plan = r.json()
@@ -92,18 +94,24 @@ def test_plan_refuses_hidden_items(client, provider_headers, agent_headers, app)
         json={"type": "event", "title": "Hidden", "destination": "Cork"},
     ).json()["id"]
 
-    r = client.post("/ai-agent/builder/plan", headers=agent_headers, json={"item_ids": [visible, draft]})
+    r = client.post(
+        "/ai-agent/builder/plan", headers=agent_headers, json={"item_ids": [visible, draft]}
+    )
     assert r.status_code == 200, r.text
     assert r.json()["item_ids"] == [visible]  # the hidden/draft id is dropped
 
     # All ids hidden → nothing to plan from.
-    only_hidden = client.post("/ai-agent/builder/plan", headers=agent_headers, json={"item_ids": [draft]})
+    only_hidden = client.post(
+        "/ai-agent/builder/plan", headers=agent_headers, json={"item_ids": [draft]}
+    )
     assert only_hidden.status_code == 404
 
 
 def test_plan_is_agent_only(client, provider_headers):
     assert (
-        client.post("/ai-agent/builder/plan", headers=provider_headers, json={"item_ids": [1]}).status_code
+        client.post(
+            "/ai-agent/builder/plan", headers=provider_headers, json={"item_ids": [1]}
+        ).status_code
         == 403
     )
 

@@ -10,27 +10,36 @@ or a fabricated image source past it. FastAPI auto-documents these at ``/docs``.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import io
 import json
 import os
 import queue
 import threading
+import uuid
 from datetime import datetime
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import clock
 from app.ai.content_plan import generate_content_plan
 from app.ai.factory import get_provider
+from app.ai.images import generate_image as _generate_image
 from app.ai.sprite_gen import generate_sprite
 from app.ai.studio_agent import AgentItem
+from app.ai.studio_critic import run_critic_loop
 from app.ai.studio_graph import run_studio_graph
+from app.ai.vision import critique_scene
 from app.config import Settings
 from app.deps import get_db, get_settings, require_role
+from app.models.catalog import ItemKind, UserAsset, UserAssetSource
 from app.models.user import Role, User
 from app.observability.tracing import traced
 from app.services.visibility import agent_visible_entries_by_ids
@@ -62,6 +71,50 @@ def _node_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         resp = client.post(f"{_STUDIO_OPS_BASE}{path}", json=payload)
         resp.raise_for_status()
         return resp.json()
+
+
+MAX_VISUAL_OBSERVES = 3
+_SEVERITY_MAP = {"fail": "P1", "warn": "P2", "info": "P3"}
+
+
+def _data_url_bytes(url: str) -> bytes:
+    """Decode a ``data:image/png;base64,...`` URL from the render engine (bad input -> empty)."""
+    try:
+        return base64.b64decode(url.split(",", 1)[-1], validate=True)
+    except (ValueError, AttributeError):
+        return b""
+
+
+def _critique_frames(
+    settings: Settings, pngs: list[bytes], mode: str, extra: list[Any]
+) -> dict[str, Any]:
+    """Vision critique of rendered frames, shaped for both consumers: the raw vision result
+    (observe_visual) plus ``findings`` / ``verifications`` (the critic loop, AC103).
+
+    The critic sees only the images + its checklist (``extra`` dicts tagged by kind) — never the
+    brief or design. The stub is keyed on the frames' hash, so it is deterministic (Contract 4).
+    """
+    checklist: list[str] = []
+    prior_ids: list[str] = []
+    for e in extra:
+        if isinstance(e, dict) and e.get("kind") == "checklist":
+            checklist = [str(i) for i in e.get("items") or []]
+        elif isinstance(e, dict) and e.get("kind") == "verify":
+            prior_ids += [str(f.get("id")) for f in e.get("findings") or [] if isinstance(f, dict)]
+    key = [hashlib.sha256(p).hexdigest() for p in pngs]
+    res = critique_scene(settings, pngs, checklist or None, mode, scene=key)
+    findings = [
+        {
+            "id": f"v-{i['category']}", "severity": _SEVERITY_MAP.get(i["severity"], "P2"),
+            "region": None, "issue": i["note"], "fix": {},
+        }
+        for i in res.get("issues") or []
+    ]
+    current = {f["id"] for f in findings}
+    verifications = [
+        {"id": pid, "status": "not" if pid in current else "fixed"} for pid in prior_ids
+    ]
+    return {**res, "findings": findings, "verifications": verifications}
 
 
 def _resolve_grounding(rows: list[Any]) -> tuple[list[str], dict[str, str]]:
@@ -287,9 +340,11 @@ def _build_agent_runtime(
     allowed, image_src_by_id = _resolve_grounding(rows)
     items = [AgentItem(id=r.id, title=r.title, destination=r.destination or "") for r in rows]
     labels = {str(r.id): r.title for r in rows}
-    # Sprites the agent generates this run, by ref → frames+size; threaded into every apply.
-    generated_sprites: dict[str, dict[str, Any]] = {}
-    sprite_db = sprite_session or db
+    # Static images the agent generates this run, by ref → {src, objectKey, size}; threaded into
+    # every apply so `add-image` can place them. (The agent no longer generates frame-by-frame
+    # sprites — it produced incoherent frames; it makes one still and animates it with keyframes.)
+    generated_images: dict[str, dict[str, Any]] = {}
+    worker_db = sprite_session or db  # off-thread session for generated-asset persistence
 
     @traced("studio-ops.apply", "tool")
     def apply_fn(
@@ -301,7 +356,7 @@ def _build_agent_runtime(
             "calls": calls,
             "allowedCatalogIds": allowed,
             "imageSrcById": image_src_by_id,
-            "spriteFramesById": generated_sprites,
+            "generatedImagesById": generated_images,
         }
         try:
             return _node_post("/api/studio-ops/apply", payload)
@@ -318,21 +373,56 @@ def _build_agent_runtime(
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
 
-    @traced("studio-ops.generate-sprite", "tool")
-    def generate_sprite_fn(concept: str, opts: dict[str, Any]) -> dict[str, Any]:
-        gen = generate_sprite(
-            settings, sprite_db, storage, agent.id, concept,
-            frames=int(opts.get("frames", 4) or 4), fps=int(opts.get("fps", 10) or 10),
+    @traced("studio-ops.render", "tool")
+    def render_fn(
+        design: dict[str, Any], scene_index: int, times: list[int] | None
+    ) -> dict[str, Any]:
+        # Same Contract-1 choke-point as apply: the engine re-checks every image node against the
+        # server-resolved ids/srcs (never client-supplied) BEFORE launching a browser.
+        payload: dict[str, Any] = {
+            "design": design,
+            "sceneIndex": scene_index,
+            "allowedCatalogIds": allowed,
+            "imageSrcById": image_src_by_id,
+        }
+        if times is not None:
+            payload["times"] = times
+        try:
+            res = _node_post("/api/studio-ops/render", payload)
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=503, detail="studio-ops engine unavailable") from exc
+        return {**res, "pngs": [_data_url_bytes(p) for p in res.get("pngs") or []]}
+
+    @traced("studio-ops.critique", "tool")
+    def critique_fn(pngs: list[bytes], mode: str, extra: list[Any]) -> dict[str, Any]:
+        return _critique_frames(settings, pngs, mode, extra)
+
+    @traced("studio-ops.generate-image", "tool")
+    def generate_image_fn(concept: str, _opts: dict[str, Any]) -> dict[str, Any]:
+        # One still image from the configured model (deterministic stub when no key — Contract 4),
+        # persisted as the agent's OWN asset so the placed node re-resolves on reload (its src is a
+        # real owned object, never a fabricated catalog src — Contract 1).
+        picture = _generate_image(settings, concept)
+        key = f"users/{agent.id}/{uuid.uuid4().hex}"
+        storage.put_object(key, picture.data, picture.content_type)
+        asset = UserAsset(
+            owner_id=agent.id, source=UserAssetSource.agent, kind=ItemKind.image,
+            title=concept.strip()[:120] or "Generated image",
+            object_key=key, content_type=picture.content_type,
         )
-        ref = f"user:{gen.sprite.id}"
-        generated_sprites[ref] = {
-            "frames": gen.frames_data_urls, "fps": gen.sprite.fps,
-            "width": gen.sprite.frame_width, "height": gen.sprite.frame_height,
-        }
-        return {
-            "ref": ref, "frame_count": len(gen.frames_data_urls), "fps": gen.sprite.fps,
-            "width": gen.sprite.frame_width, "height": gen.sprite.frame_height,
-        }
+        worker_db.add(asset)
+        worker_db.commit()
+        worker_db.refresh(asset)
+        try:
+            with Image.open(io.BytesIO(picture.data)) as im:
+                width, height = im.size
+        except Exception:  # noqa: BLE001 - dims are a hint; the op defaults if absent
+            width = height = None
+        ref = f"gen:{asset.id}"
+        src = "data:" + picture.content_type + ";base64," + base64.b64encode(picture.data).decode()
+        size = {"width": width, "height": height} if width and height else {}
+        generated_images[ref] = {"src": src, "objectKey": key, **size}
+        return {"ref": ref, "object_key": key, **size}
 
     try:
         spec = _node_get("/api/studio-ops/spec").get("ops", [])
@@ -341,8 +431,47 @@ def _build_agent_runtime(
 
     return {
         "items": items, "spec": spec, "apply_fn": apply_fn,
-        "observe_fn": observe_fn, "generate_sprite_fn": generate_sprite_fn,
+        "observe_fn": observe_fn, "generate_image_fn": generate_image_fn,
+        "render_fn": render_fn, "critique_fn": critique_fn,
     }
+
+
+def _run_build(
+    settings: Settings, runtime: dict[str, Any], body: StudioAgentRequest, **extra: Any
+) -> Any:
+    """Build with a live observe_visual, then the bounded independent critic loop (AC103)."""
+    # run_critic_loop consumes render_fn/critique_fn itself, so bind them into the build too —
+    # that is what makes the Builder's observe_visual tool live.
+    def build(**kw: Any) -> Any:
+        return run_studio_graph(
+            max_rounds=body.max_rounds, render_fn=runtime["render_fn"],
+            critique_fn=runtime["critique_fn"], max_visual_observes=MAX_VISUAL_OBSERVES, **kw,
+        )
+
+    if (settings.ai_provider or "").lower() != "gemini" or not settings.gemini_api_key:
+        # Deterministic stub compose (Contract 4): nothing visual to review, and no browser needed.
+        return build(
+            settings=settings, design=body.design, prompt=body.prompt, items=runtime["items"],
+            spec=runtime["spec"], apply_fn=runtime["apply_fn"], observe_fn=runtime["observe_fn"],
+            generate_image_fn=runtime["generate_image_fn"], scene_index=body.scene_index, **extra,
+        )
+    out = run_critic_loop(
+        settings=settings,
+        design=body.design,
+        prompt=body.prompt,
+        items=runtime["items"],
+        spec=runtime["spec"],
+        apply_fn=runtime["apply_fn"],
+        observe_fn=runtime["observe_fn"],
+        generate_image_fn=runtime["generate_image_fn"],
+        render_fn=runtime["render_fn"],
+        critique_fn=runtime["critique_fn"],
+        # max_rounds here is the BUILD loop's budget; the critic's own round cap stays its default.
+        build_fn=build,
+        scene_index=body.scene_index,
+        **extra,
+    )
+    return out.result
 
 
 @router.post("/agent", response_model=StudioAgentResponse)
@@ -360,18 +489,7 @@ def studio_agent(
     `describe_ops` step — the system prompt carries just the op index, to spare the context window.
     """
     runtime = _build_agent_runtime(agent, db, settings, storage, body.item_ids, now)
-    result = run_studio_graph(
-        settings=settings,
-        design=body.design,
-        prompt=body.prompt,
-        items=runtime["items"],
-        spec=runtime["spec"],
-        apply_fn=runtime["apply_fn"],
-        observe_fn=runtime["observe_fn"],
-        generate_sprite_fn=runtime["generate_sprite_fn"],
-        scene_index=body.scene_index,
-        max_rounds=body.max_rounds,
-    )
+    result = _run_build(settings, runtime, body)
     return {
         "design": result.design,
         "steps": result.steps,
@@ -394,7 +512,8 @@ def studio_agent_stream(
     """The agent build, streamed as SSE so the UI can show the agent's live "thinking". Emits one
     `{"t":"step", ...}` event per action (with its note) and a final `{"t":"done", design, ...}`."""
     # Grounding is resolved on THIS (request) session now; the loop runs in a worker thread, so its
-    # sprite generation gets a fresh session (SQLAlchemy sessions aren't shared across threads).
+    # generated-image persistence gets a fresh session (SQLAlchemy sessions aren't shared across
+    # threads).
     sprite_session = request.app.state.sessionmaker()
     runtime = _build_agent_runtime(
         agent, db, settings, storage, body.item_ids, now, sprite_session=sprite_session
@@ -405,13 +524,7 @@ def studio_agent_stream(
 
     def run() -> None:
         try:
-            holder["result"] = run_studio_graph(
-                settings=settings, design=body.design, prompt=body.prompt,
-                items=runtime["items"], spec=runtime["spec"], apply_fn=runtime["apply_fn"],
-                observe_fn=runtime["observe_fn"], generate_sprite_fn=runtime["generate_sprite_fn"],
-                scene_index=body.scene_index, max_rounds=body.max_rounds,
-                on_step=events.put,
-            )
+            holder["result"] = _run_build(settings, runtime, body, on_step=events.put)
         except Exception as exc:  # noqa: BLE001 — surfaced to the client as an error event
             holder["error"] = exc
         finally:

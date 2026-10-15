@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     ai_image_provider: str = "gemini"
     ai_image_model: str = "gemini-2.5-flash-image"
 
+    # AI vision critique (AC102): the provider + model that looks at rendered Studio frames and
+    # critiques layout/contrast/legibility/motion. Defaults to Gemini; with no GEMINI_API_KEY it
+    # falls back to a deterministic scene-JSON-keyed stub (no egress, hermetic tests)
+    # — see app.ai.vision.critique_scene.
+    ai_vision_provider: str = "gemini"
+    ai_vision_model: str = "gemini-2.5-flash"
+
     # Text-to-speech for video narration — Gemini TTS when a key is set, else the local say/espeak
     # fallback (see app.ai.tts.synthesize_speech + app.media.video).
     ai_tts_provider: str = "gemini"

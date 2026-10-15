@@ -111,7 +111,9 @@ def test_builder_route_agent_only_and_stub(app):
         r2 = c.post("/ai-agent/builder/design", json=payload, headers=agent)
         assert r1.status_code == 200 and r1.json() == r2.json()
         assert r1.json()["provider"] == "stub"
-        empty = c.post("/ai-agent/builder/design", json={"prompt": PROMPT, "item_ids": []}, headers=agent)
+        empty = c.post(
+            "/ai-agent/builder/design", json={"prompt": PROMPT, "item_ids": []}, headers=agent
+        )
         assert empty.status_code == 422
 
 

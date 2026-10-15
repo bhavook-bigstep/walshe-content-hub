@@ -49,6 +49,35 @@ describe("studio-ops tool core", () => {
     expect(design.scenes[0].nodes).toHaveLength(0); // design untouched
   });
 
+  it("test_add_image_places_a_generated_still_with_object_key", () => {
+    const d = newDesign("social");
+    const genCtx = ctx({
+      generatedImageFor: (ref) =>
+        ref === "gen:5" ? { src: "blob:gen/5.png", objectKey: "users/9/abc", width: 800, height: 600 } : undefined,
+    });
+    const { design, results } = applyStudioOps(
+      d,
+      [{ op: "add-image", ref: "gen:5", x: 10, y: 20 }],
+      genCtx,
+    );
+    expect(results[0].status).toBe("applied");
+    const node = design.scenes[0].nodes[0];
+    expect(node.type).toBe("image");
+    expect(node.src).toBe("blob:gen/5.png");
+    expect(node.objectKey).toBe("users/9/abc"); // stable key so it re-resolves on reload
+    expect(node.catalogItemId).toBeUndefined(); // generated, NOT a catalog item (Contract 1)
+    expect(node).toMatchObject({ x: 10, y: 20, width: 800, height: 600 }); // size from the handle
+  });
+
+  it("test_add_image_rejected_when_ref_does_not_resolve", () => {
+    const d = newDesign("social");
+    // No generatedImageFor (or an unknown ref) → rejected; the studio never fabricates an image src.
+    const { design, results } = applyStudioOps(d, [{ op: "add-image", ref: "gen:404" }], ctx());
+    expect(results[0].status).toBe("rejected");
+    expect(results[0].reason).toMatch(/no generated image/i);
+    expect(design.scenes[0].nodes).toHaveLength(0); // design untouched
+  });
+
   it("test_grounding_rejects_unapproved_catalog_id", () => {
     const d = newDesign("social");
     const calls = [

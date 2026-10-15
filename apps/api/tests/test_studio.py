@@ -128,3 +128,156 @@ def test_studio_ops_apply_omits_image_ref_when_no_cover(app, stub_node):
         _, payload = stub_node["post"]
         assert payload["allowedCatalogIds"] == [str(noimg)]
         assert payload["imageSrcById"] == {}
+
+
+# ── Visual observe + critic loop wiring (AC102/AC103) ─────────────────────────────────────────────
+import base64  # noqa: E402
+import hashlib  # noqa: E402
+
+import httpx  # noqa: E402
+
+from app.ai.studio_agent import StudioAgentResult  # noqa: E402
+from app.ai.studio_graph import _BuilderSession  # noqa: E402
+
+_PNG = b"\x89PNG-synthetic-frame"
+_PNG_URL = "data:image/png;base64," + base64.b64encode(_PNG).decode()
+
+
+@pytest.fixture
+def visual_node(monkeypatch):
+    """Node stub that also serves /render; records every post. No network, no browser."""
+    seen: dict = {"posts": []}
+
+    def fake_post(path, payload):
+        seen["posts"].append((path, payload))
+        if path.endswith("/render"):
+            return {"pngs": [_PNG_URL], "width": 1080, "height": 1080, "broken_images": []}
+        return {"design": payload["design"], "results": [], "valid": True}
+
+    monkeypatch.setattr(studio_router, "_node_post", fake_post)
+    monkeypatch.setattr(studio_router, "_node_get", lambda p: {"ops": []})
+    return seen
+
+
+def _fake_build_factory(record: dict):
+    """Stands in for the Gemini graph: drives the REAL observe_visual through the injected fns."""
+
+    def build(**kw):
+        record.setdefault("builds", []).append(kw["prompt"])
+        record["max_visual_observes"] = kw["max_visual_observes"]
+        session = _BuilderSession(
+            kw["design"], kw["scene_index"], kw["apply_fn"], kw["observe_fn"],
+            kw["generate_image_fn"], kw.get("on_step"), render_fn=kw["render_fn"],
+            critique_fn=kw["critique_fn"], max_visual_observes=kw["max_visual_observes"],
+        )
+        record.setdefault("visual", []).append(session.observe_visual())
+        return StudioAgentResult(design=kw["design"], finished=True, provider="gemini")
+
+    return build
+
+
+def _use_gemini(settings):
+    settings.ai_provider = "gemini"
+    settings.gemini_api_key = "test-key-xxxx"  # obviously fake; the graph/vision are mocked
+
+
+def test_agent_runs_observe_visual_and_critic_loop_grounded(
+    app, settings, visual_node, monkeypatch
+):
+    _use_gemini(settings)
+    ok = _seed(app, "Visible Tour", cover="assets/ok.png")
+    hidden = _seed(app, "Draft Secret", approved=False)
+    record: dict = {}
+    monkeypatch.setattr(studio_router, "run_studio_graph", _fake_build_factory(record))
+    # One blocking (fail -> P1) issue on the first look, clean afterwards -> exactly one fix round.
+    calls = {"n": 0}
+
+    def fake_critique(settings, pngs, checklist, mode, scene=None):
+        calls["n"] += 1
+        assert list(pngs) == [_PNG]  # the data URL was decoded to bytes for the vision model
+        issues = [{"category": "contrast", "severity": "fail", "note": "low contrast"}]
+        return {"ok": False, "issues": issues if calls["n"] <= 2 else [], "summary": "s"}
+
+    monkeypatch.setattr(studio_router, "critique_scene", fake_critique)
+    with TestClient(app) as c:
+        agent = auth_header(c, Role.tourism_agent)
+        r = c.post(
+            "/ai-agent/studio/agent",
+            headers=agent,
+            json={"design": _DESIGN, "prompt": "Promote", "item_ids": [ok, hidden]},
+        )
+    assert r.status_code == 200 and r.json()["provider"] == "gemini"
+    # observe_visual ran live inside the build (render + vision), with the configured budget.
+    assert record["max_visual_observes"] == studio_router.MAX_VISUAL_OBSERVES
+    assert "critique" in record["visual"][0] and record["visual"][0]["mode"] == "image"
+    # Critic loop: build, critique P1, fix build (prompt carries the finding), re-critique.
+    assert len(record["builds"]) == 2 and "[v-contrast]" in record["builds"][1]
+    # Contract 1: every render request carried only the visible id + its real src.
+    renders = [p for path, p in visual_node["posts"] if path == "/api/studio-ops/render"]
+    assert len(renders) >= 3  # observe_visual x2 builds + critic rounds
+    for payload in renders:
+        assert payload["allowedCatalogIds"] == [str(ok)]
+        assert payload["imageSrcById"] == {str(ok): "assets/ok.png"}
+        assert str(hidden) not in payload["allowedCatalogIds"]
+
+
+def test_agent_stub_path_is_deterministic_and_skips_render(app, visual_node):
+    # No Gemini key: deterministic stub compose; nothing visual to review, so no browser render.
+    ok = _seed(app, "Visible Tour")
+    body = {"design": _DESIGN, "prompt": "Promote", "item_ids": [ok]}
+    with TestClient(app) as c:
+        agent = auth_header(c, Role.tourism_agent)
+        a = c.post("/ai-agent/studio/agent", headers=agent, json=body)
+        b = c.post("/ai-agent/studio/agent", headers=agent, json=body)
+    assert a.status_code == 200 and a.json() == b.json()
+    assert not any(p == "/api/studio-ops/render" for p, _ in visual_node["posts"])
+
+
+def test_agent_render_engine_http_error_is_503(app, settings, monkeypatch):
+    _use_gemini(settings)
+    monkeypatch.setattr(studio_router, "run_studio_graph", _fake_build_factory({}))
+    ok = _seed(app, "Visible Tour")
+
+    def fake_post(path, payload):
+        if path.endswith("/render"):
+            raise httpx.ConnectError("down")
+        return {"design": payload["design"], "results": [], "valid": True}
+
+    monkeypatch.setattr(studio_router, "_node_post", fake_post)
+    monkeypatch.setattr(studio_router, "_node_get", lambda p: {"ops": []})
+    with TestClient(app) as c:
+        agent = auth_header(c, Role.tourism_agent)
+        r = c.post(
+            "/ai-agent/studio/agent",
+            headers=agent,
+            json={"design": _DESIGN, "prompt": "Promote", "item_ids": [ok]},
+        )
+    assert r.status_code == 503 and r.json()["detail"] == "studio-ops engine unavailable"
+
+
+def test_critique_frames_maps_issues_and_verifies_prior_findings(settings):
+    # Stub vision (no key) is deterministic; severities map fail->P1, warn->P2, info->P3.
+    out = studio_router._critique_frames(
+        settings, [_PNG], "image",
+        [{"kind": "checklist", "items": ["contrast"]}, "broken-node-id"],
+    )
+    again = studio_router._critique_frames(
+        settings, [_PNG], "image", [{"kind": "checklist", "items": ["contrast"]}]
+    )
+    assert out == again
+    assert out["scene_hash"] == hashlib.sha256(
+        __import__("json").dumps(
+            [hashlib.sha256(_PNG).hexdigest()], sort_keys=True, separators=(",", ":")
+        ).encode()
+    ).hexdigest()
+    verify = {"kind": "verify", "findings": [{"id": "v-contrast"}, {"id": "gone"}]}
+    res = studio_router._critique_frames(settings, [_PNG], "image", [verify])
+    status = {v["id"]: v["status"] for v in res["verifications"]}
+    assert status["gone"] == "fixed"
+    assert status["v-contrast"] == ("not" if any(f["id"] == "v-contrast" for f in res["findings"])
+                                    else "fixed")
+
+
+def test_data_url_bytes_decodes_and_tolerates_garbage():
+    assert studio_router._data_url_bytes(_PNG_URL) == _PNG
+    assert studio_router._data_url_bytes("data:image/png;base64,@@@") == b""

@@ -20,6 +20,8 @@ interface Props {
   onSelectNode?: (sceneIndex: number, nodeId: string) => void;
   /** Run the real agent build for a brief (the page owns the loop + progress overlay). */
   onBuild?: (prompt: string) => void | Promise<void>;
+  /** Run the scripted demo build (optional; shows a secondary "Run demo" button). */
+  onRunDemo?: () => void | Promise<void>;
   /** Whether a build is currently running (disables the Generate button, shows "Building…"). */
   demoRunning?: boolean;
   /** Record AI-generated images on the workspace (so they appear in the media drawer). */
@@ -36,6 +38,7 @@ export default function StudioBottomDock({
   moderationEntries,
   onSelectNode,
   onBuild,
+  onRunDemo,
   demoRunning,
   onImageGenerated,
 }: Props) {
@@ -138,6 +141,10 @@ export default function StudioBottomDock({
                     setOpen(false);
                     return onBuild(prompt);
                   }}
+                  onRunDemo={onRunDemo && (() => {
+                    setOpen(false);
+                    return onRunDemo();
+                  })}
                 />
               ) : (
                 <p role="status" className="text-small text-walshe-grey">AI Builder unavailable.</p>

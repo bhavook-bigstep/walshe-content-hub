@@ -622,3 +622,34 @@ acceptance:
       - "apps/web/tests/social-platforms.test.ts::offers the five PoC platforms with Instagram first"
       - "apps/web/tests/social-platforms.test.ts::only Instagram is connected by default"
       - "apps/web/tests/social-platforms.test.ts::a stored map merges over the defaults (Instagram stays unless turned off)"
+  AC102:
+    tier: P2
+    api:
+      - "apps/api/tests/test_vision.py::test_stub_deterministic_for_same_scene_regardless_of_key_order_or_pixels"
+      - "apps/api/tests/test_vision.py::test_gemini_builds_expected_request_and_parses"
+      - "apps/api/tests/test_vision.py::test_provider_failure_degrades_to_stub"
+      - "apps/api/tests/test_vision.py::test_key_never_in_logs_or_output"
+      - "apps/api/tests/test_studio_graph.py::test_scene_is_animated_detects_motion_and_transitions"
+      - "apps/api/tests/test_studio_graph.py::test_observe_visual_selects_image_vs_video_mode"
+      - "apps/api/tests/test_studio_graph.py::test_observe_visual_no_animation_fallback_for_explicit_video"
+      - "apps/api/tests/test_studio_graph.py::test_observe_visual_budget_cap"
+      - "apps/api/tests/test_studio_graph.py::test_observe_visual_failures_return_actionable_strings"
+      - "apps/api/tests/test_studio_graph.py::test_observe_visual_tool_registered_alongside_observe"
+      - "apps/api/tests/test_studio_graph.py::test_observe_visual_runs_render_outside_the_lock"
+    web:
+      - "apps/web/tests/studio-render.test.ts::test_samples_start_mid_end_and_transition_boundary"
+      - "apps/web/tests/studio-render.test.ts::test_returns_structurally_valid_pngs_reports_broken_images_and_blocks_egress"
+      - "apps/web/tests/studio-render.test.ts::test_default_times_come_from_sampleTimesForScene"
+      - "apps/web/tests/studio-render.test.ts::test_rejects_unapproved_catalog_id_before_launching_browser"
+      - "apps/web/tests/studio-render.test.ts::test_rejects_foreign_origin_src_before_launching_browser"
+      - "apps/web/tests/studio-render.test.ts::test_crash_maps_to_browser_crash_and_next_request_relaunches"
+      - "apps/web/tests/studio-render.test.ts::test_hung_render_hits_hard_timeout"
+  AC103:
+    tier: P2
+    api:
+      - "apps/api/tests/test_studio_critic.py::test_no_p1_stops_after_one_round_without_fix"
+      - "apps/api/tests/test_studio_critic.py::test_only_p1_drive_fixes_and_loop_bounded_to_two_rounds"
+      - "apps/api/tests/test_studio_critic.py::test_round_two_verifies_each_prior_finding"
+      - "apps/api/tests/test_studio_critic.py::test_critic_is_independent_of_build_history"
+      - "apps/api/tests/test_studio_critic.py::test_malformed_findings_dropped_and_fix_op_constrained"
+      - "apps/api/tests/test_studio_critic.py::test_deterministic_same_inputs_same_decisions"
