@@ -103,15 +103,17 @@ def test_builder_route_agent_only_and_stub(app):
     eid = _seed(app, "Test Cliffs Tour")
     payload = {"prompt": PROMPT, "item_ids": [eid]}
     with TestClient(app) as c:
-        assert c.post("/builder/design", json=payload).status_code == 401
+        assert c.post("/ai-agent/builder/design", json=payload).status_code == 401
         provider = auth_header(c, Role.content_provider)
-        assert c.post("/builder/design", json=payload, headers=provider).status_code == 403
+        assert c.post("/ai-agent/builder/design", json=payload, headers=provider).status_code == 403
         agent = auth_header(c, Role.tourism_agent)
-        r1 = c.post("/builder/design", json=payload, headers=agent)
-        r2 = c.post("/builder/design", json=payload, headers=agent)
+        r1 = c.post("/ai-agent/builder/design", json=payload, headers=agent)
+        r2 = c.post("/ai-agent/builder/design", json=payload, headers=agent)
         assert r1.status_code == 200 and r1.json() == r2.json()
         assert r1.json()["provider"] == "stub"
-        empty = c.post("/builder/design", json={"prompt": PROMPT, "item_ids": []}, headers=agent)
+        empty = c.post(
+            "/ai-agent/builder/design", json={"prompt": PROMPT, "item_ids": []}, headers=agent
+        )
         assert empty.status_code == 422
 
 
@@ -125,7 +127,7 @@ def test_builder_route_resolves_ids_through_visibility(app):
     with TestClient(app) as c:
         agent = auth_header(c, Role.tourism_agent)
         r = c.post(
-            "/builder/design",
+            "/ai-agent/builder/design",
             json={"prompt": PROMPT, "item_ids": [ok, draft, unsafe, scoped, bogus]},
             headers=agent,
         )
@@ -136,7 +138,7 @@ def test_builder_route_resolves_ids_through_visibility(app):
         for hidden in ("Draft Secret", "Unsafe Secret", "Scoped Secret"):
             assert hidden not in text
         hidden_only = c.post(
-            "/builder/design",
+            "/ai-agent/builder/design",
             json={"prompt": PROMPT, "item_ids": [draft, unsafe, scoped, bogus]},
             headers=agent,
         )

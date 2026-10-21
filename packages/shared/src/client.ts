@@ -47,7 +47,6 @@ export type AgentRunTrace = Schemas["AgentRunOut"];
 export type AssistantReply = Schemas["AssistantOut"];
 export type AssistantItem = Schemas["ItemCardOut"];
 export type AssistantTurn = Schemas["HistoryTurn"];
-export type CreativePlan = Schemas["CreativePlanOut"];
 export type User = Schemas["UserOut"];
 export type AdminCreateUserInput = Schemas["AdminCreateUserRequest"];
 export type RegisterProviderInput = Schemas["RegisterProviderRequest"];
@@ -481,6 +480,24 @@ export async function listMySprites(): Promise<UserSprite[]> {
   return (await (await send("/me/sprites")).json()) as UserSprite[];
 }
 
+/** The result of generating a sprite from a text concept (an owner sprite + its placement ref). */
+export interface GeneratedSprite {
+  ref: string;
+  provider: string;
+  sprite: UserSprite;
+}
+
+/** Generate an animated sprite from a text concept: the server renders `frames` motion images (2–8,
+ * one per phase) and stores them as one of the caller's sprites (so it then appears in
+ * `listMySprites`). `fps` sets the speed. Agent-scoped (the studio's role). */
+export async function generateSprite(
+  concept: string,
+  opts: { frames?: number; fps?: number } = {},
+): Promise<GeneratedSprite> {
+  const body = { concept, ...opts };
+  return (await (await send("/ai-agent/studio/sprites/generate", json(body))).json()) as GeneratedSprite;
+}
+
 /** Delete one of the caller's imported sprites (used to discard the ones not kept after an import). */
 export async function deleteSprite(spriteId: number): Promise<void> {
   await send(`/me/sprites/${spriteId}`, { method: "DELETE" });
@@ -517,15 +534,6 @@ export async function addBlocklistTerm(term: string): Promise<BlocklistTerm> {
 }
 export async function removeBlocklistTerm(id: number): Promise<void> {
   await send(`/blocklist/${id}`, { method: "DELETE" });
-}
-
-// --- Creative Plan IR (AC41/42) ---
-export async function buildCreativePlan(
-  itemIds: number[],
-  opts: { objective?: string; format?: string; audience?: string } = {},
-): Promise<CreativePlan> {
-  const body = { item_ids: itemIds, ...opts };
-  return (await (await send("/builder/plan", json(body))).json()) as CreativePlan;
 }
 
 // --- Assistant & discovery (AC38-40) ---
@@ -625,7 +633,120 @@ export async function renderEmailHtml(design: Record<string, unknown>): Promise<
 
 /** AI/builder-generated design (opaque serialisable design model). */
 export async function builderDesign(body: DesignRequest): Promise<Record<string, unknown>> {
-  return (await (await send("/builder/design", json(body))).json()) as Record<string, unknown>;
+  return (await (await send("/ai-agent/builder/design", json(body))).json()) as Record<string, unknown>;
+}
+
+/** Content planner: a vague brief → a scene-by-scene markdown plan the user edits, then runs as the
+ *  Builder's brief (plan → build). Grounded in the agent's visible catalog items. */
+export type StudioPlanRequest = Schemas["StudioPlanRequest"];
+export type StudioPlanResponse = Schemas["StudioPlanResponse"];
+export async function generateContentPlan(body: StudioPlanRequest): Promise<StudioPlanResponse> {
+  return (await (await send("/ai-agent/studio/plan", json(body))).json()) as StudioPlanResponse;
+}
+
+/** The agentic Studio Builder: a real tool loop (observe → act → finish) that edits `design` to
+ *  satisfy `prompt`, grounded in `item_ids`. Returns the edited design + the step transcript. */
+export type StudioAgentRequest = Schemas["StudioAgentRequest"];
+export type StudioAgentResponse = Schemas["StudioAgentResponse"];
+export async function studioAgent(body: StudioAgentRequest): Promise<StudioAgentResponse> {
+  return (await (await send("/ai-agent/studio/agent", json(body))).json()) as StudioAgentResponse;
+}
+
+/** A live build DRAFT the browser polls (instead of holding an SSE stream a slow review would drop).
+ *  `version` bumps each time the agent's ops change the design; `status` goes running → done/cancelled/error. */
+export interface StudioBuildDraft {
+  build_id: string;
+  design: Record<string, unknown>;
+  version: number;
+  status: string;
+  finished: boolean;
+  applied: number;
+  note?: string | null;
+  provider?: string;
+}
+
+/** Start a build in the background; it writes into a server draft the browser then polls. Returns the
+ *  build_id to poll/cancel. A single build click is ONE build_id even if the network retries. */
+export async function studioAgentStart(body: StudioAgentRequest): Promise<{ build_id: string }> {
+  return (await (await send("/ai-agent/studio/agent/start", json(body))).json()) as { build_id: string };
+}
+
+/** Poll a build's current draft; re-render when `version` changes, stop when `finished`. */
+export async function studioAgentDraft(buildId: string): Promise<StudioBuildDraft> {
+  const p = `/ai-agent/studio/agent/draft/${encodeURIComponent(buildId)}`;
+  return (await (await send(p)).json()) as StudioBuildDraft;
+}
+
+/** Ask a running build to stop (it leaves what it has built). Idempotent. */
+export async function studioAgentCancel(buildId: string): Promise<{ ok: boolean }> {
+  const p = `/ai-agent/studio/agent/cancel/${encodeURIComponent(buildId)}`;
+  return (await (await send(p, { method: "POST" })).json()) as { ok: boolean };
+}
+
+/** One streamed step event from the agent build (its live "thinking"). */
+export interface StudioAgentStep {
+  action?: string;
+  note?: string;
+  [k: string]: unknown;
+}
+
+/** Run the agent build and STREAM its steps (SSE), calling `onStep` with each action + note as it
+ *  happens (for a live "thinking" UI), then resolving to the final design + transcript. Falls back
+ *  to a buffered parse if the response isn't a readable stream (e.g. a proxy buffered it). */
+export async function studioAgentStream(
+  body: StudioAgentRequest,
+  onStep: (step: StudioAgentStep) => void,
+): Promise<StudioAgentResponse> {
+  const res = await send("/ai-agent/studio/agent/stream", json(body));
+  const steps: StudioAgentStep[] = [];
+  let done: StudioAgentResponse | null = null;
+
+  const handleFrame = (frame: string) => {
+    const line = frame.split("\n").find((l) => l.startsWith("data:"));
+    if (!line) return;
+    const data = JSON.parse(line.slice(5).trim()) as { t?: string } & Record<string, unknown>;
+    if (data.t === "step") {
+      steps.push(data as StudioAgentStep);
+      onStep(data as StudioAgentStep);
+    } else if (data.t === "done") {
+      done = {
+        design: data.design as Record<string, unknown>,
+        steps,
+        applied: data.applied as number,
+        finished: data.finished as boolean,
+        provider: data.provider as string,
+      };
+    } else if (data.t === "error") {
+      throw new ApiError(502, "The builder failed mid-run.");
+    }
+  };
+
+  const drain = (text: string, carry: string): string => {
+    let buf = carry + text;
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      handleFrame(buf.slice(0, idx));
+      buf = buf.slice(idx + 2);
+    }
+    return buf;
+  };
+
+  if (res.body?.getReader) {
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let carry = "";
+    for (;;) {
+      const { value, done: streamDone } = await reader.read();
+      if (streamDone) break;
+      carry = drain(dec.decode(value, { stream: true }), carry);
+    }
+    drain("\n\n", carry); // flush any trailing frame
+  } else {
+    drain((await res.text()) + "\n\n", "");
+  }
+
+  if (!done) throw new ApiError(502, "The builder stream ended without a result.");
+  return done;
 }
 
 /** AI: generate an Instagram caption for one of the agent's saved compositions. Deterministic
@@ -648,6 +769,14 @@ export async function renderVideo(body: VideoRequest): Promise<Blob> {
 }
 
 /** WYSIWYG frame-capture video: the client posts pre-rendered animation frames; server encodes. */
+/** The narration-only audio track for a preview timeline (scenes + cues), for synced playback. */
+export type NarrationAudioRequest = Schemas["NarrationAudioRequest"];
+export async function renderNarrationAudio(body: NarrationAudioRequest): Promise<Blob | null> {
+  const res = await send("/render/narration", json(body));
+  if (res.status === 204) return null; // no narration / no TTS → play silently
+  return res.blob();
+}
+
 export async function renderVideoFrames(body: FramesVideoRequest): Promise<Blob> {
   return (await send("/render/video-frames", json(body))).blob();
 }

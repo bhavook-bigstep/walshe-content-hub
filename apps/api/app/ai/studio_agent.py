@@ -1,0 +1,133 @@
+"""Shared primitives for the Studio Builder agent: grounded-op types + the deterministic stub.
+
+The live agent loop now lives in ``app.ai.studio_graph`` (a LangGraph ReAct agent over native
+tool calls). This module holds what that loop reuses:
+
+- the injected-capability type aliases (``ApplyFn`` / ``ObserveFn`` / ``GenerateImageFn`` /
+  ``RenderFn`` / ``CritiqueFn``) and the
+  value types (``AgentItem`` / ``StudioAgentResult``);
+- ``_catalog_lines`` — the approved-item index rendered into the system prompt (grounding, AC6);
+- ``_summarize`` — the short, context-cheap design view fed back after each op;
+- ``_deterministic_compose`` — the Contract 4 fallback (no key / provider failure): one fixed,
+  grounded compose that the same brief + items always reproduce, so tests/dev stay hermetic.
+
+Grounding (Contract 1) is NOT this module's job: ``apply_fn`` already resolves the agent's visible
+catalog + real image refs (the FastAPI visibility choke-point) before the Node engine sees anything.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+# (design, op calls, scene index) -> {"design", "results", "valid"} from the studio-ops engine.
+ApplyFn = Callable[[dict[str, Any], list[dict[str, Any]], int], dict[str, Any]]
+# (design, scene index or None for all) -> the structured scene observation (descriptions + counts).
+ObserveFn = Callable[[dict[str, Any], "int | None"], dict[str, Any]]
+# (concept, opts) -> a generated-image handle {ref, object_key, width, height}. The fn remembers the
+# image host-side (src + object key) so a later `add-image <ref>` places it, and persists it as the
+# agent's own asset so the node re-resolves on reload (Contract 1: a real owned src, never a
+# fabricated catalog one). The agent generates STATIC images only; motion comes from animate-node
+# keyframes — it cannot generate coherent frame-by-frame sprites, so that tool was removed.
+GenerateImageFn = Callable[[str, dict[str, Any]], dict[str, Any]]
+# (design, scene index, sample times in ms | None for a single still) -> {"pngs": [bytes...],
+# "width", "height", "broken_images": [...]}. Renders the REAL scene (headless browser) host-side.
+RenderFn = Callable[[dict[str, Any], int, "list[int] | None"], dict[str, Any]]
+# (pngs, mode "image"|"video", broken_images, scene_json) -> a structured visual critique (vision
+# model). ``scene_json`` keys the deterministic no-key STUB only (Contract 4 reproducibility — PNG
+# bytes drift across Chromium builds/fonts/platforms, scene JSON does not); the real vision model
+# never receives it, so the independent critic (AC103a) stays blind to the design.
+CritiqueFn = Callable[[list[bytes], str, list[Any], Any], dict[str, Any]]
+
+
+class VisualObserveError(Exception):
+    """Typed failure a RenderFn/CritiqueFn may raise; ``kind`` is one of timeout | browser_crash |
+    bad_workspace (the session also adds budget_exhausted | no_animation itself)."""
+
+    def __init__(self, kind: str, message: str = "") -> None:
+        super().__init__(message or kind)
+        self.kind = kind
+
+
+@dataclass(frozen=True)
+class AgentItem:
+    """An approved catalog item the agent may reference (listed in the index)."""
+
+    id: int
+    title: str
+    destination: str = ""
+
+
+@dataclass
+class StudioAgentResult:
+    design: dict[str, Any]
+    steps: list[dict[str, Any]] = field(default_factory=list)
+    applied: int = 0
+    finished: bool = False
+    provider: str = "stub"
+    # The agent's final one-line reply — fed back as the "assistant" turn of chat_history so a
+    # follow-up run (e.g. a critic fix round) continues the conversation instead of starting cold.
+    summary: str = ""
+
+
+def _catalog_lines(items: list[AgentItem]) -> str:
+    if not items:
+        return "(none selected — do not place any image)"
+    return "\n".join(
+        f"- {it.id} — {it.title}" + (f" ({it.destination})" if it.destination else "")
+        for it in items
+    )
+
+
+def _summarize(design: dict[str, Any], scene_index: int) -> str:
+    """A short, context-cheap view of the design state fed back to the model after each op. Lists
+    the EXACT node ids (not just type counts) so the agent targets real nodes with
+    edit/style/animate/move ops — without the ids it invented plausible-but-wrong ones (e.g.
+    ``text_1``) and every follow-up op was rejected, leaving a sparse scene and a wasted budget."""
+    scenes = design.get("scenes") or []
+    parts = [f"scenes={len(scenes)}"]
+    if 0 <= scene_index < len(scenes):
+        scene = scenes[scene_index]
+        nodes = scene.get("nodes") or []
+        ids = ", ".join(f"{n.get('id')}({n.get('type', '?')})" for n in nodes[:16])
+        if len(nodes) > 16:
+            ids += f", +{len(nodes) - 16} more"
+        bg = scene.get("background")
+        parts.append(
+            f"scene{scene_index} nodes=[{ids or 'empty'}]" + (f", bg={bg}" if bg else "")
+        )
+    return "; ".join(parts)
+
+
+def _deterministic_compose(
+    design: dict[str, Any],
+    prompt: str,
+    items: list[AgentItem],
+    scene_index: int,
+    apply_fn: ApplyFn,
+    on_step: "Callable[[dict[str, Any]], None] | None" = None,
+) -> StudioAgentResult:
+    """Contract 4 fallback (stub / provider failure): one fixed, grounded compose, then done.
+
+    No model, no network beyond apply_fn — the same brief + items always yield the same calls, and
+    apply_fn still enforces grounding so nothing ungrounded slips through.
+    """
+    calls: list[dict[str, Any]] = [
+        {"op": "set-background", "color": "#0e2a26"},
+        {"op": "write-copy", "text": (prompt.strip()[:80] or "Discover")},
+    ]
+    for it in items:
+        calls.append({"op": "place", "item_id": it.id})
+        calls.append({"op": "write-copy", "text": it.title, "item_id": it.id})
+    res = apply_fn(design, calls, scene_index)
+    steps = [
+        {"action": "apply", "results": res.get("results", []), "note": "Composing the layout"},
+        {"action": "finish", "note": "deterministic compose"},
+    ]
+    if on_step is not None:
+        on_step({**steps[0], "design": res["design"]})  # stream the composed design for live render
+        on_step(steps[1])
+    return StudioAgentResult(
+        design=res["design"], steps=steps, applied=1, finished=True, provider="stub"
+    )

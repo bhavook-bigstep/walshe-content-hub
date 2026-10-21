@@ -44,6 +44,259 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-agent/builder/design": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Design */
+        post: operations["design_ai_agent_builder_design_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/builder/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan
+         * @description Build a grounded Creative Plan IR from selected items (AC41/AC42).
+         *
+         *     Items are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped
+         *     (Contract 1). The plan's claims are validated against the approved source fields.
+         */
+        post: operations["plan_ai_agent_builder_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/agent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent
+         * @description Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.
+         *
+         *     The op param schemas live in the engine spec and reach the model only via the loop's
+         *     `describe_ops` step — the system prompt carries just the op index, to spare the context window.
+         */
+        post: operations["studio_agent_ai_agent_studio_agent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/agent/cancel/{build_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent Cancel
+         * @description Ask a running build to stop (the loop checks between turns/rounds and leaves what it built).
+         *     Idempotent; owner-scoped.
+         */
+        post: operations["studio_agent_cancel_ai_agent_studio_agent_cancel__build_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/agent/draft/{build_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Studio Agent Draft
+         * @description The current draft for a running/finished build — the browser polls this and re-renders when
+         *     `version` changes. Owner-scoped (404 for anyone else's build, or an unknown/evicted id).
+         */
+        get: operations["studio_agent_draft_ai_agent_studio_agent_draft__build_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/agent/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent Start
+         * @description Start a build in the background and return its `build_id`. The build writes its evolving
+         *     design into a server-side DRAFT; the browser polls `GET /agent/draft/{build_id}` and re-renders
+         *     on each version bump — no long-lived SSE connection a slow review/critic pass could drop (so one
+         *     build is always one trace thread). The loop runs off-thread, so it gets its own DB session.
+         */
+        post: operations["studio_agent_start_ai_agent_studio_agent_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/agent/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent Stream
+         * @description The agent build, streamed as SSE so the UI can show the agent's live "thinking". Emits one
+         *     `{"t":"step", ...}` event per action (with its note) and a final `{"t":"done", design, ...}`.
+         */
+        post: operations["studio_agent_stream_ai_agent_studio_agent_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/ops/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Ops Apply
+         * @description Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).
+         */
+        post: operations["studio_ops_apply_ai_agent_studio_ops_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/ops/observe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Ops Observe
+         * @description Derive the natural-language description of each scene (read-only) so a host can OBSERVE the
+         *     workspace in words instead of analysing a render. Images are labelled by their catalog title.
+         */
+        post: operations["studio_ops_observe_ai_agent_studio_ops_observe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/ops/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Studio Ops Spec
+         * @description The studio-ops tool catalog: op + description + params, for a host to build its tool list.
+         */
+        get: operations["studio_ops_spec_ai_agent_studio_ops_spec_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Plan
+         * @description Turn a vague brief into a concrete, scene-by-scene markdown content plan, grounded in the
+         *     agent's visible catalog. The user edits it, then runs it as the Builder's prompt.
+         */
+        post: operations["studio_plan_ai_agent_studio_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/sprites/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Generate Sprite
+         * @description Generate a sprite sheet (LLM image), slice it via the shared pipeline, and persist it as the
+         *     caller's sprite. Returns the owner sprite + its `user:<id>` ref to place with `add-sprite`.
+         *     Generated sprites are unmoderated decorative content.
+         */
+        post: operations["studio_generate_sprite_ai_agent_studio_sprites_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/caption": {
         parameters: {
             query?: never;
@@ -287,46 +540,6 @@ export interface paths {
         post?: never;
         /** Remove Term */
         delete: operations["remove_term_blocklist__term_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/builder/design": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Design */
-        post: operations["design_builder_design_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/builder/plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Plan
-         * @description Build a grounded Creative Plan IR from selected items (AC41/AC42).
-         *
-         *     Items are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped
-         *     (Contract 1). The plan's claims are validated against the approved source fields.
-         */
-        post: operations["plan_builder_plan_post"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1524,6 +1737,27 @@ export interface paths {
         put?: never;
         /** Render Email Html */
         post: operations["render_email_html_render_email_html_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/render/narration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render Narration
+         * @description Render just the narration audio for a preview timeline (a WAV spanning the scenes), for
+         *     synced in-studio playback. 204 when there's no narration or no TTS (the client stays silent).
+         */
+        post: operations["render_narration_render_narration_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2895,6 +3129,21 @@ export interface components {
             /** Object Key */
             object_key: string;
         };
+        /**
+         * NarrationAudioRequest
+         * @description Scenes (durations + cues) for the preview timeline — audio only, no frames.
+         */
+        NarrationAudioRequest: {
+            /** Scenes */
+            scenes: components["schemas"]["NarrationAudioScene"][];
+        };
+        /** NarrationAudioScene */
+        NarrationAudioScene: {
+            /** Duration Ms */
+            duration_ms: number;
+            /** Narration */
+            narration?: components["schemas"]["NarrationCue"][];
+        };
         /** NarrationCue */
         NarrationCue: {
             /**
@@ -3228,6 +3477,206 @@ export interface components {
         SendBackRequest: {
             /** Reason */
             reason: string;
+        };
+        /**
+         * StudioAgentRequest
+         * @description Run the inbuilt Builder agent: edit `design` to satisfy `prompt`, grounded in `item_ids`.
+         */
+        StudioAgentRequest: {
+            /**
+             * Design
+             * @description the DesignDoc to edit
+             */
+            design: {
+                [key: string]: unknown;
+            };
+            /**
+             * Item Ids
+             * @description catalog items the agent may use
+             */
+            item_ids?: number[];
+            /**
+             * Max Rounds
+             * @description max model turns in the loop
+             * @default 10
+             */
+            max_rounds: number;
+            /**
+             * Project Id
+             * @description the workspace/project this build belongs to (labels the trace thread)
+             */
+            project_id?: string | null;
+            /**
+             * Prompt
+             * @description the creative brief (or a plan)
+             */
+            prompt: string;
+            /**
+             * Run Code
+             * @description a per-build-click id minted by the client so a retried/fallen-back request stays ONE trace thread (<project>:<run_code>) instead of minting a new one each time
+             */
+            run_code?: string | null;
+            /**
+             * Scene Index
+             * @description the scene the agent edits
+             * @default 0
+             */
+            scene_index: number;
+        };
+        /** StudioAgentResponse */
+        StudioAgentResponse: {
+            /** Applied */
+            applied: number;
+            /** Design */
+            design: {
+                [key: string]: unknown;
+            };
+            /** Finished */
+            finished: boolean;
+            /** Provider */
+            provider: string;
+            /** Steps */
+            steps: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * StudioGenerateSpriteRequest
+         * @description Generate an animated sprite from a concept via the image API; store it as an owner sprite.
+         */
+        StudioGenerateSpriteRequest: {
+            /**
+             * Concept
+             * @description what the sprite shows + motion
+             */
+            concept: string;
+            /**
+             * Fps
+             * @description playback speed
+             * @default 10
+             */
+            fps: number;
+            /**
+             * Frames
+             * @description how many motion frames to generate
+             * @default 4
+             */
+            frames: number;
+        };
+        /**
+         * StudioObserveRequest
+         * @description Observe a design in words — an accurate per-scene description derived from its state.
+         */
+        StudioObserveRequest: {
+            /**
+             * Design
+             * @description the DesignDoc to observe
+             */
+            design: {
+                [key: string]: unknown;
+            };
+            /**
+             * Item Ids
+             * @description catalog items, to label images by title
+             */
+            item_ids?: number[];
+            /**
+             * Scene Index
+             * @description one scene (omit = all scenes)
+             */
+            scene_index?: number | null;
+        };
+        /** StudioOpResultOut */
+        StudioOpResultOut: {
+            /** Op */
+            op: string;
+            /** Reason */
+            reason?: string | null;
+            /** Status */
+            status: string;
+        };
+        /** StudioOpSpecOut */
+        StudioOpSpecOut: {
+            /** Description */
+            description: string;
+            /** Op */
+            op: string;
+            /** Params */
+            params: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * StudioOpsApplyRequest
+         * @description Apply a sequence of agent op calls to a design. `item_ids` are the catalog entries the agent
+         *     may reference; they are re-resolved through the visibility choke-point before the engine sees
+         *     them.
+         */
+        StudioOpsApplyRequest: {
+            /**
+             * Calls
+             * @description the op sequence
+             */
+            calls: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Design
+             * @description the DesignDoc to edit (validated by the engine)
+             */
+            design: {
+                [key: string]: unknown;
+            };
+            /**
+             * Item Ids
+             * @description catalog items the agent may use
+             */
+            item_ids?: number[];
+            /**
+             * Scene Index
+             * @description the scene the ops target
+             * @default 0
+             */
+            scene_index: number;
+        };
+        /** StudioOpsApplyResponse */
+        StudioOpsApplyResponse: {
+            /** Design */
+            design: {
+                [key: string]: unknown;
+            };
+            /** Results */
+            results: components["schemas"]["StudioOpResultOut"][];
+            /** Valid */
+            valid: boolean;
+        };
+        /** StudioOpsSpecResponse */
+        StudioOpsSpecResponse: {
+            /** Ops */
+            ops: components["schemas"]["StudioOpSpecOut"][];
+        };
+        /**
+         * StudioPlanRequest
+         * @description A vague brief → a scene-by-scene content plan the user edits, then runs as a brief.
+         */
+        StudioPlanRequest: {
+            /**
+             * Item Ids
+             * @description catalog items to ground the plan in
+             */
+            item_ids?: number[];
+            /**
+             * Prompt
+             * @description the vague creative brief
+             */
+            prompt: string;
+        };
+        /** StudioPlanResponse */
+        StudioPlanResponse: {
+            /** Plan */
+            plan: string;
+            /** Provider */
+            provider: string;
         };
         /** SuggestionsOut */
         SuggestionsOut: {
@@ -3568,6 +4017,397 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    design_ai_agent_builder_design_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DesignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_ai_agent_builder_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_ai_agent_studio_agent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioAgentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_cancel_ai_agent_studio_agent_cancel__build_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_draft_ai_agent_studio_agent_draft__build_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_start_ai_agent_studio_agent_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_stream_ai_agent_studio_agent_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_ops_apply_ai_agent_studio_ops_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioOpsApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioOpsApplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_ops_observe_ai_agent_studio_ops_observe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioObserveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_ops_spec_ai_agent_studio_ops_spec_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioOpsSpecResponse"];
+                };
+            };
+        };
+    };
+    studio_plan_ai_agent_studio_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudioPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_generate_sprite_ai_agent_studio_sprites_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioGenerateSpriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4006,74 +4846,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    design_builder_design_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DesignRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    plan_builder_plan_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PlanRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreativePlanOut"];
-                };
             };
             /** @description Validation Error */
             422: {
@@ -6388,6 +7160,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    render_narration_render_narration_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NarrationAudioRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

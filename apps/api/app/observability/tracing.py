@@ -39,6 +39,27 @@ def configure_langsmith(settings: Settings) -> bool:
     return True
 
 
+def traced(name: str, run_type: str = "chain"):
+    """Decorator that traces an AI call to LangSmith — capturing its inputs AND outputs (prompts +
+    responses) for debugging — when tracing is enabled, else a near no-op.
+
+    LangSmith only EXPORTS when ``LANGCHAIN_TRACING_V2=true`` (set by ``configure_langsmith`` only
+    when a key is present), so with no key nothing leaves the boundary (Contract 2 default). Unlike
+    the content-free ``record_run``/``trace_span``, this is opt-in observability for the operator's
+    OWN LangSmith project, so it intentionally records the call content to make issues debuggable.
+    """
+    try:
+        from langsmith import traceable
+
+        return traceable(name=name, run_type=run_type)
+    except Exception:  # pragma: no cover - langsmith absent/incompatible → identity decorator
+
+        def _identity(fn):
+            return fn
+
+        return _identity
+
+
 @contextlib.contextmanager
 def trace_span(name: str, *, enabled: bool, metadata: dict | None = None) -> Iterator[None]:
     """Best-effort LangSmith span around a block when tracing is enabled; otherwise a no-op.

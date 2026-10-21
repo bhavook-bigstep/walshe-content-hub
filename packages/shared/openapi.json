@@ -2850,6 +2850,48 @@
         "title": "MediaItem",
         "type": "object"
       },
+      "NarrationAudioRequest": {
+        "description": "Scenes (durations + cues) for the preview timeline — audio only, no frames.",
+        "properties": {
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/NarrationAudioScene"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Scenes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scenes"
+        ],
+        "title": "NarrationAudioRequest",
+        "type": "object"
+      },
+      "NarrationAudioScene": {
+        "properties": {
+          "duration_ms": {
+            "maximum": 60000.0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "narration": {
+            "items": {
+              "$ref": "#/components/schemas/NarrationCue"
+            },
+            "maxItems": 20,
+            "title": "Narration",
+            "type": "array"
+          }
+        },
+        "required": [
+          "duration_ms"
+        ],
+        "title": "NarrationAudioScene",
+        "type": "object"
+      },
       "NarrationCue": {
         "properties": {
           "at_ms": {
@@ -3725,6 +3767,375 @@
         "title": "SendBackRequest",
         "type": "object"
       },
+      "StudioAgentRequest": {
+        "description": "Run the inbuilt Builder agent: edit `design` to satisfy `prompt`, grounded in `item_ids`.",
+        "properties": {
+          "design": {
+            "additionalProperties": true,
+            "description": "the DesignDoc to edit",
+            "title": "Design",
+            "type": "object"
+          },
+          "item_ids": {
+            "description": "catalog items the agent may use",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "max_rounds": {
+            "default": 10,
+            "description": "max model turns in the loop",
+            "maximum": 80.0,
+            "minimum": 1.0,
+            "title": "Max Rounds",
+            "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the workspace/project this build belongs to (labels the trace thread)",
+            "title": "Project Id"
+          },
+          "prompt": {
+            "description": "the creative brief (or a plan)",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "run_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a per-build-click id minted by the client so a retried/fallen-back request stays ONE trace thread (<project>:<run_code>) instead of minting a new one each time",
+            "title": "Run Code"
+          },
+          "scene_index": {
+            "default": 0,
+            "description": "the scene the agent edits",
+            "minimum": 0.0,
+            "title": "Scene Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "design",
+          "prompt"
+        ],
+        "title": "StudioAgentRequest",
+        "type": "object"
+      },
+      "StudioAgentResponse": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "integer"
+          },
+          "design": {
+            "additionalProperties": true,
+            "title": "Design",
+            "type": "object"
+          },
+          "finished": {
+            "title": "Finished",
+            "type": "boolean"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "design",
+          "steps",
+          "applied",
+          "finished",
+          "provider"
+        ],
+        "title": "StudioAgentResponse",
+        "type": "object"
+      },
+      "StudioGenerateSpriteRequest": {
+        "description": "Generate an animated sprite from a concept via the image API; store it as an owner sprite.",
+        "properties": {
+          "concept": {
+            "description": "what the sprite shows + motion",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Concept",
+            "type": "string"
+          },
+          "fps": {
+            "default": 10,
+            "description": "playback speed",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Fps",
+            "type": "integer"
+          },
+          "frames": {
+            "default": 4,
+            "description": "how many motion frames to generate",
+            "maximum": 8.0,
+            "minimum": 2.0,
+            "title": "Frames",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "concept"
+        ],
+        "title": "StudioGenerateSpriteRequest",
+        "type": "object"
+      },
+      "StudioObserveRequest": {
+        "description": "Observe a design in words — an accurate per-scene description derived from its state.",
+        "properties": {
+          "design": {
+            "additionalProperties": true,
+            "description": "the DesignDoc to observe",
+            "title": "Design",
+            "type": "object"
+          },
+          "item_ids": {
+            "description": "catalog items, to label images by title",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "scene_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "one scene (omit = all scenes)",
+            "title": "Scene Index"
+          }
+        },
+        "required": [
+          "design"
+        ],
+        "title": "StudioObserveRequest",
+        "type": "object"
+      },
+      "StudioOpResultOut": {
+        "properties": {
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "status"
+        ],
+        "title": "StudioOpResultOut",
+        "type": "object"
+      },
+      "StudioOpSpecOut": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "op": {
+            "title": "Op",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "op",
+          "description",
+          "params"
+        ],
+        "title": "StudioOpSpecOut",
+        "type": "object"
+      },
+      "StudioOpsApplyRequest": {
+        "description": "Apply a sequence of agent op calls to a design. `item_ids` are the catalog entries the agent\nmay reference; they are re-resolved through the visibility choke-point before the engine sees\nthem.",
+        "properties": {
+          "calls": {
+            "description": "the op sequence",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 200,
+            "minItems": 0,
+            "title": "Calls",
+            "type": "array"
+          },
+          "design": {
+            "additionalProperties": true,
+            "description": "the DesignDoc to edit (validated by the engine)",
+            "title": "Design",
+            "type": "object"
+          },
+          "item_ids": {
+            "description": "catalog items the agent may use",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "scene_index": {
+            "default": 0,
+            "description": "the scene the ops target",
+            "minimum": 0.0,
+            "title": "Scene Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "design",
+          "calls"
+        ],
+        "title": "StudioOpsApplyRequest",
+        "type": "object"
+      },
+      "StudioOpsApplyResponse": {
+        "properties": {
+          "design": {
+            "additionalProperties": true,
+            "title": "Design",
+            "type": "object"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/StudioOpResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "design",
+          "results",
+          "valid"
+        ],
+        "title": "StudioOpsApplyResponse",
+        "type": "object"
+      },
+      "StudioOpsSpecResponse": {
+        "properties": {
+          "ops": {
+            "items": {
+              "$ref": "#/components/schemas/StudioOpSpecOut"
+            },
+            "title": "Ops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ops"
+        ],
+        "title": "StudioOpsSpecResponse",
+        "type": "object"
+      },
+      "StudioPlanRequest": {
+        "description": "A vague brief → a scene-by-scene content plan the user edits, then runs as a brief.",
+        "properties": {
+          "item_ids": {
+            "description": "catalog items to ground the plan in",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Item Ids",
+            "type": "array"
+          },
+          "prompt": {
+            "description": "the vague creative brief",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "StudioPlanRequest",
+        "type": "object"
+      },
+      "StudioPlanResponse": {
+        "properties": {
+          "plan": {
+            "title": "Plan",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan",
+          "provider"
+        ],
+        "title": "StudioPlanResponse",
+        "type": "object"
+      },
       "SuggestionsOut": {
         "properties": {
           "items": {
@@ -4423,6 +4834,561 @@
         ]
       }
     },
+    "/ai-agent/builder/design": {
+      "post": {
+        "operationId": "design_ai_agent_builder_design_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Design Ai Agent Builder Design Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Design",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/builder/plan": {
+      "post": {
+        "description": "Build a grounded Creative Plan IR from selected items (AC41/AC42).\n\nItems are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped\n(Contract 1). The plan's claims are validated against the approved source fields.",
+        "operationId": "plan_ai_agent_builder_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Plan",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent": {
+      "post": {
+        "description": "Run the server tool loop (progressive op disclosure) over the grounded studio-ops engine.\n\nThe op param schemas live in the engine spec and reach the model only via the loop's\n`describe_ops` step — the system prompt carries just the op index, to spare the context window.",
+        "operationId": "studio_agent_ai_agent_studio_agent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioAgentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent/cancel/{build_id}": {
+      "post": {
+        "description": "Ask a running build to stop (the loop checks between turns/rounds and leaves what it built).\nIdempotent; owner-scoped.",
+        "operationId": "studio_agent_cancel_ai_agent_studio_agent_cancel__build_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "build_id",
+            "required": true,
+            "schema": {
+              "title": "Build Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Agent Cancel Ai Agent Studio Agent Cancel  Build Id  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Cancel",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent/draft/{build_id}": {
+      "get": {
+        "description": "The current draft for a running/finished build — the browser polls this and re-renders when\n`version` changes. Owner-scoped (404 for anyone else's build, or an unknown/evicted id).",
+        "operationId": "studio_agent_draft_ai_agent_studio_agent_draft__build_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "build_id",
+            "required": true,
+            "schema": {
+              "title": "Build Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Agent Draft Ai Agent Studio Agent Draft  Build Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Draft",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent/start": {
+      "post": {
+        "description": "Start a build in the background and return its `build_id`. The build writes its evolving\ndesign into a server-side DRAFT; the browser polls `GET /agent/draft/{build_id}` and re-renders\non each version bump — no long-lived SSE connection a slow review/critic pass could drop (so one\nbuild is always one trace thread). The loop runs off-thread, so it gets its own DB session.",
+        "operationId": "studio_agent_start_ai_agent_studio_agent_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Agent Start Ai Agent Studio Agent Start Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Start",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent/stream": {
+      "post": {
+        "description": "The agent build, streamed as SSE so the UI can show the agent's live \"thinking\". Emits one\n`{\"t\":\"step\", ...}` event per action (with its note) and a final `{\"t\":\"done\", design, ...}`.",
+        "operationId": "studio_agent_stream_ai_agent_studio_agent_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Stream",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/ops/apply": {
+      "post": {
+        "description": "Apply the op sequence server-side, grounded in the agent's VISIBLE catalog (Contract 1).",
+        "operationId": "studio_ops_apply_ai_agent_studio_ops_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioOpsApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioOpsApplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Apply",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/ops/observe": {
+      "post": {
+        "description": "Derive the natural-language description of each scene (read-only) so a host can OBSERVE the\nworkspace in words instead of analysing a render. Images are labelled by their catalog title.",
+        "operationId": "studio_ops_observe_ai_agent_studio_ops_observe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioObserveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Ops Observe Ai Agent Studio Ops Observe Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Observe",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/ops/spec": {
+      "get": {
+        "description": "The studio-ops tool catalog: op + description + params, for a host to build its tool list.",
+        "operationId": "studio_ops_spec_ai_agent_studio_ops_spec_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioOpsSpecResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Ops Spec",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/plan": {
+      "post": {
+        "description": "Turn a vague brief into a concrete, scene-by-scene markdown content plan, grounded in the\nagent's visible catalog. The user edits it, then runs it as the Builder's prompt.",
+        "operationId": "studio_plan_ai_agent_studio_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudioPlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Plan",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/sprites/generate": {
+      "post": {
+        "description": "Generate a sprite sheet (LLM image), slice it via the shared pipeline, and persist it as the\ncaller's sprite. Returns the owner sprite + its `user:<id>` ref to place with `add-sprite`.\nGenerated sprites are unmoderated decorative content.",
+        "operationId": "studio_generate_sprite_ai_agent_studio_sprites_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioGenerateSpriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Generate Sprite Ai Agent Studio Sprites Generate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Generate Sprite",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
     "/ai/caption": {
       "post": {
         "operationId": "caption_ai_caption_post",
@@ -5012,101 +5978,6 @@
         "summary": "Remove Term",
         "tags": [
           "blocklist"
-        ]
-      }
-    },
-    "/builder/design": {
-      "post": {
-        "operationId": "design_builder_design_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Design Builder Design Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Design",
-        "tags": [
-          "builder"
-        ]
-      }
-    },
-    "/builder/plan": {
-      "post": {
-        "description": "Build a grounded Creative Plan IR from selected items (AC41/AC42).\n\nItems are resolved through the visibility choke-point, so hidden/out-of-scope ids are dropped\n(Contract 1). The plan's claims are validated against the approved source fields.",
-        "operationId": "plan_builder_plan_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PlanRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreativePlanOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Plan",
-        "tags": [
-          "builder"
         ]
       }
     },
@@ -8738,6 +9609,51 @@
           }
         ],
         "summary": "Render Email Html",
+        "tags": [
+          "render"
+        ]
+      }
+    },
+    "/render/narration": {
+      "post": {
+        "description": "Render just the narration audio for a preview timeline (a WAV spanning the scenes), for\nsynced in-studio playback. 204 when there's no narration or no TTS (the client stays silent).",
+        "operationId": "render_narration_render_narration_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationAudioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Render Narration",
         "tags": [
           "render"
         ]

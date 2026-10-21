@@ -34,6 +34,10 @@ import {
   listMySprites,
   listDesignTemplates,
   renderVideoFrames,
+  renderNarrationAudio,
+  studioAgentStart,
+  studioAgentDraft,
+  studioAgentCancel,
   resolveCollection,
   saveWorkspace,
   updateProject,
@@ -53,6 +57,7 @@ import { resolveUserSprites } from "../../../lib/studio/resolve-sprites";
 import { resolveSprites } from "../../../lib/studio/graphics";
 import { renderDesignFrames, EXPORT_FPS } from "../../../lib/studio/frames";
 import { getFormatPreset, isFormatName, type FormatName } from "../../../lib/studio/formats";
+import { refreshDescriptions } from "../../../lib/studio/describe";
 import {
   DEFAULT_SCENE_DURATION_MS,
   addCatalogImage,
@@ -94,7 +99,6 @@ import {
   type DemoItem,
   type ScenePoint,
 } from "../../../lib/studio/builder-demo";
-
 // Fabric touches `window` at import time, so the canvas must never render on the server.
 const StudioCanvas = dynamic(() => import("../../../components/studio/StudioCanvas"), { ssr: false });
 
@@ -120,6 +124,13 @@ async function toPanelItem(e: Entry): Promise<BuilderCatalogItem> {
 function toWorkspaceIn(ws: WorkspaceResolved, design: DesignDoc): WorkspaceIn {
   const fmt = isFormatName(design.format) ? design.format : "social";
   const dims = getFormatPreset(fmt);
+  // Refresh each scene's derived description from current state so a manual edit (move, add a sprite,
+  // pull in an animation) keeps the stored description accurate. Label images by their catalog title.
+  const labels: Record<string, string> = {};
+  for (const c of ws.reference_content.collections ?? []) {
+    for (const e of c.entries ?? []) labels[String(e.id)] = e.title;
+  }
+  design = refreshDescriptions(design, labels);
   return {
     metadata: { ...ws.metadata, format: fmt, width: dims.width, height: dims.height },
     reference_content: {
@@ -219,11 +230,12 @@ function StudioEditor() {
   const [brandColors, setBrandColors] = useState(true);
   // Whether a scene is selected (clicking the empty workspace deselects → hides the scene controls).
   const [sceneSelected, setSceneSelected] = useState(true);
-  // Scripted AI-Builder demo: an "agent" that builds an animated reel live from the collection.
+  // AI Builder progress state (the "thinking" overlay shown while the real agent builds).
   const [demoRunning, setDemoRunning] = useState(false);
   const [demoThinking, setDemoThinking] = useState<string | null>(null);
   const [demoCursor, setDemoCursor] = useState<DemoCursor | null>(null);
   const demoCancelRef = useRef(false);
+  const buildIdRef = useRef<string | null>(null);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
@@ -803,9 +815,53 @@ function StudioEditor() {
   const rafRef = useRef<number | null>(null);
   const playStartRef = useRef<{ wall: number; base: number }>({ wall: 0, base: 0 });
 
+  // Synced narration voiceover: one <audio> plays the active scene's TTS alongside the preview. The
+  // generated track is cached by a hash of the narration (duration + cues), so it only regenerates
+  // when the narration actually changes. A small spinner shows on the narration column while it's
+  // being generated (see `narrationLoading`).
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const narrationCacheRef = useRef<{ hash: string; url: string } | null>(null);
+  const [narrationLoading, setNarrationLoading] = useState(false);
+
   const stopRaf = useCallback(() => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
+  }, []);
+
+  /** Ensure the active scene's narration audio is ready (generating it with a spinner on first use
+   *  or when the narration changed) and return the <audio> element, or null when there's none. */
+  const ensureNarrationAudio = useCallback(async (scene: DesignDoc["scenes"][number]) => {
+    const cues = speakableCues(scene);
+    if (cues.length === 0) return null;
+    const hash = `${scene.durationMs}:${JSON.stringify(cues)}`;
+    if (narrationCacheRef.current?.hash === hash && audioRef.current) return audioRef.current;
+    setNarrationLoading(true);
+    const startedAt = performance.now();
+    try {
+      const blob = await renderNarrationAudio({
+        scenes: [
+          {
+            duration_ms: scene.durationMs,
+            narration: cues.map((c) => ({ at_ms: c.atMs, text: c.text.slice(0, 300) })),
+          },
+        ],
+      });
+      if (!blob) return null; // no TTS available → play silently
+      if (narrationCacheRef.current) URL.revokeObjectURL(narrationCacheRef.current.url);
+      const url = URL.createObjectURL(blob);
+      narrationCacheRef.current = { hash, url };
+      if (!audioRef.current) audioRef.current = new Audio();
+      audioRef.current.src = url;
+      return audioRef.current;
+    } catch {
+      return null; // preview audio is optional
+    } finally {
+      // Keep the spinner visible for a perceptible minimum, so a fast (local) TTS still reads as
+      // "generating" rather than flashing by.
+      const remain = 600 - (performance.now() - startedAt);
+      if (remain > 0) await new Promise((r) => setTimeout(r, remain));
+      setNarrationLoading(false);
+    }
   }, []);
 
   const playLoop = useCallback(() => {
@@ -818,6 +874,7 @@ function StudioEditor() {
       if (t >= dur) {
         playStartRef.current = { wall: ts, base: 0 };
         t = 0;
+        if (audioRef.current) audioRef.current.currentTime = 0; // re-sync narration to the loop
       }
       setPlayhead(t);
       controlsRef.current?.previewAt(t, { playing: true });
@@ -825,10 +882,11 @@ function StudioEditor() {
     });
   }, [stopRaf]);
 
-  function togglePlay() {
+  async function togglePlay() {
     if (playing) {
       setPlaying(false);
       stopRaf();
+      audioRef.current?.pause();
       return;
     }
     if (playingAllRef.current) {
@@ -836,9 +894,16 @@ function StudioEditor() {
       stopRaf();
     }
     const start = playhead >= sceneDurRef.current ? 0 : playhead;
+    // Prepare the narration first (spinner shows on the narration column), then start video + audio
+    // together so they're in sync — the user asked for the voiceover to be ready before playback.
+    const audio = await ensureNarrationAudio(design.scenes[sceneIndex]);
     playStartRef.current = { wall: performance.now(), base: start };
     setPlayhead(start);
     setPlaying(true);
+    if (audio) {
+      audio.currentTime = start / 1000;
+      void audio.play().catch(() => {});
+    }
     playLoop();
   }
 
@@ -847,6 +912,8 @@ function StudioEditor() {
       setPlaying(false);
       stopRaf();
     }
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = Math.max(0, t) / 1000;
     setPlayhead(t);
     controlsRef.current?.previewAt(t > 0 ? t : null);
   }
@@ -857,27 +924,42 @@ function StudioEditor() {
     if (playingAllRef.current) return;
     setPlaying(false);
     stopRaf();
+    audioRef.current?.pause();
     setPlayhead(0);
     controlsRef.current?.previewAt(null);
   }, [sceneIndex, stopRaf]);
 
+  // Release the cached narration blob URL on unmount.
+  useEffect(
+    () => () => {
+      if (narrationCacheRef.current) URL.revokeObjectURL(narrationCacheRef.current.url);
+    },
+    [],
+  );
+
   // Cancel any running animation frame on unmount.
   useEffect(() => stopRaf, [stopRaf]);
 
-  // ── Scripted AI-Builder demo ───────────────────────────────────────────────────────────────────
+  // ── AI Builder refs (latest live state for the async build) ─────────────────────────────────────
   // Refs give the async director the latest live state across its many awaits (it also writes
   // designRef itself so sequential ops compose before React re-renders).
   const designRef = useRef(design);
   designRef.current = design;
+  const panelItemsRef = useRef(panelItems);
+  panelItemsRef.current = panelItems;
   const sceneRectRef = useRef(sceneRect);
   sceneRectRef.current = sceneRect;
   const playingRef = useRef(playing);
   playingRef.current = playing;
-  const panelItemsRef = useRef(panelItems);
-  panelItemsRef.current = panelItems;
   // The collection group the demo "adds" to the drawer (built from the resolved items at run time).
   const demoCollectionRef = useRef<MediaGroup | null>(null);
-
+  // Cancel a background build if the user leaves the studio mid-run (best-effort; the loop checks
+  // between turns/rounds and leaves what it built).
+  useEffect(() => {
+    return () => {
+      if (buildIdRef.current) studioAgentCancel(buildIdRef.current).catch(() => {});
+    };
+  }, []);
   // ── "Play all": run every scene in order (1 → 2 → 3 …), each for its own duration ───────────────
   const allStartRef = useRef<{ wall: number; scene: number }>({ wall: 0, scene: 0 });
   const playAllLoop = useCallback(() => {
@@ -1041,7 +1123,7 @@ function StudioEditor() {
     };
   }
 
-  // The hook the AI Builder's "Generate design" calls — runs the scripted demo regardless of input.
+  // The hook the "Run demo" button calls — runs the scripted, deterministic itinerary build.
   async function runBuilderDemoFlow() {
     if (demoRunning) return;
     demoCancelRef.current = false;
@@ -1152,6 +1234,95 @@ function StudioEditor() {
 
   function stopDemo() {
     demoCancelRef.current = true;
+  }
+
+  // The REAL agentic builder: the Builder's "Generate" runs the server tool loop
+  // (POST /ai-agent/studio/agent — observe → act → finish over the grounded studio-ops), then the
+  // returned design is migrated + its sprites/images re-resolved onto the canvas. We reuse the demo
+  // overlay (its "thinking" bar + chrome-hiding, no scripted cursor) to show progress while it works.
+  async function runAgentBuild(prompt: string) {
+    if (demoRunning) return;
+    demoCancelRef.current = false;
+    setDemoCursor(null);
+    setDemoThinking("Reading your brief…");
+    setDemoRunning(true);
+    try {
+      const itemIds = (panelItemsRef.current ?? []).map((i) => i.id);
+      setDemoThinking("Designing your composition…");
+      // Send the REAL current draft and let the AGENT decide whether this is a fresh build or an
+      // edit — we don't force a mode or blank the canvas. The server passes the draft summary to the
+      // agent, which reads it + the brief and either composes fresh (clearing unrelated leftovers) or
+      // revises the named elements.
+      // One run-code per build CLICK → ONE trace thread (<project>:<run-code>), even if the network
+      // retries (the server mints a code only when this is absent).
+      const runCode = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`).replace(/-/g, "").slice(0, 8);
+      const body = {
+        design: designRef.current as unknown as Record<string, unknown>,
+        prompt,
+        item_ids: itemIds,
+        scene_index: sceneIndex,
+        max_rounds: 60, // up to 60 model turns so a rich multi-scene build can use the op budget
+        project_id: projectId ?? undefined,
+        run_code: runCode,
+      };
+
+      // DRAFT-POLLING (not SSE): the server runs the build in the background and writes its evolving
+      // design into a draft; we poll it and re-render on each version bump. A slow review/critic pass
+      // (minutes) can't "drop" a poll the way it drops a long stream through the dev proxy, and the
+      // UI stays live the whole time.
+      const { build_id } = await studioAgentStart(body);
+      buildIdRef.current = build_id;
+
+      const applyDesign = async (d: Record<string, unknown>) => {
+        const snap = migrateDesign(d);
+        if (!snap) return;
+        // Placed catalog/generated images carry a stable objectKey — resolve to served blob URLs on
+        // every change (not just at the end) or image nodes paint blank until the final frame.
+        const resolved = await resolveDesignImageSrcs(resolveSprites(snap), fetchAssetObjectUrl);
+        if (demoCancelRef.current) return;
+        designRef.current = resolved;
+        setDesign(resolved);
+      };
+
+      let lastVersion = -1;
+      let misses = 0;
+      for (;;) {
+        if (demoCancelRef.current) {
+          try { await studioAgentCancel(build_id); } catch { /* best-effort */ }
+          break;
+        }
+        await demoWait(700); // poll cadence
+        let draft;
+        try {
+          draft = await studioAgentDraft(build_id);
+          misses = 0;
+        } catch (e) {
+          if (++misses > 6) throw e; // ~4s of failed polls → give up
+          continue;
+        }
+        if (draft.note) setDemoThinking(draft.note);
+        if (draft.version !== lastVersion && draft.design) {
+          lastVersion = draft.version;
+          await applyDesign(draft.design); // live re-render as the agent edits the draft
+        }
+        if (draft.finished) {
+          if (draft.status === "error") {
+            setDemoThinking("Build failed — please try again.");
+            await demoWait(1600);
+          }
+          break;
+        }
+      }
+      buildIdRef.current = null;
+    } catch (err) {
+      console.error("[AI Builder] build failed", err);
+      setDemoThinking("Build failed — please try again.");
+      await demoWait(1600);
+    } finally {
+      setDemoRunning(false);
+      setDemoThinking(null);
+      setDemoCursor(null);
+    }
   }
 
   // One-click apply of the brand kit's aesthetics (palette · fonts · logo · contact). The kit is
@@ -1438,6 +1609,7 @@ function StudioEditor() {
           onScrub={scrub}
           narrate={narrate}
           onToggleNarrate={() => setNarrate((n) => !n)}
+          narrationLoading={narrationLoading}
         />
 
         {/* Right tool rail: creation tools only (icons + hover names). */}
@@ -1597,19 +1769,19 @@ function StudioEditor() {
           <button type="button" aria-label="Zoom in" className={zoomBtn} onClick={() => controlsRef.current?.zoomIn()}>+</button>
         </div>
 
-        {/* Bottom AI dock: AI Builder / Planner tabs. Starting the Builder plays the scripted demo. */}
+        {/* Bottom AI dock: AI Builder (real agent) / Planner / Generate Assets / Moderation tabs. */}
         <StudioBottomDock
           design={design}
-          sceneIndex={sceneIndex}
-          onChange={setDesign}
           items={panelItems}
           moderationEntries={moderationEntries}
           onSelectNode={selectNode}
-          onDemoBuild={runBuilderDemoFlow}
+          onBuild={runAgentBuild}
+          onRunDemo={runBuilderDemoFlow}
           demoRunning={demoRunning}
+          onImageGenerated={(assets) => void onMediaAdded(assets, "generated")}
         />
 
-        {/* Scripted AI-Builder demo overlay: the AI cursor + streamed "thinking". */}
+        {/* AI Builder progress overlay: the "thinking" bar while the real agent builds. */}
         {demoRunning && (
           <BuilderDemoOverlay cursor={demoCursor} thinking={demoThinking} onStop={stopDemo} />
         )}

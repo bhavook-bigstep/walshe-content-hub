@@ -21,6 +21,7 @@ from app.media.video import (
     build_scene_script,
     clamp_duration,
     escape_drawtext,
+    render_narration_track,
     render_video,
     render_video_frames,
 )
@@ -251,7 +252,9 @@ def test_escape_drawtext():
 
 
 def test_video_route_agent_only(client, agent_headers, provider_headers, monkeypatch):
-    monkeypatch.setattr(render_mod, "encode_video", lambda scenes, imgs, tts=False: _fake(scenes))
+    monkeypatch.setattr(
+        render_mod, "encode_video", lambda scenes, imgs, tts=False, **kw: _fake(scenes)
+    )
     body = {
         "scenes": [
             {"item_id": None, "title": t["title"], "caption": t["description"]} for t in ITEMS
@@ -296,7 +299,7 @@ def test_video_route_renders_catalog_image(app, client, agent_headers, monkeypat
 
     captured: dict = {}
 
-    def fake_encode(scenes, images, tts=False):
+    def fake_encode(scenes, images, tts=False, **kw):
         captured["scenes"] = scenes
         captured["images"] = [Path(i).read_bytes() if i else None for i in images]
         captured["tts"] = tts
@@ -323,7 +326,7 @@ def test_video_route_renders_catalog_image(app, client, agent_headers, monkeypat
 def test_video_route_passes_duration_and_transition(client, agent_headers, monkeypatch):
     captured: dict = {}
 
-    def fake_encode(scenes, images, tts=False):
+    def fake_encode(scenes, images, tts=False, **kw):
         captured["scenes"] = scenes
         return _fake(scenes)
 
@@ -500,7 +503,7 @@ def test_render_video_frames_sequences_and_stitches(tmp_path):
 
 
 def test_video_frames_route(client, agent_headers, provider_headers, monkeypatch):
-    def _fake_frames(scenes, dirs, fps=20, tts=False, cues=None):
+    def _fake_frames(scenes, dirs, fps=20, tts=False, cues=None, **kw):
         return _fake(scenes)
 
     monkeypatch.setattr(render_mod, "encode_frames", _fake_frames)
@@ -562,3 +565,53 @@ def test_render_frames_lays_cued_narration(tmp_path):
     assert sum(1 for c in calls if c[0] == "say") == 2  # one TTS clip per cue
     mix = [c for c in calls if "-filter_complex" in c]
     assert any("adelay=" in " ".join(c) and "amix=" in " ".join(c) for c in mix)
+
+
+def test_render_narration_track_builds_a_global_timeline(tmp_path):
+    # Two scenes; cue offsets become global: scene-1 cues at 0 and 500, scene-2 cue at 2000+0.
+    calls: list[list[str]] = []
+    scenes = [
+        (2000, [{"at_ms": 0, "text": "one"}, {"at_ms": 500, "text": "two"}]),
+        (3000, [{"at_ms": 0, "text": "three"}]),
+    ]
+    out = render_narration_track(
+        scenes,
+        tmp_path,
+        which={"ffmpeg": "f"}.get,
+        runner=lambda cmd, **_: calls.append(list(cmd)),
+        synth=lambda _t: b"RIFFfakewav",  # Gemini path → bytes written per cue
+    )
+    assert out and out.endswith("narration.wav")
+    fc = next(c[c.index("-filter_complex") + 1] for c in calls if "-filter_complex" in c)
+    assert "adelay=0|0" in fc and "adelay=500|500" in fc and "adelay=2000|2000" in fc
+    cmd = next(c for c in calls if "-filter_complex" in c)
+    assert "5.0" in cmd[cmd.index("-t") + 1]  # total timeline = 2000 + 3000 ms
+
+
+def test_render_narration_track_none_without_cues_or_tts(tmp_path):
+    # No cues → None.
+    assert render_narration_track([(2000, [])], tmp_path, which={"ffmpeg": "f"}.get) is None
+    # Cues but no TTS (no gemini synth, no say/espeak) → None.
+    assert (
+        render_narration_track(
+            [(2000, [{"at_ms": 0, "text": "hi"}])],
+            tmp_path,
+            which=lambda name: "f" if name == "ffmpeg" else None,
+        )
+        is None
+    )
+
+
+def test_narration_route(client, agent_headers, provider_headers, monkeypatch, tmp_path):
+    wav = tmp_path / "n.wav"
+    wav.write_bytes(b"RIFFwav")
+    monkeypatch.setattr(render_mod, "render_narration_track", lambda *a, **k: str(wav))
+    body = {"scenes": [{"duration_ms": 2000, "narration": [{"at_ms": 0, "text": "hi"}]}]}
+    assert client.post("/render/narration", json=body).status_code in (401, 403)
+    assert client.post("/render/narration", headers=provider_headers, json=body).status_code == 403
+    resp = client.post("/render/narration", headers=agent_headers, json=body)
+    assert resp.status_code == 200 and resp.headers["content-type"] == "audio/wav"
+    assert resp.content == b"RIFFwav"
+    # No audio available → 204, so the client plays silently.
+    monkeypatch.setattr(render_mod, "render_narration_track", lambda *a, **k: None)
+    assert client.post("/render/narration", headers=agent_headers, json=body).status_code == 204

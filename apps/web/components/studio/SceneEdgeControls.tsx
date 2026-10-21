@@ -39,6 +39,8 @@ interface Props {
   // Voiceover on/off for the exported video.
   narrate: boolean;
   onToggleNarrate: () => void;
+  // True while the preview voiceover is being generated (shows a spinner on the narration header).
+  narrationLoading?: boolean;
 }
 
 const iconBtn =
@@ -75,6 +77,7 @@ export default function SceneEdgeControls({
   onScrub,
   narrate,
   onToggleNarrate,
+  narrationLoading,
 }: Props) {
   // Measure each bar's natural (unscaled, at NAT_W) height so the scaled bars can be kept on screen.
   const topRef = useRef<HTMLDivElement>(null);
@@ -224,7 +227,27 @@ export default function SceneEdgeControls({
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">Narration</span>
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-walshe-grey">
+              Narration
+              {narrationLoading && (
+                <span className="flex items-center gap-1 normal-case text-walshe-teal" role="status">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    className="animate-spin"
+                    aria-hidden
+                  >
+                    <path d="M12 3a9 9 0 1 0 9 9" />
+                  </svg>
+                  <span className="text-[10px] font-medium tracking-normal">generating voiceover…</span>
+                </span>
+              )}
+            </span>
             <div className="flex items-center gap-2.5">
               <label className="flex cursor-pointer items-center gap-1 text-[11px] font-medium text-walshe-ink" title="Read the narration aloud in the exported video">
                 <input type="checkbox" checked={narrate} onChange={onToggleNarrate} className="accent-walshe-teal" />

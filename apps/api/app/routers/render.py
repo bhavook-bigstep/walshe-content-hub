@@ -6,6 +6,7 @@ import base64
 import os
 import tempfile
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -13,10 +14,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app import clock
-from app.deps import get_db, require_role
+from app.ai.tts import synthesize_speech
+from app.config import Settings
+from app.deps import get_db, get_settings, require_role
 from app.media.html_export import design_to_email_html
 from app.media.pdf import design_to_pdf
-from app.media.video import build_scene_script
+from app.media.video import build_scene_script, render_narration_track
 from app.media.video import render_video as encode_video
 from app.media.video import render_video_frames as encode_frames
 from app.models.user import Role, User
@@ -96,6 +99,7 @@ def render_video(
     agent: User = Depends(_agent_only),
     db: Session = Depends(get_db),
     storage: Storage = Depends(get_storage),
+    settings: Settings = Depends(get_settings),
     now: datetime = Depends(clock.now),
 ) -> Response:
     """Render scenes to a rudimentary MP4. Images come only from visible catalog entries
@@ -114,7 +118,10 @@ def render_video(
                     for s in body.scenes
                 ]
             )
-            path = encode_video(scenes, images, tts=body.narrate)
+            path = encode_video(
+                scenes, images, tts=body.narrate,
+                synth=lambda text: synthesize_speech(settings, text),
+            )
             with open(path, "rb") as fh:
                 data = fh.read()
     except (RuntimeError, OSError, ValueError) as exc:
@@ -163,7 +170,11 @@ class FramesVideoRequest(BaseModel):
 
 
 @router.post("/video-frames")
-def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)) -> Response:
+def render_video_frames(
+    body: FramesVideoRequest,
+    _: User = Depends(_agent_only),
+    settings: Settings = Depends(get_settings),
+) -> Response:
     """Encode pre-rendered WYSIWYG animation frames into an MP4 (preview == export)."""
     total = sum(len(s.frames) for s in body.scenes)
     if total > _MAX_TOTAL_FRAMES:
@@ -193,7 +204,10 @@ def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)
                 ]
             )
             cues = [[{"at_ms": c.at_ms, "text": c.text} for c in s.narration] for s in body.scenes]
-            path = encode_frames(scenes, frame_dirs, fps=body.fps, tts=body.narrate, cues=cues)
+            path = encode_frames(
+                scenes, frame_dirs, fps=body.fps, tts=body.narrate, cues=cues,
+                synth=lambda text: synthesize_speech(settings, text),
+            )
             with open(path, "rb") as fh:
                 data = fh.read()
     except (RuntimeError, OSError, ValueError) as exc:
@@ -201,3 +215,39 @@ def render_video_frames(body: FramesVideoRequest, _: User = Depends(_agent_only)
     except Exception as exc:  # e.g. ffmpeg CalledProcessError
         raise HTTPException(status_code=500, detail="video rendering failed") from exc
     return Response(content=data, media_type="video/mp4")
+
+
+class NarrationAudioScene(BaseModel):
+    duration_ms: int = Field(ge=0, le=60000)
+    narration: list[NarrationCue] = Field(default_factory=list, max_length=20)
+
+
+class NarrationAudioRequest(BaseModel):
+    """Scenes (durations + cues) for the preview timeline — audio only, no frames."""
+
+    scenes: list[NarrationAudioScene] = Field(min_length=1, max_length=20)
+
+
+@router.post("/narration")
+def render_narration(
+    body: NarrationAudioRequest,
+    _: User = Depends(_agent_only),
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Render just the narration audio for a preview timeline (a WAV spanning the scenes), for
+    synced in-studio playback. 204 when there's no narration or no TTS (the client stays silent)."""
+    scenes = [
+        (s.duration_ms, [{"at_ms": c.at_ms, "text": c.text} for c in s.narration])
+        for s in body.scenes
+    ]
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = render_narration_track(
+                scenes, Path(tmp), synth=lambda text: synthesize_speech(settings, text)
+            )
+            if path is None:
+                return Response(status_code=204)
+            data = Path(path).read_bytes()
+    except Exception:  # noqa: BLE001 — preview audio is optional; never hard-fail the preview
+        return Response(status_code=204)
+    return Response(content=data, media_type="audio/wav")

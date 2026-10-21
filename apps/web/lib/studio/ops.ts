@@ -271,6 +271,10 @@ export interface Scene extends DesignPage {
   /** nested-group registry (AC1/AC3): group ids + parent links + group-level animation intent.
    * Optional so pre-existing scenes (and tests) that omit it stay valid (AC8). */
   groups?: SceneGroup[];
+  /** a maintained natural-language description of what the scene looks like — DERIVED from the scene
+   * state (lib/studio/describe.ts), refreshed on every change, never hand-edited. It lets an agent
+   * "observe" the workspace in words instead of analysing a render. Optional; recomputed on demand. */
+  description?: string;
 }
 
 /** Normalise a scene's narration to cues (handles the legacy single-string form). Keeps blank-text
@@ -388,6 +392,7 @@ export function cloneDesign(design: DesignDoc): DesignDoc {
       background: s.background,
       nodes: s.nodes.map((n) => ({ ...n })),
       groups: s.groups ? s.groups.map((g) => ({ ...g, ...(g.anim ? { anim: { ...g.anim } } : {}) })) : undefined,
+      description: s.description,
     })),
   };
 }
@@ -633,6 +638,33 @@ export function addCatalogImage(
     ...(!isVideo && image.objectKey ? { objectKey: image.objectKey } : {}),
     ...(isVideo && image.videoKey ? { videoKey: image.videoKey } : {}),
     ...(videoSrc ? { videoSrc } : {}),
+    ...stylePlacement(placement),
+  });
+  return next;
+}
+
+/** Add an AI-generated static image node. Unlike {@link addCatalogImage} it carries NO
+ * `catalogItemId` (it is the agent's own generated asset, not an approved catalog item — Contract 1
+ * keeps those distinct), but it keeps the stable `objectKey` so its src re-resolves on reload. It is
+ * a plain still; motion comes from a keyframe animation applied separately (animate-node). */
+export function addGeneratedImage(
+  design: DesignDoc,
+  sceneIndex: number,
+  image: { src: string; objectKey?: string },
+  placement: NodePlacement = {},
+): DesignDoc {
+  assertScene(design, sceneIndex);
+  const next = cloneDesign(design);
+  const scene = next.scenes[sceneIndex];
+  scene.nodes.push({
+    id: nextId("image", scene),
+    type: "image",
+    x: placement.x ?? DEFAULT_PLACEMENT.x,
+    y: placement.y ?? DEFAULT_PLACEMENT.y,
+    width: placement.width ?? 480,
+    height: placement.height ?? 480,
+    src: image.src,
+    ...(image.objectKey ? { objectKey: image.objectKey } : {}),
     ...stylePlacement(placement),
   });
   return next;
@@ -1741,6 +1773,7 @@ export function migrateDesign(raw: unknown): DesignDoc | null {
       background: typeof page.background === "string" ? page.background : undefined,
       nodes,
       groups: groups.length ? groups : undefined,
+      description: typeof page.description === "string" ? page.description : undefined,
     };
   });
   return { format, width, height, scenes };

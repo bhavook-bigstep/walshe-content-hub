@@ -2,26 +2,30 @@
 
 import { useMemo, useState } from "react";
 import BuilderPanel, { type BuilderCatalogItem } from "./BuilderPanel";
-import CreativePlanPanel from "./CreativePlanPanel";
+import ContentPlanPanel from "./ContentPlanPanel";
+import GenerateAssetsPanel from "./GenerateAssetsPanel";
 import ModerationPanel from "./ModerationPanel";
 import type { DesignDoc } from "../../lib/studio/ops";
+import type { UserAsset } from "../../lib/api";
 import { moderateWorkspace, type ModeratableEntry } from "../../lib/studio/moderation";
 
-type Tab = "builder" | "planner" | "moderation";
+type Tab = "builder" | "planner" | "assets" | "moderation";
 
 interface Props {
   design: DesignDoc;
-  sceneIndex: number;
-  onChange: (next: DesignDoc) => void;
   items: BuilderCatalogItem[] | null;
   /** The attached collections' entries (flattened to facts) — the moderation ground truth. */
   moderationEntries: ModeratableEntry[];
   /** Jump to a flagged element on the canvas. */
   onSelectNode?: (sceneIndex: number, nodeId: string) => void;
-  /** When set, starting the Builder runs this scripted demo instead of calling the API. */
-  onDemoBuild?: (prompt: string) => void | Promise<void>;
-  /** Whether the scripted demo is currently running (disables the Generate button). */
+  /** Run the real agent build for a brief (the page owns the loop + progress overlay). */
+  onBuild?: (prompt: string) => void | Promise<void>;
+  /** Run the scripted demo build (optional; shows a secondary "Run demo" button). */
+  onRunDemo?: () => void | Promise<void>;
+  /** Whether a build is currently running (disables the Generate button, shows "Building…"). */
   demoRunning?: boolean;
+  /** Record AI-generated images on the workspace (so they appear in the media drawer). */
+  onImageGenerated?: (assets: UserAsset[]) => void;
 }
 
 /**
@@ -30,16 +34,18 @@ interface Props {
  */
 export default function StudioBottomDock({
   design,
-  sceneIndex,
-  onChange,
   items,
   moderationEntries,
   onSelectNode,
-  onDemoBuild,
+  onBuild,
+  onRunDemo,
   demoRunning,
+  onImageGenerated,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("builder");
+  // The Builder's brief, lifted here so the Planner can hand its finished plan to the Builder.
+  const [builderPrompt, setBuilderPrompt] = useState("");
 
   // Re-checked on every design/collection change, so the Moderation tab constantly reflects the
   // current workspace (and its tab badge updates live even while the panel is closed).
@@ -98,6 +104,7 @@ export default function StudioBottomDock({
           <div className="flex flex-none items-center gap-2 border-b border-walshe-line px-4 py-2.5">
             {tabBtn("builder", "AI Builder")}
             {tabBtn("planner", "Planner")}
+            {tabBtn("assets", "Generate Assets")}
             {tabBtn("moderation", "Moderation", flags.length)}
             <button
               type="button"
@@ -118,35 +125,38 @@ export default function StudioBottomDock({
                 hasEntries={moderationEntries.length > 0}
                 onSelect={onSelectNode}
               />
+            ) : tab === "assets" ? (
+              <GenerateAssetsPanel onImageGenerated={onImageGenerated} />
             ) : tab === "builder" ? (
-              // In demo mode the Builder is always available (it falls back to sample content when no
-              // collection is open); otherwise it needs approved catalog items to draft from.
-              !onDemoBuild && items === null ? (
+              items === null ? (
                 <p role="status" className="text-small text-walshe-grey">Loading catalog…</p>
-              ) : !onDemoBuild && items !== null && items.length === 0 ? (
-                <p role="status" className="text-small text-walshe-grey">
-                  No approved catalog items available for the AI Builder.
-                </p>
-              ) : (
+              ) : onBuild ? (
                 <BuilderPanel
-                  design={design}
-                  sceneIndex={sceneIndex}
-                  items={items ?? []}
-                  onChange={onChange}
-                  demoRunning={demoRunning}
-                  // Starting the demo slides the dock down so the agent's build is fully visible.
-                  onDemoBuild={
-                    onDemoBuild
-                      ? (prompt) => {
-                          setOpen(false);
-                          return onDemoBuild(prompt);
-                        }
-                      : undefined
-                  }
+                  items={items}
+                  building={demoRunning}
+                  prompt={builderPrompt}
+                  onPromptChange={setBuilderPrompt}
+                  // Starting the build slides the dock down so the agent's work is fully visible.
+                  onBuild={(prompt) => {
+                    setOpen(false);
+                    return onBuild(prompt);
+                  }}
+                  onRunDemo={onRunDemo && (() => {
+                    setOpen(false);
+                    return onRunDemo();
+                  })}
                 />
+              ) : (
+                <p role="status" className="text-small text-walshe-grey">AI Builder unavailable.</p>
               )
             ) : (
-              <CreativePlanPanel itemIds={(items ?? []).map((i) => Number(i.id))} />
+              <ContentPlanPanel
+                itemIds={(items ?? []).map((i) => Number(i.id))}
+                onUsePlan={(plan) => {
+                  setBuilderPrompt(plan);
+                  setTab("builder");
+                }}
+              />
             )}
           </div>
         </div>

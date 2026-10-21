@@ -13,10 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user, get_db
-from app.media.sprites import MAX_SPRITES_PER_IMPORT, import_sprites
+from app.media.sprites import import_sprites
 from app.models.agent_features import UserSprite
 from app.models.user import User
 from app.schemas.agent import UserSpriteOut
+from app.services.sprite_store import store_sprites
 from app.storage.minio_client import Storage
 from app.uploads import read_capped
 
@@ -60,29 +61,7 @@ async def import_sprite_sheets(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "No sprite frames found — check the file is a sprite sheet (a strip/grid of frames).",
         )
-    fps = max(1, min(30, fps))
-    saved: list[UserSprite] = []
-    for sp in imported[:MAX_SPRITES_PER_IMPORT]:
-        sprite = UserSprite(
-            owner_id=user.id,
-            name=sp.name[:160] or "Sprite",
-            fps=fps,
-            frame_width=sp.frame_width,
-            frame_height=sp.frame_height,
-            frame_keys=[],
-        )
-        db.add(sprite)
-        db.flush()  # assign the id for the storage prefix
-        keys: list[str] = []
-        for i, frame in enumerate(sp.frames):
-            key = f"users/{user.id}/sprites/{sprite.id}/frame_{i:03d}.png"
-            storage.put_object(key, frame, "image/png")
-            keys.append(key)
-        sprite.frame_keys = keys
-        saved.append(sprite)
-    db.commit()
-    for s in saved:
-        db.refresh(s)
+    saved = store_sprites(db, storage, user.id, imported, fps)
     return [UserSpriteOut.model_validate(s) for s in saved]
 
 

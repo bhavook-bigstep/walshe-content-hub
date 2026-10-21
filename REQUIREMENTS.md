@@ -9,7 +9,7 @@
 | | |
 | --- | --- |
 | **Status** | ACTIVE — confirmed 2026-10-01 |
-| **Version** | 2.65.0 |
+| **Version** | 2.69.0 |
 | **Owner** | vts.rise@bigsteptech.com |
 | **Stage** | Proof of Concept |
 
@@ -807,7 +807,62 @@ P1 core = AC1,3,4,6,7,8,9,12,16,17,18 · P2 AI-wow = AC10,11,13 · P3 surroundin
 design = AC19,20,21,22,23,30 · workspace = AC25,26,27,28,29,31 ·
 framework = AC32,33,34,35,36,37,38,39,40 · agentic = AC41,42,43,44,45 ·
 studio = AC46,47,48 · catalog = AC49,50,51,52,53,54,55,56 · provider = AC57,58 ·
-agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 · social-approval = AC99 · performance = AC100 · social-org = AC101 (all prior stay green).
+agent-workspace = AC59,60,61,62,63 · auto-catalog = AC64,65,66,67,68,69,70 · auto-catalog-v2 = AC71,72,73,74 · workspace-engine = AC75 · assistant = AC76 · animation = AC77,78,79,80 · graphics = AC81 · grouping = AC82 · catalog-search = AC83 · seed-collections = AC84 · sprites = AC85 · selection-ux = AC86 · brand-apply = AC87 · templates = AC88 · catalog-media = AC89 · brand-logo = AC90 · placeholder = AC91 · video-templates = AC92 · sprite-controls = AC93 · seed-folder = AC94 · template-placeholders = AC95 · campaigns = AC96,97,98 · social-approval = AC99 · performance = AC100 · social-org = AC101 · visual-review = AC102,103 (all prior stay green).
+
+### Visual scene review (agent) — AC102–AC103 (v2.66.0) `[explicit – feedback]`
+
+Derived from a comparison against an external video-production studio (`presales-video`): the Studio
+Builder observes only a text projection of the scene's data model, so it is "blind" to how a design
+actually looks. These ACs give the agent eyes and an independent critic, mirroring that studio's
+reviewer discipline. Scope decisions confirmed with the user (2026-10-15): render via headless
+Chromium reusing `frames.ts`; an **independent** vision critic (image + checklist only); an
+**agent-only auto-loop** (no new Studio UI); image-mode by default with video-mode only for animated
+scenes; ≤2 fix rounds.
+
+- **AC102 — Visual scene observation (`observe_visual`).** The Builder can rasterise a scene to
+  image(s) **server-side** and get a vision-model critique. A Node render endpoint
+  (`/api/studio-ops/render`) runs the **existing** `frames.ts` Fabric renderer under headless
+  Chromium (true WYSIWYG — the critic sees what exports), returning PNG(s) at requested times.
+  - **Image mode:** a representative still → critique of layout, visual hierarchy, contrast, element
+    bounds/clipping (off-canvas), legibility of text over its background, and empty/broken images.
+  - **Video mode:** frames sampled across the scene timeline (start / mid / end + each transition
+    boundary) as a contact sheet → critique of motion continuity (persisting elements hold
+    position/scale, nothing flies off, entrances are timed). Used only for scenes with animation.
+  - Exposed as a new `observe_visual` tool **alongside** the cheap text `observe` (which stays the
+    default). Renders + vision calls are **budgeted** (small cap, like the generate budget) and run
+    **outside** any session lock. No Gemini key → a deterministic stub critique (Contract 4); the key
+    is never logged (Contract 2); only approved/owned image srcs ever render (Contract 1).
+- **AC103 — Per-scene critic / reviewer fix loop.** After the build, an **independent** critic (sees
+  only the rendered image(s) + the explicit STANDARD checklist, no build history) reviews **each
+  scene on its own** and the Builder brings that scene up to the standard before the loop moves to
+  the next — review scene i → fix its P1 (broken) + P2 (should-fix) findings (P3 is polish, left
+  alone) → re-review, **≤2 rounds per scene**, then scene i+1. The **standard is explicit** (a scene
+  passes only when: text is readable with strong contrast; nothing overlaps / is cut off / out of
+  bounds; one clear focal hierarchy; a balanced, intentional layout; images loaded; a cohesive
+  palette). Findings carry a severity, scene, region/location and smallest fix, with the scene's node
+  handles supplied so each location maps to a node id. A render/vision failure never discards the
+  build (review is skipped, the built design is kept). Deterministic + hermetic in tests (render +
+  vision boundaries mocked).
+
+### Template- & palette-driven builds (agent) — AC104–AC105 (v2.69.0) `[explicit – feedback]`
+
+Beautiful visuals come from a design system, not an LLM inventing pixels/hex. The Builder now starts
+from the existing template library and themes with curated palettes, instead of free-placing
+everything (which produced weak, flailing layouts). Confirmed with the user (2026-10-16): per-scene
+template selection; the template is a scaffold the agent then freely adapts, not a cage.
+
+- **AC104 — Template-scaffolded build.** The agent reads the template library (`list_templates` — the
+  ~21 existing `TEMPLATE_WORKSPACES`: name, format, slot counts, fit) and starts each scene from the
+  best fit (`use_template` — lays the template's professional layout down as the scene base, scaled
+  to the canvas, node ids re-mapped collision-free, replacing the scene's content). It then ADAPTS
+  it to the brief: `edit_text` the copy, `fill-placeholder` the photo slots in place (approved
+  catalog item or generated ref, keeping the slot's position/size; Contract 1 preserved), and freely
+  add / restyle / reposition. Default flow = pick → fill → enhance, not place-from-scratch.
+- **AC105 — Curated-palette theming.** The agent colours by role, not by imagination: `list_palettes`
+  (a curated set, each with a mood + bg/surface/ink/accent roles) → `apply_theme` recolours a scene
+  by role (background, large shapes/scrims → surface, small shapes + accent-coloured text → accent,
+  neutral text → ink), keeping colours cohesive and readable; `style_node` fine-tunes. Hermetic,
+  deterministic tests cover template lay-down + re-id and the role-based recolour.
 
 ## 4. Non-functional / system contracts
 
@@ -834,6 +889,10 @@ email delivery · native CRM/newsletter integration (plugin stubs only) · the c
 
 | Version | Date | Change | By |
 | --- | --- | --- | --- |
+| 2.69.0 | 2026-10-16 | **Template- & palette-driven builds** (gap vs. market AI design tools — beauty comes from a design system, not LLM imagination): added **AC104** — the Builder starts each scene from the existing template library (`list_templates` → `use_template`, scaled + re-ided, then adapts via `edit_text`/`fill-placeholder` and free restyle — a scaffold, not a cage) — and **AC105** — curated-palette theming (`list_palettes` → `apply_theme` recolours by role: bg/surface/ink/accent), so colours stay cohesive instead of invented per node. New: `fill-placeholder` Node op (fills a template photo slot in place, Contract-1 grounded); `list_templates`/`use_template`/`list_palettes`/`apply_theme` agent meta-tools; a 14-palette library (`app/ai/palettes.py`). Per-scene template selection. All prior ACs stay green. | user + Claude |
+| 2.68.0 | 2026-10-16 | **Per-scene review + explicit standard + batching** (refines **AC102/AC103**, user feedback "scenes came out bad; review each scene to a standard before moving on"): the critic loop is now **per-scene** — it reviews scene i, fixes its P1+P2 findings, re-reviews (≤2 rounds), and only then moves to scene i+1, so every scene is held to the bar (was one whole-design review that let weak scenes through). The **completion standard is made explicit** in the vision prompt (readable/contrasted text, no overlap/clipping/out-of-bounds, one clear hierarchy, balanced non-sparse layout, images loaded, cohesive palette). Also fixed the agent **crawling one op per turn** (the prompt said "work one point at a time"): it now **batches many tool calls per turn** and builds **every** requested scene (add_scene) before stopping. Op budget raised **40 → 300** and the model-turn cap to **80** (client requests 60) so a rich multi-scene build can use it. Builds moved to **draft-polling** (background build + `GET /agent/draft`) instead of SSE, with cancel-on-stop, so a slow per-scene review can't drop the connection and one build is one thread. All prior ACs stay green. | user + Claude |
+| 2.67.0 | 2026-10-16 | **Visual-review loop hardening** (refines **AC102/AC103**, user feedback "critique never moves forward / builder doesn't act"): the critic fix loop now drives on **P1 + P2** (not P1-only, which stalled when the critic graded conservatively), with the vision prompt given explicit severity guidance and the flagged scenes' **node handles** fed into the fix input so each finding's location maps to a node id; image critique renders **one** representative still per scene (was 3 → ~3× faster review); the client only falls back to the buffered build when the stream fails **before any step** (no more full-rebuild-on-mid-run-hiccup); and `RENDER_ORIGIN` is set in every launcher (fail-closed otherwise). Prompt/trace structure from the same session: one cache-stable system prompt + `{chat_history}` + `{board-state + TASK}`, per-phase run names + a shared `thread_id` grouping every build/review/fix into one LangSmith thread. All prior ACs stay green. | user + Claude |
+| 2.66.0 | 2026-10-15 | **Visual scene review for the Studio Builder** (gap analysis vs. an external video-production studio): added **AC102** — a server-side render path (`/api/studio-ops/render`, headless Chromium reusing `frames.ts`) + an `observe_visual` tool giving the agent a **vision-model critique** of a scene in **image mode** (layout/contrast/clipping/legibility/broken images) and **video mode** (motion continuity across the timeline), budgeted and outside locks, with a no-key deterministic stub — and **AC103** — an **independent critic + bounded fix loop** (P1/P2/P3 findings with scene+region+smallest fix, Builder fixes P1s, ≤2 rounds, re-verify from round 2). Confirmed scope (user, 2026-10-15): headless-Chromium render, independent critic, agent-only auto-loop (no new UI), image default + video for animated scenes. All prior ACs stay green. | user + Claude |
 | 2.65.0 | 2026-10-08 | **Remove Snapchat from Connected platforms** (user feedback, refines **AC101**): the connectable set is now **5 platforms** (Instagram, Facebook, X, TikTok, YouTube) — Snapchat dropped from the catalogue, its brand tile removed, vitest updated. All prior ACs stay green. | user + Claude |
 | 2.64.0 | 2026-10-08 | **Social Posts tab publishes to Instagram for real** (user feedback, reworks **AC99**): the Social page is no longer the simulated layer — scheduling now **captures the composition's rendered JPEG** (client renders the design, uploads it multipart) and **Approve publishes it to Instagram immediately** through the **same shared path as Studio/campaigns** (`publish_post`: preflight, duplicate guard, S3 hosting, real/stub connector). Chosen behaviour (no background worker): approve posts now; the scheduled time is a planning label. Only Instagram is connectable. Dropped the sim-connector publish + the publish-due-on-load scheduler stand-in; removed the "(simulated)" wording. Social tests rewritten onto the real/stub path; API types regenerated (`/social/schedule` is now multipart, `ScheduleRequest` gone). All prior ACs stay green. | user + Claude |
 | 2.63.0 | 2026-10-08 | **Simulated posts no longer block a real publish** (bug fix, refines **AC98**): the real-publish duplicate guard treated the Social page's **simulated** publishes (`sim-*` ids, never sent to Instagram) as if the composition were already live, so after sim-publishing on the Social page the genuine Studio/campaign publish 409'd ("This composition is already published to Instagram"). The guard now counts only a **real** prior publish (non-`sim-*`, non-null external id); a real second publish of the same composition still 409s. All prior ACs stay green. | user + Claude |
