@@ -649,11 +649,13 @@ acceptance:
   AC103:
     tier: P2
     api:
-      - "apps/api/tests/test_studio_critic.py::test_no_p1_stops_after_one_round_without_fix"
-      - "apps/api/tests/test_studio_critic.py::test_only_p1_drive_fixes_and_loop_bounded_to_two_rounds"
+      - "apps/api/tests/test_studio_critic.py::test_only_p3_polish_stops_after_one_round_without_fix"
+      - "apps/api/tests/test_studio_critic.py::test_p1_and_p2_drive_fixes_p3_left_and_loop_bounded_to_two_rounds"
       - "apps/api/tests/test_studio_critic.py::test_round_two_verifies_each_prior_finding"
       - "apps/api/tests/test_studio_critic.py::test_critic_is_independent_of_build_history"
       - "apps/api/tests/test_studio_critic.py::test_malformed_findings_dropped_and_fix_op_constrained"
+      - "apps/api/tests/test_studio_critic.py::test_per_scene_review_gates_each_scene_to_the_standard"
+      - "apps/api/tests/test_studio_critic.py::test_render_failure_returns_the_built_design_without_crashing"
       - "apps/api/tests/test_studio_critic.py::test_deterministic_same_inputs_same_decisions"
   AC104:
     tier: P2
