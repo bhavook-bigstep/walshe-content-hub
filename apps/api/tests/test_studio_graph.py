@@ -60,7 +60,8 @@ def test_inspect_project_is_scoped_project_scene_node():
     )
     proj = sess.inspect("project")
     assert proj["sceneCount"] == 2
-    assert proj["scenes"][0]["nodeCount"] == 2 and proj["scenes"][0]["nodeIds"] == ["title", "photo"]
+    assert proj["scenes"][0]["nodeCount"] == 2
+    assert proj["scenes"][0]["nodeIds"] == ["title", "photo"]
     assert proj["scenes"][1]["nodeCount"] == 0  # blank scene visible as empty, not hidden
 
     scene = sess.inspect("scene", scene="s0")  # resolve by id
@@ -417,8 +418,8 @@ def test_list_templates_and_use_template_lays_a_scaffold():
 
 
 def test_use_template_resolves_by_display_name_and_picks_a_page():
-    # The planner names templates by DISPLAY name; use_template must resolve that (not just the slug),
-    # or the builder fails the lookup and recomposes the template by hand. It also copies a chosen
+    # The planner names templates by DISPLAY name; use_template must resolve that (not just the
+    # slug), or the builder fails the lookup and recomposes by hand. It also copies a chosen
     # page of a multi-page template into the chosen TARGET scene.
     design = {"width": 1080, "height": 1080,
               "scenes": [{"id": "s0", "nodes": []}, {"id": "s1", "nodes": []}]}

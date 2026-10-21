@@ -655,3 +655,15 @@ acceptance:
       - "apps/api/tests/test_studio_critic.py::test_critic_is_independent_of_build_history"
       - "apps/api/tests/test_studio_critic.py::test_malformed_findings_dropped_and_fix_op_constrained"
       - "apps/api/tests/test_studio_critic.py::test_deterministic_same_inputs_same_decisions"
+  AC104:
+    tier: P2
+    api:
+      - "apps/api/tests/test_studio_graph.py::test_list_templates_and_use_template_lays_a_scaffold"
+      - "apps/api/tests/test_studio_graph.py::test_use_template_resolves_by_display_name_and_picks_a_page"
+    web:
+      - "apps/web/tests/studio-ops-core.test.ts::test_fill_placeholder_fills_a_template_photo_slot_in_place"
+      - "apps/web/tests/studio-ops-core.test.ts::test_add_placeholder_then_fill_round_trips_an_image_region"
+  AC105:
+    tier: P2
+    api:
+      - "apps/api/tests/test_studio_graph.py::test_list_palettes_and_apply_theme_recolours_by_role"
