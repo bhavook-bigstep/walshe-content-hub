@@ -213,7 +213,7 @@ def test_agent_runs_observe_visual_and_critic_loop_grounded(
     assert record["max_visual_observes"] == studio_router.MAX_VISUAL_OBSERVES
     assert "critique" in record["visual"][0] and record["visual"][0]["mode"] == "image"
     # Critic loop: build, critique P1, fix build (prompt carries the finding), re-critique.
-    assert len(record["builds"]) == 2 and "[v-contrast]" in record["builds"][1]
+    assert len(record["builds"]) == 2 and "low contrast" in record["builds"][1]
     # Contract 1: every render request carried only the visible id + its real src.
     renders = [p for path, p in visual_node["posts"] if path == "/api/studio-ops/render"]
     assert len(renders) >= 3  # observe_visual x2 builds + critic rounds
@@ -235,7 +235,9 @@ def test_agent_stub_path_is_deterministic_and_skips_render(app, visual_node):
     assert not any(p == "/api/studio-ops/render" for p, _ in visual_node["posts"])
 
 
-def test_agent_render_engine_http_error_is_503(app, settings, monkeypatch):
+def test_agent_render_engine_down_still_returns_the_built_design(app, settings, monkeypatch):
+    # A render-engine failure must NEVER discard a successful build: observe_visual degrades to a
+    # text fallback and the critic loop skips the review, so the built design still returns (200).
     _use_gemini(settings)
     monkeypatch.setattr(studio_router, "run_studio_graph", _fake_build_factory({}))
     ok = _seed(app, "Visible Tour")
@@ -254,7 +256,7 @@ def test_agent_render_engine_http_error_is_503(app, settings, monkeypatch):
             headers=agent,
             json={"design": _DESIGN, "prompt": "Promote", "item_ids": [ok]},
         )
-    assert r.status_code == 503 and r.json()["detail"] == "studio-ops engine unavailable"
+    assert r.status_code == 200 and r.json()["provider"] == "gemini"
 
 
 def test_critique_frames_keys_stub_on_scene_json_not_pixels(settings):
@@ -342,3 +344,207 @@ def test_generate_image_fn_persists_every_asset_under_concurrency(app, settings,
     assert len(puts) == n
     with SessionLocal() as verify:
         assert verify.query(UserAsset).filter_by(owner_id=agent.id).count() == n
+
+
+def test_generate_and_apply_are_safe_under_concurrency(app, settings, monkeypatch):
+    # Regression (review MF1): apply_fn hands `generated_images` to _node_post, which json-
+    # serialises the payload (iterating that dict). A concurrent generate_image inserting a ref
+    # would raise "dictionary changed size during iteration" — the critical-patterns.md shared-state
+    # hazard in the dict sibling of the DB lock. apply_fn must serialise a snapshot taken under the
+    # shared lock. This fires generate ∥ apply in parallel and asserts no thread raises.
+    import json as _json
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.models.user import User
+
+    monkeypatch.setattr(studio_router, "_node_get", lambda p: {"ops": []})
+    monkeypatch.setattr(
+        studio_router, "_generate_image",
+        lambda s, concept: SimpleNamespace(data=b"not-a-real-png", content_type="image/png"),
+    )
+
+    # The apply stub mimics the real _node_post: it json-serialises the payload (the exact step that
+    # crashes if generatedImagesById mutates during iteration), then returns a minimal result.
+    def fake_post(path, payload):
+        _json.dumps(payload)
+        return {"design": payload["design"], "results": [], "valid": True}
+
+    monkeypatch.setattr(studio_router, "_node_post", fake_post)
+    storage = SimpleNamespace(put_object=lambda key, data, ct: None)
+
+    SessionLocal = app.state.sessionmaker
+    grounding_db = SessionLocal()
+    sprite_session = SessionLocal()  # ONE session shared across worker threads — the exact hazard
+    try:
+        agent = grounding_db.query(User).filter_by(email="agent@test.local").one()
+        runtime = studio_router._build_agent_runtime(
+            agent, grounding_db, settings, storage, [], datetime.now(UTC),
+            sprite_session=sprite_session,
+        )
+        gen = runtime["generate_image_fn"]
+        apply = runtime["apply_fn"]
+        design = {"format": "social", "width": 1, "height": 1, "scenes": [{"id": "s", "nodes": []}]}
+
+        def task(i: int):
+            if i % 2 == 0:
+                return gen(f"concept {i}", {})
+            return apply(design, [], 0)
+
+        with ThreadPoolExecutor(max_workers=12) as ex:
+            results = list(ex.map(task, range(48)))
+    finally:
+        sprite_session.close()
+        grounding_db.close()
+
+    # No thread raised (a dict-changed-size-during-iteration would have surfaced here).
+    assert len(results) == 48
+
+
+def test_generate_image_fn_recovers_after_a_commit_failure(app, settings, monkeypatch):
+    # Regression (review MF2 / testing HARD BLOCK exception coverage): a commit failure on the
+    # shared worker Session must roll back under the lock, not poison every later generate_image
+    # for the turn (PendingRollbackError cascade), since in /agent/stream `worker_db` is one shared
+    # session. Force ONE commit to fail and assert a later op still persists.
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.models.catalog import UserAsset
+    from app.models.user import User
+
+    monkeypatch.setattr(studio_router, "_node_get", lambda p: {"ops": []})
+    monkeypatch.setattr(
+        studio_router, "_generate_image",
+        lambda s, concept: SimpleNamespace(data=b"not-a-real-png", content_type="image/png"),
+    )
+    storage = SimpleNamespace(put_object=lambda key, data, ct: None)
+
+    SessionLocal = app.state.sessionmaker
+    grounding_db = SessionLocal()
+    sprite_session = SessionLocal()
+    try:
+        agent = grounding_db.query(User).filter_by(email="agent@test.local").one()
+        runtime = studio_router._build_agent_runtime(
+            agent, grounding_db, settings, storage, [], datetime.now(UTC),
+            sprite_session=sprite_session,
+        )
+        gen = runtime["generate_image_fn"]
+
+        # Fail exactly the first commit, then fall through to the real one.
+        real_commit = sprite_session.commit
+        calls = {"n": 0}
+
+        def flaky_commit():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("induced commit failure")
+            return real_commit()
+
+        monkeypatch.setattr(sprite_session, "commit", flaky_commit)
+
+        with pytest.raises(RuntimeError):
+            gen("first", {})
+        # The shared Session recovered (rolled back under the lock) — a later op still persists.
+        handle = gen("second", {})
+        assert handle["ref"].startswith("gen:")
+    finally:
+        sprite_session.close()
+        grounding_db.close()
+
+    # Only the second asset persisted; the failed first was rolled back (not left pending).
+    with SessionLocal() as verify:
+        assert verify.query(UserAsset).filter_by(owner_id=agent.id).count() == 1
+
+
+def test_apply_payload_is_a_stable_snapshot_while_generate_inserts(app, settings, monkeypatch):
+    # Deterministic MF1 regression (no timing luck): pause apply's payload mid-iteration, insert a
+    # new generated ref from another thread, then resume. A live `generated_images` dict raises
+    # "dictionary changed size during iteration"; the under-lock snapshot must not.
+    import threading
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from app.models.user import User
+
+    monkeypatch.setattr(studio_router, "_node_get", lambda p: {"ops": []})
+    monkeypatch.setattr(
+        studio_router, "_generate_image",
+        lambda s, concept: SimpleNamespace(data=b"not-a-real-png", content_type="image/png"),
+    )
+    seen: dict[str, list[str]] = {}
+
+    def fake_post(path, payload):
+        it = iter(payload["generatedImagesById"])
+        first = next(it)
+        t = threading.Thread(target=lambda: gen("second", {}))
+        t.start()
+        t.join()
+        seen["keys"] = [first, *it]  # RuntimeError here if the dict was live
+        return {"design": payload["design"], "results": [], "valid": True}
+
+    monkeypatch.setattr(studio_router, "_node_post", fake_post)
+    storage = SimpleNamespace(put_object=lambda key, data, ct: None)
+
+    SessionLocal = app.state.sessionmaker
+    grounding_db = SessionLocal()
+    sprite_session = SessionLocal()
+    try:
+        agent = grounding_db.query(User).filter_by(email="agent@test.local").one()
+        runtime = studio_router._build_agent_runtime(
+            agent, grounding_db, settings, storage, [], datetime.now(UTC),
+            sprite_session=sprite_session,
+        )
+        gen = runtime["generate_image_fn"]
+        gen("first", {})
+        design = {"format": "social", "width": 1, "height": 1, "scenes": [{"id": "s", "nodes": []}]}
+        runtime["apply_fn"](design, [], 0)
+    finally:
+        sprite_session.close()
+        grounding_db.close()
+
+    assert len(seen["keys"]) == 1  # the snapshot predates the concurrent insert
+
+
+def test_agent_start_builds_into_a_draft_the_client_polls(app, settings, monkeypatch):
+    # The build runs in the background and writes a DRAFT the browser polls (no SSE to drop). Start
+    # returns a build_id == <project>:<run_code>; the draft fills in and finishes; applies land.
+    import time as _t
+
+    def fake_run_build(_settings, _runtime, body, **extra):
+        node = {"id": "text-node-0", "type": "text"}
+        built = {**body.design, "scenes": [{"id": "s0", "nodes": [node]}]}
+        on_step = extra.get("on_step")
+        if on_step:
+            on_step({"action": "apply", "note": "Placing…", "design": built})
+        return StudioAgentResult(design=built, applied=1, finished=True, provider="gemini")
+
+    monkeypatch.setattr(studio_router, "_run_build", fake_run_build)
+    monkeypatch.setattr(studio_router, "_node_get", lambda p: {"ops": []})
+    ok = _seed(app, "Visible Tour")
+    with TestClient(app) as c:
+        agent = auth_header(c, Role.tourism_agent)
+        start = c.post("/ai-agent/studio/agent/start", headers=agent, json={
+            "design": _DESIGN, "prompt": "Promote", "item_ids": [ok],
+            "project_id": "proj7", "run_code": "abc123",
+        })
+        assert start.status_code == 200
+        bid = start.json()["build_id"]
+        assert bid == "proj7:abc123"  # one build == one <project>:<run-code> thread
+
+        draft = None
+        for _ in range(100):
+            r = c.get(f"/ai-agent/studio/agent/draft/{bid}", headers=agent)
+            assert r.status_code == 200
+            draft = r.json()
+            if draft["finished"]:
+                break
+            _t.sleep(0.02)
+        assert draft and draft["finished"] and draft["status"] == "done"
+        assert draft["applied"] == 1
+        assert draft["design"]["scenes"][0]["nodes"][0]["id"] == "text-node-0"
+
+        # cancel is idempotent + owner-scoped; a 2nd agent can't read/cancel this build.
+        assert c.post(f"/ai-agent/studio/agent/cancel/{bid}", headers=agent).status_code == 200
+        other = auth_header(c, Role.super_admin)
+        assert c.get(f"/ai-agent/studio/agent/draft/{bid}", headers=other).status_code in (403, 404)

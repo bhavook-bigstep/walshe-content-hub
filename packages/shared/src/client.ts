@@ -652,6 +652,37 @@ export async function studioAgent(body: StudioAgentRequest): Promise<StudioAgent
   return (await (await send("/ai-agent/studio/agent", json(body))).json()) as StudioAgentResponse;
 }
 
+/** A live build DRAFT the browser polls (instead of holding an SSE stream a slow review would drop).
+ *  `version` bumps each time the agent's ops change the design; `status` goes running → done/cancelled/error. */
+export interface StudioBuildDraft {
+  build_id: string;
+  design: Record<string, unknown>;
+  version: number;
+  status: string;
+  finished: boolean;
+  applied: number;
+  note?: string | null;
+  provider?: string;
+}
+
+/** Start a build in the background; it writes into a server draft the browser then polls. Returns the
+ *  build_id to poll/cancel. A single build click is ONE build_id even if the network retries. */
+export async function studioAgentStart(body: StudioAgentRequest): Promise<{ build_id: string }> {
+  return (await (await send("/ai-agent/studio/agent/start", json(body))).json()) as { build_id: string };
+}
+
+/** Poll a build's current draft; re-render when `version` changes, stop when `finished`. */
+export async function studioAgentDraft(buildId: string): Promise<StudioBuildDraft> {
+  const p = `/ai-agent/studio/agent/draft/${encodeURIComponent(buildId)}`;
+  return (await (await send(p)).json()) as StudioBuildDraft;
+}
+
+/** Ask a running build to stop (it leaves what it has built). Idempotent. */
+export async function studioAgentCancel(buildId: string): Promise<{ ok: boolean }> {
+  const p = `/ai-agent/studio/agent/cancel/${encodeURIComponent(buildId)}`;
+  return (await (await send(p, { method: "POST" })).json()) as { ok: boolean };
+}
+
 /** One streamed step event from the agent build (its live "thinking"). */
 export interface StudioAgentStep {
   action?: string;

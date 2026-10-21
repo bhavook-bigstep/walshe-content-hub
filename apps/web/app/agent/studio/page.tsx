@@ -35,8 +35,9 @@ import {
   listDesignTemplates,
   renderVideoFrames,
   renderNarrationAudio,
-  studioAgent,
-  studioAgentStream,
+  studioAgentStart,
+  studioAgentDraft,
+  studioAgentCancel,
   resolveCollection,
   saveWorkspace,
   updateProject,
@@ -234,6 +235,7 @@ function StudioEditor() {
   const [demoThinking, setDemoThinking] = useState<string | null>(null);
   const [demoCursor, setDemoCursor] = useState<DemoCursor | null>(null);
   const demoCancelRef = useRef(false);
+  const buildIdRef = useRef<string | null>(null);
   // Animation preview transport (active scene): playing + playhead (ms from the scene start).
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState(0);
@@ -951,6 +953,13 @@ function StudioEditor() {
   playingRef.current = playing;
   // The collection group the demo "adds" to the drawer (built from the resolved items at run time).
   const demoCollectionRef = useRef<MediaGroup | null>(null);
+  // Cancel a background build if the user leaves the studio mid-run (best-effort; the loop checks
+  // between turns/rounds and leaves what it built).
+  useEffect(() => {
+    return () => {
+      if (buildIdRef.current) studioAgentCancel(buildIdRef.current).catch(() => {});
+    };
+  }, []);
   // ── "Play all": run every scene in order (1 → 2 → 3 …), each for its own duration ───────────────
   const allStartRef = useRef<{ wall: number; scene: number }>({ wall: 0, scene: 0 });
   const playAllLoop = useCallback(() => {
@@ -1240,76 +1249,71 @@ function StudioEditor() {
     try {
       const itemIds = (panelItemsRef.current ?? []).map((i) => i.id);
       setDemoThinking("Designing your composition…");
+      // Send the REAL current draft and let the AGENT decide whether this is a fresh build or an
+      // edit — we don't force a mode or blank the canvas. The server passes the draft summary to the
+      // agent, which reads it + the brief and either composes fresh (clearing unrelated leftovers) or
+      // revises the named elements.
+      // One run-code per build CLICK → ONE trace thread (<project>:<run-code>), even if the network
+      // retries (the server mints a code only when this is absent).
+      const runCode = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`).replace(/-/g, "").slice(0, 8);
       const body = {
         design: designRef.current as unknown as Record<string, unknown>,
         prompt,
         item_ids: itemIds,
         scene_index: sceneIndex,
-        max_rounds: 12,
+        max_rounds: 60, // up to 60 model turns so a rich multi-scene build can use the op budget
+        project_id: projectId ?? undefined,
+        run_code: runCode,
       };
-      // Stream the agent's steps so its live "thinking" shows in the overlay. If the stream fails
-      // (SSE/proxy hiccup), fall back to the plain JSON build so the design still lands on the canvas.
-      let res;
-      // Live-render snapshots must resolve image srcs (async) AND apply in arrival order, so we
-      // chain them on a single promise rather than racing one setDesign per step.
-      let renderChain: Promise<void> = Promise.resolve();
-      try {
-        res = await studioAgentStream(body, (step) => {
-          if (demoCancelRef.current) return;
-          const label =
-            step.note ||
-            ({
-              observe: "Looking at the canvas…",
-              "select-scene": "Switching scene…",
-              describe_ops: "Choosing tools…",
-              "generate-sprite": "Generating a sprite…",
-              apply: "Placing elements…",
-              finish: "Finishing up…",
-            }[step.action ?? ""] ??
-              "Working…");
-          setDemoThinking(label);
-          // Live render: when a step carries a design snapshot (after each apply), paint it on the
-          // canvas so the build is visible in real time. Placed catalog images carry a stable
-          // objectKey, so we MUST resolve them to served URLs here too (not only at the end) or the
-          // image nodes paint blank until the final frame.
-          if (step.design) {
-            const snapshot = step.design;
-            renderChain = renderChain
-              .then(async () => {
-                if (demoCancelRef.current) return;
-                const snap = migrateDesign(snapshot);
-                if (!snap) return;
-                const resolved = await resolveDesignImageSrcs(
-                  resolveSprites(snap),
-                  fetchAssetObjectUrl,
-                );
-                if (demoCancelRef.current) return;
-                designRef.current = resolved;
-                setDesign(resolved);
-              })
-              .catch((e) => console.warn("[AI Builder] live render step failed", e));
+
+      // DRAFT-POLLING (not SSE): the server runs the build in the background and writes its evolving
+      // design into a draft; we poll it and re-render on each version bump. A slow review/critic pass
+      // (minutes) can't "drop" a poll the way it drops a long stream through the dev proxy, and the
+      // UI stays live the whole time.
+      const { build_id } = await studioAgentStart(body);
+      buildIdRef.current = build_id;
+
+      const applyDesign = async (d: Record<string, unknown>) => {
+        const snap = migrateDesign(d);
+        if (!snap) return;
+        // Placed catalog/generated images carry a stable objectKey — resolve to served blob URLs on
+        // every change (not just at the end) or image nodes paint blank until the final frame.
+        const resolved = await resolveDesignImageSrcs(resolveSprites(snap), fetchAssetObjectUrl);
+        if (demoCancelRef.current) return;
+        designRef.current = resolved;
+        setDesign(resolved);
+      };
+
+      let lastVersion = -1;
+      let misses = 0;
+      for (;;) {
+        if (demoCancelRef.current) {
+          try { await studioAgentCancel(build_id); } catch { /* best-effort */ }
+          break;
+        }
+        await demoWait(700); // poll cadence
+        let draft;
+        try {
+          draft = await studioAgentDraft(build_id);
+          misses = 0;
+        } catch (e) {
+          if (++misses > 6) throw e; // ~4s of failed polls → give up
+          continue;
+        }
+        if (draft.note) setDemoThinking(draft.note);
+        if (draft.version !== lastVersion && draft.design) {
+          lastVersion = draft.version;
+          await applyDesign(draft.design); // live re-render as the agent edits the draft
+        }
+        if (draft.finished) {
+          if (draft.status === "error") {
+            setDemoThinking("Build failed — please try again.");
+            await demoWait(1600);
           }
-        });
-        await renderChain; // let the last streamed snapshot paint before the final resolve below
-      } catch (streamErr) {
-        console.warn("[AI Builder] stream failed; falling back to non-streaming build", streamErr);
-        res = await studioAgent(body);
+          break;
+        }
       }
-      if (demoCancelRef.current) return;
-      const base = migrateDesign(res.design);
-      if (!base) {
-        setDemoThinking("The builder returned an unusable design — try a different brief.");
-        await demoWait(1600);
-        return;
-      }
-      const withSprites = resolveSprites(base);
-      designRef.current = withSprites;
-      setDesign(withSprites);
-      // Re-resolve catalog image blob URLs from their stable object keys (same as opening a project).
-      const resolved = await resolveDesignImageSrcs(withSprites, fetchAssetObjectUrl);
-      if (demoCancelRef.current) return;
-      designRef.current = resolved;
-      setDesign(resolved);
+      buildIdRef.current = null;
     } catch (err) {
       console.error("[AI Builder] build failed", err);
       setDemoThinking("Build failed — please try again.");

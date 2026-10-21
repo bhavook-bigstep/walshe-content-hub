@@ -3787,11 +3787,24 @@
           },
           "max_rounds": {
             "default": 10,
-            "description": "tool-loop budget",
-            "maximum": 16.0,
+            "description": "max model turns in the loop",
+            "maximum": 80.0,
             "minimum": 1.0,
             "title": "Max Rounds",
             "type": "integer"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the workspace/project this build belongs to (labels the trace thread)",
+            "title": "Project Id"
           },
           "prompt": {
             "description": "the creative brief (or a plan)",
@@ -3799,6 +3812,19 @@
             "minLength": 1,
             "title": "Prompt",
             "type": "string"
+          },
+          "run_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a per-build-click id minted by the client so a retried/fallen-back request stays ONE trace thread (<project>:<run_code>) instead of minting a new one each time",
+            "title": "Run Code"
           },
           "scene_index": {
             "default": 0,
@@ -4945,6 +4971,155 @@
           }
         ],
         "summary": "Studio Agent",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent/cancel/{build_id}": {
+      "post": {
+        "description": "Ask a running build to stop (the loop checks between turns/rounds and leaves what it built).\nIdempotent; owner-scoped.",
+        "operationId": "studio_agent_cancel_ai_agent_studio_agent_cancel__build_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "build_id",
+            "required": true,
+            "schema": {
+              "title": "Build Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Agent Cancel Ai Agent Studio Agent Cancel  Build Id  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Cancel",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent/draft/{build_id}": {
+      "get": {
+        "description": "The current draft for a running/finished build — the browser polls this and re-renders when\n`version` changes. Owner-scoped (404 for anyone else's build, or an unknown/evicted id).",
+        "operationId": "studio_agent_draft_ai_agent_studio_agent_draft__build_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "build_id",
+            "required": true,
+            "schema": {
+              "title": "Build Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Agent Draft Ai Agent Studio Agent Draft  Build Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Draft",
+        "tags": [
+          "Agent Tools"
+        ]
+      }
+    },
+    "/ai-agent/studio/agent/start": {
+      "post": {
+        "description": "Start a build in the background and return its `build_id`. The build writes its evolving\ndesign into a server-side DRAFT; the browser polls `GET /agent/draft/{build_id}` and re-renders\non each version bump — no long-lived SSE connection a slow review/critic pass could drop (so one\nbuild is always one trace thread). The loop runs off-thread, so it gets its own DB session.",
+        "operationId": "studio_agent_start_ai_agent_studio_agent_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Studio Agent Start Ai Agent Studio Agent Start Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Studio Agent Start",
         "tags": [
           "Agent Tools"
         ]

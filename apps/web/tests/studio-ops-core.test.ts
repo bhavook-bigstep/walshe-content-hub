@@ -49,6 +49,67 @@ describe("studio-ops tool core", () => {
     expect(design.scenes[0].nodes).toHaveLength(0); // design untouched
   });
 
+  it("test_fill_placeholder_fills_a_template_photo_slot_in_place", () => {
+    // A template's photo slot (placeholder) is filled IN PLACE — the image takes the slot's exact
+    // position/size and the placeholder flag clears. Catalog fill (grounded) and generated fill both.
+    const base = newDesign("social");
+    const withSlot = {
+      ...base,
+      scenes: base.scenes.map((s, i) =>
+        i === 0
+          ? { ...s, nodes: [{ id: "photo-slot", type: "image", placeholder: true, x: 10, y: 20, width: 300, height: 200 }] }
+          : s,
+      ),
+    } as typeof base;
+    // fill from the approved catalog
+    const viaCatalog = applyStudioOps(withSlot, [{ op: "fill-placeholder", node_id: "photo-slot", item_id: 7 }], ctx());
+    expect(viaCatalog.results[0].status).toBe("applied");
+    const node = viaCatalog.design.scenes[0].nodes[0];
+    expect(node.placeholder).toBeUndefined();          // slot is now filled
+    expect(node.src).toBe("blob:served/7.png");        // only the served src
+    expect(node).toMatchObject({ x: 10, y: 20, width: 300, height: 200 }); // stayed in the slot
+    // fill from a generated image ref
+    const viaGen = applyStudioOps(
+      withSlot,
+      [{ op: "fill-placeholder", node_id: "photo-slot", ref: "gen:5" }],
+      ctx({ generatedImageFor: (r) => (r === "gen:5" ? { src: "blob:gen/5.png", objectKey: "users/9/x" } : undefined) }),
+    );
+    expect(viaGen.results[0].status).toBe("applied");
+    expect(viaGen.design.scenes[0].nodes[0].objectKey).toBe("users/9/x");
+    // a non-placeholder node is rejected
+    const seeded = applyStudioOps(newDesign("social"), [{ op: "write-copy", text: "A" }], ctx()).design;
+    const textId = seeded.scenes[0].nodes[0].id;
+    const bad = applyStudioOps(seeded, [{ op: "fill-placeholder", node_id: textId, item_id: 7 }], ctx());
+    expect(bad.results[0].status).toBe("rejected");
+    expect(bad.results[0].reason).toMatch(/not an empty photo placeholder/i);
+  });
+
+  it("test_add_placeholder_then_fill_round_trips_an_image_region", () => {
+    // The agent adds a REAL image placeholder element for a photo region (not a grey rect), then
+    // fills it — so an imagery region is composed the right way end-to-end.
+    const d = newDesign("social");
+    const added = applyStudioOps(
+      d,
+      [{ op: "add-placeholder", x: 40, y: 60, width: 400, height: 300 }],
+      ctx(),
+    );
+    expect(added.results[0].status).toBe("applied");
+    const ph = added.design.scenes[0].nodes.at(-1)!;
+    expect(ph.type).toBe("image");
+    expect(ph.placeholder).toBe(true);
+    expect(ph).toMatchObject({ x: 40, y: 60, width: 400, height: 300 });
+    // and it can be filled in place like any placeholder
+    const filled = applyStudioOps(
+      added.design,
+      [{ op: "fill-placeholder", node_id: ph.id, ref: "gen:5" }],
+      ctx({ generatedImageFor: (r) => (r === "gen:5" ? { src: "blob:gen/5.png", objectKey: "k" } : undefined) }),
+    );
+    expect(filled.results[0].status).toBe("applied");
+    const node = filled.design.scenes[0].nodes.find((n) => n.id === ph.id)!;
+    expect(node.placeholder).toBeUndefined();
+    expect(node).toMatchObject({ x: 40, y: 60, width: 400, height: 300 }); // stayed in the region
+  });
+
   it("test_add_image_places_a_generated_still_with_object_key", () => {
     const d = newDesign("social");
     const genCtx = ctx({
@@ -126,6 +187,25 @@ describe("studio-ops tool core", () => {
     expect(out.design.scenes).toHaveLength(2); // add-scene appended
     expect(out.design.scenes[0].background).toBe("#0e2a26");
     expect(out.design.scenes[0].durationMs).toBe(3000);
+  });
+
+  it("test_set_scene_duration_defaults_to_the_targeted_scene_when_scene_id_omitted", () => {
+    // The agent targets a scene with the universal `scene` param (→ ctx.sceneIndex), then naturally
+    // omits the op's own scene_id. Requiring scene_id made the model 422; it must default to the
+    // current/targeted scene (ctx.sceneIndex) like rename/transition/narration do.
+    const d = newDesign("social");
+    const twoScenes = applyStudioOps(d, [{ op: "add-scene" }], ctx()).design;
+    // No scene_id, sceneIndex=1 → applies to scene 1 (the targeted scene), not scene 0.
+    const out = applyStudioOps(twoScenes, [{ op: "set-scene-duration", duration_ms: 2500 }], ctx({ sceneIndex: 1 }));
+    expect(out.results[0].status).toBe("applied");
+    expect(out.design.scenes[1].durationMs).toBe(2500);
+    expect(out.design.scenes[0].durationMs).not.toBe(2500); // the non-targeted scene is untouched
+    // An explicit scene_id still works as an override.
+    const byId = applyStudioOps(twoScenes, [{ op: "set-scene-duration", scene_id: twoScenes.scenes[0].id, duration_ms: 1800 }], ctx({ sceneIndex: 1 }));
+    expect(byId.design.scenes[0].durationMs).toBe(1800);
+    // An unknown explicit id is still rejected.
+    const bad = applyStudioOps(twoScenes, [{ op: "set-scene-duration", scene_id: "nope", duration_ms: 1000 }], ctx());
+    expect(bad.results[0].status).toBe("rejected");
   });
 
   it("test_apply_is_pure_and_deterministic", () => {

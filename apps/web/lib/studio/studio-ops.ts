@@ -12,6 +12,9 @@ import {
   addCatalogImage,
   addGeneratedImage,
   addGraphic,
+  addPlaceholder,
+  fillImageNode,
+  isPlaceholder,
   addScene,
   addShape,
   addSuccessorSprite,
@@ -261,6 +264,45 @@ const OPS: Record<string, OpDef> = {
     },
   },
 
+  "add-placeholder": {
+    description:
+      "Add an image PLACEHOLDER element (a proper dashed media frame) where a photo should go — use this for ANY image region instead of drawing a grey/blank rectangle. Then fill it with `fill-placeholder` (item_id for an approved catalog photo, or a generate_image/generate_cutout ref). Pass explicit x, y, width, height so the frame sits where the image belongs.",
+    params: { x: "optional", y: "optional", width: "optional", height: "optional" },
+    apply(design, call, ctx) {
+      return addPlaceholder(design, ctx.sceneIndex, placement(call));
+    },
+  },
+
+  "fill-placeholder": {
+    description:
+      "Fill an EMPTY photo placeholder (a template's dashed photo slot, or one you added with add-placeholder) IN PLACE — the image takes the slot's exact position and size. Pass item_id for an approved catalog photo, or ref for a generate_image/generate_cutout result. Prefer this over `place`/`add_image` when a scene has photo slots.",
+    params: {
+      node_id: "the placeholder node id (from observe / find_nodes)",
+      item_id: "optional approved catalog id to fill with",
+      ref: "optional generated-image ref (gen:<id>) to fill with",
+    },
+    apply(design, call, ctx) {
+      const nodeId = str(call.node_id, "node_id");
+      const node = findNode(design, ctx.sceneIndex, nodeId);
+      if (!isPlaceholder(node)) reject(`node ${nodeId} is not an empty photo placeholder`);
+      if (call.item_id != null) {
+        const id = String(call.item_id);
+        if (ctx.allowedCatalogIds && !ctx.allowedCatalogIds.has(id)) {
+          reject(`item_id ${id} is not an approved catalog item`);
+        }
+        const src = ctx.imageSrcFor?.(id);
+        if (!src) reject(`no image source for item_id ${id} (the studio never fabricates one)`);
+        return fillImageNode(design, ctx.sceneIndex, nodeId, { src, catalogItemId: id });
+      }
+      if (call.ref != null) {
+        const img = ctx.generatedImageFor?.(str(call.ref, "ref"));
+        if (!img) reject(`no generated image for ref ${call.ref} — call generate_image first`);
+        return fillImageNode(design, ctx.sceneIndex, nodeId, { src: img.src, objectKey: img.objectKey });
+      }
+      reject("fill-placeholder needs an item_id (catalog) or a ref (generated image)");
+    },
+  },
+
   "add-shape": {
     description: "Add a decorative shape (rect, ellipse, or line) to the current scene.",
     params: { shape: "rect | ellipse | line", x: "optional", y: "optional", width: "optional", height: "optional", color: "optional hex" },
@@ -288,11 +330,27 @@ const OPS: Record<string, OpDef> = {
   },
 
   "set-scene-duration": {
-    description: "Set a scene's on-screen duration in milliseconds (clamped to the allowed range).",
-    params: { scene_id: "the scene's id", duration_ms: "milliseconds" },
-    apply(design, call) {
-      const sceneId = str(call.scene_id, "scene_id");
-      if (!design.scenes.some((s) => s.id === sceneId)) reject(`unknown scene_id ${sceneId}`);
+    description: "Set a scene's on-screen duration in milliseconds (clamped to the allowed range). Targets the current scene by default (pass scene=<index|id> to target another); scene_id is an optional explicit override.",
+    // scene_id is OPTIONAL and defaults to the current/targeted scene — like the other scene-ops
+    // (rename/transition/narration via ctx). The agent targets a scene with the universal `scene`
+    // param (resolved to ctx.sceneIndex); requiring scene_id made the model omit it and 422.
+    params: { duration_ms: "milliseconds", scene_id: "optional the scene's id (defaults to the current/targeted scene)" },
+    apply(design, call, ctx) {
+      // Resolve the target leniently: omitted → current scene; a 0-based INDEX (number or numeric
+      // string, which the model often sends) → that scene's id; otherwise an explicit scene id.
+      let sceneId: string;
+      if (call.scene_id == null) {
+        sceneId = currentSceneId(design, ctx);
+      } else {
+        const raw = String(call.scene_id).trim();
+        const asIdx = Number(raw);
+        if (/^-?\d+$/.test(raw) && asIdx >= 0 && asIdx < design.scenes.length) {
+          sceneId = design.scenes[asIdx].id;
+        } else {
+          sceneId = raw;
+        }
+      }
+      if (!design.scenes.some((s) => s.id === sceneId)) reject(`unknown scene ${sceneId}`);
       return setSceneDuration(design, sceneId, num(call.duration_ms, "duration_ms"));
     },
   },

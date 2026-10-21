@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deflateSync, inflateSync } from "node:zlib";
 import { POST } from "../app/api/studio-ops/render/route";
 import {
@@ -122,7 +122,16 @@ function post(body: unknown): Promise<Response> {
 }
 const code = async (r: Response) => ((await r.json()) as { error: string }).error;
 
-afterEach(() => __setBrowserLauncherForTests(null));
+// The render egress trust anchor is the FIXED server-config RENDER_ORIGIN, never the request Host
+// (Contract 2 / SSRF). Pin it for the POST tests; the fail-closed test clears it explicitly.
+const PINNED_ORIGIN = "http://localhost:3000";
+beforeEach(() => {
+  process.env.RENDER_ORIGIN = PINNED_ORIGIN;
+});
+afterEach(() => {
+  __setBrowserLauncherForTests(null);
+  process.env.RENDER_ORIGIN = PINNED_ORIGIN;
+});
 
 describe("sampleTimesForScene", () => {
   it("test_samples_start_mid_end_and_transition_boundary", () => {
@@ -308,5 +317,44 @@ describe("POST /api/studio-ops/render", () => {
     const a = await (await post({ design: newDesign("social"), times: [0, 100] })).text();
     const b = await (await post({ design: newDesign("social"), times: [0, 100] })).text();
     expect(a).toBe(b);
+  });
+
+  it("test_hostile_host_header_cannot_seed_the_egress_allowlist", async () => {
+    // Contract-2 / SSRF regression. RENDER_ORIGIN is unset here, so the ONLY thing that could seed the
+    // egress allowlist is the request itself. Before the fix the trust anchor was
+    // `process.env.RENDER_ORIGIN || new URL(req.url).origin`: with RENDER_ORIGIN unset, a caller who
+    // sets `Host: 169.254.169.254` made the cloud-metadata endpoint a permitted egress origin, so the
+    // metadata src below passed the Contract-1 gate and the headless browser became an SSRF relay (200).
+    // The fix reads RENDER_ORIGIN only and FAILS CLOSED (500 misconfigured) — the Host is never trusted,
+    // so this request is refused before any browser launches. This assertion fails against the
+    // vulnerable variant (which would 200), unlike the previous pinned-env version that passed on both.
+    delete process.env.RENDER_ORIGIN;
+    const fake = newFake();
+    __setBrowserLauncherForTests(fakeLauncher(fake, okResult));
+    const design = addCatalogImage(newDesign("social"), 0, {
+      src: "http://169.254.169.254/latest/meta-data/",
+      catalogItemId: "7",
+    });
+    const res = await POST(
+      new Request("http://169.254.169.254/api/studio-ops/render", {
+        method: "POST",
+        headers: { host: "169.254.169.254" },
+        body: JSON.stringify({ design, allowedCatalogIds: ["7"] }),
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(await code(res)).toBe("misconfigured");
+    expect(fake.launches).toBe(0); // never reached a browser
+  });
+
+  it("test_fails_closed_when_render_origin_unset", async () => {
+    // No RENDER_ORIGIN → the route must refuse rather than trust the request Host.
+    delete process.env.RENDER_ORIGIN;
+    const fake = newFake();
+    __setBrowserLauncherForTests(fakeLauncher(fake, okResult));
+    const res = await post({ design: newDesign("social"), times: [0] });
+    expect(res.status).toBe(500);
+    expect(await code(res)).toBe("misconfigured");
+    expect(fake.launches).toBe(0);
   });
 });

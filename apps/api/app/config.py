@@ -56,11 +56,17 @@ class Settings(BaseSettings):
     ai_image_model: str = "gemini-2.5-flash-image"
 
     # AI vision critique (AC102): the provider + model that looks at rendered Studio frames and
-    # critiques layout/contrast/legibility/motion. Defaults to Gemini; with no GEMINI_API_KEY it
-    # falls back to a deterministic scene-JSON-keyed stub (no egress, hermetic tests)
-    # — see app.ai.vision.critique_scene.
+    # critiques layout/contrast/legibility/motion. The reviewer MUST be an INDEPENDENT, stronger eye
+    # than the builder (which runs gemini-2.5-flash): a review done with the same weak model as the
+    # author just rubber-stamps the author's blind spots — the reason the loop could not see layout
+    # defects a stronger model caught at a glance. So it defaults to gemini-2.5-pro. With no
+    # GEMINI_API_KEY it falls back to a deterministic scene-JSON-keyed stub (no egress, hermetic
+    # tests) — see app.ai.vision.critique_scene. NB: gemini-2.5-pro is RETIRED on the current API
+    # backend (404 → silent stub fallback); use gemini-pro-latest (the live stable Pro alias), a
+    # genuinely stronger eye than the flash builder, verified against the generativelanguage v1beta
+    # generateContent endpoint.
     ai_vision_provider: str = "gemini"
-    ai_vision_model: str = "gemini-2.5-flash"
+    ai_vision_model: str = "gemini-pro-latest"
 
     # Text-to-speech for video narration — Gemini TTS when a key is set, else the local say/espeak
     # fallback (see app.ai.tts.synthesize_speech + app.media.video).

@@ -107,6 +107,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-agent/studio/agent/cancel/{build_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent Cancel
+         * @description Ask a running build to stop (the loop checks between turns/rounds and leaves what it built).
+         *     Idempotent; owner-scoped.
+         */
+        post: operations["studio_agent_cancel_ai_agent_studio_agent_cancel__build_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/agent/draft/{build_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Studio Agent Draft
+         * @description The current draft for a running/finished build — the browser polls this and re-renders when
+         *     `version` changes. Owner-scoped (404 for anyone else's build, or an unknown/evicted id).
+         */
+        get: operations["studio_agent_draft_ai_agent_studio_agent_draft__build_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-agent/studio/agent/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Studio Agent Start
+         * @description Start a build in the background and return its `build_id`. The build writes its evolving
+         *     design into a server-side DRAFT; the browser polls `GET /agent/draft/{build_id}` and re-renders
+         *     on each version bump — no long-lived SSE connection a slow review/critic pass could drop (so one
+         *     build is always one trace thread). The loop runs off-thread, so it gets its own DB session.
+         */
+        post: operations["studio_agent_start_ai_agent_studio_agent_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-agent/studio/agent/stream": {
         parameters: {
             query?: never;
@@ -3432,15 +3497,25 @@ export interface components {
             item_ids?: number[];
             /**
              * Max Rounds
-             * @description tool-loop budget
+             * @description max model turns in the loop
              * @default 10
              */
             max_rounds: number;
+            /**
+             * Project Id
+             * @description the workspace/project this build belongs to (labels the trace thread)
+             */
+            project_id?: string | null;
             /**
              * Prompt
              * @description the creative brief (or a plan)
              */
             prompt: string;
+            /**
+             * Run Code
+             * @description a per-build-click id minted by the client so a retried/fallen-back request stays ONE trace thread (<project>:<run_code>) instead of minting a new one each time
+             */
+            run_code?: string | null;
             /**
              * Scene Index
              * @description the scene the agent edits
@@ -4043,6 +4118,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudioAgentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_cancel_ai_agent_studio_agent_cancel__build_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_draft_ai_agent_studio_agent_draft__build_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                build_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_agent_start_ai_agent_studio_agent_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudioAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

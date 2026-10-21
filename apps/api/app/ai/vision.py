@@ -71,10 +71,27 @@ def _stub_critique(scene: Any, checklist: Sequence[str]) -> dict:
 
 def _prompt(checklist: Sequence[str]) -> str:
     return (
-        "You are a design QA reviewer. Inspect the attached rendered frame(s) and check: "
+        "You are a strict design QA reviewer. Inspect the attached rendered frame(s) and check: "
         + ", ".join(checklist)
-        + '. Reply with JSON only: {"ok": bool, "summary": str, "issues": '
-        '[{"category": str, "severity": "info"|"warn"|"fail", "note": str}]}.'
+        + ".\nTHE STANDARD — a scene PASSES (empty issues list) ONLY if ALL hold: (1) all text is "
+        "crisp and readable with strong contrast against what's behind it; (2) layering is "
+        "intentional — text OVER a photo, scrim or shape is fine and often good, but TWO readable "
+        "text blocks must NOT sit on top of each other (both become illegible), and nothing is cut "
+        "off or sits outside the frame / its margins; (3) there is ONE clear focal point "
+        "and a legible hierarchy (a dominant headline, then supporting text); (4) the layout is "
+        "balanced and intentional — not sparse/empty, not cramped/cluttered, aligned to a grid; "
+        "(5) every image actually loaded (no blank/broken boxes); (6) a cohesive palette. If ANY "
+        "of these fails, it does NOT pass — report it. Hold work to a professional bar.\n"
+        + "Report only DISTINCT, concrete problems — AT MOST 4, each a different issue; never "
+        "repeat or restate the same problem, and dedupe overlapping ones. If the frame looks good, "
+        "return an empty issues list. For each issue, give its LOCATION on the frame (e.g. "
+        "'headline', 'top-left', 'the logo', 'center') and ONE concrete fix. "
+        "SEVERITY — be decisive: 'fail' = clearly broken (unreadable text, low contrast, elements "
+        "overlapping or cut off / off-canvas, a broken or empty image, nothing composed); 'warn' = "
+        "it works but should be improved (weak hierarchy, cramped spacing, awkward alignment); "
+        "'info' = minor polish only. Mark real, fixable problems 'fail' or 'warn', not 'info'. "
+        'Reply with JSON only: {"ok": bool, "summary": str, "issues": '
+        '[{"category": str, "severity": "info"|"warn"|"fail", "location": str, "note": str}]}.'
     )
 
 
@@ -94,6 +111,7 @@ def _parse_critique(text: str) -> dict:
             {
                 "category": str(raw.get("category", "")),
                 "severity": sev if sev in _SEVERITIES else "warn",
+                "location": str(raw.get("location", "")),
                 "note": str(raw.get("note", "")),
             }
         )
@@ -154,8 +172,20 @@ def critique_scene(
         try:
             logger.info("Critiquing scene with gemini (model %s)", model)
             return _gemini_critique(settings.gemini_api_key, model, pngs, items)
-        except Exception:  # noqa: BLE001 — any provider/network error degrades to the stub
-            logger.warning("Vision provider gemini failed; using deterministic stub")
+        except httpx.HTTPStatusError as e:  # degrade to stub, but make WHY visible (not the key)
+            # A silent stub fallback once masked a RETIRED model id (404) as a working review, so
+            # the loop "reviewed" with noise. Surface the status + provider message (neither
+            # contains the key; the key lives only in the query param, never logged — Contract 2).
+            logger.warning(
+                "Vision provider gemini failed (model %s): HTTP %s %s — using deterministic stub",
+                model, e.response.status_code, (e.response.text or "")[:200].replace("\n", " "),
+            )
+            return _stub_critique(scene, items)
+        except Exception as e:  # noqa: BLE001 — any other provider/network error degrades to the stub
+            logger.warning(
+                "Vision provider gemini failed (model %s): %s — using deterministic stub",
+                model, type(e).__name__,
+            )
             return _stub_critique(scene, items)
     logger.info("No vision model key; using deterministic stub for scene critique")
     return _stub_critique(scene, items)

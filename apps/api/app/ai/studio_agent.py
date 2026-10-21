@@ -66,6 +66,9 @@ class StudioAgentResult:
     applied: int = 0
     finished: bool = False
     provider: str = "stub"
+    # The agent's final one-line reply — fed back as the "assistant" turn of chat_history so a
+    # follow-up run (e.g. a critic fix round) continues the conversation instead of starting cold.
+    summary: str = ""
 
 
 def _catalog_lines(items: list[AgentItem]) -> str:
@@ -78,18 +81,22 @@ def _catalog_lines(items: list[AgentItem]) -> str:
 
 
 def _summarize(design: dict[str, Any], scene_index: int) -> str:
-    """A short, context-cheap view of the design state fed back to the model (not the full doc)."""
+    """A short, context-cheap view of the design state fed back to the model after each op. Lists
+    the EXACT node ids (not just type counts) so the agent targets real nodes with
+    edit/style/animate/move ops — without the ids it invented plausible-but-wrong ones (e.g.
+    ``text_1``) and every follow-up op was rejected, leaving a sparse scene and a wasted budget."""
     scenes = design.get("scenes") or []
     parts = [f"scenes={len(scenes)}"]
     if 0 <= scene_index < len(scenes):
         scene = scenes[scene_index]
         nodes = scene.get("nodes") or []
-        kinds: dict[str, int] = {}
-        for n in nodes:
-            kinds[n.get("type", "?")] = kinds.get(n.get("type", "?"), 0) + 1
-        kind_str = ", ".join(f"{k}={v}" for k, v in sorted(kinds.items())) or "empty"
+        ids = ", ".join(f"{n.get('id')}({n.get('type', '?')})" for n in nodes[:16])
+        if len(nodes) > 16:
+            ids += f", +{len(nodes) - 16} more"
         bg = scene.get("background")
-        parts.append(f"scene{scene_index}: {kind_str}" + (f", bg={bg}" if bg else ""))
+        parts.append(
+            f"scene{scene_index} nodes=[{ids or 'empty'}]" + (f", bg={bg}" if bg else "")
+        )
     return "; ".join(parts)
 
 

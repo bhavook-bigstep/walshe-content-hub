@@ -59,7 +59,12 @@ export default defineConfig({
       command: `pnpm exec next build && pnpm exec next start -p ${WEB_PORT}`,
       cwd: here,
       url: `http://localhost:${WEB_PORT}/login`,
-      env: { NEXT_PUBLIC_API_URL: `http://localhost:${API_PORT}` },
+      env: {
+        NEXT_PUBLIC_API_URL: `http://localhost:${API_PORT}`,
+        // Contract 2: pin the headless-render egress trust anchor to this server's own origin so it
+        // is never derived from a request Host (SSRF). The render route fails closed without it.
+        RENDER_ORIGIN: `http://localhost:${WEB_PORT}`,
+      },
       reuseExistingServer: false,
       timeout: 300_000,
     },

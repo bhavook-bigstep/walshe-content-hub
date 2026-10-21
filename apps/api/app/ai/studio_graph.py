@@ -1,10 +1,13 @@
-"""The Studio Builder agent as a LangGraph ReAct loop over NATIVE tool calls.
+"""The Studio Builder agent as a hand-driven ReAct loop over NATIVE tool calls.
 
 Each Studio op is a real LangChain tool the model function-calls (so every op is a real tool call,
-shown natively in LangSmith), plus meta-tools (observe / select_scene / generate_image). The loop +
-orchestration is LangGraph's prebuilt ReAct agent; the LLM is LangChain's Gemini chat model, so the
-same wiring works for Claude/OpenAI by swapping the model. Grounding + execution stay server-side:
-the tools call the injected apply/observe/generate fns (which enforce Contract 1).
+shown natively in LangSmith), plus meta-tools (observe / find_nodes / observe_visual / select_scene
+/ generate_image / generate_cutout). The loop is driven HERE (not create_react_agent) so each model
+turn and each tool call is its own top-level trace, grouped by a build thread_id — a flat, ordered,
+readable run instead of one deep nested tree. The LLM is LangChain's Gemini chat model (via
+`_build_model`, a test seam), so the same wiring works for Claude/OpenAI by swapping the model.
+Grounding + execution stay server-side: the tools call the injected apply/observe/generate fns
+(which enforce Contract 1).
 
 No key → the deterministic stub compose (Contract 4), so tests/dev stay hermetic. Tracing is
 automatic via LangSmith when a key is set (configure_langsmith); nothing here logs the API key.
@@ -13,6 +16,7 @@ automatic via LangSmith when a key is set (configure_langsmith); nothing here lo
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import threading
 from typing import Any
@@ -33,6 +37,7 @@ from app.ai.studio_agent import (
     _summarize,
 )
 from app.config import Settings
+from app.observability.tracing import trace_span
 
 logger = logging.getLogger("app.ai.studio_graph")
 
@@ -41,13 +46,32 @@ _NUMBER_PARAMS = frozenset(
     {
         "x", "y", "width", "height", "radius", "opacity", "angle", "strokeWidth", "fontSize",
         "lineHeight", "duration_ms", "at_ms", "start_ms", "loop_period_ms", "period_ms", "fps",
-        "frames", "scene_index", "from", "to",
+        "frames", "scene_index", "from", "to", "template_scene",
     }
 )
 
 
+def _elide_node(node: dict[str, Any]) -> dict[str, Any]:
+    """A deep copy of one node's JSON with only non-structural BULK elided so the agent reads the
+    real structure, not megabytes: a data-URL / huge image src becomes "<src>", a keyframe/frame
+    array becomes its length. Every structural field (id, type, text, x/y/w/h, colour, fontSize,
+    placeholder, groupId, …) stays verbatim."""
+    n = copy.deepcopy(node)
+    for k in ("src", "videoSrc"):
+        v = n.get(k)
+        if isinstance(v, str) and (v.startswith("data:") or len(v) > 120):
+            n[k] = f"<{k}>"
+    if isinstance(n.get("frames"), list):
+        n["frames"] = f"<{len(n['frames'])} frames>"
+    anim = n.get("anim")
+    if isinstance(anim, dict) and isinstance(anim.get("keyframes"), list):
+        if len(anim["keyframes"]) > 4:
+            anim["keyframes"] = f"<{len(anim['keyframes'])} keyframes>"
+    return n
+
+
 def _system_prompt(
-    prompt: str, items: list[AgentItem], width: int, height: int, scene_count: int = 1
+    items: list[AgentItem], width: int, height: int, scene_count: int = 1, op_summary: str = "",
 ) -> str:
     # Concrete, canvas-scaled numbers so the model places deliberately instead of guessing pixels
     # on an unknown artboard (the old prompt gave no dimensions, so everything collapsed top-left).
@@ -63,13 +87,64 @@ def _system_prompt(
         f"over the lower third with a legibility scrim (add_shape rect, dark colour, opacity 0.45, "
         f"covering the lower third).\n"
         if has_items
-        else "No images are approved — build a bold TYPE-led layout: a large headline, a short "
-        "supporting line, and one or two accent shapes. Never place an image.\n"
+        else "No catalog photos are approved — but NEVER fake an image region with a plain grey/"
+        "blank rectangle. Where the design calls for a photo, add a proper image PLACEHOLDER "
+        "element (`add_placeholder`) at the right spot, then FILL it with a generated image "
+        "(`generate_image` for a full-frame backdrop/scene, `generate_cutout` for a subject that "
+        "sits on top), via `fill_placeholder`. A bold type-led layout is great — but when imagery "
+        "belongs, GENERATE it; don't substitute a bare shape.\n"
+    )
+    # ONE stable system prompt for every mode (kept byte-identical across a run's rounds so the
+    # provider can cache this prefix — the variable board-state + TASK ride in the user message).
+    # The agent branches on the board state it is told / observes: empty -> create; populated ->
+    # revise with minimal targeted edits. Covers a fresh build, a reviewer-fix round, a requested
+    # addition, and a single-point change — all the same loop.
+    work_mode = (
+        "HOW YOU WORK — FIRST call `inspect_project` (scope='project') to see the project's "
+        "state (is it blank, or does it already have scenes/content?). READ that and the TASK, "
+        "then DECIDE for yourself whether this is a fresh creation or an edit of what's there:\n"
+        "• CREATING a new design (the draft is blank, or the TASK describes a new design / new "
+        "scenes) → compose fully. START EVERY scene FROM A TEMPLATE for a strong pro base. If the "
+        "TASK names a TEMPLATE per scene, `use_template` THAT one onto that scene (it COPIES the "
+        "template in — never recompose a template layout by hand); otherwise `list_templates` once "
+        "and pick the best fit. THEN ADAPT it to the TASK: rewrite its text to the real content "
+        "(`edit_text`), fill its "
+        "photo slots (`fill_placeholder`), and FREELY add, restyle, reposition or add new elements "
+        "so it truly serves the brief and looks great. The template is your starting scaffold, NOT "
+        "a cage — enhance it. If the TASK asks for N scenes, build all N (add_scene) — never stop "
+        "after one. If the draft holds unrelated LEFTOVER content, clear it (remove_scene) and "
+        "build fresh rather than editing on top of it.\n"
+        "• EDITING existing content (the TASK asks to add / fix / move / restyle SPECIFIC "
+        "elements already in the draft) → make the SMALLEST targeted edits that do the TASK — "
+        "change only the nodes the task names (by id, pass scene=<index>), leaving everything else "
+        "UNCHANGED; do NOT rebuild or delete-and-recreate. When the TASK lists reviewer problems, "
+        "each has a LOCATION — map it to the node id via `observe` and fix the cause (low "
+        "contrast → restyle text/backdrop; overlap → move a node; off-canvas → move it inside).\n"
+        "BATCH YOUR WORK: emit MANY tool calls in a SINGLE turn — compose a whole scene at once "
+        "(background, every text, every shape), not one element per turn (that is slow and burns "
+        "your turn budget). Keep going until the WHOLE task is done (ALL scenes built), then STOP "
+        "with a one-line summary.\n\n"
     )
     return (
-        "You are the Studio Builder, a senior graphic designer. Build a design that satisfies the "
-        "BRIEF by CALLING tools (each tool is a Design Studio operation). Work efficiently and "
-        "STOP (reply with a one-line summary, no tool call) once the scene looks finished.\n\n"
+        "You are the Studio Builder, a senior graphic designer. You work on a multi-scene design "
+        "by CALLING tools (each tool is a Design Studio operation). Work efficiently and STOP "
+        "(reply with a one-line summary, no tool call) once the TASK is done.\n\n"
+        "THE PROJECT MODEL — what you work on (so you understand any project you inspect):\n"
+        "A PROJECT is JSON: {format, width, height, scenes[]}. It renders as a short reel — each "
+        "SCENE is one frame/slide shown in order.\n"
+        "A SCENE = {id, background (hex), durationMs, transition (to the next scene), nodes[]}. "
+        "nodes are the visible elements, drawn back-to-front in array order.\n"
+        "A NODE = {id (unique, stable — you edit by this), type, x, y, width, height} plus "
+        "type-specific fields:\n"
+        "  • 'text'  → text, fontSize, fontWeight, fontStyle, textAlign, lineHeight, color.\n"
+        "  • 'image' → src + catalogItemId (an approved catalog photo) OR a generated src; "
+        "placeholder:true marks an EMPTY photo slot to fill (fill_placeholder).\n"
+        "  • 'shape' → shape ('rect'|'ellipse'|'line'), color, stroke/strokeWidth, points.\n"
+        "A node may also carry: anim (entrance + keyframes for motion), groupId (scene-group "
+        "membership), successorId (a sprite chain). You never write raw JSON — you call tools that "
+        "edit it; you READ it with inspect_project (scoped), find_nodes (search), observe "
+        "(plain words).\n\n"
+        f"{work_mode}"
         f"CANVAS: {width}×{height} px, origin top-left (x→right, y→down). Keep a {margin}px safe "
         f"margin on every side; the content column is x={margin}..{width - margin} "
         f"(width {content_w}).\n\n"
@@ -81,26 +156,44 @@ def _system_prompt(
         f"3. Type scale (px for THIS canvas): headline ≈ {headline} bold; subhead/body ≈ {body}; "
         f"caption ≈ {caption}. One headline only.\n"
         f"4. {hero}"
-        "5. Pick a cohesive palette: a background colour plus high-contrast text (light text on a "
-        "dark/photo area, dark text on light). Ensure text is readable over its background.\n"
+        "5. COLOUR: don't invent hex per node. Pick a curated palette with `list_palettes` that "
+        "fits the brief's mood, then `apply_theme` to recolour the scene cohesively (background, "
+        "shapes, text, accents by role). style_node a specific node only if needed. Keep text "
+        "readable over its background.\n"
         "6. Keep it clean: at most ~6 elements per scene. A tasteful accent shape beats clutter.\n"
-        "7. Build each scene in ONE clean pass. Do NOT delete everything and start over — if a "
-        "layout is off, MOVE or RESTYLE the existing node (by its id). Deleting and rebuilding the "
-        "same scene wastes your budget and leaves other scenes empty.\n"
-        f"8. This design has {scene_count} scene(s). The BRIEF may ask for more — add_scene to "
+        "7. NODE IDS: to edit / style / move / resize / animate / delete a node you MUST use its "
+        "EXACT id. Ids are given back to you after every op (the `scene` field lists them, e.g. "
+        "`text-node-0(text), shape-node-1(shape)`) and by `observe`. NEVER invent an id like "
+        "`text_1` or `shape_5` — a guessed id is rejected and wastes budget. If you don't know an "
+        "id, call `observe` first.\n"
+        "8. ORDER OF WORK: first COMPOSE the content (background, text, shapes, images) for EVERY "
+        "scene; only AFTER a scene's content is in place, add a LITTLE animation (≤1 entrance per "
+        "key element, no more). Do not spend your budget animating/restyling a near-empty scene.\n"
+        "9. Build each scene in ONE clean pass. Do NOT delete everything and start over — if a "
+        "layout is off, MOVE or RESTYLE the existing node (by its real id). Deleting and "
+        "rebuilding the same scene wastes budget and leaves other scenes empty.\n"
+        f"10. This design has {scene_count} scene(s). The TASK may ask for more — add_scene to "
         "append blank scenes. You MUST give EVERY scene content; never leave a scene empty. To "
         "build a specific scene, pass scene=<index> on each element (e.g. scene=1 targets the "
         "second scene) — this is more reliable than select_scene. Work scene 0, then scene 1, then "
         "scene 2… For a reel, set a transition (set_scene_transition) and, for a voiceover, "
         "narration (set_scene_narration) per scene.\n"
-        "9. Reference ONLY the approved item ids below; never invent facts, stats or prices.\n"
-        "10. IMAGERY: place approved catalog photos with `place`. For a custom visual with no "
-        "catalog photo (a backdrop, illustration or icon), call `generate_image` for ONE still, "
-        "then place it with `add_image` and animate it with `animate_node`. You CANNOT generate "
+        "11. Reference ONLY the approved item ids below; never invent facts, stats or prices.\n"
+        "12. IMAGERY — never leave an empty/grey box where a photo belongs. Place approved catalog "
+        "photos with `place`, or fill a template's photo slot with `fill_placeholder`. For a photo "
+        "region with no slot, add an image PLACEHOLDER element with `add_placeholder` (a proper "
+        "dashed media frame — NOT a plain rectangle) at the right x/y/width/height, then fill it. "
+        "For a custom FULL-FRAME visual (a backdrop or scene), call `generate_image`; for a "
+        "SUBJECT that sits ON TOP of a background/photo/other elements (a product, mascot, person, "
+        "object), call `generate_cutout` (a transparent PNG, no white box); place either with "
+        "`add_image` or into a placeholder, then animate with `animate_node`. You CANNOT generate "
         "moving sprites — all motion comes from keyframes (animate_node); `add_sprite` only places "
-        "the built-in characters (e.g. walking-panda). Generate sparingly (small budget).\n\n"
-        "Approved catalog item ids (use ONLY these):\n"
-        f"{_catalog_lines(items)}\n\nBRIEF: {prompt.strip()}"
+        "the built-in characters. Generate sparingly (small budget).\n\n"
+        + (f"TOOLS (summary — full argument schemas are attached to each tool):\n{op_summary}\n\n"
+           if op_summary else "")
+        + "Approved catalog item ids (use ONLY these):\n"
+        + _catalog_lines(items)
+        + "\n\nThe specific TASK for this run is the latest user message below."
     )
 
 
@@ -117,6 +210,61 @@ _VISUAL_FAILURES: dict[str, str] = {
 
 def _visual_error(kind: str) -> dict[str, Any]:
     return {"error": _VISUAL_FAILURES[kind], "reason": kind}
+
+
+def _resolve_template(key: str) -> tuple[str | None, dict[str, Any] | None]:
+    """Resolve a template reference to (id, workspace), matching by id slug OR display name,
+    case-insensitively and ignoring decorative chars like the ▶ marker. The planner names templates
+    by their DISPLAY name, but the store is keyed by slug — matching only the slug made the builder
+    fail the lookup and recompose the template by hand. This closes that gap."""
+    from app.design_templates import TEMPLATE_WORKSPACES
+
+    def norm(s: str) -> str:
+        return "".join(ch for ch in str(s).lower() if ch.isalnum())
+
+    k = norm(key)
+    if not k:
+        return None, None
+    for tid, ws in TEMPLATE_WORKSPACES.items():
+        name = (ws.get("metadata") or {}).get("name") or ""
+        if norm(tid) == k or norm(name) == k:
+            return tid, ws
+    return None, None
+
+
+_TEMPLATE_SCALE_KEYS = ("x", "y", "width", "height", "fontSize")
+
+
+def _scene_from_template(
+    tpl_scene: dict[str, Any], tpl_w: int, tpl_h: int, dw: int, dh: int, uid: str
+) -> dict[str, Any]:
+    """A deep copy of a template scene, uniformly scaled to fit the current canvas (no distortion)
+    and with every node id made unique (prefixed by ``uid``) — internal references (groupId,
+    successorId, scene groups) are remapped so the re-id can't break animation chains/grouping."""
+    import copy
+
+    scene = copy.deepcopy(tpl_scene)
+    s = min(dw / max(1, tpl_w), dh / max(1, tpl_h)) or 1.0
+    nodes = scene.get("nodes") or []
+    idmap: dict[str, str] = {}
+    for n in nodes:
+        old = str(n.get("id") or f"n{len(idmap)}")
+        idmap[old] = f"{uid}-{old}"
+        n["id"] = idmap[old]
+        for k in _TEMPLATE_SCALE_KEYS:
+            v = n.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                n[k] = max(8, round(v * s)) if k == "fontSize" else round(v * s, 2)
+    for n in nodes:  # remap references after all ids are known
+        for ref in ("groupId", "successorId"):
+            if n.get(ref) in idmap:
+                n[ref] = idmap[n[ref]]
+    for g in scene.get("groups") or []:
+        if g.get("id") in idmap:
+            g["id"] = idmap[g["id"]]
+        if g.get("parentId") in idmap:
+            g["parentId"] = idmap[g["parentId"]]
+    return scene
 
 
 def _scene_is_animated(design: dict[str, Any], scene_index: int) -> bool:
@@ -153,7 +301,7 @@ class _BuilderSession:
         generate_image_fn: GenerateImageFn,
         on_step: Any,
         *,
-        max_applies: int = 40,
+        max_applies: int = 300,
         max_generates: int = 3,
         render_fn: RenderFn | None = None,
         critique_fn: CritiqueFn | None = None,
@@ -244,6 +392,215 @@ class _BuilderSession:
             self._emit({"action": "observe", "scene": target})
             return obs
 
+    def find_nodes(
+        self, scene: Any = None, type: str | None = None, text: str | None = None
+    ) -> dict[str, Any]:
+        """Look up EXACT node ids by filter so the agent never guesses one. Query the live design by
+        scene (index/id; omit = all), node type (text/image/shape/background), and/or a case-
+        insensitive text substring. Returns the matching ids + a brief + position."""
+        with self._lock:
+            scenes = self.design.get("scenes") or []
+            if scene is None:
+                indices = list(range(len(scenes)))
+            else:
+                try:
+                    indices = [self._resolve_scene(scene)]
+                except ValueError as e:
+                    return {"error": str(e)}
+            needle = (text or "").strip().lower()
+            matches: list[dict[str, Any]] = []
+            for i in indices:
+                if not 0 <= i < len(scenes):
+                    continue
+                for n in (scenes[i].get("nodes") or []):
+                    if type and n.get("type") != type:
+                        continue
+                    body = str(n.get("text") or "")
+                    if needle and needle not in body.lower():
+                        continue
+                    matches.append({
+                        "id": n.get("id"), "scene": i, "type": n.get("type"),
+                        "text": body[:60], "x": n.get("x"), "y": n.get("y"),
+                    })
+                    if len(matches) >= 40:
+                        break
+            return {"matches": matches}
+
+    def inspect(
+        self, scope: str = "project", scene: Any = None, node: str | None = None
+    ) -> dict[str, Any]:
+        """Explore the live project JSON, SCOPED so the agent reads only what it asks for:
+        • scope='project' → the shape: canvas + per-scene {index, id, background, durationMs,
+          transition, nodeCount, nodeIds}. Use it first to see if the project is blank or populated.
+        • scope='scene' (scene=index/id) → that ONE scene's full JSON (nodes included, bulk elided).
+        • scope='node'  (scene + node=id) → that ONE node's full JSON.
+        Pairs with find_nodes (search by text/type) and observe (plain-word description)."""
+        with self._lock:
+            scenes = self.design.get("scenes") or []
+            sc = (scope or "project").lower()
+            if sc == "project":
+                return {
+                    "format": self.design.get("format"),
+                    "width": self.design.get("width"),
+                    "height": self.design.get("height"),
+                    "sceneCount": len(scenes),
+                    "scenes": [
+                        {
+                            "index": i,
+                            "id": s.get("id"),
+                            "background": s.get("background"),
+                            "durationMs": s.get("durationMs", s.get("duration_ms")),
+                            "transition": s.get("transition"),
+                            "nodeCount": len(s.get("nodes") or []),
+                            "nodeIds": [n.get("id") for n in (s.get("nodes") or [])][:40],
+                        }
+                        for i, s in enumerate(scenes)
+                    ],
+                }
+            try:
+                idx = self._resolve_scene(scene if scene is not None else self.scene)
+            except ValueError as e:
+                return {"error": str(e)}
+            if not 0 <= idx < len(scenes):
+                return {"error": f"scene {idx} out of range (0..{len(scenes) - 1})"}
+            s = scenes[idx]
+            if sc == "scene":
+                return {
+                    "scene": idx, "id": s.get("id"), "background": s.get("background"),
+                    "durationMs": s.get("durationMs", s.get("duration_ms")),
+                    "transition": s.get("transition"),
+                    "nodes": [_elide_node(n) for n in (s.get("nodes") or [])],
+                }
+            if sc == "node":
+                for n in s.get("nodes") or []:
+                    if str(n.get("id")) == str(node):
+                        return {"scene": idx, "node": _elide_node(n)}
+                return {"error": f"no node '{node}' in scene {idx} — try scope='scene' to list ids"}
+            return {"error": f"unknown scope '{scope}' — use project | scene | node"}
+
+    def list_templates(self) -> dict[str, Any]:
+        """The template gallery to START a scene from — professionally laid-out scenes (placed text,
+        shapes, photo slots). The agent picks the best fit and `use_template`s it, then fills it."""
+        from app.design_templates import TEMPLATE_DESCRIPTIONS, TEMPLATE_WORKSPACES
+
+        dw = int(self.design.get("width") or 1080)
+        dh = int(self.design.get("height") or 1080)
+        out: list[dict[str, Any]] = []
+        for tid, ws in TEMPLATE_WORKSPACES.items():
+            meta = ws.get("metadata") or {}
+            scenes = ws.get("scenes") or []
+            nodes = (scenes[0].get("nodes") if scenes else []) or []
+            texts = sum(1 for n in nodes if n.get("type") == "text")
+            photos = sum(1 for n in nodes if n.get("type") == "image" and n.get("placeholder"))
+            shapes = sum(1 for n in nodes if n.get("type") == "shape")
+            out.append({
+                "id": tid, "name": meta.get("name"), "format": meta.get("format"),
+                "pages": len(scenes),  # multi-page: use_template(template_scene=<1..pages>)
+                "fits_canvas": int(meta.get("width") or 0) == dw
+                and int(meta.get("height") or 0) == dh,
+                "slots": f"{texts} text, {photos} photo, {shapes} shapes",
+                "description": TEMPLATE_DESCRIPTIONS.get(tid, ""),
+            })
+        return {"templates": out}
+
+    def use_template(
+        self, template: str, scene: Any = None, template_scene: int = 0
+    ) -> dict[str, Any]:
+        """COPY a template page onto the target scene as its base (its professional layout + photo
+        slots, scaled to fit), REPLACING that scene's content — so you do NOT recompose it by hand.
+        ``template`` matches by id OR display name (case-insensitive). ``template_scene`` is the
+        1-based page of a multi-page template to copy (page 1 = first; default 1). ``scene`` is the
+        target scene in
+        the workspace (default the selected one). Then adapt it: edit_text the copy, fill the
+        photos, restyle. Returns the scene's new node ids to fill."""
+        tid, ws = _resolve_template(template)
+        if ws is None:
+            return {"error": f"unknown template '{template}' — call list_templates for valid names"}
+        with self._lock:
+            if self.applied >= self._max_applies:
+                return {"error": "edit budget reached — stop and summarise"}
+            target = self.scene
+            if scene is not None:
+                try:
+                    target = self._resolve_scene(scene)
+                except ValueError as e:
+                    return {"error": str(e)}
+            scenes = self.design.get("scenes") or []
+            if not 0 <= target < len(scenes):
+                return {"error": f"target scene must be 0..{len(scenes) - 1}"}
+            dw = int(self.design.get("width") or 1080)
+            dh = int(self.design.get("height") or 1080)
+            meta = ws.get("metadata") or {}
+            tpl_scenes = ws.get("scenes") or [{"nodes": []}]
+            # template_scene is a 1-BASED page number (what the planner emits: "page 2"); 0 or
+            # omitted means the first page. Keeps plan, list_templates page count and this aligned.
+            try:
+                page = int(template_scene)
+            except (TypeError, ValueError):
+                page = 1
+            idx = page - 1 if page >= 1 else 0
+            if not 0 <= idx < len(tpl_scenes):
+                return {"error": f"template '{tid}' has pages 1..{len(tpl_scenes)}"}
+            new = _scene_from_template(
+                tpl_scenes[idx], int(meta.get("width") or dw), int(meta.get("height") or dh),
+                dw, dh, f"t{self.applied}",
+            )
+            cur = scenes[target]
+            cur["nodes"] = new.get("nodes") or []  # replace content with the template's layout
+            if new.get("background"):
+                cur["background"] = new["background"]
+            if new.get("durationMs"):
+                cur["durationMs"] = new["durationMs"]
+            self.applied += 1
+            self._emit(
+                {"action": "use-template", "template": tid, "scene": target},
+                design=self.design,
+            )
+            return {"status": "applied", "template": tid, "page": idx + 1,
+                    "scene": _summarize(self.design, target)}
+
+    def list_palettes(self) -> dict[str, Any]:
+        """The curated colour palettes to theme a scene with. Each has a mood and four roles
+        (bg/surface/ink/accent); pick one that fits the brief, then `apply_theme`."""
+        from app.ai.palettes import PALETTES
+
+        return {"palettes": [
+            {"id": p["id"], "name": p["name"], "mood": p["mood"],
+             "bg": p["bg"], "accent": p["accent"]}
+            for p in PALETTES
+        ]}
+
+    def apply_theme(self, palette: str, scene: Any = None) -> dict[str, Any]:
+        """Recolour a scene with a curated palette (by role: background, large shapes/scrims, text,
+        accents) so the colours stay cohesive and readable — instead of inventing hex per node. Pick
+        the palette from `list_palettes`. Fine-tune individual nodes afterwards with style_node."""
+        from app.ai.palettes import palette_by_id, recolor_scene
+
+        pal = palette_by_id(str(palette))
+        if pal is None:
+            return {"error": f"unknown palette '{palette}' — call list_palettes for valid ids"}
+        with self._lock:
+            if self.applied >= self._max_applies:
+                return {"error": "edit budget reached — stop and summarise"}
+            target = self.scene
+            if scene is not None:
+                try:
+                    target = self._resolve_scene(scene)
+                except ValueError as e:
+                    return {"error": str(e)}
+            scenes = self.design.get("scenes") or []
+            if not 0 <= target < len(scenes):
+                return {"error": f"scene must be 0..{len(scenes) - 1}"}
+            area = int(self.design.get("width") or 1080) * int(self.design.get("height") or 1080)
+            recolor_scene(scenes[target], pal, area)
+            self.applied += 1
+            self._emit(
+                {"action": "apply-theme", "palette": pal["id"], "scene": target},
+                design=self.design,
+            )
+            return {"status": "applied", "palette": pal["id"],
+                    "scene": _summarize(self.design, target)}
+
     def observe_visual(self, scene_index: Any = None, image: bool = True) -> dict[str, Any]:
         """Render the REAL scene and have a vision model critique it.
 
@@ -304,19 +661,27 @@ class _BuilderSession:
                 return {"editing_scene": self.scene}
             return {"error": f"scene must be 0..{len(scenes) - 1}; add_scene first for more"}
 
-    def generate_image(self, concept: str) -> dict[str, Any]:
+    def generate_image(self, concept: str, cutout: bool = False) -> dict[str, Any]:
         """Generate ONE static image for a concept and return a ref to place with add-image.
 
         The agent can no longer generate frame-by-frame sprites (it produced incoherent frames and
         leaned on them for all visuals); it generates a single still and animates it with keyframe
-        node transforms (animate-node) instead.
+        node transforms (animate-node) instead. ``cutout`` asks for a transparent PNG (the model
+        draws on a solid white bg, which is keyed out) so the subject layers cleanly over others.
         """
         with self._lock:  # budget check + increment are shared state
             if self.generated >= self._max_generates:
                 return {"error": "image-generation budget reached"}
             self.generated += 1
+        # Image models bake requested/incidental text as GARBLED nonsense (a headline once rendered
+        # as "MEME RIONOD"). Force a text-free image — ALL copy is real editable text nodes on the
+        # canvas, laid over the image, never inside it.
+        hardened = (
+            f"{concept.strip()}. Do NOT render any text, words, letters, numbers, captions, "
+            "labels, logos or watermarks anywhere in the image."
+        )
         try:
-            handle = self._gen(concept, {})  # outside the lock: slow network gen
+            handle = self._gen(hardened, {"cutout": cutout})  # outside the lock: slow network gen
         except Exception:  # noqa: BLE001 - a generation failure must not kill the loop
             logger.info("studio-graph image generation failed")
             with self._lock:
@@ -420,6 +785,105 @@ def _build_tools(session: _BuilderSession, spec: list[dict[str, Any]]) -> list[A
     )
     tools.append(
         StructuredTool.from_function(
+            _safe(
+                lambda scope="project", scene=None, node=None: session.inspect(scope, scene, node)
+            ),
+            name="inspect_project",
+            description=(
+                "Explore the live PROJECT JSON, scoped (read only what you ask for). "
+                "scope='project': the shape — canvas + each scene's id, background, duration, "
+                "transition, node count and node ids (call this FIRST to see if the project is "
+                "blank or populated). scope='scene' (scene=index/id): that one scene's full JSON "
+                "with its nodes. scope='node' (scene + node=id): that one node's full JSON. Use it "
+                "to understand state and get exact ids before editing."
+            ),
+            args_schema=_args_model("inspect_project", {
+                "scope": "project | scene | node (default project)",
+                "scene": "scene index or id (for scope=scene/node)",
+                "node": "node id (for scope=node)",
+            }),
+        )
+    )
+    tools.append(
+        StructuredTool.from_function(
+            _safe(lambda scene=None, type=None, text=None: session.find_nodes(scene, type, text)),
+            name="find_nodes",
+            description=(
+                "Look up EXACT node ids to edit/style/move/animate — never guess an id. Filter by "
+                "scene (index or id; omit = all), type (text/image/shape), and/or a text substring "
+                "(e.g. the headline: type='text', text='adventure'). Returns ids + brief + pos."
+            ),
+            args_schema=_args_model("find_nodes", {
+                "scene": "optional scene index or id to search",
+                "type": "optional node type: text | image | shape",
+                "text": "optional case-insensitive substring to match in a node's text",
+            }),
+        )
+    )
+    tools.append(
+        StructuredTool.from_function(
+            _safe(lambda: session.list_templates()),
+            name="list_templates",
+            description=(
+                "List the professionally-designed templates to START a scene from (name, format, "
+                "slot counts, description, whether it fits the canvas). Pick the best fit for the "
+                "scene's purpose, then call use_template. ALWAYS start a scene from a template."
+            ),
+            args_schema=_args_model("list_templates", {}),
+        )
+    )
+    tools.append(
+        StructuredTool.from_function(
+            _safe(
+                lambda template, scene=None, template_scene=0: session.use_template(
+                    template, scene, template_scene
+                )
+            ),
+            name="use_template",
+            description=(
+                "COPY a template page onto a target scene as its base (layout + photo slots, "
+                "scaled to fit), REPLACING that scene's content — do NOT recompose a template by "
+                "hand, call this. `template` is the id OR display name from list_templates. "
+                "`template_scene` is the 1-based page of a multi-page template (default 1). "
+                "`scene` is "
+                "the target scene in the workspace. Then ADAPT it: edit_text the copy, "
+                "fill_placeholder the photos, restyle. A scaffold to enhance. Returns new node ids."
+            ),
+            args_schema=_args_model("use_template", {
+                "template": "the template id OR display name from list_templates",
+                "template_scene": "optional 1-based page of the template to copy (default 1)",
+                "scene": "optional target scene index or id; defaults to the current scene",
+            }),
+        )
+    )
+    tools.append(
+        StructuredTool.from_function(
+            _safe(lambda: session.list_palettes()),
+            name="list_palettes",
+            description=(
+                "List curated colour palettes (id, mood, bg + accent swatches) to theme a scene. "
+                "Pick one that matches the brief's mood, then apply_theme."
+            ),
+            args_schema=_args_model("list_palettes", {}),
+        )
+    )
+    tools.append(
+        StructuredTool.from_function(
+            _safe(lambda palette, scene=None: session.apply_theme(palette, scene)),
+            name="apply_theme",
+            description=(
+                "Recolour a scene with a curated palette (by role: background, shapes/scrims, "
+                "text, accents) so colours stay cohesive + readable — never invent hex. Apply "
+                "after composing a scene; fine-tune specific nodes with style_node afterwards."
+            ),
+            args_schema=_args_model("apply_theme", {
+                "palette": "the palette id from list_palettes",
+                "scene": "optional target scene index or id; defaults to the current scene",
+            }),
+        )
+    )
+    tools.append(
+        StructuredTool.from_function(
             _safe(lambda scene_index=None, image=None: session.observe_visual(
                 scene_index, True if image is None else bool(image)
             )),
@@ -462,7 +926,56 @@ def _build_tools(session: _BuilderSession, spec: list[dict[str, Any]]) -> list[A
             ),
         )
     )
+    tools.append(
+        StructuredTool.from_function(
+            _safe(lambda concept: session.generate_image(concept, cutout=True)),
+            name="generate_cutout",
+            description=(
+                "Generate ONE subject as a TRANSPARENT cut-out PNG (background removed) — e.g. a "
+                "product, a mascot, an icon, a person, an object. Returns a ref to place with "
+                "add_image. Prefer this over generate_image whenever the image is a SUBJECT that "
+                "should sit ON TOP of a background/photo/other elements (no white box around it); "
+                "use generate_image for a full-bleed backdrop or scene that fills the frame."
+            ),
+            args_schema=_args_model(
+                "generate_cutout", {"concept": "the subject to depict as a transparent cut-out"}
+            ),
+        )
+    )
     return tools
+
+
+def _op_summary(tools: list[Any]) -> str:
+    """A compact op index — tool name + the first line of its description. Goes in the STABLE system
+    prefix (full arg schemas are attached to each tool natively), so it caches run-to-run."""
+    lines = []
+    for t in tools:
+        desc = (getattr(t, "description", "") or "").strip().split("\n")[0]
+        lines.append(f"- {getattr(t, 'name', '?')}: {desc[:100]}")
+    return "\n".join(lines)
+
+
+def _text_of(message: Any) -> str:
+    """The assistant text of one AIMessage — fed into chat_history so a follow-up run continues the
+    thread. Bounded; tolerant of str or multi-part (list-of-dict) message content."""
+    try:
+        content = getattr(message, "content", None)
+        if isinstance(content, str):
+            return content.strip()[:600]
+        parts = [p.get("text", "") for p in (content or []) if isinstance(p, dict)]
+        return " ".join(parts).strip()[:600]
+    except Exception:  # noqa: BLE001 - history is best-effort; never fail a build over it
+        return ""
+
+
+def _build_model(settings: Settings) -> Any:
+    """The chat model, behind a seam so the hand-driven loop can be tested with a fake model (no
+    network). Swapped in tests via monkeypatch; real runs get Gemini."""
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    return ChatGoogleGenerativeAI(
+        model=settings.ai_model, google_api_key=settings.gemini_api_key, temperature=0.4
+    )
 
 
 def run_studio_graph(
@@ -481,39 +994,83 @@ def run_studio_graph(
     render_fn: RenderFn | None = None,
     critique_fn: CritiqueFn | None = None,
     max_visual_observes: int = 3,
+    history: list[tuple[str, str]] | None = None,
+    thread_id: str | None = None,
+    run_name: str = "studio-build",
+    cancel_check: Any = None,
 ) -> StudioAgentResult:
-    """Run the LangGraph ReAct builder and return the edited design + step transcript.
+    """Run the hand-driven ReAct builder and return the edited design + step transcript.
 
-    No Gemini key → the deterministic stub compose (Contract 4). A provider/graph error after some
-    edits returns what was built; before any edit, it falls back to the stub so a build always
-    yields something.
+    The loop is driven here (not create_react_agent) so each model turn and each tool call is its
+    own top-level trace, grouped by `thread_id`. No Gemini key → the deterministic stub compose
+    (Contract 4). A provider/loop error after some edits returns what was built; before any edit, it
+    falls back to the stub so a build always yields something.
     """
     if (settings.ai_provider or "").lower() != "gemini" or not settings.gemini_api_key:
         return _deterministic_compose(design, prompt, items, scene_index, apply_fn, on_step)
 
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    from langgraph.prebuilt import create_react_agent
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
     session = _BuilderSession(
         design, scene_index, apply_fn, observe_fn, generate_image_fn, on_step,
         render_fn=render_fn, critique_fn=critique_fn, max_visual_observes=max_visual_observes,
     )
     tools = _build_tools(session, spec)
-    model = ChatGoogleGenerativeAI(
-        model=settings.ai_model, google_api_key=settings.gemini_api_key, temperature=0.4
-    )
+    tool_by_name = {t.name: t for t in tools}
+    llm = _build_model(settings).bind_tools(tools)
     width = int(design.get("width") or 1080)
     height = int(design.get("height") or 1080)
     scene_count = len(design.get("scenes") or []) or 1
-    agent = create_react_agent(
-        model, tools, prompt=_system_prompt(prompt, items, width, height, scene_count)
-    )
+    # Cache-friendly running prompt: a STABLE system prefix (guidance + tool summary + grounding)
+    # that stays byte-identical across a run's rounds, then {chat_history}, then the variable NEW
+    # INPUT (board state + the TASK). Only the suffix changes round-to-round, so the prefix caches.
+    sys_prompt = _system_prompt(items, width, height, scene_count, op_summary=_op_summary(tools))
+    # No state blob is injected: the agent inspects the live project itself with `inspect_project`
+    # (scoped) / observe / find_nodes and decides create-vs-edit. Keeps the input lean + cacheable.
+    new_input = f"TASK:\n{prompt.strip()}"
+    msgs: list[Any] = [SystemMessage(content=sys_prompt)]
+    for role, text in history or []:
+        msgs.append(HumanMessage(content=text) if role == "user" else AIMessage(content=text))
+    msgs.append(HumanMessage(content=new_input))
+
+    # Hand-driven ReAct loop (not create_react_agent) so EACH model turn and EACH tool call is its
+    # own top-level LangSmith trace, grouped by the build's shared thread_id — a flat, ordered,
+    # readable run instead of one deep nested tree. Tool calls run sequentially (the session lock
+    # stays as defence in depth). A tool's arg-validation error is fed back as its result so the
+    # model self-corrects instead of the whole run aborting.
+    ls = settings.langsmith_enabled()
+    meta = {"session_id": thread_id, "thread_id": thread_id} if thread_id else None
+    summary = ""
     try:
-        agent.invoke(
-            {"messages": [("user", "Build the design to satisfy the brief, then stop.")]},
-            config={"recursion_limit": max(6, max_rounds * 2)},
-        )
-    except Exception:  # noqa: BLE001 - any model/graph error degrades gracefully
+        for turn in range(1, max(2, max_rounds) + 1):
+            if cancel_check is not None and cancel_check():
+                break  # the user stopped the build — leave what's been applied so far
+            with trace_span(f"{run_name} · turn {turn}", enabled=ls, metadata=meta):
+                ai = llm.invoke(msgs)
+            msgs.append(ai)
+            calls = getattr(ai, "tool_calls", None) or []
+            if not calls:
+                summary = _text_of(ai)
+                break
+            for tc in calls:
+                name = tc.get("name") or ""
+                tool = tool_by_name.get(name)
+                with trace_span(f"tool:{name or '?'}", enabled=ls, metadata=meta):
+                    if tool is None:
+                        result: Any = {"error": f"unknown tool {name}"}
+                    else:
+                        try:
+                            result = tool.invoke(tc.get("args") or {})
+                        except Exception as e:  # noqa: BLE001 - bad args → feed back, don't abort
+                            result = {"error": f"{type(e).__name__}: {e}. Fix the arguments."}
+                msgs.append(ToolMessage(
+                    content=json.dumps(result, default=str)[:4000],
+                    tool_call_id=str(tc.get("id") or name),
+                    name=name or "tool",
+                ))
+            if session.applied >= session._max_applies:
+                break  # edit budget spent — stop looping even if the model wants more
+    except Exception:  # noqa: BLE001 - any model/loop error degrades gracefully
         logger.info("studio-graph run failed; using what was built (or the deterministic compose)")
         if session.applied == 0:
             return _deterministic_compose(design, prompt, items, scene_index, apply_fn, on_step)
@@ -525,5 +1082,5 @@ def run_studio_graph(
     session.steps.append({"action": "finish", "note": "Build complete"})
     return StudioAgentResult(
         design=session.design, steps=session.steps, applied=session.applied,
-        finished=True, provider="gemini",
+        finished=True, provider="gemini", summary=summary,
     )

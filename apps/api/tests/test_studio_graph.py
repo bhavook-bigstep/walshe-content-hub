@@ -18,6 +18,7 @@ from app.ai.studio_graph import (
     _args_model,
     _build_tools,
     _BuilderSession,
+    _elide_node,
     _safe,
     _scene_is_animated,
 )
@@ -40,6 +41,46 @@ def _session(**kw: Any) -> _BuilderSession:
     return _BuilderSession(
         design, 0, _append_apply_fn, lambda d, s: {"ok": True}, lambda c, o: {}, None, **kw
     )
+
+
+def test_inspect_project_is_scoped_project_scene_node():
+    # The agent explores the live JSON itself, scoped: project overview → one scene → one node.
+    design = {
+        "format": "social", "width": 1080, "height": 1080,
+        "scenes": [
+            {"id": "s0", "background": "#111", "durationMs": 3000, "nodes": [
+                {"id": "title", "type": "text", "text": "Hi", "x": 10, "y": 20},
+                {"id": "photo", "type": "image", "placeholder": True, "x": 0, "y": 0},
+            ]},
+            {"id": "s1", "nodes": []},
+        ],
+    }
+    sess = _BuilderSession(
+        design, 0, _append_apply_fn, lambda d, s: {"ok": True}, lambda c, o: {}, None,
+    )
+    proj = sess.inspect("project")
+    assert proj["sceneCount"] == 2
+    assert proj["scenes"][0]["nodeCount"] == 2 and proj["scenes"][0]["nodeIds"] == ["title", "photo"]
+    assert proj["scenes"][1]["nodeCount"] == 0  # blank scene visible as empty, not hidden
+
+    scene = sess.inspect("scene", scene="s0")  # resolve by id
+    assert scene["scene"] == 0 and [n["id"] for n in scene["nodes"]] == ["title", "photo"]
+
+    node = sess.inspect("node", scene=0, node="photo")
+    assert node["node"]["placeholder"] is True
+    assert "error" in sess.inspect("node", scene=0, node="nope")
+
+
+def test_elide_node_keeps_structure_drops_bulk():
+    # Structural fields stay; only heavy src/keyframe bulk is elided so the agent reads real layout.
+    n = _elide_node({
+        "id": "img", "type": "image", "x": 5, "y": 6, "width": 100,
+        "src": "data:image/png;base64," + "A" * 5000,
+        "anim": {"enter": "fade", "keyframes": [{"t": i} for i in range(50)]},
+    })
+    assert n["id"] == "img" and n["x"] == 5 and n["width"] == 100  # structure intact
+    assert n["src"] == "<src>"                                     # base64 bulk gone
+    assert n["anim"]["keyframes"] == "<50 keyframes>" and n["anim"]["enter"] == "fade"
 
 
 def test_concurrent_ops_do_not_clobber_each_other():
@@ -153,6 +194,18 @@ def test_select_scene_arg_schema_accepts_int_and_id():
     assert model(scene_index="scene-1").scene_index == "scene-1"  # id string
 
 
+def test_set_scene_duration_scene_id_is_optional():
+    # set_scene_duration used to REQUIRE scene_id, so when the model targeted via the universal
+    # `scene` param and omitted scene_id, pydantic 422'd before run_op could pop `scene`. The op's
+    # `scene_id` is now optional (defaults to the targeted scene in the TS op) — omitting it is OK.
+    model = _args_model("set_scene_duration", {
+        "duration_ms": "milliseconds",
+        "scene_id": "optional the scene's id (defaults to the current/targeted scene)",
+    })
+    assert model(duration_ms=3000).scene_id is None  # omitting scene_id no longer 422s
+    assert model(duration_ms=3000, scene_id="scene-1").scene_id == "scene-1"  # explicit override
+
+
 def test_op_level_numeric_params_stay_numbers():
     # A genuine numeric op param (not a scene target) must still coerce to a number, so the Node
     # ops engine never receives a stray string. "or id" keys the scene-ref widening, nothing else.
@@ -205,7 +258,10 @@ def test_generate_image_returns_handle_and_respects_budget():
     assert sess.generate_image("a sunset")["ref"] == "gen:1"
     assert sess.generate_image("a map")["ref"] == "gen:2"
     assert "error" in sess.generate_image("one too many")  # budget of 2 enforced
-    assert calls == ["a sunset", "a map"]  # the over-budget call never hit the generator
+    assert len(calls) == 2  # the over-budget call never hit the generator
+    # each concept is hardened against baked-in text (the "MEME RIONOD" garble) but keeps the brief
+    assert calls[0].startswith("a sunset") and calls[1].startswith("a map")
+    assert all("Do NOT render any text" in c for c in calls)
 
 
 def test_generate_image_failure_refunds_budget():
@@ -218,6 +274,193 @@ def test_generate_image_failure_refunds_budget():
     )
     assert "error" in sess.generate_image("x")
     assert sess.generated == 0  # a failed generation refunds the budget so a retry is possible
+
+
+def test_hand_driven_loop_drives_tools_then_stops():
+    # The build loop is hand-driven (not create_react_agent) so each turn/tool is its own trace.
+    # Hermetic: a fake model scripts one tool-calling turn then a final message; no network, no
+    # LangSmith. Asserts the loop executes the tool calls (applies land) and stops on the final msg.
+    from langchain_core.messages import AIMessage
+
+    import app.ai.studio_graph as sg
+
+    class _FakeModel:
+        def __init__(self) -> None:
+            self.turn = 0
+
+        def bind_tools(self, _tools: Any) -> Any:
+            return self
+
+        def invoke(self, _msgs: Any) -> Any:
+            self.turn += 1
+            if self.turn == 1:
+                return AIMessage(content="", tool_calls=[
+                    {"name": "set_background", "args": {"color": "#111"}, "id": "a"},
+                    {"name": "write_copy", "args": {"text": "Hello"}, "id": "b"},
+                ])
+            return AIMessage(content="Done — one scene composed.")
+
+    class _S:
+        ai_provider = "gemini"
+        gemini_api_key = "k"
+        ai_model = "m"
+
+        def langsmith_enabled(self) -> bool:
+            return False
+
+    orig = sg._build_model
+    sg._build_model = lambda _settings: _FakeModel()
+    try:
+        out = sg.run_studio_graph(
+            settings=_S(), design={"scenes": [{"id": "s0", "nodes": []}]}, prompt="Build it",
+            items=[], spec=[{"op": "set-background", "params": {"color": "hex"}},
+                            {"op": "write-copy", "params": {"text": "the text"}}],
+            apply_fn=_append_apply_fn, observe_fn=lambda d, i: {},
+            generate_image_fn=lambda c, o: {}, scene_index=0, max_rounds=4,
+        )
+    finally:
+        sg._build_model = orig
+    assert out.provider == "gemini" and out.finished  # ran the real loop, not the stub
+    assert out.applied == 2  # both scripted tool calls executed
+    assert out.summary.startswith("Done")  # stopped on the final no-tool-call message
+    assert len(out.design["scenes"][0]["nodes"]) == 2
+
+
+def test_hand_driven_loop_stops_on_cancel():
+    # A build must stop when the user cancels: the loop checks cancel_check between turns and leaves
+    # what it has applied. Fake model never stops on its own; cancel fires after the first turn.
+    from langchain_core.messages import AIMessage
+
+    import app.ai.studio_graph as sg
+
+    class _FakeModel:
+        def bind_tools(self, _tools: Any) -> Any:
+            return self
+
+        def invoke(self, _msgs: Any) -> Any:  # always wants to keep going
+            return AIMessage(content="", tool_calls=[
+                {"name": "set_background", "args": {"color": "#111"}, "id": "x"},
+            ])
+
+    class _S:
+        ai_provider = "gemini"
+        gemini_api_key = "k"
+        ai_model = "m"
+
+        def langsmith_enabled(self) -> bool:
+            return False
+
+    checks = {"n": 0}
+
+    def cancel() -> bool:
+        checks["n"] += 1
+        return checks["n"] > 1  # let the first turn run, cancel before the second
+
+    orig = sg._build_model
+    sg._build_model = lambda _settings: _FakeModel()
+    try:
+        out = sg.run_studio_graph(
+            settings=_S(), design={"scenes": [{"id": "s0", "nodes": []}]}, prompt="Build it",
+            items=[], spec=[{"op": "set-background", "params": {"color": "hex"}}],
+            apply_fn=_append_apply_fn, observe_fn=lambda d, i: {},
+            generate_image_fn=lambda c, o: {}, scene_index=0, max_rounds=8, cancel_check=cancel,
+        )
+    finally:
+        sg._build_model = orig
+    assert out.applied == 1  # applied the first turn's op, then stopped on cancel (not the budget)
+
+
+def test_find_nodes_looks_up_exact_ids_by_filter():
+    # The agent must look up REAL ids (not guess them). find_nodes filters by scene/type/text and
+    # returns the exact node ids, so edit/style/animate ops hit real nodes, not rejections.
+    design = {"scenes": [
+        {"id": "scene-0", "nodes": [
+            {"id": "text-node-0", "type": "text", "text": "Your Next Adventure", "x": 10, "y": 20},
+            {"id": "shape-node-0", "type": "shape", "x": 0, "y": 0},
+        ]},
+        {"id": "scene-1", "nodes": [{"id": "text-node-1", "type": "text", "text": "Book now"}]},
+    ]}
+    sess = _BuilderSession(design, 0, _append_apply_fn, lambda d, i: {}, lambda c, o: {}, None)
+    # by type within a scene
+    out = sess.find_nodes(scene=0, type="text")
+    assert [m["id"] for m in out["matches"]] == ["text-node-0"]
+    # by text substring (case-insensitive), across all scenes
+    hit = sess.find_nodes(text="adventure")
+    assert [m["id"] for m in hit["matches"]] == ["text-node-0"]
+    # all scenes, all types
+    assert len(sess.find_nodes()["matches"]) == 3
+    # a bad scene ref is a recoverable error, not a raise
+    assert "error" in sess.find_nodes(scene="nope")
+
+
+def test_list_templates_and_use_template_lays_a_scaffold():
+    # The agent starts a scene from a professional template (not from scratch): list_templates shows
+    # the gallery; use_template lays one down as the scene base, scaled to fit + re-ided, replacing
+    # the scene's content. The agent then adapts it (edit_text / fill_placeholder / restyle).
+    design = {"width": 1080, "height": 1080,
+              "scenes": [{"id": "s0", "nodes": [{"id": "old", "type": "text", "text": "x"}]}]}
+    sess = _BuilderSession(design, 0, _append_apply_fn, lambda d, i: {}, lambda c, o: {}, None)
+    lst = sess.list_templates()["templates"]
+    assert any(t["id"] == "aegean-minimal" for t in lst)
+    assert all({"id", "name", "slots", "format"} <= set(t) for t in lst)
+
+    out = sess.use_template("aegean-minimal", scene=0)
+    assert out["status"] == "applied"
+    nodes = sess.design["scenes"][0]["nodes"]
+    assert len(nodes) > 1                                   # the template's full layout landed
+    assert all(str(n["id"]).startswith("t0-") for n in nodes)  # re-ided → collision-free
+    assert not any(n["id"] == "old" for n in nodes)         # replaced the scene's prior content
+    assert any(n.get("type") == "image" and n.get("placeholder") for n in nodes)  # a photo slot
+    # scaled to fit the 1080×1080 canvas (template is 1080×1350 → scaled down, in-bounds)
+    assert all(n.get("y", 0) <= 1080 for n in nodes if isinstance(n.get("y"), (int, float)))
+    assert "error" in sess.use_template("no-such-template")  # bad id → recoverable error
+
+
+def test_use_template_resolves_by_display_name_and_picks_a_page():
+    # The planner names templates by DISPLAY name; use_template must resolve that (not just the slug),
+    # or the builder fails the lookup and recomposes the template by hand. It also copies a chosen
+    # page of a multi-page template into the chosen TARGET scene.
+    design = {"width": 1080, "height": 1080,
+              "scenes": [{"id": "s0", "nodes": []}, {"id": "s1", "nodes": []}]}
+    sess = _BuilderSession(design, 0, _append_apply_fn, lambda d, i: {}, lambda c, o: {}, None)
+    # by display name (with the decorative ▶ and spaces), targeting scene 1, page 3 (1-based) of a
+    # 3-page reel — page numbering matches what the planner emits ("page 3")
+    out = sess.use_template("Destination Reel ▶", scene=1, template_scene=3)
+    assert out["status"] == "applied" and out["template"] == "destination-reel"
+    assert out["page"] == 3
+    assert sess.design["scenes"][1]["nodes"] and not sess.design["scenes"][0]["nodes"]
+    # page 0 / omitted falls back to the first page (lenient)
+    assert sess.use_template("destination-reel", scene=0, template_scene=0)["page"] == 1
+    # out-of-range page is a recoverable error, not a crash
+    assert "error" in sess.use_template("destination-reel", template_scene=99)
+
+
+def test_list_palettes_and_apply_theme_recolours_by_role():
+    # The agent themes a scene from a curated palette (cohesive, readable) instead of inventing hex.
+    # apply_theme recolours by ROLE: bg, large shape/scrim → surface, small shape → accent, neutral
+    # text → ink, accent-coloured text → accent.
+    nodes = [
+        {"id": "title", "type": "text", "color": "#ffffff", "width": 800, "height": 100},  # neutral
+        {"id": "eyebrow", "type": "text", "color": "#F4B860", "width": 400, "height": 40},  # accent
+        {"id": "scrim", "type": "shape", "color": "#000000", "width": 1000, "height": 500},  # large
+        {"id": "rule", "type": "shape", "color": "#F4B860", "width": 120, "height": 10},  # small
+    ]
+    design = {"width": 1000, "height": 1000,
+              "scenes": [{"id": "s0", "background": "#ffffff", "nodes": nodes}]}
+    sess = _BuilderSession(design, 0, _append_apply_fn, lambda d, i: {}, lambda c, o: {}, None)
+    pals = sess.list_palettes()["palettes"]
+    assert any(p["id"] == "midnight-lux" for p in pals)
+    assert all({"id", "mood"} <= set(p) for p in pals)
+
+    assert sess.apply_theme("midnight-lux", scene=0)["status"] == "applied"
+    sc = sess.design["scenes"][0]
+    assert sc["background"] == "#0E1116"                      # bg role
+    byid = {n["id"]: n for n in sc["nodes"]}
+    assert byid["title"]["color"] == "#F2F4F8"               # neutral text → ink
+    assert byid["eyebrow"]["color"] == "#C9A24B"             # accent-coloured text → accent
+    assert byid["scrim"]["color"] == "#1A1F27"               # large shape/scrim → surface
+    assert byid["rule"]["color"] == "#C9A24B"                # small shape → accent
+    assert "error" in sess.apply_theme("no-such-palette")    # bad id → recoverable error
 
 
 def test_observe_reads_a_consistent_design():

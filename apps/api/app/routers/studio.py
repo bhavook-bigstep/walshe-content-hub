@@ -13,9 +13,11 @@ from __future__ import annotations
 import base64
 import io
 import json
+import logging
 import os
 import queue
 import threading
+import time
 import uuid
 from datetime import datetime
 from typing import Any
@@ -31,7 +33,7 @@ from app import clock
 from app.ai.content_plan import generate_content_plan
 from app.ai.factory import get_provider
 from app.ai.images import generate_image as _generate_image
-from app.ai.sprite_gen import generate_sprite
+from app.ai.sprite_gen import generate_sprite, remove_white_bg
 from app.ai.studio_agent import AgentItem
 from app.ai.studio_critic import run_critic_loop
 from app.ai.studio_graph import run_studio_graph
@@ -50,6 +52,7 @@ def _get_storage(request: Request) -> Storage:
 
 # Mounted under /ai-agent (see routers/ai_agent.py); tag inherited from that group.
 router = APIRouter(prefix="/studio")
+logger = logging.getLogger("app.routers.studio")
 
 _agent_only = require_role(Role.tourism_agent)
 
@@ -74,6 +77,36 @@ def _node_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 MAX_VISUAL_OBSERVES = 3
 _SEVERITY_MAP = {"fail": "P1", "warn": "P2", "info": "P3"}
+
+# ── Live build drafts ────────────────────────────────────────────────────────────────────────────
+# A build runs in a background thread and writes its evolving design here; the browser POLLS the
+# draft and re-renders when `version` changes — instead of holding a long SSE connection that a slow
+# review/critic pass (minutes) would drop through the dev proxy. In-memory + a lock is fine for the
+# single-process PoC (a multi-worker deployment would move this to Redis/DB). Owner-scoped. Drafts
+# are evicted after they finish + age out so the dict can't grow without bound.
+_DRAFTS: dict[str, dict[str, Any]] = {}
+_DRAFTS_LOCK = threading.Lock()
+_DRAFT_TTL_S = 900  # keep a finished draft 15 min so a slow poll still fetches the final design
+
+
+def _draft_evict_old() -> None:
+    now = time.monotonic()
+    for bid, d in list(_DRAFTS.items()):
+        if d.get("finished") and now - d.get("done_at", now) > _DRAFT_TTL_S:
+            _DRAFTS.pop(bid, None)
+
+
+def _draft_update(build_id: str, *, bump: bool = True, **fields: Any) -> None:
+    """Merge fields into a draft (under the lock); `bump` advances the version the browser polls."""
+    with _DRAFTS_LOCK:
+        d = _DRAFTS.get(build_id)
+        if d is None:
+            return
+        d.update(fields)
+        if bump:
+            d["version"] = int(d.get("version", 0)) + 1
+        if d.get("finished"):
+            d["done_at"] = time.monotonic()
 
 
 def _data_url_bytes(url: str) -> bytes:
@@ -105,12 +138,14 @@ def _critique_frames(
         elif isinstance(e, dict) and e.get("kind") == "verify":
             prior_ids += [str(f.get("id")) for f in e.get("findings") or [] if isinstance(f, dict)]
     res = critique_scene(settings, pngs, checklist or None, mode, scene=scene)
+    # Unique id per issue (index + category): two issues sharing a category must not collapse to the
+    # same id. `region` carries the critic's free-text LOCATION so the fix round maps it to a node.
     findings = [
         {
-            "id": f"v-{i['category']}", "severity": _SEVERITY_MAP.get(i["severity"], "P2"),
-            "region": None, "issue": i["note"], "fix": {},
+            "id": f"v{idx}-{i['category']}", "severity": _SEVERITY_MAP.get(i["severity"], "P2"),
+            "region": i.get("location") or None, "issue": i["note"], "fix": {},
         }
-        for i in res.get("issues") or []
+        for idx, i in enumerate(res.get("issues") or [])
     ]
     current = {f["id"] for f in findings}
     verifications = [
@@ -312,7 +347,16 @@ class StudioAgentRequest(BaseModel):
         default_factory=list, max_length=50, description="catalog items the agent may use"
     )
     scene_index: int = Field(default=0, ge=0, description="the scene the agent edits")
-    max_rounds: int = Field(default=10, ge=1, le=16, description="tool-loop budget")
+    max_rounds: int = Field(default=10, ge=1, le=80, description="max model turns in the loop")
+    project_id: str | None = Field(
+        default=None, max_length=128,
+        description="the workspace/project this build belongs to (labels the trace thread)",
+    )
+    run_code: str | None = Field(
+        default=None, max_length=64,
+        description="a per-build-click id minted by the client so a retried/fallen-back request "
+        "stays ONE trace thread (<project>:<run_code>) instead of minting a new one each time",
+    )
 
 
 class StudioAgentResponse(BaseModel):
@@ -349,23 +393,30 @@ def _build_agent_runtime(
     worker_db = sprite_session or db  # off-thread session for generated-asset persistence
     # A SQLAlchemy Session is NOT thread-safe, and in the /agent/stream path `worker_db` is ONE
     # session shared by every worker thread. LangGraph's ToolNode runs a turn's tool calls (incl.
-    # generate_image) CONCURRENTLY, so parallel generate_image calls would hit the same Session at
-    # once — the shared-state-under-concurrency incident `.claude/rules/critical-patterns.md`
-    # documents, reintroduced in the DB layer. Serialise all Session work behind this lock (the slow
-    # image gen + storage put stay OUTSIDE it) so writes can't be lost or the Session corrupted.
+    # generate_image + apply) CONCURRENTLY, so parallel calls would hit the same Session — and the
+    # same `generated_images` dict — at once: the shared-state-under-concurrency incident
+    # `.claude/rules/critical-patterns.md` documents, reintroduced in the DB + dict layers. This
+    # lock serialises BOTH the Session read-modify-write (incl. rollback) AND every read/write of
+    # the shared `generated_images` dict; the slow image gen + storage put stay OUTSIDE it.
     worker_db_lock = threading.Lock()
 
     @traced("studio-ops.apply", "tool")
     def apply_fn(
         design: dict[str, Any], calls: list[dict[str, Any]], scene_index: int
     ) -> dict[str, Any]:
+        # Snapshot `generated_images` UNDER the lock: a concurrent generate_image (ToolNode runs a
+        # turn's tool calls in parallel) may insert a new ref, and json-serialising the live dict in
+        # `_node_post` would then raise "dictionary changed size during iteration". The inner dicts
+        # are never mutated after insertion, so a shallow copy is a safe, stable payload.
+        with worker_db_lock:
+            generated_snapshot = dict(generated_images)
         payload = {
             "design": design,
             "sceneIndex": scene_index,
             "calls": calls,
             "allowedCatalogIds": allowed,
             "imageSrcById": image_src_by_id,
-            "generatedImagesById": generated_images,
+            "generatedImagesById": generated_snapshot,
         }
         try:
             return _node_post("/api/studio-ops/apply", payload)
@@ -413,30 +464,57 @@ def _build_agent_runtime(
         # One still image from the configured model (deterministic stub when no key — Contract 4),
         # persisted as the agent's OWN asset so the placed node re-resolves on reload (its src is a
         # real owned object, never a fabricated catalog src — Contract 1).
-        picture = _generate_image(settings, concept)  # slow network gen — outside the lock
+        # `cutout`: steer the model to a solid-white background, then KEY IT OUT locally (Pillow,
+        # no external service) → a transparent PNG that layers cleanly over other elements. Image
+        # models won't emit clean alpha directly, but they honour a white bg we can remove.
+        cutout = bool(_opts.get("cutout"))
+        gen_prompt = (
+            f"{concept.strip()}. A single subject, centred and fully in view, flat art on a plain "
+            "solid pure-white background (#FFFFFF, no gradient or shadow), no text, no borders."
+        ) if cutout else concept
+        picture = _generate_image(settings, gen_prompt)  # slow network gen — outside the lock
+        data, content_type = picture.data, picture.content_type
+        if cutout:
+            try:
+                with Image.open(io.BytesIO(data)) as im:
+                    buf = io.BytesIO()
+                    remove_white_bg(im).save(buf, format="PNG")
+                    data, content_type = buf.getvalue(), "image/png"
+            except Exception:  # noqa: BLE001 - if keying fails, fall back to the opaque image
+                logger.info("cutout: white-bg removal failed; using the opaque image")
         key = f"users/{agent.id}/{uuid.uuid4().hex}"
-        storage.put_object(key, picture.data, picture.content_type)  # slow I/O — outside the lock
+        storage.put_object(key, data, content_type)  # slow I/O — outside the lock
         asset = UserAsset(
             owner_id=agent.id, source=UserAssetSource.agent, kind=ItemKind.image,
             title=concept.strip()[:120] or "Generated image",
-            object_key=key, content_type=picture.content_type,
+            object_key=key, content_type=content_type,
         )
         # Only the Session read-modify-write is serialised; `asset.id` is read under the lock too so
-        # no post-commit lazy load races another thread's Session use.
+        # no post-commit lazy load races another thread's Session use. On a commit failure, roll the
+        # shared Session back INSIDE the lock: without it one failure leaves the session in
+        # pending-rollback state and poisons every later concurrent generate_image this turn
+        # (PendingRollbackError cascade), since in /agent/stream `worker_db` is one shared session.
         with worker_db_lock:
-            worker_db.add(asset)
-            worker_db.commit()
-            worker_db.refresh(asset)
-            asset_id = asset.id
+            try:
+                worker_db.add(asset)
+                worker_db.commit()
+                worker_db.refresh(asset)
+                asset_id = asset.id
+            except Exception:
+                worker_db.rollback()
+                raise
         try:
-            with Image.open(io.BytesIO(picture.data)) as im:
+            with Image.open(io.BytesIO(data)) as im:
                 width, height = im.size
         except Exception:  # noqa: BLE001 - dims are a hint; the op defaults if absent
             width = height = None
         ref = f"gen:{asset_id}"
-        src = "data:" + picture.content_type + ";base64," + base64.b64encode(picture.data).decode()
+        src = "data:" + content_type + ";base64," + base64.b64encode(data).decode()
         size = {"width": width, "height": height} if width and height else {}
-        generated_images[ref] = {"src": src, "objectKey": key, **size}
+        # Guard the shared `generated_images` write with the SAME lock so apply_fn's snapshot above
+        # can never observe a half-written dict mid-insert (see apply_fn's comment).
+        with worker_db_lock:
+            generated_images[ref] = {"src": src, "objectKey": key, **size}
         return {"ref": ref, "object_key": key, **size}
 
     try:
@@ -455,6 +533,16 @@ def _run_build(
     settings: Settings, runtime: dict[str, Any], body: StudioAgentRequest, **extra: Any
 ) -> Any:
     """Build with a live observe_visual, then the bounded independent critic loop (AC103)."""
+    # One build == one trace thread, named <project>:<run-code>: the project/workspace id (so you
+    # see which board a run worked on) + a short unique code per run. Every turn, tool, review and
+    # fix of this build shares it, so the whole build reads as one ordered thread in LangSmith.
+    # Prefer the client-minted run_code so a build's stream + any buffered fallback/retry stay ONE
+    # thread; only mint server-side when the client didn't send one.
+    run_code = (body.run_code or "").strip()[:64] or uuid.uuid4().hex[:8]
+    thread_id = f"{(body.project_id or 'studio').strip()[:64]}:{run_code}"
+    if extra.get("on_step"):
+        extra["on_step"]({"action": "run", "note": f"Build {thread_id}"})
+
     # run_critic_loop consumes render_fn/critique_fn itself, so bind them into the build too —
     # that is what makes the Builder's observe_visual tool live.
     def build(**kw: Any) -> Any:
@@ -484,6 +572,7 @@ def _run_build(
         # max_rounds here is the BUILD loop's budget; the critic's own round cap stays its default.
         build_fn=build,
         scene_index=body.scene_index,
+        thread_id=thread_id,
         **extra,
     )
     return out.result
@@ -567,3 +656,95 @@ def studio_agent_stream(
             sprite_session.close()
 
     return StreamingResponse(sse(), media_type="text/event-stream")
+
+
+@router.post("/agent/start")
+def studio_agent_start(
+    request: Request,
+    body: StudioAgentRequest,
+    agent: User = Depends(_agent_only),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    storage: Storage = Depends(_get_storage),
+    now: datetime = Depends(clock.now),
+) -> dict[str, Any]:
+    """Start a build in the background and return its `build_id`. The build writes its evolving
+    design into a server-side DRAFT; the browser polls `GET /agent/draft/{build_id}` and re-renders
+    on each version bump — no long-lived SSE connection a slow review/critic pass could drop (so one
+    build is always one trace thread). The loop runs off-thread, so it gets its own DB session."""
+    worker_session = request.app.state.sessionmaker()
+    runtime = _build_agent_runtime(
+        agent, db, settings, storage, body.item_ids, now, sprite_session=worker_session
+    )
+    run_code = (body.run_code or "").strip()[:64] or uuid.uuid4().hex[:8]
+    build_id = f"{(body.project_id or 'studio').strip()[:64]}:{run_code}"
+    with _DRAFTS_LOCK:
+        _draft_evict_old()
+        _DRAFTS[build_id] = {
+            "owner": agent.id, "design": body.design, "version": 0, "status": "running",
+            "applied": 0, "finished": False, "note": "Starting…", "cancel": False,
+            "provider": "", "updated": time.monotonic(),
+        }
+
+    def on_step(step: dict[str, Any]) -> None:
+        fields: dict[str, Any] = {}
+        if step.get("design") is not None:
+            fields["design"] = step["design"]
+        if step.get("note"):
+            fields["note"] = step["note"]
+        _draft_update(build_id, bump=bool(fields), **fields)
+
+    def cancel_check() -> bool:
+        with _DRAFTS_LOCK:
+            d = _DRAFTS.get(build_id)
+            return bool(d and d.get("cancel"))
+
+    def run() -> None:
+        try:
+            result = _run_build(settings, runtime, body, on_step=on_step, cancel_check=cancel_check)
+            cancelled = cancel_check()
+            _draft_update(
+                build_id, design=result.design, applied=result.applied, finished=True,
+                provider=result.provider,
+                status="cancelled" if cancelled else "done",
+                note="Build cancelled" if cancelled else "Build complete",
+            )
+        except Exception as exc:  # noqa: BLE001 — surfaced to the client via the draft status
+            logger.info("studio build %s failed: %s", build_id, type(exc).__name__)
+            _draft_update(build_id, finished=True, status="error", note="Build failed")
+        finally:
+            worker_session.close()
+
+    threading.Thread(target=run, daemon=True).start()
+    return {"build_id": build_id}
+
+
+@router.get("/agent/draft/{build_id:path}")
+def studio_agent_draft(
+    build_id: str, agent: User = Depends(_agent_only)
+) -> dict[str, Any]:
+    """The current draft for a running/finished build — the browser polls this and re-renders when
+    `version` changes. Owner-scoped (404 for anyone else's build, or an unknown/evicted id)."""
+    with _DRAFTS_LOCK:
+        d = _DRAFTS.get(build_id)
+        if d is None or d.get("owner") != agent.id:
+            raise HTTPException(status_code=404, detail="build not found")
+        return {
+            "build_id": build_id, "design": d["design"], "version": d["version"],
+            "status": d["status"], "finished": d["finished"], "applied": d["applied"],
+            "note": d.get("note"), "provider": d.get("provider", ""),
+        }
+
+
+@router.post("/agent/cancel/{build_id:path}")
+def studio_agent_cancel(
+    build_id: str, agent: User = Depends(_agent_only)
+) -> dict[str, Any]:
+    """Ask a running build to stop (the loop checks between turns/rounds and leaves what it built).
+    Idempotent; owner-scoped."""
+    with _DRAFTS_LOCK:
+        d = _DRAFTS.get(build_id)
+        if d is None or d.get("owner") != agent.id:
+            raise HTTPException(status_code=404, detail="build not found")
+        d["cancel"] = True
+    return {"ok": True}

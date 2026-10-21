@@ -10,8 +10,10 @@
 // }
 // → { pngs: dataURL[], width, height, broken_images: nodeId[] }
 // Broken images are a reported FACT (broken_images), not a render error. Failures are typed:
-// { error: "timeout" | "browser_crash" | "bad_workspace" | "budget_exhausted" | "src_not_allowed" }.
-// The Contract-1 src allowlist is enforced BEFORE Chromium is launched.
+// { error: "timeout" | "browser_crash" | "bad_workspace" | "budget_exhausted" | "src_not_allowed"
+//          | "misconfigured" }.
+// The Contract-1 src allowlist is enforced BEFORE Chromium is launched. The Contract-2 egress trust
+// anchor is the FIXED server-config RENDER_ORIGIN (never the request Host) — fail closed when unset.
 import { migrateDesign, type DesignDoc } from "../../../../lib/studio/ops";
 import { sampleTimesForScene } from "../../../../lib/studio/frames";
 import {
@@ -24,10 +26,13 @@ import {
 
 export const runtime = "nodejs";
 
-const STATUS: Record<RenderErrorCode | "src_not_allowed", number> = {
+type FailCode = RenderErrorCode | "src_not_allowed" | "misconfigured";
+
+const STATUS: Record<FailCode, number> = {
   bad_workspace: 400,
   src_not_allowed: 403,
   budget_exhausted: 429,
+  misconfigured: 500,
   browser_crash: 502,
   timeout: 504,
 };
@@ -36,8 +41,23 @@ function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
 }
 
-function fail(code: RenderErrorCode | "src_not_allowed", message?: string): Response {
+function fail(code: FailCode, message?: string): Response {
   return json({ error: code, ...(message ? { message } : {}) }, STATUS[code]);
+}
+
+/** The render trust anchor: a FIXED server-config origin (Contract 2). It is the app origin Chromium
+ * loads the render page from AND the base of the egress allowlist, so it must NEVER be derived from
+ * the incoming request — a caller who controls the Host header (e.g. `Host: 169.254.169.254`) could
+ * otherwise seed the allowlist with an internal/cloud-metadata origin and turn the headless browser
+ * into an SSRF relay. Read from `RENDER_ORIGIN` only; returns null (fail closed) when unset/invalid. */
+function resolveRenderOrigin(): string | null {
+  const raw = process.env.RENDER_ORIGIN?.trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
 }
 
 /** Contract 1 gate. Returns an offending node id, or null when every image src is permitted.
@@ -93,7 +113,9 @@ export async function POST(req: Request): Promise<Response> {
     return fail("bad_workspace", "times must be an array of non-negative numbers");
   }
 
-  const origin = process.env.RENDER_ORIGIN || new URL(req.url).origin;
+  // Contract 2: fail closed if the render origin is not configured — never fall back to req.url.
+  const origin = resolveRenderOrigin();
+  if (!origin) return fail("misconfigured", "RENDER_ORIGIN is not configured");
   const allowedIds = Array.isArray(body.allowedCatalogIds)
     ? new Set((body.allowedCatalogIds as unknown[]).map(String))
     : undefined;
